@@ -359,7 +359,17 @@ impl eframe::App for App {
             self.start_render(&ctx, size);
         }
 
-        let painter = ctx.layer_painter(egui::LayerId::background());
+        let painter = ctx.layer_painter(egui::LayerId::background()).with_clip_rect(screen);
+        if std::env::var_os("FRACTIQUE_DEBUG_LAYOUT").is_some() && self.shown_frames == 1 {
+            let insets = ctx.input(|input| input.safe_area_insets());
+            eprintln!(
+                "layout: viewport {:?} content {:?} egui-content {:?} scale {scale} insets {insets:?} pixels {size:?}",
+                screen,
+                content,
+                ctx.content_rect()
+            );
+            self.shown_frames = 2;
+        }
         let mut glass = glass::Frame::new(&painter, screen);
         for (rect, radius) in &self.panes {
             glass.pane(

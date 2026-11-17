@@ -30,7 +30,7 @@ jobs:
           xcrun simctl bootstatus "$device" -b
           xcrun simctl install "$device" "$app"
           mkdir -p out
-          SIMCTL_CHILD_RUST_BACKTRACE=1 xcrun simctl launch --console-pty "$device" app.fractique > out/console.txt 2>&1 &
+          SIMCTL_CHILD_RUST_BACKTRACE=1 SIMCTL_CHILD_FRACTIQUE_DEBUG_LAYOUT=1 xcrun simctl launch --console-pty "$device" app.fractique > out/console.txt 2>&1 &
           sleep 40
           xcrun simctl io "$device" screenshot out/start.png
           sleep 15
