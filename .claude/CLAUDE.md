@@ -31,6 +31,10 @@ and the commands. The short mark `frcq.` was tried and is on hold: do not use it
   go in `docs/`.
 - **The scene format is a contract:** `docs/scene-format.md` changes together with `scene.rs` and `variation.rs`.
   A scene file that loaded before must keep loading and rendering the same; otherwise bump `SCENE_VERSION`.
+- **Texts of the app:** never a literal in the code. Every text is a key in `crates/fractique-app/locales/en.json`
+  and in each of the other 14 locale files; a test fails when one lacks a key. After adding texts in Japanese,
+  Chinese, Korean or Hindi, run `tools/i18n/make_fonts.py`: the fonts for those hold only the characters in use.
+- **README:** `README.md` has 14 translations in `docs/readme/`. A change to one goes into all of them.
 - **Layers:** `fractique-core` knows nothing about files, terminals, networks or UI. Everything else wraps it.
 - **Event-driven:** no polling loops in the app, server or MCP crates; background work posts events.
 - Commit and pull request titles: Conventional Commits, see "Commit messages" in CONTRIBUTING.md.
@@ -62,5 +66,7 @@ is stable, not that it is good.
 | `crates/fractique-core/presets/` | Built-in scenes, compiled into the binary |
 | `crates/fractique-core/src/import.rs` | The `.flame` import |
 | `crates/fractique-cli/src/main.rs` | The `fractique` command |
+| `crates/fractique-app/` | The app (desktop, Android, iOS, web): `lib.rs` UI, `glass.wgsl` shader, `i18n.rs` + `locales/` texts |
+| `vendor/` | `eframe` and `egui-wgpu` with the iOS surface fix |
 | `crates/fractique-cli/src/mcp.rs` | The MCP server (`fractique mcp`); its tools are listed in `docs/mcp.md` |
 | `docs/roadmap.md` | What is done and what comes next |

@@ -13,4 +13,6 @@ First version: the renderer and the command line tool.
 * **Command line tool:** `render`, `presets`, `preset`, `randomize`, `mutate`, `fit`, `import`, `variations`, `mcp`.
 * **Import:** `.flame` files of flam3 and Apophysis convert to scenes.
 * **MCP server:** `fractique mcp` lets an AI agent list presets, make and change scenes and render them.
+* **App:** a window with the flame and glass panels over it, for Windows, Linux, Android, iOS and the web, in 15
+  languages.
 * **Setup:** `setup.sh` (Linux, macOS) and `setup.cmd` (Windows).

@@ -1,5 +1,6 @@
 mod blur;
 mod glass;
+mod i18n;
 mod widgets;
 
 use std::path::PathBuf;
@@ -16,6 +17,7 @@ use fractique_core::random::{mutate, random_scene};
 use fractique_core::{Control, Image, RenderOptions, Scene, presets, render};
 
 use glass::{Gfx, Optics};
+use i18n::{Lang, Texts};
 use widgets::{MEDIUM, SEMIBOLD, font};
 
 const DRAFT_SIDE: f32 = 480.0;
@@ -59,8 +61,10 @@ const NEUTRAL: Adjust = Adjust {
 };
 
 struct App {
+    texts: Texts,
     base: Scene,
     title: String,
+    is_random: bool,
     seed: u64,
     adjust: Adjust,
     optics: Optics,
@@ -104,7 +108,8 @@ fn fitted(size: [u32; 2], side: f32, samples: u32) -> RenderOptions {
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>, screenshot: Option<PathBuf>) -> Self {
-        widgets::install_fonts(&cc.egui_ctx);
+        let texts = Texts::new(Lang::system());
+        widgets::install_fonts(&cc.egui_ctx, texts.lang);
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         if let Some(state) = &cc.wgpu_render_state {
             note(&format!("graphics: {:?}", state.adapter.get_info()));
@@ -113,8 +118,10 @@ impl App {
         }
         let title = "aurora-spiral".to_owned();
         Self {
+            texts,
             base: presets::get(&title).unwrap_or_else(|| random_scene(1)),
             title,
+            is_random: false,
             seed: 0,
             adjust: NEUTRAL,
             optics: Optics {
@@ -228,10 +235,15 @@ impl App {
         }
     }
 
-    fn pick(&mut self, scene: Scene, title: String) {
+    fn pick(&mut self, scene: Scene, title: String, is_random: bool) {
         self.base = scene;
         self.title = title;
+        self.is_random = is_random;
         self.requested = None;
+    }
+
+    fn t(&self, key: &str) -> String {
+        self.texts.get(key)
     }
 
     fn inspector(&mut self, ui: &mut egui::Ui, width: f32) {
@@ -243,61 +255,77 @@ impl App {
                 .color(egui::Color32::WHITE),
         );
         ui.label(
-            egui::RichText::new("fractal wallpapers")
+            egui::RichText::new(self.t("tagline"))
                 .size(12.5)
                 .color(egui::Color32::from_white_alpha(140)),
         );
 
-        widgets::section(ui, "PRESETS");
-        if self.title.starts_with("random") {
+        widgets::section(ui, &self.t("presets"));
+        if self.is_random {
             widgets::row(ui, &self.title.clone(), true);
         }
         for name in presets::names() {
             if widgets::row(ui, name, self.title == name)
                 && let Some(scene) = presets::get(name)
             {
-                self.pick(scene, name.to_owned());
+                self.pick(scene, name.to_owned(), false);
             }
         }
 
-        widgets::section(ui, "TONE");
+        widgets::section(ui, &self.t("tone"));
         let before = self.adjust;
-        widgets::slider(ui, "Brightness", &mut self.adjust.brightness, (0.3, 2.5), true);
-        widgets::slider(ui, "Gamma", &mut self.adjust.gamma, (0.5, 1.8), false);
-        widgets::slider(ui, "Glow", &mut self.adjust.glow, (0.0, 3.0), false);
-        widgets::section(ui, "VIEW");
-        widgets::slider(ui, "Zoom", &mut self.adjust.zoom, (0.4, 2.5), true);
+        widgets::slider(ui, &self.t("brightness"), &mut self.adjust.brightness, (0.3, 2.5), true);
+        widgets::slider(ui, &self.t("gamma"), &mut self.adjust.gamma, (0.5, 1.8), false);
+        widgets::slider(ui, &self.t("glow"), &mut self.adjust.glow, (0.0, 3.0), false);
+        widgets::section(ui, &self.t("view"));
+        widgets::slider(ui, &self.t("zoom"), &mut self.adjust.zoom, (0.4, 2.5), true);
 
-        widgets::section(ui, "GLASS");
+        widgets::section(ui, &self.t("glass"));
         let mut opacity = f64::from(self.optics.tint);
-        widgets::slider(ui, "Opacity", &mut opacity, (0.0, 1.0), false);
+        widgets::slider(ui, &self.t("opacity"), &mut opacity, (0.0, 1.0), false);
         self.optics.tint = opacity as f32;
         let mut blur = f64::from(self.optics.blur);
-        widgets::slider(ui, "Blur", &mut blur, (0.0, 1.0), false);
+        widgets::slider(ui, &self.t("blur"), &mut blur, (0.0, 1.0), false);
         self.optics.blur = blur as f32;
         if self.adjust != before {
             self.requested = None;
+        }
+
+        widgets::section(ui, &self.t("language"));
+        let mut chosen = self.texts.lang;
+        egui::ComboBox::from_id_salt("language")
+            .width(ui.available_width())
+            .selected_text(chosen.name())
+            .show_ui(ui, |ui| {
+                for lang in Lang::ALL {
+                    ui.selectable_value(&mut chosen, lang, lang.name());
+                }
+            });
+        if chosen != self.texts.lang {
+            self.texts = Texts::new(chosen);
+            widgets::install_fonts(ui.ctx(), chosen);
         }
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui, wide: bool) {
         ui.spacing_mut().item_spacing.x = if wide { 8.0 } else { 5.0 };
         ui.spacing_mut().button_padding.x = if wide { 18.0 } else { 12.0 };
+        let labels = ["randomize", "mutate", "controls", "reset", "random"].map(|key| self.t(key));
         ui.horizontal(|ui| {
-            if widgets::pill(ui, "Randomize", true) {
+            if widgets::pill(ui, &labels[0], true) {
                 self.seed += 1;
-                self.pick(random_scene(self.seed), format!("random {}", self.seed));
+                self.pick(random_scene(self.seed), format!("{} {}", labels[4], self.seed), true);
             }
-            if widgets::pill(ui, "Mutate", false) {
+            if widgets::pill(ui, &labels[1], false) {
                 self.seed += 1;
                 let scene = mutate(&self.base, self.seed, 0.25);
-                let title = self.title.clone();
-                self.pick(scene, title);
+                let (title, is_random) = (self.title.clone(), self.is_random);
+                self.pick(scene, title, is_random);
             }
-            if widgets::pill(ui, "Controls", false) {
+            if widgets::pill(ui, &labels[2], false) {
                 self.inspector_open = Some(!self.inspector_open.unwrap_or(false));
             }
-            if widgets::pill(ui, "Reset", false) {
+            if widgets::pill(ui, &labels[3], false) {
                 self.adjust = NEUTRAL;
                 self.requested = None;
             }
@@ -307,16 +335,17 @@ impl App {
     fn tuning(&mut self, ui: &mut egui::Ui) {
         ui.set_width(220.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-        ui.label(egui::RichText::new("Glass").font(font(15.0, SEMIBOLD)));
+        ui.label(egui::RichText::new(self.t("glass_title")).font(font(15.0, SEMIBOLD)));
+        let labels = ["refraction", "depth", "bezel"].map(|key| self.t(key));
         let optics = &mut self.optics;
         let edit = |ui: &mut egui::Ui, label: &str, value: &mut f32, range: (f64, f64)| {
             let mut wide = f64::from(*value);
             widgets::slider(ui, label, &mut wide, range, false);
             *value = wide as f32;
         };
-        edit(ui, "Refraction", &mut optics.refraction, (-80.0, 80.0));
-        edit(ui, "Depth", &mut optics.rim, (0.0, 2.0));
-        edit(ui, "Bezel", &mut optics.bezel, (4.0, 48.0));
+        edit(ui, &labels[0], &mut optics.refraction, (-80.0, 80.0));
+        edit(ui, &labels[1], &mut optics.rim, (0.0, 2.0));
+        edit(ui, &labels[2], &mut optics.bezel, (4.0, 48.0));
     }
 
     fn take_screenshot(&mut self, ctx: &egui::Context) {
@@ -450,7 +479,7 @@ impl eframe::App for App {
                                     .color(egui::Color32::WHITE);
                                 ui.add(egui::Label::new(name).extend());
                                 let detail = if self.rendering {
-                                    "rendering".to_owned()
+                                    self.t("rendering")
                                 } else {
                                     self.status.clone()
                                 };

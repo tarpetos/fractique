@@ -1,36 +1,54 @@
+use std::sync::Arc;
+
 use fractique_core::math;
+
+use crate::i18n::Lang;
 
 use eframe::egui::{self, Align2, Color32, CornerRadius, FontFamily, FontId, Sense, Ui, vec2};
 
 pub const MEDIUM: &str = "medium";
 pub const SEMIBOLD: &str = "semibold";
 
-pub fn install_fonts(ctx: &egui::Context) {
-    use egui::epaint::text::{FontInsert, FontPriority, InsertFontFamily};
-    let fonts: [(&str, &'static [u8], FontFamily); 3] = [
-        (
-            "inter",
-            include_bytes!("../assets/fonts/Inter-Regular.ttf"),
-            FontFamily::Proportional,
-        ),
-        (
-            MEDIUM,
-            include_bytes!("../assets/fonts/Inter-Medium.ttf"),
-            FontFamily::Name(MEDIUM.into()),
-        ),
-        (
-            SEMIBOLD,
-            include_bytes!("../assets/fonts/Inter-SemiBold.ttf"),
-            FontFamily::Name(SEMIBOLD.into()),
-        ),
-    ];
-    for (name, bytes, family) in fonts {
-        let families = vec![InsertFontFamily {
-            family,
-            priority: FontPriority::Highest,
-        }];
-        ctx.add_font(FontInsert::new(name, egui::FontData::from_static(bytes), families));
+pub fn install_fonts(ctx: &egui::Context, lang: Lang) {
+    let mut fonts = egui::FontDefinitions::default();
+    let mut add = |name: &str, bytes: &'static [u8]| {
+        fonts
+            .font_data
+            .insert(name.to_owned(), Arc::new(egui::FontData::from_static(bytes)));
+    };
+    add("inter", include_bytes!("../assets/fonts/Inter-Regular.ttf"));
+    add(MEDIUM, include_bytes!("../assets/fonts/Inter-Medium.ttf"));
+    add(SEMIBOLD, include_bytes!("../assets/fonts/Inter-SemiBold.ttf"));
+    add("japanese", include_bytes!("../assets/fonts/NotoSansJP-subset.ttf"));
+    add("chinese", include_bytes!("../assets/fonts/NotoSansSC-subset.ttf"));
+    add("korean", include_bytes!("../assets/fonts/NotoSansKR-subset.ttf"));
+    add(
+        "devanagari",
+        include_bytes!("../assets/fonts/NotoSansDevanagari-subset.ttf"),
+    );
+
+    // Japanese, Chinese and Korean share characters that each draws its own way: the language's font goes first.
+    let fallbacks: [&str; 4] = match lang {
+        Lang::ZhHans => ["chinese", "japanese", "korean", "devanagari"],
+        Lang::Ko => ["korean", "japanese", "chinese", "devanagari"],
+        _ => ["japanese", "chinese", "korean", "devanagari"],
+    };
+    let rest = fonts
+        .families
+        .get(&FontFamily::Proportional)
+        .cloned()
+        .unwrap_or_default();
+    for (family, first) in [
+        (FontFamily::Proportional, "inter"),
+        (FontFamily::Name(MEDIUM.into()), MEDIUM),
+        (FontFamily::Name(SEMIBOLD.into()), SEMIBOLD),
+    ] {
+        let mut names = vec![first.to_owned()];
+        names.extend(fallbacks.iter().map(|name| (*name).to_owned()));
+        names.extend(rest.iter().cloned());
+        fonts.families.insert(family, names);
     }
+    ctx.set_fonts(fonts);
 }
 
 pub fn font(size: f32, family: &str) -> FontId {
