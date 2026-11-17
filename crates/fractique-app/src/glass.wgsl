@@ -5,7 +5,7 @@ struct Uniforms {
     screen: vec4<f32>, // width, height (pixels), unused, unused
     rect: vec4<f32>,   // panel: left, top, right, bottom (pixels)
     shape: vec4<f32>,  // corner radius, bezel width, shadow reach (pixels), shadow strength
-    optics: vec4<f32>, // refraction (pixels), blur (0..1), tint (0..1), rim light (0..1)
+    optics: vec4<f32>, // refraction (pixels), blur (0..1), opacity (0..1), edge line (0..1)
 };
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
@@ -62,18 +62,14 @@ fn fs_glass(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let blue = look(p + shift * 0.88).b;
     var color = vec3<f32>(red, green, blue);
 
-    // Glass body: clear glass brightens what is behind it; tint smokes it so text on it stays readable.
-    color = color * mix(1.2, 0.5, u.optics.z) + vec3<f32>(mix(0.015, 0.1, u.optics.z));
-    // A faint sheen, strongest at the top of the pane.
-    let down = clamp((p.y - u.rect.y) / max(u.rect.w - u.rect.y, 1.0), 0.0, 1.0);
-    color = color + vec3<f32>(0.045 * (1.0 - down) * (1.0 - down) * u.optics.w);
+    // Glass body: opacity 0 is clear glass, 1 is dark smoked glass that hides most of the flame.
+    let smoke = vec3<f32>(0.035, 0.04, 0.06);
+    color = mix(color * 1.08, smoke, u.optics.z * 0.85);
 
-    // Light comes from the top left: it catches the rim there and, fainter, on the opposite side.
-    let light = normalize(vec2<f32>(-0.6, -0.8));
-    let facing = dot(outward, light);
-    let glint = pow(rim, 5.0) * (0.75 * pow(max(facing, 0.0), 1.5) + 0.3 * pow(max(-facing, 0.0), 2.0) + 0.08);
-    let edge_line = smoothstep(-2.2, -0.6, distance) * 0.22;
-    color = color + vec3<f32>((glint + edge_line) * u.optics.w);
+    // A hairline along the edge, a little stronger where the light from the top left meets it.
+    let facing = dot(outward, normalize(vec2<f32>(-0.6, -0.8)));
+    let hairline = smoothstep(-1.7, -0.5, distance) * (0.07 + 0.11 * max(facing, 0.0));
+    color = color + vec3<f32>(hairline * u.optics.w);
 
     let inside = clamp(0.5 - distance, 0.0, 1.0);
     let reach = max(u.shape.z, 1.0);

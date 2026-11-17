@@ -842,6 +842,8 @@ dependencies = [
  "eframe",
  "fractique-core",
  "png",
+ "rayon",
+ "winit",
 ]
 
 [[package]]

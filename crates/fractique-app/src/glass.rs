@@ -255,7 +255,7 @@ impl egui_wgpu::CallbackTrait for Draw {
                 rect.max.x * scale,
                 rect.max.y * scale,
             ];
-            uniforms.shape = [optics.radius * scale, optics.bezel * scale, SHADOW_REACH * scale, 0.45];
+            uniforms.shape = [optics.radius * scale, optics.bezel * scale, SHADOW_REACH * scale, 0.3];
             uniforms.optics = [optics.refraction * scale, optics.blur, optics.tint, optics.rim];
         }
         queue.write_buffer(&gfx.slots[self.slot].buffer, 0, bytemuck::bytes_of(&uniforms));
