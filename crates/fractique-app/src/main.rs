@@ -16,11 +16,11 @@ fn main() -> eframe::Result {
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Fractique")
         .with_inner_size([1280.0, 800.0])
-        .with_icon(fractique_app::window_icon());
+        .with_icon(fractique_ui::window_icon());
     if screenshot.is_some() {
         viewport = viewport.with_visible(false).with_taskbar(false).with_active(false);
     }
-    fractique_app::run(
+    fractique_ui::run(
         eframe::NativeOptions {
             viewport,
             ..Default::default()

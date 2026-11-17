@@ -9,6 +9,7 @@ repository.workspace = true
 publish.workspace = true
 
 [lib]
+name = "fractique_ui"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
