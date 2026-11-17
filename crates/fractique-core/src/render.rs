@@ -216,6 +216,7 @@ pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> 
         let angle = flame.camera.rotation.to_radians();
         let (rot_cos, rot_sin) = (cos(angle), sin(angle));
         let [center_x, center_y] = flame.camera.center;
+        let up = if flame.camera.flip_y { -per_unit } else { per_unit };
 
         for_each_stream(|stream| {
             let mut rng = Rng::derive(scene.seed, STREAM_DOMAIN + index as u64, stream);
@@ -226,7 +227,7 @@ pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> 
                 walker.run(&compiled, &mut rng, count, |x, y, color| {
                     let (dx, dy) = (x - center_x, y - center_y);
                     let px = wide * 0.5 + (dx * rot_cos + dy * rot_sin) * per_unit;
-                    let py = high * 0.5 - (dy * rot_cos - dx * rot_sin) * per_unit;
+                    let py = high * 0.5 - (dy * rot_cos - dx * rot_sin) * up;
                     if px >= 0.0 && px < wide && py >= 0.0 && py < high {
                         let shade = ((color * 255.0 + 0.5) as usize).min(255);
                         histogram.add(py as usize * histogram.width + px as usize, lut[shade]);

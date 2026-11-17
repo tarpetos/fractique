@@ -12,7 +12,8 @@ of a scene file see [scene-format.md](scene-format.md); for render times see [pe
 5. [Edit a scene](#5-edit-a-scene)
 6. [Layers](#6-layers)
 7. [Variants of a scene](#7-variants-of-a-scene)
-8. [Troubleshooting](#8-troubleshooting)
+8. [Flames from other programs](#8-flames-from-other-programs)
+9. [Troubleshooting](#9-troubleshooting)
 
 ---
 
@@ -134,7 +135,23 @@ The number picks the variant; the same number always gives the same one. `--stre
 (barely related); the default is 0.3. The camera is kept, so a strong mutation can move the flame partly out of
 view: lower `camera.zoom` then.
 
-## 8. Troubleshooting
+## 8. Flames from other programs
+
+`.flame` files, the format of flam3, Apophysis and the programs built on them, convert to scenes:
+
+```sh
+fractique import pack.flame -o scene.json            # the first flame of the file
+fractique import pack.flame --index 3 -o scene.json  # the fourth
+fractique render scene.json -o imported.png
+```
+
+The transforms, their colors, the palette, the camera, the symmetry and the tone settings are read. What the file
+uses and Fractique does not have is listed while it converts: variations outside the
+[28 built in](scene-format.md#variation), xaos, and flam3's numbered palettes (a file that names one by number gets
+the `aurora` palette). An imported flame shows the same structure as in its own program; brightness and color are
+close, not identical, because the tone mapping differs.
+
+## 9. Troubleshooting
 
 | What you see | What to do |
 | --- | --- |

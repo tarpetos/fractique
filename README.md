@@ -21,7 +21,9 @@ pixels, on Windows, macOS, Linux, Android and iOS alike.
 - **Mutation:** a variant of a scene you like, with a strength from 0 to 1.
 - **Exact repeatability:** the same scene gives the same pixels on every machine, checked by tests on Linux,
   Windows and macOS ([docs/determinism.md](docs/determinism.md)).
+- **Import:** `.flame` files of flam3 and Apophysis convert to scenes.
 - **The command line tool** (`fractique`): renders scenes to PNG.
+- **MCP server** (`fractique mcp`): an AI agent makes, changes and renders scenes ([docs/mcp.md](docs/mcp.md)).
 
 | | |
 | --- | --- |
@@ -59,6 +61,7 @@ On Windows the tool is `target\release\fractique.exe`. All commands and options:
 | --- | --- |
 | [docs/usage.md](docs/usage.md) | The commands, the quality levels, how to edit a scene |
 | [docs/scene-format.md](docs/scene-format.md) | Every field of a scene file, every variation |
+| [docs/mcp.md](docs/mcp.md) | The MCP server: connecting an AI agent, the tools |
 | [docs/architecture.md](docs/architecture.md) | How the parts fit together, how a render works |
 | [docs/determinism.md](docs/determinism.md) | Why a render repeats exactly, and what is and is not promised |
 | [docs/performance.md](docs/performance.md) | Measured render times and memory |

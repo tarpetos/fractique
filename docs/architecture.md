@@ -14,21 +14,23 @@ flowchart LR
         VAL["Scene<br/>format, validation"]
         RND["Randomizer<br/>random scenes, mutation"]
         PRE["Presets<br/>compiled in"]
+        IMP["Import<br/>.flame files"]
         REN["Renderer<br/>chaos game, histogram"]
         TON["Tone<br/>density estimation, log, gamma, glow"]
         VAL --> REN --> TON
         RND --> VAL
         PRE --> VAL
+        IMP --> VAL
     end
 
     CLI["fractique-cli<br/>the fractique command"]
-    MCP["fractique-mcp<br/>MCP server (planned)"]
+    MCP["fractique mcp<br/>MCP server over stdio"]
     SRV["fractique-server<br/>HTTP API, web UI, Docker (planned)"]
     APP["fractique-app<br/>Windows, macOS, Linux, Android, iOS (planned)"]
 
     SCENE --> VAL
     TON -- "RGBA pixels" --> CLI
-    TON -.-> MCP
+    TON -- "PNG, inline" --> MCP
     TON -.-> SRV
     TON -.-> APP
     CLI -- "PNG" --> OUT[("image file")]
@@ -37,8 +39,7 @@ flowchart LR
 | Crate | State | What it is |
 | --- | --- | --- |
 | `fractique-core` | works | The renderer, the scene format, presets, the randomizer |
-| `fractique-cli` | works | The `fractique` command: renders scenes to PNG |
-| `fractique-mcp` | planned | MCP server over stdio and HTTP: an AI agent edits a scene, renders a preview, looks, adjusts |
+| `fractique-cli` | works | The `fractique` command: renders scenes to PNG, converts `.flame` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts |
 | `fractique-server` | planned | HTTP API with a job queue, the web UI, the Docker image |
 | `fractique-app` | planned | The app for desktop and phones |
 

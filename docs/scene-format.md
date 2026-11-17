@@ -185,6 +185,7 @@ The `azure-rings` preset:
 | `center` | `[x, y]` | `[0, 0]` | The world point at the middle of the image. |
 | `zoom` | above 0 | 1 | At 1 the shorter side of the image shows 4 world units, at any resolution. |
 | `rotation` | degrees | 0 | Counter-clockwise. |
+| `flip_y` | `true`, `false` | `false` | Draws the world's y axis downwards, as flam3 and Apophysis do. Set by the `.flame` import. |
 
 ### Tone
 

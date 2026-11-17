@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "fractique": {
+      "command": "./target/release/fractique",
+      "args": ["mcp"]
+    }
+  }
+}

@@ -10,5 +10,7 @@ First version: the renderer and the command line tool.
 * **Presets:** `aurora-spiral`, `emerald-star`, `emerald-burst`, `emerald-mandala`, `ember-vortex`, `azure-rings`, `golden-bloom`,
   `solar-mandala`, `jade-orb`.
 * **Randomizer and mutation:** a scene for every seed, and variants of a scene.
-* **Command line tool:** `render`, `presets`, `preset`, `randomize`, `mutate`, `fit`, `variations`.
+* **Command line tool:** `render`, `presets`, `preset`, `randomize`, `mutate`, `fit`, `import`, `variations`, `mcp`.
+* **Import:** `.flame` files of flam3 and Apophysis convert to scenes.
+* **MCP server:** `fractique mcp` lets an AI agent list presets, make and change scenes and render them.
 * **Setup:** `setup.sh` (Linux, macOS) and `setup.cmd` (Windows).

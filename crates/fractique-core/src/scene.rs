@@ -22,6 +22,9 @@ fn identity() -> [f64; 6] {
 fn is_zero(v: &f64) -> bool {
     *v == 0.0
 }
+fn is_false(v: &bool) -> bool {
+    !*v
+}
 fn is_one(v: &f64) -> bool {
     *v == 1.0
 }
@@ -91,6 +94,9 @@ pub struct Camera {
     /// Degrees, counter-clockwise.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub rotation: f64,
+    /// Draws the world's y axis downwards, as flam3 and Apophysis do.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub flip_y: bool,
 }
 
 impl Default for Camera {
@@ -99,6 +105,7 @@ impl Default for Camera {
             center: [0.0, 0.0],
             zoom: 1.0,
             rotation: 0.0,
+            flip_y: false,
         }
     }
 }

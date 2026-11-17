@@ -7,7 +7,7 @@ built on it.
 | --- | --- | --- |
 | 1 | **Core:** scene format, renderer, presets, randomizer, exact repeatability | Done |
 | 2 | **CLI:** render scenes to PNG | Done |
-| 3 | **MCP server:** `list_presets`, `get_preset`, `randomize_scene`, `mutate_scene`, `render_scene` (returns the image), `validate_scene`, `describe_variations` | Planned |
+| 3 | **MCP server** over stdio: presets, random scenes, mutation, validation, `.flame` import, rendering with the image returned ([mcp.md](mcp.md)) | Done |
 | 4 | **Desktop app:** Windows, macOS, Linux; presets, randomize, layers, export | Planned |
 | 5 | **Server:** HTTP API with a job queue and limits, web UI (the app compiled to WebAssembly), Docker image | Planned |
 | 6 | **Android app** | Planned |
@@ -15,7 +15,7 @@ built on it.
 
 ## Renderer, next
 
-- Import of `.flame` files (the Apophysis / flam3 XML format), so existing flames work as scenes.
+- Cancelling a render and progress reports through MCP; MCP over HTTP with the server.
 - More variations (the ones that take the transform's coefficients: waves, popcorn, rings, fan; and more
   parametric ones).
 - More presets, and named palettes in scene files.

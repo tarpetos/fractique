@@ -171,6 +171,7 @@ pub fn fit_camera(flame: &Flame) -> Option<(Camera, bool)> {
             center,
             zoom: 2.0 / half,
             rotation: 0.0,
+            flip_y: flame.camera.flip_y,
         },
         good,
     ))

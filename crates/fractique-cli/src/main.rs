@@ -1,11 +1,14 @@
+mod mcp;
+
 use std::fs;
-use std::io::{BufWriter, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use clap::{Parser, Subcommand};
+use fractique_core::import::import_flames;
 use fractique_core::random::{fit_camera, mutate, random_scene};
 use fractique_core::{Control, Image, Kind, Quality, RenderOptions, Scene, presets, render};
 
@@ -71,8 +74,19 @@ enum Command {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+    /// Convert a .flame file (flam3, Apophysis) to a scene
+    Import {
+        file: PathBuf,
+        /// Which flame of the file, counted from 0
+        #[arg(long, default_value_t = 0)]
+        index: usize,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
     /// List the variations and their parameters
     Variations,
+    /// Run as an MCP server on stdin and stdout, for AI agents
+    Mcp,
 }
 
 fn parse_size(text: &str) -> Result<(u32, u32), String> {
@@ -97,15 +111,19 @@ fn emit(scene: &Scene, output: Option<PathBuf>) -> Result<(), String> {
     }
 }
 
-fn save_png(image: &Image, path: &Path) -> Result<(), String> {
-    let fail = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
-    let file = fs::File::create(path).map_err(|e| fail(&e))?;
-    let mut encoder = png::Encoder::new(BufWriter::new(file), image.width, image.height);
+pub(crate) fn encode_png(image: &Image) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    let mut encoder = png::Encoder::new(&mut bytes, image.width, image.height);
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder.write_header().map_err(|e| fail(&e))?;
-    writer.write_image_data(&image.rgba).map_err(|e| fail(&e))?;
-    writer.finish().map_err(|e| fail(&e))
+    let mut writer = encoder.write_header().map_err(|e| e.to_string())?;
+    writer.write_image_data(&image.rgba).map_err(|e| e.to_string())?;
+    writer.finish().map_err(|e| e.to_string())?;
+    Ok(bytes)
+}
+
+fn save_png(image: &Image, path: &Path) -> Result<(), String> {
+    fs::write(path, encode_png(image)?).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 fn run(cli: Cli) -> Result<(), String> {
@@ -188,6 +206,27 @@ fn run(cli: Cli) -> Result<(), String> {
             }
             emit(&scene, output)
         }
+        Command::Import { file, index, output } => {
+            let text = fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
+            let mut flames = import_flames(&text).map_err(|e| format!("{}: {e}", file.display()))?;
+            let count = flames.len();
+            if index >= count {
+                return Err(format!(
+                    "{} holds {count} flames; --index goes from 0 to {}",
+                    file.display(),
+                    count - 1
+                ));
+            }
+            let flame = flames.swap_remove(index);
+            for warning in &flame.warnings {
+                eprintln!("fractique: {warning}");
+            }
+            if count > 1 {
+                eprintln!("fractique: flame {index} of {count}; choose another with --index");
+            }
+            emit(&flame.scene, output)
+        }
+        Command::Mcp => mcp::serve(),
         Command::Variations => {
             for kind in Kind::ALL {
                 let params: Vec<String> = kind

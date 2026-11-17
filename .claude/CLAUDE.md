@@ -61,5 +61,7 @@ is stable, not that it is good.
 | `crates/fractique-core/src/tone.rs` | Density estimation, log tone mapping, glow |
 | `crates/fractique-core/src/random.rs` | Random scenes, mutation, camera fitting |
 | `crates/fractique-core/presets/` | Built-in scenes, compiled into the binary |
-| `crates/fractique-cli/` | The `fractique` command |
+| `crates/fractique-core/src/import.rs` | The `.flame` import |
+| `crates/fractique-cli/src/main.rs` | The `fractique` command |
+| `crates/fractique-cli/src/mcp.rs` | The MCP server (`fractique mcp`); its tools are listed in `docs/mcp.md` |
 | `docs/roadmap.md` | What is done and what comes next |
