@@ -489,7 +489,29 @@ pub fn window_icon() -> egui::IconData {
     }
 }
 
+struct Problems;
+
+impl log::Log for Problems {
+    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
+        metadata.level() <= log::Level::Warn
+    }
+
+    fn log(&self, record: &log::Record<'_>) {
+        if self.enabled(record.metadata()) {
+            let line = format!("{}: {}: {}", record.level(), record.target(), record.args());
+            eprintln!("{line}");
+            note(&line);
+        }
+    }
+
+    fn flush(&self) {}
+}
+
 pub fn run(mut options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> eframe::Result {
+    // eframe reports why it cannot start through the log crate and then exits with code 0.
+    if log::set_logger(&Problems).is_ok() {
+        log::set_max_level(log::LevelFilter::Warn);
+    }
     if let egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup {
         // egui asks every GPU for 8192-pixel textures; older phones offer 4096 and refuse to start.
         setup.device_descriptor = Arc::new(|adapter| {
