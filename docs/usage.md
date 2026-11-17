@@ -114,7 +114,7 @@ field, for example `layer 0, transform 1: color: must be between 0 and 1`.
 ## 6. Layers
 
 A scene can hold up to 16 layers, each a flame of its own with its own camera, palette and tone, blended in order.
-The `emerald-star` preset is two: a faint violet veil under a green star.
+The `emerald-star` preset is two: a violet veil of rings under a green four-pointed star.
 
 ```sh
 fractique preset emerald-star > star.json
@@ -138,7 +138,7 @@ view: lower `camera.zoom` then.
 
 | What you see | What to do |
 | --- | --- |
-| The image is black or nearly black | The flame is outside the view, or too faint. Lower `camera.zoom`, raise `tone.brightness`. |
+| The image is black or nearly black | The flame is outside the view, or too faint. `fractique fit scene.json -o scene.json` moves every layer's camera to frame its flame; or lower `camera.zoom`, raise `tone.brightness`. |
 | The image is grainy | Raise the quality, or `tone.smoothing` (up to 4). |
 | Thin lines look jagged | Use `--quality high` or `--supersample 2`. |
 | `the image is too large for this supersample` | Width × height × supersample² is limited to 2²⁸ cells. Lower the supersample. |

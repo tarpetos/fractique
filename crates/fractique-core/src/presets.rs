@@ -3,6 +3,7 @@ use crate::scene::Scene;
 const PRESETS: &[(&str, &str)] = &[
     ("aurora-spiral", include_str!("../presets/aurora-spiral.json")),
     ("emerald-star", include_str!("../presets/emerald-star.json")),
+    ("emerald-burst", include_str!("../presets/emerald-burst.json")),
     ("emerald-mandala", include_str!("../presets/emerald-mandala.json")),
     ("ember-vortex", include_str!("../presets/ember-vortex.json")),
     ("azure-rings", include_str!("../presets/azure-rings.json")),

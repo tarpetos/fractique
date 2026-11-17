@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "emerald-star",
-  "seed": 15,
+  "seed": 21,
   "background": [
     0.012,
     0.014,
@@ -11,22 +11,20 @@
     {
       "name": "veil",
       "blend": "add",
-      "opacity": 0.8,
+      "opacity": 0.9,
       "flame": {
         "camera": {
           "center": [
             0,
             0
           ],
-          "zoom": 0.42
+          "zoom": 0.45
         },
         "tone": {
-          "brightness": 1.2,
-          "gamma": 2.4,
-          "vibrancy": 1,
-          "highlight": 0,
-          "glow_radius": 0.01,
-          "glow_strength": 0.8
+          "brightness": 1.3,
+          "gamma": 2.2,
+          "glow_radius": 0.012,
+          "glow_strength": 1
         },
         "palette": {
           "stops": [
@@ -147,21 +145,19 @@
       }
     },
     {
-      "name": "star",
       "blend": "add",
       "flame": {
         "camera": {
           "center": [
-            -0.021969,
-            0.001856
+            0,
+            0
           ],
-          "zoom": 0.6
+          "zoom": 0.5343
         },
         "tone": {
-          "brightness": 1.1,
-          "gamma": 2.6,
-          "vibrancy": 1,
-          "highlight": 0.2,
+          "brightness": 1,
+          "gamma": 2.4,
+          "highlight": 0.25,
           "glow_radius": 0.006,
           "glow_strength": 0.6
         },
@@ -217,56 +213,61 @@
             }
           ]
         },
-        "symmetry": 4,
+        "symmetry": -4,
         "transforms": [
           {
-            "weight": 0.962128,
-            "color": 0.045151,
-            "color_speed": 0.657514,
+            "weight": 0.666,
+            "color": 0,
+            "color_speed": 0.5,
             "affine": [
-              0.693064,
-              0.339203,
-              0.610154,
-              -0.243282,
-              0.511848,
-              -0.717361
-            ],
-            "variations": [
-              {
-                "type": "horseshoe",
-                "weight": 0.892094
-              },
-              {
-                "type": "polar",
-                "weight": 0.120319
-              }
-            ]
-          },
-          {
-            "weight": 0.662232,
-            "color": 1,
-            "color_speed": 0.520831,
-            "affine": [
-              -0.062114,
-              0.353585,
-              -0.012339,
-              -0.435306,
-              -0.006835,
-              0.234358
+              0.0844,
+              0.5121,
+              0.1359,
+              -0.5063,
+              0.0356,
+              -0.1919
             ],
             "variations": [
               {
                 "type": "hyperbolic",
-                "weight": 0.893822
+                "weight": 0.642
               },
               {
-                "type": "horseshoe",
-                "weight": 0.282404
+                "type": "curl",
+                "weight": 0.551,
+                "params": [
+                  0.37,
+                  -0.093
+                ]
+              }
+            ]
+          },
+          {
+            "weight": 0.693,
+            "color": 1,
+            "color_speed": 0.5,
+            "affine": [
+              0.087,
+              -0.7227,
+              -0.4826,
+              0.7246,
+              0.1019,
+              0.2026
+            ],
+            "variations": [
+              {
+                "type": "spherical",
+                "weight": 0.603
+              },
+              {
+                "type": "eyefish",
+                "weight": 0.173
               }
             ]
           }
         ]
-      }
+      },
+      "name": "star"
     }
   ]
 }

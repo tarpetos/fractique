@@ -16,7 +16,7 @@ pixels, on Windows, macOS, Linux, Android and iOS alike.
 
 - **The renderer** (`fractique-core`): fractal flames with 28 variations, layers with blend modes, rotational and
   mirror symmetry, density estimation, glow, any resolution.
-- **Presets:** 8 built-in scenes.
+- **Presets:** 9 built-in scenes.
 - **Randomizer:** every seed is a scene; scenes that would be a dot or a filled square are skipped.
 - **Mutation:** a variant of a scene you like, with a strength from 0 to 1.
 - **Exact repeatability:** the same scene gives the same pixels on every machine, checked by tests on Linux,

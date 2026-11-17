@@ -17,7 +17,7 @@ fn small(supersample: u32) -> RenderOptions {
 const GOLDEN: [(&str, u32, u64); 4] = [
     ("aurora-spiral", 1, 0x0bc0_6113_dc33_6c2f),
     ("aurora-spiral", 2, 0xe16d_5352_1408_8d99),
-    ("emerald-star", 1, 0xf6b9_a86c_906a_153b),
+    ("emerald-star", 1, 0x383c_eab3_e607_ea04),
     ("ember-vortex", 1, 0xcb35_68ab_cb43_98e8),
 ];
 

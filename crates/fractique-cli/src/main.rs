@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use clap::{Parser, Subcommand};
-use fractique_core::random::{mutate, random_scene};
+use fractique_core::random::{fit_camera, mutate, random_scene};
 use fractique_core::{Control, Image, Kind, Quality, RenderOptions, Scene, presets, render};
 
 #[derive(Parser)]
@@ -62,6 +62,12 @@ enum Command {
         /// 0 to 1
         #[arg(long, default_value_t = 0.3)]
         strength: f64,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// Print a scene with every layer's camera moved to frame its flame
+    Fit {
+        scene: PathBuf,
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
@@ -173,6 +179,15 @@ fn run(cli: Cli) -> Result<(), String> {
             strength,
             output,
         } => emit(&mutate(&load(&scene)?, seed, strength), output),
+        Command::Fit { scene, output } => {
+            let mut scene = load(&scene)?;
+            for (index, layer) in scene.layers.iter_mut().enumerate() {
+                let (camera, _) = fit_camera(&layer.flame)
+                    .ok_or_else(|| format!("layer {index}: the flame draws nothing to frame"))?;
+                layer.flame.camera = camera;
+            }
+            emit(&scene, output)
+        }
         Command::Variations => {
             for kind in Kind::ALL {
                 let params: Vec<String> = kind
