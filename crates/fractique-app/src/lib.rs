@@ -513,21 +513,11 @@ pub fn run(mut options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> e
         log::set_max_level(log::LevelFilter::Warn);
     }
     if let egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup {
-        // egui asks every GPU for 8192-pixel textures; older phones offer 4096 and refuse to start.
-        setup.device_descriptor = Arc::new(|adapter| {
-            let base = if adapter.get_info().backend == wgpu::Backend::Gl {
-                wgpu::Limits::downlevel_webgl2_defaults()
-            } else {
-                wgpu::Limits::default()
-            };
-            wgpu::DeviceDescriptor {
-                label: Some("fractique device"),
-                required_limits: wgpu::Limits {
-                    max_texture_dimension_2d: adapter.limits().max_texture_dimension_2d.min(8192),
-                    ..base
-                },
-                ..Default::default()
-            }
+        // egui asks every GPU for fixed limits; an older phone or the iOS Simulator offers less and refuses to start.
+        setup.device_descriptor = Arc::new(|adapter| wgpu::DeviceDescriptor {
+            label: Some("fractique device"),
+            required_limits: adapter.limits(),
+            ..Default::default()
         });
     }
     eframe::run_native(
