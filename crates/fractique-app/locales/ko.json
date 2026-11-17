@@ -20,5 +20,21 @@
   "glass_title": "유리",
   "refraction": "굴절",
   "depth": "깊이",
-  "bezel": "베벨"
+  "bezel": "베벨",
+  "export": "내보내기",
+  "export_title": "이미지 내보내기",
+  "size": "크기",
+  "quality": "품질",
+  "size_window": "현재 창",
+  "q_standard": "표준",
+  "q_high": "높음",
+  "q_ultra": "최고",
+  "save_png": "PNG 저장",
+  "cancel": "취소",
+  "exporting": "내보내는 중",
+  "saved": "저장됨",
+  "failed": "저장하지 못했습니다",
+  "scene": "장면",
+  "open": "열기",
+  "save": "저장"
 }

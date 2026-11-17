@@ -1,4 +1,6 @@
 mod blur;
+#[cfg(not(target_arch = "wasm32"))]
+mod export;
 mod glass;
 mod i18n;
 mod widgets;
@@ -81,6 +83,8 @@ struct App {
     screenshot: Option<PathBuf>,
     screenshot_done: Arc<AtomicBool>,
     last_frame: Instant,
+    #[cfg(not(target_arch = "wasm32"))]
+    export: export::Sheet,
 }
 
 // Two cores stay free for the window: a render on every core makes it stutter.
@@ -109,7 +113,13 @@ fn fitted(size: [u32; 2], side: f32, samples: u32) -> RenderOptions {
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>, screenshot: Option<PathBuf>) -> Self {
-        let texts = Texts::new(Lang::system());
+        let stored = |key: &str| cc.storage.and_then(|storage| storage.get_string(key));
+        let lang = Lang::forced()
+            .or_else(|| stored("language").map(|code| Lang::from_locale(&code)))
+            .unwrap_or_else(Lang::system);
+        let texts = Texts::new(lang);
+        let glass = |key: &str, default: f32| stored(key).and_then(|text| text.parse().ok()).unwrap_or(default);
+        let (opacity, blur) = (glass("glass_opacity", 0.4), glass("glass_blur", 0.7));
         widgets::install_fonts(&cc.egui_ctx, texts.lang);
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         if let Some(state) = &cc.wgpu_render_state {
@@ -127,8 +137,8 @@ impl App {
             adjust: NEUTRAL,
             optics: Optics {
                 refraction: 38.0,
-                blur: 0.7,
-                tint: 0.4,
+                blur,
+                tint: opacity,
                 rim: 1.0,
                 radius: 30.0,
                 bezel: 20.0,
@@ -146,6 +156,11 @@ impl App {
             screenshot,
             screenshot_done: Arc::new(AtomicBool::new(false)),
             last_frame: Instant::now(),
+            #[cfg(not(target_arch = "wasm32"))]
+            export: export::Sheet {
+                open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "export"),
+                ..Default::default()
+            },
         }
     }
 
@@ -282,6 +297,11 @@ impl App {
         widgets::section(ui, &self.t("view"));
         widgets::slider(ui, &self.t("zoom"), &mut self.adjust.zoom, (0.4, 2.5), true);
 
+        ui.add_space(8.0);
+        if widgets::pill(ui, &self.t("reset"), false, 0.0) {
+            self.adjust = NEUTRAL;
+        }
+
         widgets::section(ui, &self.t("glass"));
         let mut opacity = f64::from(self.optics.tint);
         widgets::slider(ui, &self.t("opacity"), &mut opacity, (0.0, 1.0), false);
@@ -291,6 +311,25 @@ impl App {
         self.optics.blur = blur as f32;
         if self.adjust != before {
             self.requested = None;
+        }
+
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        {
+            widgets::section(ui, &self.t("scene"));
+            ui.add_space(4.0);
+            let (open, save) = (self.t("open"), self.t("save"));
+            let half = (ui.available_width() - 8.0) * 0.5;
+            let mut clicked = (false, false);
+            ui.horizontal(|ui| {
+                clicked.0 = widgets::pill(ui, &open, false, half);
+                clicked.1 = widgets::pill(ui, &save, false, half);
+            });
+            if clicked.0 {
+                self.open_scene();
+            }
+            if clicked.1 {
+                self.save_scene();
+            }
         }
 
         widgets::section(ui, &self.t("language"));
@@ -313,42 +352,209 @@ impl App {
         let gap = if wide { 8.0 } else { 6.0 };
         ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
         ui.spacing_mut().button_padding.x = if wide { 18.0 } else { 12.0 };
-        let labels = ["randomize", "mutate", "controls", "reset", "random"].map(|key| self.t(key));
-        let natural: f32 = labels[..4].iter().map(|label| widgets::pill_width(ui, label)).sum();
-        let one_row = natural + 3.0 * gap <= room;
+        let keys: &[&str] = if cfg!(target_arch = "wasm32") {
+            &["randomize", "mutate", "controls"]
+        } else {
+            &["randomize", "mutate", "export", "controls"]
+        };
+        let labels: Vec<String> = keys.iter().map(|key| self.t(key)).collect();
+        let natural: f32 = labels.iter().map(|label| widgets::pill_width(ui, label)).sum();
+        let one_row = natural + (labels.len() - 1) as f32 * gap <= room;
         let width = if one_row { 0.0 } else { (room - gap) * 0.5 };
 
-        let mut clicked = [false; 4];
+        let mut clicked = None;
         let mut row = |ui: &mut egui::Ui, buttons: std::ops::Range<usize>| {
             ui.horizontal(|ui| {
                 for index in buttons {
-                    clicked[index] = widgets::pill(ui, &labels[index], index == 0, width);
+                    if widgets::pill(ui, &labels[index], index == 0, width) {
+                        clicked = Some(keys[index]);
+                    }
                 }
             });
         };
         if one_row {
-            row(ui, 0..4);
+            row(ui, 0..labels.len());
         } else {
             row(ui, 0..2);
-            row(ui, 2..4);
+            row(ui, 2..labels.len());
         }
 
-        if clicked[0] {
-            self.seed += 1;
-            self.pick(random_scene(self.seed), format!("{} {}", labels[4], self.seed), true);
+        match clicked {
+            Some("randomize") => {
+                self.seed += 1;
+                let title = format!("{} {}", self.t("random"), self.seed);
+                self.pick(random_scene(self.seed), title, true);
+            }
+            Some("mutate") => {
+                self.seed += 1;
+                let scene = mutate(&self.base, self.seed, 0.25);
+                let (title, is_random) = (self.title.clone(), self.is_random);
+                self.pick(scene, title, is_random);
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            Some("export") => {
+                self.export.open = !self.export.open;
+                self.export.note.clear();
+            }
+            Some("controls") => self.inspector_open = Some(!self.inspector_open.unwrap_or(false)),
+            _ => {}
         }
-        if clicked[1] {
-            self.seed += 1;
-            let scene = mutate(&self.base, self.seed, 0.25);
-            let (title, is_random) = (self.title.clone(), self.is_random);
-            self.pick(scene, title, is_random);
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn open_scene(&mut self) {
+        let picked = rfd::FileDialog::new()
+            .add_filter("Fractique, flam3", &["json", "flame"])
+            .pick_file();
+        let Some(path) = picked else { return };
+        let name = path
+            .file_stem()
+            .map(|stem| stem.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let is_flame = path
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("flame"));
+        let loaded = std::fs::read_to_string(&path)
+            .map_err(|error| error.to_string())
+            .and_then(|text| {
+                if is_flame {
+                    let mut flames = fractique_core::import::import_flames(&text).map_err(|error| error.to_string())?;
+                    Ok(flames.swap_remove(0).scene)
+                } else {
+                    Scene::from_json(&text).map_err(|error| error.to_string())
+                }
+            });
+        match loaded {
+            Ok(scene) => {
+                self.adjust = NEUTRAL;
+                self.pick(scene, name, false);
+            }
+            Err(error) => self.status = error,
         }
-        if clicked[2] {
-            self.inspector_open = Some(!self.inspector_open.unwrap_or(false));
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn save_scene(&mut self) {
+        let name = format!("{}.json", self.title.replace(' ', "-"));
+        let Some(path) = rfd::FileDialog::new()
+            .set_file_name(name)
+            .add_filter("Fractique", &["json"])
+            .save_file()
+        else {
+            return;
+        };
+        self.status = match std::fs::write(&path, self.scene().to_json() + "\n") {
+            Ok(()) => self.t("saved"),
+            Err(error) => format!("{}: {error}", self.t("failed")),
+        };
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2]) {
+        ui.set_width(250.0);
+        ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+        ui.label(
+            egui::RichText::new(self.t("export_title"))
+                .font(font(17.0, SEMIBOLD))
+                .color(egui::Color32::WHITE),
+        );
+
+        if let Some(job) = &self.export.job {
+            let share = job.share();
+            ui.add_space(14.0);
+            let (bar, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 6.0), egui::Sense::hover());
+            let done = egui::Rect::from_min_size(bar.min, egui::vec2(bar.width() * share, bar.height()));
+            ui.painter()
+                .rect_filled(bar, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(45));
+            ui.painter()
+                .rect_filled(done, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(225));
+            ui.add_space(8.0);
+            ui.label(format!("{} · {:.0}%", self.t("exporting"), share * 100.0));
+            ui.add_space(12.0);
+            if widgets::pill(ui, &self.t("cancel"), false, ui.available_width()) {
+                job.cancel();
+            }
+            return;
         }
-        if clicked[3] {
-            self.adjust = NEUTRAL;
-            self.requested = None;
+
+        widgets::section(ui, &self.t("size"));
+        let own = format!("{} · {} × {}", self.t("size_window"), window[0], window[1]);
+        if widgets::row(ui, &own, self.export.size == 0) {
+            self.export.size = 0;
+        }
+        for (index, [width, height]) in export::SIZES.into_iter().enumerate() {
+            if widgets::row(ui, &format!("{width} × {height}"), self.export.size == index + 1) {
+                self.export.size = index + 1;
+            }
+        }
+        widgets::section(ui, &self.t("quality"));
+        for (index, (key, _, _)) in export::QUALITIES.into_iter().enumerate() {
+            if widgets::row(ui, &self.t(key), self.export.quality == index) {
+                self.export.quality = index;
+            }
+        }
+        if !self.export.note.is_empty() {
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new(&self.export.note)
+                    .size(12.5)
+                    .color(egui::Color32::from_white_alpha(190)),
+            );
+        }
+
+        ui.add_space(12.0);
+        let (cancel, save) = (self.t("cancel"), self.t("save_png"));
+        let half = (ui.available_width() - 8.0) * 0.5;
+        let mut clicked = (false, false);
+        ui.horizontal(|ui| {
+            clicked.0 = widgets::pill(ui, &cancel, false, half);
+            clicked.1 = widgets::pill(ui, &save, true, half);
+        });
+        if clicked.0 {
+            self.export.open = false;
+        }
+        if clicked.1 {
+            let [width, height] = if self.export.size == 0 {
+                window
+            } else {
+                export::SIZES[self.export.size - 1]
+            };
+            let (_, samples_per_pixel, supersample) = export::QUALITIES[self.export.quality];
+            let options = RenderOptions {
+                width,
+                height,
+                samples_per_pixel,
+                supersample,
+            };
+            let name = format!("{}-{width}x{height}.png", self.title.replace(' ', "-"));
+            if let Some(path) = export::target(&name) {
+                self.export.job = Some(export::Job::start(
+                    self.scene(),
+                    options,
+                    path,
+                    ui.ctx().clone(),
+                    render_pool(),
+                ));
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn finish_export(&mut self) {
+        let Some(outcome) = self.export.job.as_ref().and_then(export::Job::finished) else {
+            return;
+        };
+        self.export.job = None;
+        match outcome {
+            export::Outcome::Saved(path) => {
+                let name = path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                self.export.note = format!("{}: {name}", self.t("saved"));
+            }
+            export::Outcome::Cancelled => self.export.note.clear(),
+            export::Outcome::Failed(error) => self.export.note = format!("{}: {error}", self.t("failed")),
         }
     }
 
@@ -418,6 +624,8 @@ impl eframe::App for App {
             self.last_frame = Instant::now();
         }
         self.receive(frame);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.finish_export();
         if ctx.input(|input| input.key_pressed(egui::Key::F2)) {
             self.tuning = !self.tuning;
         }
@@ -468,6 +676,8 @@ impl eframe::App for App {
 
         let wide = content.width() >= 700.0;
         let open = *self.inspector_open.get_or_insert(wide);
+        #[cfg(not(target_arch = "wasm32"))]
+        let open = open && (wide || !self.export.open);
         let mut panes = Vec::new();
         if open {
             let corner = content.min + egui::vec2(20.0, 20.0);
@@ -523,6 +733,20 @@ impl eframe::App for App {
             panes.push((status.response.rect, status.response.rect.height() * 0.5));
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.export.open {
+            let sheet = egui::Area::new(egui::Id::unique("export"))
+                .fixed_pos(content.center())
+                .pivot(egui::Align2::CENTER_CENTER)
+                .order(egui::Order::Foreground)
+                .show(&ctx, |ui| {
+                    egui::Frame::NONE
+                        .inner_margin(egui::Margin::same(22))
+                        .show(ui, |ui| self.export_sheet(ui, size));
+                });
+            panes.push((sheet.response.rect, self.optics.radius));
+        }
+
         if self.tuning {
             let tuning = egui::Area::new(egui::Id::unique("tuning"))
                 .fixed_pos(egui::pos2(content.right() - 20.0, content.bottom() - 20.0))
@@ -545,6 +769,12 @@ impl eframe::App for App {
         }
     }
 
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        storage.set_string("language", self.texts.lang.code().to_owned());
+        storage.set_string("glass_opacity", self.optics.tint.to_string());
+        storage.set_string("glass_blur", self.optics.blur.to_string());
+    }
+
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         [0.012, 0.014, 0.045, 1.0]
     }
@@ -552,6 +782,16 @@ impl eframe::App for App {
 
 #[cfg(target_os = "android")]
 static ANDROID: OnceLock<winit::platform::android::activity::AndroidApp> = OnceLock::new();
+
+#[cfg(target_os = "android")]
+fn own_folder() -> Option<PathBuf> {
+    ANDROID.get().and_then(|app| app.external_data_path())
+}
+
+#[cfg(target_os = "ios")]
+fn own_folder() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Documents"))
+}
 
 fn safe_content(ctx: &egui::Context) -> egui::Rect {
     // egui knows the safe area on iOS; on Android the activity reports it, in pixels.

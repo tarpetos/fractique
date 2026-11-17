@@ -20,5 +20,21 @@
   "glass_title": "Vetro",
   "refraction": "Rifrazione",
   "depth": "Profondità",
-  "bezel": "Smusso"
+  "bezel": "Smusso",
+  "export": "Esporta",
+  "export_title": "Esporta immagine",
+  "size": "DIMENSIONE",
+  "quality": "QUALITÀ",
+  "size_window": "Questa finestra",
+  "q_standard": "Standard",
+  "q_high": "Alta",
+  "q_ultra": "Ultra",
+  "save_png": "Salva PNG",
+  "cancel": "Annulla",
+  "exporting": "esportazione",
+  "saved": "salvato",
+  "failed": "salvataggio non riuscito",
+  "scene": "SCENA",
+  "open": "Apri",
+  "save": "Salva"
 }

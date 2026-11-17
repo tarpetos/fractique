@@ -20,5 +20,21 @@
   "glass_title": "Vidrio",
   "refraction": "Refracción",
   "depth": "Profundidad",
-  "bezel": "Bisel"
+  "bezel": "Bisel",
+  "export": "Exportar",
+  "export_title": "Exportar imagen",
+  "size": "TAMAÑO",
+  "quality": "CALIDAD",
+  "size_window": "Esta ventana",
+  "q_standard": "Estándar",
+  "q_high": "Alta",
+  "q_ultra": "Ultra",
+  "save_png": "Guardar PNG",
+  "cancel": "Cancelar",
+  "exporting": "exportando",
+  "saved": "guardado",
+  "failed": "no se pudo guardar",
+  "scene": "ESCENA",
+  "open": "Abrir",
+  "save": "Guardar"
 }

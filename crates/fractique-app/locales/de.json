@@ -20,5 +20,21 @@
   "glass_title": "Glas",
   "refraction": "Brechung",
   "depth": "Tiefe",
-  "bezel": "Fase"
+  "bezel": "Fase",
+  "export": "Export",
+  "export_title": "Bild exportieren",
+  "size": "GRÖSSE",
+  "quality": "QUALITÄT",
+  "size_window": "Dieses Fenster",
+  "q_standard": "Standard",
+  "q_high": "Hoch",
+  "q_ultra": "Ultra",
+  "save_png": "PNG speichern",
+  "cancel": "Abbrechen",
+  "exporting": "wird exportiert",
+  "saved": "gespeichert",
+  "failed": "Speichern fehlgeschlagen",
+  "scene": "SZENE",
+  "open": "Öffnen",
+  "save": "Speichern"
 }

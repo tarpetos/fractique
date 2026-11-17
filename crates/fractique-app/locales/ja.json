@@ -20,5 +20,21 @@
   "glass_title": "ガラス",
   "refraction": "屈折",
   "depth": "深さ",
-  "bezel": "ベベル"
+  "bezel": "ベベル",
+  "export": "書き出し",
+  "export_title": "画像を書き出す",
+  "size": "サイズ",
+  "quality": "品質",
+  "size_window": "このウィンドウ",
+  "q_standard": "標準",
+  "q_high": "高",
+  "q_ultra": "最高",
+  "save_png": "PNG を保存",
+  "cancel": "キャンセル",
+  "exporting": "書き出し中",
+  "saved": "保存しました",
+  "failed": "保存できませんでした",
+  "scene": "シーン",
+  "open": "開く",
+  "save": "保存"
 }

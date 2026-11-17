@@ -106,11 +106,14 @@ impl Lang {
             .unwrap_or(Lang::En)
     }
 
-    pub fn system() -> Lang {
+    pub fn forced() -> Option<Lang> {
         std::env::var("FRACTIQUE_LANG")
             .ok()
-            .or_else(sys_locale::get_locale)
-            .map_or(Lang::En, |locale| Lang::from_locale(&locale))
+            .map(|locale| Lang::from_locale(&locale))
+    }
+
+    pub fn system() -> Lang {
+        sys_locale::get_locale().map_or(Lang::En, |locale| Lang::from_locale(&locale))
     }
 }
 

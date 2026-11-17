@@ -20,5 +20,21 @@
   "glass_title": "Glass",
   "refraction": "Refraction",
   "depth": "Depth",
-  "bezel": "Bezel"
+  "bezel": "Bezel",
+  "export": "Export",
+  "export_title": "Export image",
+  "size": "SIZE",
+  "quality": "QUALITY",
+  "size_window": "This window",
+  "q_standard": "Standard",
+  "q_high": "High",
+  "q_ultra": "Ultra",
+  "save_png": "Save PNG",
+  "cancel": "Cancel",
+  "exporting": "exporting",
+  "saved": "saved",
+  "failed": "could not save",
+  "scene": "SCENE",
+  "open": "Open",
+  "save": "Save"
 }

@@ -20,5 +20,21 @@
   "glass_title": "Cam",
   "refraction": "Kırılma",
   "depth": "Derinlik",
-  "bezel": "Pah"
+  "bezel": "Pah",
+  "export": "Dışa aktar",
+  "export_title": "Görüntüyü dışa aktar",
+  "size": "BOYUT",
+  "quality": "KALİTE",
+  "size_window": "Bu pencere",
+  "q_standard": "Standart",
+  "q_high": "Yüksek",
+  "q_ultra": "Ultra",
+  "save_png": "PNG kaydet",
+  "cancel": "İptal",
+  "exporting": "dışa aktarılıyor",
+  "saved": "kaydedildi",
+  "failed": "kaydedilemedi",
+  "scene": "SAHNE",
+  "open": "Aç",
+  "save": "Kaydet"
 }

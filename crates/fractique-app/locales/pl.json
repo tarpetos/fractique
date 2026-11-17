@@ -20,5 +20,21 @@
   "glass_title": "Szkło",
   "refraction": "Załamanie",
   "depth": "Głębia",
-  "bezel": "Faza"
+  "bezel": "Faza",
+  "export": "Eksport",
+  "export_title": "Eksportuj obraz",
+  "size": "ROZMIAR",
+  "quality": "JAKOŚĆ",
+  "size_window": "To okno",
+  "q_standard": "Standardowa",
+  "q_high": "Wysoka",
+  "q_ultra": "Ultra",
+  "save_png": "Zapisz PNG",
+  "cancel": "Anuluj",
+  "exporting": "eksportowanie",
+  "saved": "zapisano",
+  "failed": "nie udało się zapisać",
+  "scene": "SCENA",
+  "open": "Otwórz",
+  "save": "Zapisz"
 }

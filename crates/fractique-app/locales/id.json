@@ -20,5 +20,21 @@
   "glass_title": "Kaca",
   "refraction": "Refraksi",
   "depth": "Kedalaman",
-  "bezel": "Bevel"
+  "bezel": "Bevel",
+  "export": "Ekspor",
+  "export_title": "Ekspor gambar",
+  "size": "UKURAN",
+  "quality": "KUALITAS",
+  "size_window": "Jendela ini",
+  "q_standard": "Standar",
+  "q_high": "Tinggi",
+  "q_ultra": "Ultra",
+  "save_png": "Simpan PNG",
+  "cancel": "Batal",
+  "exporting": "mengekspor",
+  "saved": "tersimpan",
+  "failed": "gagal menyimpan",
+  "scene": "ADEGAN",
+  "open": "Buka",
+  "save": "Simpan"
 }

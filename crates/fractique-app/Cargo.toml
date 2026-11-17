@@ -17,7 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 bytemuck = { version = "1.25.2", features = ["derive"] }
-eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "x11", "wayland"] }
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "persistence", "x11", "wayland"] }
 png = "0.18.1"
 log = "0.4.35"
 web-time = "1"
@@ -39,8 +39,11 @@ wgpu = { version = "30", default-features = false, features = ["webgl", "webgpu"
 winresource = "0.1"
 
 [target.'cfg(target_os = "android")'.dependencies]
-eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "android-native-activity"] }
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "persistence", "android-native-activity"] }
 winit = { version = "0.30", default-features = false, features = ["android-native-activity"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))'.dependencies]
+rfd = "0.18.0"
 
 [package.metadata.android]
 package = "app.fractique"

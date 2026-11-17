@@ -20,5 +20,21 @@
   "glass_title": "玻璃",
   "refraction": "折射",
   "depth": "深度",
-  "bezel": "斜角"
+  "bezel": "斜角",
+  "export": "导出",
+  "export_title": "导出图像",
+  "size": "尺寸",
+  "quality": "质量",
+  "size_window": "当前窗口",
+  "q_standard": "标准",
+  "q_high": "高",
+  "q_ultra": "极高",
+  "save_png": "保存 PNG",
+  "cancel": "取消",
+  "exporting": "导出中",
+  "saved": "已保存",
+  "failed": "保存失败",
+  "scene": "场景",
+  "open": "打开",
+  "save": "保存"
 }

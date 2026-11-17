@@ -20,5 +20,21 @@
   "glass_title": "काँच",
   "refraction": "अपवर्तन",
   "depth": "गहराई",
-  "bezel": "बेवल"
+  "bezel": "बेवल",
+  "export": "निर्यात",
+  "export_title": "छवि निर्यात करें",
+  "size": "आकार",
+  "quality": "गुणवत्ता",
+  "size_window": "यह विंडो",
+  "q_standard": "मानक",
+  "q_high": "उच्च",
+  "q_ultra": "अल्ट्रा",
+  "save_png": "PNG सहेजें",
+  "cancel": "रद्द करें",
+  "exporting": "निर्यात हो रहा है",
+  "saved": "सहेजा गया",
+  "failed": "सहेजा नहीं जा सका",
+  "scene": "सीन",
+  "open": "खोलें",
+  "save": "सहेजें"
 }

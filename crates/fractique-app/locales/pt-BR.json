@@ -20,5 +20,21 @@
   "glass_title": "Vidro",
   "refraction": "Refração",
   "depth": "Profundidade",
-  "bezel": "Chanfro"
+  "bezel": "Chanfro",
+  "export": "Exportar",
+  "export_title": "Exportar imagem",
+  "size": "TAMANHO",
+  "quality": "QUALIDADE",
+  "size_window": "Esta janela",
+  "q_standard": "Padrão",
+  "q_high": "Alta",
+  "q_ultra": "Ultra",
+  "save_png": "Salvar PNG",
+  "cancel": "Cancelar",
+  "exporting": "exportando",
+  "saved": "salvo",
+  "failed": "não foi possível salvar",
+  "scene": "CENA",
+  "open": "Abrir",
+  "save": "Salvar"
 }

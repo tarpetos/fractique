@@ -20,5 +20,21 @@
   "glass_title": "Verre",
   "refraction": "Réfraction",
   "depth": "Profondeur",
-  "bezel": "Biseau"
+  "bezel": "Biseau",
+  "export": "Exporter",
+  "export_title": "Exporter l'image",
+  "size": "TAILLE",
+  "quality": "QUALITÉ",
+  "size_window": "Cette fenêtre",
+  "q_standard": "Standard",
+  "q_high": "Haute",
+  "q_ultra": "Ultra",
+  "save_png": "Enregistrer en PNG",
+  "cancel": "Annuler",
+  "exporting": "export en cours",
+  "saved": "enregistré",
+  "failed": "échec de l'enregistrement",
+  "scene": "SCÈNE",
+  "open": "Ouvrir",
+  "save": "Enregistrer"
 }
