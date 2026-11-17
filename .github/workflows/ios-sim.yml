@@ -30,14 +30,19 @@ jobs:
           xcrun simctl bootstatus "$device" -b
           xcrun simctl install "$device" "$app"
           mkdir -p out
-          xcrun simctl launch --stdout="$PWD/out/stdout.txt" --stderr="$PWD/out/stderr.txt" "$device" app.fractique
-          sleep 45
+          SIMCTL_CHILD_RUST_BACKTRACE=1 xcrun simctl launch --console-pty "$device" app.fractique > out/console.txt 2>&1 &
+          sleep 40
           xcrun simctl io "$device" screenshot out/start.png
-          sleep 20
+          sleep 15
           xcrun simctl io "$device" screenshot out/later.png
-          xcrun simctl spawn "$device" log show --last 2m --predicate 'process == "Fractique"' > out/system-log.txt 2>&1 || true
+          xcrun simctl spawn "$device" log show --last 3m --predicate 'process == "Fractique" OR process == "ReportCrash" OR eventMessage CONTAINS[c] "fractique"' > out/system-log.txt 2>&1 || true
           xcrun simctl spawn "$device" launchctl list | grep -i fractique > out/running.txt 2>&1 || echo "not running" > out/running.txt
-          cat out/running.txt out/stderr.txt | tail -40
+          mkdir -p out/crashes
+          cp ~/Library/Logs/DiagnosticReports/*ractique* out/crashes/ 2>/dev/null || true
+          find ~/Library/Developer/CoreSimulator/Devices/"$device"/data/Library/Logs -iname '*ractique*' -exec cp {} out/crashes/ \; 2>/dev/null || true
+          ls -la out out/crashes
+          cat out/running.txt
+          tail -60 out/console.txt
       - uses: actions/upload-artifact@v7
         if: always()
         with:
