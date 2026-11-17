@@ -3,6 +3,10 @@ mod blur;
 mod export;
 mod glass;
 mod i18n;
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+mod update;
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+mod updates;
 mod widgets;
 
 use std::path::PathBuf;
@@ -85,6 +89,8 @@ struct App {
     last_frame: Instant,
     #[cfg(not(target_arch = "wasm32"))]
     export: export::Sheet,
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    updates: updates::Updates,
 }
 
 // Two cores stay free for the window: a render on every core makes it stutter.
@@ -161,6 +167,8 @@ impl App {
                 open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "export"),
                 ..Default::default()
             },
+            #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+            updates: updates::Updates::new(),
         }
     }
 
@@ -345,6 +353,18 @@ impl App {
         if chosen != self.texts.lang {
             self.texts = Texts::new(chosen);
             widgets::install_fonts(ui.ctx(), chosen);
+        }
+
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        {
+            ui.add_space(10.0);
+            let label = match self.updates.newer() {
+                Some(version) => self.t("available").replace("{v}", version),
+                None => format!("{} · v{}", self.t("updates"), update::current()),
+            };
+            if widgets::row(ui, &label, self.updates.newer().is_some()) {
+                self.updates.show(ui.ctx());
+            }
         }
     }
 
@@ -626,6 +646,8 @@ impl eframe::App for App {
         self.receive(frame);
         #[cfg(not(target_arch = "wasm32"))]
         self.finish_export();
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        self.updates.settle(&ctx);
         if ctx.input(|input| input.key_pressed(egui::Key::F2)) {
             self.tuning = !self.tuning;
         }
@@ -747,6 +769,21 @@ impl eframe::App for App {
             panes.push((sheet.response.rect, self.optics.radius));
         }
 
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        if self.updates.open {
+            let width = (content.width() - 84.0).min(600.0);
+            let sheet = egui::Area::new(egui::Id::unique("updates"))
+                .fixed_pos(content.center())
+                .pivot(egui::Align2::CENTER_CENTER)
+                .order(egui::Order::Foreground)
+                .show(&ctx, |ui| {
+                    egui::Frame::NONE
+                        .inner_margin(egui::Margin::same(22))
+                        .show(ui, |ui| self.updates.ui(ui, &self.texts, width));
+                });
+            panes.push((sheet.response.rect, self.optics.radius));
+        }
+
         if self.tuning {
             let tuning = egui::Area::new(egui::Id::unique("tuning"))
                 .fixed_pos(egui::pos2(content.right() - 20.0, content.bottom() - 20.0))
@@ -773,6 +810,11 @@ impl eframe::App for App {
         storage.set_string("language", self.texts.lang.code().to_owned());
         storage.set_string("glass_opacity", self.optics.tint.to_string());
         storage.set_string("glass_blur", self.optics.blur.to_string());
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn on_exit(&mut self) {
+        self.updates.on_exit();
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
