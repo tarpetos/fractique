@@ -12,10 +12,6 @@ pixels, on Windows, macOS, Linux, Android and iOS alike.
   <img src="docs/samples/aurora-spiral.png" alt="The aurora-spiral preset: teal and green spiral wisps on a dark background" width="880">
 </p>
 
-> [!WARNING]
-> **Early version.** The renderer and the command line tool work. The desktop and mobile apps, the MCP server, the
-> HTTP API and the Docker image are planned and not built yet: see [docs/roadmap.md](docs/roadmap.md).
-
 ## What works today
 
 - **The renderer** (`fractique-core`): fractal flames with 28 variations, layers with blend modes, rotational and
