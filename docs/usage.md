@@ -135,6 +135,23 @@ The number picks the variant; the same number always gives the same one. `--stre
 (barely related); the default is 0.3. The camera is kept, so a strong mutation can move the flame partly out of
 view: lower `camera.zoom` then.
 
+## The app
+
+`fractique-gui` is the same renderer with a window: the flame fills it and glass panels float over it.
+
+| Where | What |
+| --- | --- |
+| Inspector (left; **Controls** in the toolbar shows and hides it) | Presets, tone, zoom, glass, scene, language, updates |
+| **Randomize** | The next random scene |
+| **Mutate** | A variant of the current scene |
+| **Export** | A PNG at the size and quality you choose, rendered in the background with a progress bar |
+| **Scene: Open, Save** | Scenes as `.json`; **Open** also reads `.flame` files |
+| **Updates** (last row of the inspector) | Every released version with its notes; update, or install an older one |
+
+On a phone the picture is saved into the app's own folder (`exports`), and the app has no updates window:
+[releasing.md](releasing.md) says what updates itself and what does not. The language and the glass settings are
+kept between launches.
+
 ## 8. Flames from other programs
 
 `.flame` files, the format of flam3, Apophysis and the programs built on them, convert to scenes:

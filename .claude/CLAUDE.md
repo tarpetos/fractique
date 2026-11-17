@@ -67,6 +67,8 @@ is stable, not that it is good.
 | `crates/fractique-core/src/import.rs` | The `.flame` import |
 | `crates/fractique-cli/src/main.rs` | The `fractique` command |
 | `crates/fractique-app/` | The app (desktop, Android, iOS, web): `lib.rs` UI, `glass.wgsl` shader, `i18n.rs` + `locales/` texts |
+| `crates/fractique-app/src/update.rs`, `updates.rs` | Checking for, listing and installing releases; its window |
+| `scripts/build/`, `.github/workflows/release.yml`, `docs/releasing.md` | Installers and the release workflow |
 | `vendor/` | `eframe` and `egui-wgpu` with the iOS surface fix |
 | `crates/fractique-cli/src/mcp.rs` | The MCP server (`fractique mcp`); its tools are listed in `docs/mcp.md` |
 | `docs/roadmap.md` | What is done and what comes next |

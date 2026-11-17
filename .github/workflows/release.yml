@@ -161,6 +161,10 @@ jobs:
           awk -v v="## $VERSION" '$0 == v {on = 1; next} on && /^## / {exit} on {print}' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then echo "See CHANGELOG.md." > notes.md; fi
           cd out
+          # cargo-packager names the installers after the main binary.
+          for f in fractique-gui_*; do
+            [ -e "$f" ] && mv "$f" "Fractique_${f#fractique-gui_}"
+          done
           if [ -f Fractique.app.tar.gz ]; then
             mv Fractique.app.tar.gz "Fractique_${VERSION}_aarch64.app.tar.gz"
             mv Fractique.app.tar.gz.sig "Fractique_${VERSION}_aarch64.app.tar.gz.sig"
@@ -177,8 +181,8 @@ jobs:
               '{($k): {url: $url, signature: $sig, format: $fmt}}'
           }
           {
-            entry windows-x86_64 '*_x64-setup.exe' nsis
-            entry linux-x86_64 '*_x86_64.AppImage' appimage
+            entry windows-x86_64 'Fractique_*_x64-setup.exe' nsis
+            entry linux-x86_64 'Fractique_*_x86_64.AppImage' appimage
             entry macos-aarch64 '*_aarch64.app.tar.gz' app
           } | jq -s 'add // {}' > ../platforms.json
           jq -n --arg v "$VERSION" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --rawfile n ../notes.md \

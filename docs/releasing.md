@@ -8,8 +8,8 @@ that version's part of the changelog; installed copies of the app then find it b
 | File | For | Updates itself |
 | --- | --- | --- |
 | `Fractique_<version>_x64-setup.exe` | Windows | yes |
-| `fractique_<version>_x86_64.AppImage` | Linux, any distribution | yes |
-| `fractique_<version>_amd64.deb` | Debian, Ubuntu | no: it points at the download page |
+| `Fractique_<version>_x86_64.AppImage` | Linux, any distribution | yes |
+| `Fractique_<version>_amd64.deb` | Debian, Ubuntu | no: it points at the download page |
 | `Fractique_<version>_aarch64.dmg` | macOS, Apple Silicon | yes (the app inside) |
 | `Fractique_<version>_aarch64.app.tar.gz` | what the macOS update downloads | |
 | `Fractique_<version>_android.apk` | Android | no: Android installs an APK only by hand |
