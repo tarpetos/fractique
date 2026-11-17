@@ -8,10 +8,21 @@ case "$target" in
     *-sim) platform=iPhoneSimulator ;;
     *) platform=iPhoneOS ;;
 esac
+bundle_id="${FRACTIQUE_BUNDLE_ID:-app.fractique}"
 version="$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -n1)"
 
-rustup target add "$target"
-IPHONEOS_DEPLOYMENT_TARGET=15.0 cargo build --release --locked -p fractique-app --bin fractique-gui --target "$target"
+if ! command -v cargo >/dev/null 2>&1 && [ -x "$HOME/.cargo/bin/cargo" ]; then
+    PATH="$HOME/.cargo/bin:$PATH"
+    export PATH
+fi
+if ! command -v cargo >/dev/null 2>&1; then
+    echo "[ios] Installing Rust (rustup)..." >&2
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none >&2
+    PATH="$HOME/.cargo/bin:$PATH"
+    export PATH
+fi
+rustup target add "$target" >&2
+IPHONEOS_DEPLOYMENT_TARGET=15.0 cargo build --release --locked -p fractique-app --bin fractique-gui --target "$target" >&2
 
 app="target/ios/$target/Fractique.app"
 rm -rf "$app"
@@ -23,7 +34,7 @@ cat > "$app/Info.plist" <<EOF
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key><string>Fractique</string>
-    <key>CFBundleIdentifier</key><string>app.fractique</string>
+    <key>CFBundleIdentifier</key><string>$bundle_id</string>
     <key>CFBundleName</key><string>Fractique</string>
     <key>CFBundleDisplayName</key><string>Fractique</string>
     <key>CFBundlePackageType</key><string>APPL</string>
