@@ -375,6 +375,7 @@ impl eframe::App for App {
                         let room = content.height() - 40.0 - 44.0 - if wide { 0.0 } else { 80.0 };
                         egui::ScrollArea::vertical()
                             .max_height(room)
+                            .min_scrolled_height(room)
                             .show(ui, |ui| self.inspector(ui));
                     });
                 });
