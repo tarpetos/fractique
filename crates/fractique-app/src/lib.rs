@@ -464,6 +464,21 @@ fn safe_content(ctx: &egui::Context) -> egui::Rect {
     ctx.content_rect()
 }
 
+pub fn window_icon() -> egui::IconData {
+    let decoder = png::Decoder::new(std::io::Cursor::new(
+        include_bytes!("../../../assets/icon/icon-256.png").as_slice(),
+    ));
+    let mut reader = decoder.read_info().expect("the icon is a PNG");
+    let mut rgba = vec![0; reader.output_buffer_size().expect("the icon fits in memory")];
+    let info = reader.next_frame(&mut rgba).expect("the icon decodes");
+    rgba.truncate(info.buffer_size());
+    egui::IconData {
+        rgba,
+        width: info.width,
+        height: info.height,
+    }
+}
+
 pub fn run(options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> eframe::Result {
     eframe::run_native(
         "frcq.",

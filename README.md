@@ -1,4 +1,5 @@
 <div align="center">
+  <img src="assets/icon/icon-256.png" alt="frcq." width="128" height="128">
   <h1>frcq.</h1>
   <p><strong>Fractique: a fractal flame generator that gives the same picture from the same input, on every platform.</strong></p>
 </div>

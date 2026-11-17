@@ -22,12 +22,16 @@ fractique-core = { path = "../fractique-core" }
 rayon.workspace = true
 png = "0.18.1"
 
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
 [target.'cfg(target_os = "android")'.dependencies]
 eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "android-native-activity"] }
 winit = { version = "0.30", default-features = false, features = ["android-native-activity"] }
 
 [package.metadata.android]
 package = "app.frcq"
+resources = "android/res"
 # 64-bit phones, and the 32-bit ones still sold a few years ago.
 build_targets = ["aarch64-linux-android", "armv7-linux-androideabi"]
 
@@ -37,6 +41,7 @@ target_sdk_version = 35
 
 [package.metadata.android.application]
 label = "frcq."
+icon = "@mipmap/ic_launcher"
 
 [lints]
 workspace = true
