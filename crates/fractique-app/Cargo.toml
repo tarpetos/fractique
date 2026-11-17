@@ -1,6 +1,6 @@
 [package]
 name = "fractique-app"
-description = "The frcq. app"
+description = "The Fractique app"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,7 +12,7 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "frcq"
+name = "fractique-app"
 path = "src/main.rs"
 
 [dependencies]
@@ -30,7 +30,7 @@ eframe = { version = "0.37", default-features = false, features = ["wgpu", "defa
 winit = { version = "0.30", default-features = false, features = ["android-native-activity"] }
 
 [package.metadata.android]
-package = "app.frcq"
+package = "app.fractique"
 resources = "android/res"
 # 64-bit phones, and the 32-bit ones still sold a few years ago.
 build_targets = ["aarch64-linux-android", "armv7-linux-androideabi"]
@@ -40,7 +40,7 @@ min_sdk_version = 26
 target_sdk_version = 35
 
 [package.metadata.android.application]
-label = "frcq."
+label = "Fractique"
 icon = "@mipmap/ic_launcher"
 
 [lints]

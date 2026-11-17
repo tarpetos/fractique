@@ -20,16 +20,15 @@ and macOS. In `fractique-core`:
 
 ## Names
 
-- **frcq.** is the marketing name: lowercase, always with its dot, also in the middle of a sentence. It is used where
-  people see the brand: the app's title and icon, the README header, store listings, the website.
-- **Fractique** is the full name and the technical one: the repository, the crates (`fractique-*`), the `fractique`
-  command, package identifiers and running text in the docs. A dot cannot be part of those names.
+The name is **Fractique** everywhere: the app's title, the README, the store listings, the repository, the crates
+and the commands. The short mark `frcq.` was tried and is on hold: do not use it until the owner brings it back.
 
 ## Rules
 
 - **Everything in English:** code, comments, docs, UI text, commit messages.
-- **Comments:** only when fully justified (a workaround, an outside constraint, a measured number), one or two lines.
-  Never restate the code, never write module essays or history. When in doubt, leave it out.
+- **Comments:** almost none. No module headers, no doc comments that say what a function, a struct or a field is, no
+  narration. One line, only for a workaround, an outside constraint or where a tuned number comes from. Explanations
+  go in `docs/`.
 - **The scene format is a contract:** `docs/scene-format.md` changes together with `scene.rs` and `variation.rs`.
   A scene file that loaded before must keep loading and rendering the same; otherwise bump `SCENE_VERSION`.
 - **Layers:** `fractique-core` knows nothing about files, terminals, networks or UI. Everything else wraps it.

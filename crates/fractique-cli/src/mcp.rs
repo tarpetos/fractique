@@ -278,7 +278,7 @@ fn handle(method: &str, params: &Value) -> Result<Value, RpcError> {
             Ok(json!({
                 "protocolVersion": version,
                 "capabilities": { "tools": {} },
-                "serverInfo": { "name": "fractique", "title": "frcq.", "version": env!("CARGO_PKG_VERSION") },
+                "serverInfo": { "name": "fractique", "title": "Fractique", "version": env!("CARGO_PKG_VERSION") },
                 "instructions": "Fractique renders fractal flames from scenes (JSON). A usual loop: get_preset or randomize_scene, render_scene to look at it, change the scene (describe_scene_format explains the fields), render again. The same scene always renders to the same pixels.",
             }))
         }

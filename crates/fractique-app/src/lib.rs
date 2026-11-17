@@ -213,12 +213,12 @@ impl App {
         ui.set_width(width);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         ui.label(
-            egui::RichText::new("frcq.")
+            egui::RichText::new("Fractique")
                 .font(font(30.0, SEMIBOLD))
                 .color(egui::Color32::WHITE),
         );
         ui.label(
-            egui::RichText::new("fractal flames")
+            egui::RichText::new("fractal wallpapers")
                 .size(12.5)
                 .color(egui::Color32::from_white_alpha(140)),
         );
@@ -310,7 +310,7 @@ impl App {
             let (done, ctx_done) = (self.screenshot_done.clone(), ctx.clone());
             let callback = egui::ScreenshotCallback::new(move |image: Arc<egui::ColorImage>| {
                 if let Err(error) = save_png(&path, image.as_raw(), image.size) {
-                    eprintln!("frcq: {}: {error}", path.display());
+                    eprintln!("fractique: {}: {error}", path.display());
                 }
                 done.store(true, Ordering::Relaxed);
                 ctx_done.request_repaint();
@@ -481,7 +481,7 @@ pub fn window_icon() -> egui::IconData {
 
 pub fn run(options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> eframe::Result {
     eframe::run_native(
-        "frcq.",
+        "Fractique",
         options,
         Box::new(move |cc| Ok(Box::new(App::new(cc, screenshot)))),
     )
@@ -491,11 +491,22 @@ pub fn run(options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> efram
 #[unsafe(no_mangle)]
 fn android_main(app: winit::platform::android::activity::AndroidApp) {
     let _ = ANDROID.set(app.clone());
+    // A phone shows no console: what stops the app is left in a file its owner can copy off the phone.
+    let log = app.external_data_path().map(|folder| folder.join("fractique-log.txt"));
+    let note = move |text: String| {
+        if let Some(path) = &log {
+            let _ = std::fs::write(path, text);
+        }
+    };
+    note("started\n".to_owned());
+    let on_panic = note.clone();
+    std::panic::set_hook(Box::new(move |info| on_panic(format!("panic: {info}\n"))));
     let options = eframe::NativeOptions {
         android_app: Some(app),
         ..Default::default()
     };
-    if let Err(error) = run(options, None) {
-        eprintln!("frcq: {error}");
+    match run(options, None) {
+        Ok(()) => note("closed\n".to_owned()),
+        Err(error) => note(format!("could not start: {error}\n")),
     }
 }

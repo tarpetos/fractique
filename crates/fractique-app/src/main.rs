@@ -14,7 +14,7 @@ fn main() -> eframe::Result {
         }
     }
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("frcq.")
+        .with_title("Fractique")
         .with_inner_size([1280.0, 800.0])
         .with_icon(fractique_app::window_icon());
     if screenshot.is_some() {

@@ -72,7 +72,7 @@ impl Gfx {
             count: None,
         };
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("frcq glass"),
+            label: Some("fractique glass"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
@@ -95,16 +95,16 @@ impl Gfx {
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("frcq glass"),
+            label: Some("fractique glass"),
             bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("frcq glass"),
+            label: Some("fractique glass"),
             source: wgpu::ShaderSource::Wgsl(include_str!("glass.wgsl").into()),
         });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("frcq glass"),
+            label: Some("fractique glass"),
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
@@ -112,7 +112,7 @@ impl Gfx {
         let slots = (0..SLOTS)
             .map(|_| Slot {
                 buffer: device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("frcq glass uniforms"),
+                    label: Some("fractique glass uniforms"),
                     size: size_of::<Uniforms>() as u64,
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                     mapped_at_creation: false,
@@ -143,7 +143,7 @@ impl Gfx {
                 depth_or_array_layers: 1,
             };
             let texture = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("frcq flame"),
+                label: Some("fractique flame"),
                 size,
                 mip_level_count: 1,
                 sample_count: 1,
@@ -173,7 +173,7 @@ impl Gfx {
         let (flame, soft) = (upload(flame), upload(soft));
         for slot in &mut self.slots {
             slot.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("frcq glass"),
+                label: Some("fractique glass"),
                 layout: &self.layout,
                 entries: &[
                     wgpu::BindGroupEntry {
