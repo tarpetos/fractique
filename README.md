@@ -1,0 +1,75 @@
+<div align="center">
+  <h1>frcq.</h1>
+  <p><strong>Fractique: a fractal flame generator that gives the same picture from the same input, on every platform.</strong></p>
+</div>
+
+Fractique (**frcq.** for short) renders fractal flames: the glowing, wispy kind of fractal made of thin curves and soft light. You pick a
+preset, roll a random scene or layer several flames over each other, and render it at any resolution, from a phone
+screen to a 4K wallpaper. A scene is one small JSON file, and the same file always renders to exactly the same
+pixels, on Windows, macOS, Linux, Android and iOS alike.
+
+<p align="center">
+  <img src="docs/samples/aurora-spiral.png" alt="The aurora-spiral preset: teal and green spiral wisps on a dark background" width="880">
+</p>
+
+> [!WARNING]
+> **Early version.** The renderer and the command line tool work. The desktop and mobile apps, the MCP server, the
+> HTTP API and the Docker image are planned and not built yet: see [docs/roadmap.md](docs/roadmap.md).
+
+## What works today
+
+- **The renderer** (`fractique-core`): fractal flames with 28 variations, layers with blend modes, rotational and
+  mirror symmetry, density estimation, glow, any resolution.
+- **Presets:** 8 built-in scenes.
+- **Randomizer:** every seed is a scene; scenes that would be a dot or a filled square are skipped.
+- **Mutation:** a variant of a scene you like, with a strength from 0 to 1.
+- **Exact repeatability:** the same scene gives the same pixels on every machine, checked by tests on Linux,
+  Windows and macOS ([docs/determinism.md](docs/determinism.md)).
+- **The command line tool** (`fractique`): renders scenes to PNG.
+
+| | |
+| --- | --- |
+| ![emerald-star](docs/samples/emerald-star.png) | ![ember-vortex](docs/samples/ember-vortex.png) |
+| `emerald-star` (two layers) | `ember-vortex` |
+
+## Set up
+
+One command builds the tool. It installs Rust when it is missing.
+
+| System | Command |
+| --- | --- |
+| Linux, macOS | `./setup.sh` |
+| Windows | `setup.cmd` |
+
+Then:
+
+```sh
+# a preset as a 4K wallpaper
+./target/release/fractique render --preset aurora-spiral --size 3840x2160 --quality high -o aurora.png
+
+# the random scene of seed 42, for a phone screen
+./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# keep a random scene as a file, change it, render it
+./target/release/fractique randomize 42 -o scene.json
+./target/release/fractique render scene.json -o mine.png
+```
+
+On Windows the tool is `target\release\fractique.exe`. All commands and options: [docs/usage.md](docs/usage.md).
+
+## Documentation
+
+| | |
+| --- | --- |
+| [docs/usage.md](docs/usage.md) | The commands, the quality levels, how to edit a scene |
+| [docs/scene-format.md](docs/scene-format.md) | Every field of a scene file, every variation |
+| [docs/architecture.md](docs/architecture.md) | How the parts fit together, how a render works |
+| [docs/determinism.md](docs/determinism.md) | Why a render repeats exactly, and what is and is not promised |
+| [docs/performance.md](docs/performance.md) | Measured render times and memory |
+| [docs/roadmap.md](docs/roadmap.md) | What is done and what comes next |
+
+## License
+
+[PolyForm Noncommercial License 1.0.0](LICENSE.md): free for any noncommercial use. For commercial use, ask the
+author for a separate license. Third-party licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Contributions: see [CONTRIBUTING.md](CONTRIBUTING.md).

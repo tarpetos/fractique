@@ -1,0 +1,14 @@
+# gitleaks configuration for the secret scan.
+# The default rules apply; add an allowlist below only for a deliberate exception, as narrow as it can be.
+
+title = "fractique"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Files that are never part of the source"
+paths = [
+    '''^target/''',
+    '''(^|/)Cargo\.lock$''',
+]

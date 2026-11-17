@@ -1,0 +1,21 @@
+# Rust
+target/
+**/*.rs.bk
+
+# Renders: the CLI writes fractique.png by default. Sample images for the docs live in docs/samples/.
+/*.png
+/out/
+
+# Local configuration and logs
+.env
+.env.*
+*.log
+.claude/settings.local.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,16 @@
+# Rendering must give the same bits on every platform, and the standard library forwards these to the system's
+# libm, which differs between systems. Use fractique_core::math (the pure-Rust libm crate) instead.
+disallowed-methods = [
+    { path = "f64::sin", reason = "use math::sin" },
+    { path = "f64::cos", reason = "use math::cos" },
+    { path = "f64::tan", reason = "use math::tan" },
+    { path = "f64::sin_cos", reason = "use math::sin and math::cos" },
+    { path = "f64::atan2", reason = "use math::atan2" },
+    { path = "f64::exp", reason = "use math::exp" },
+    { path = "f64::ln", reason = "use math::ln" },
+    { path = "f64::ln_1p", reason = "use math::ln_1p" },
+    { path = "f64::powf", reason = "use math::pow" },
+    { path = "f64::sinh", reason = "use math::sinh" },
+    { path = "f64::cosh", reason = "use math::cosh" },
+    { path = "f64::mul_add", reason = "fused multiply-add rounds differently from a * b + c" },
+]

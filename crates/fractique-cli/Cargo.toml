@@ -1,0 +1,21 @@
+[package]
+name = "fractique-cli"
+description = "Command line renderer for Fractique scenes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "fractique"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.6.8", features = ["derive"] }
+fractique-core = { path = "../fractique-core" }
+png = "0.18.1"
+
+[lints]
+workspace = true

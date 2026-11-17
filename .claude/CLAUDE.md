@@ -1,0 +1,65 @@
+# Notes for coding agents
+
+Fractique is a deterministic fractal flame generator in Rust. Read [docs/architecture.md](../docs/architecture.md)
+before a change that crosses crates, and follow [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+## The one rule that must never break
+
+The same scene and the same render options give the same pixels on every platform, every machine and every thread
+count. The golden hashes in `crates/fractique-core/tests/determinism.rs` check it, and CI runs them on Linux, Windows
+and macOS. In `fractique-core`:
+
+- Transcendental math goes through `math.rs` (the pure-Rust `libm` crate). Never `f64::sin`, `powf`, `exp` and the
+  like: Clippy refuses them (`clippy.toml`). `sqrt`, `floor`, `abs` and plain arithmetic are exact and allowed.
+- Threads only ever add integers to the histogram. Never sum floats across threads; float work is per pixel, in a
+  fixed order.
+- All randomness comes from `rng.rs`, seeded from the scene. No `rand` crate, no clock, no `HashMap` iteration order
+  in anything that reaches a pixel.
+- A change that alters the output of existing scenes changes the golden hashes: that is a breaking change. Say so in
+  the pull request and in `CHANGELOG.md`, and never update the hashes just to make a test pass.
+
+## Names
+
+- **frcq.** is the marketing name: lowercase, always with its dot, also in the middle of a sentence. It is used where
+  people see the brand: the app's title and icon, the README header, store listings, the website.
+- **Fractique** is the full name and the technical one: the repository, the crates (`fractique-*`), the `fractique`
+  command, package identifiers and running text in the docs. A dot cannot be part of those names.
+
+## Rules
+
+- **Everything in English:** code, comments, docs, UI text, commit messages.
+- **Comments:** only when fully justified (a workaround, an outside constraint, a measured number), one or two lines.
+  Never restate the code, never write module essays or history. When in doubt, leave it out.
+- **The scene format is a contract:** `docs/scene-format.md` changes together with `scene.rs` and `variation.rs`.
+  A scene file that loaded before must keep loading and rendering the same; otherwise bump `SCENE_VERSION`.
+- **Layers:** `fractique-core` knows nothing about files, terminals, networks or UI. Everything else wraps it.
+- **Event-driven:** no polling loops in the app, server or MCP crates; background work posts events.
+- Commit and pull request titles: Conventional Commits, see "Commit messages" in CONTRIBUTING.md.
+- No attribution lines in commits or pull requests (no "Generated with", no co-author or session trailers).
+
+## Commands
+
+```sh
+cargo build --release                               # the CLI: target/release/fractique
+cargo test --release                                # unit tests and golden hashes
+cargo test --release -p fractique-core --no-default-features   # the same without threads
+cargo fmt --all && cargo clippy --all-targets -- -D warnings
+./target/release/fractique render --preset aurora-spiral --size 960x540 -o /tmp/check.png
+```
+
+Look at a render after a change to the renderer, the tone mapping or the randomizer: the tests prove that the output
+is stable, not that it is good.
+
+## Where things are
+
+| Path | What |
+| --- | --- |
+| `crates/fractique-core/src/scene.rs` | The scene format and its validation |
+| `crates/fractique-core/src/variation.rs` | The variations (the nonlinear functions) |
+| `crates/fractique-core/src/chaos.rs` | The chaos game: one walker per stream |
+| `crates/fractique-core/src/render.rs` | Streams, histogram, layers, dithering |
+| `crates/fractique-core/src/tone.rs` | Density estimation, log tone mapping, glow |
+| `crates/fractique-core/src/random.rs` | Random scenes, mutation, camera fitting |
+| `crates/fractique-core/presets/` | Built-in scenes, compiled into the binary |
+| `crates/fractique-cli/` | The `fractique` command |
+| `docs/roadmap.md` | What is done and what comes next |

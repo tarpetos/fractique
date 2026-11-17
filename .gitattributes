@@ -1,0 +1,24 @@
+# Shell scripts run under sh on every platform; a CRLF checkout (core.autocrlf=true on Windows) breaks them.
+*.sh text eol=lf
+# cmd.exe reads a batch file with LF endings wrongly (labels and goto); setup.cmd keeps CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Source and docs: LF everywhere. Presets are compiled into the binary byte for byte.
+*.rs text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.lock text eol=lf
+
+# Binary files: never normalise or diff
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
