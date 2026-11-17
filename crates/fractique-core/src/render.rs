@@ -15,7 +15,6 @@ const STREAM_DOMAIN: u64 = 0x1000;
 pub const MAX_SIDE: u32 = 16_384;
 pub const MAX_SUPERSAMPLE: u32 = 4;
 pub const MAX_SAMPLES_PER_PIXEL: u32 = 100_000;
-/// Histogram cells (image pixels times supersample squared); each takes 28 bytes.
 pub const MAX_CELLS: u64 = 1 << 28;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -36,7 +35,6 @@ impl Quality {
         ("ultra", Quality::Ultra),
     ];
 
-    /// (samples per pixel, supersample)
     pub fn settings(self) -> (u32, u32) {
         match self {
             Quality::Draft => (8, 1),
@@ -56,7 +54,6 @@ impl Quality {
 pub struct RenderOptions {
     pub width: u32,
     pub height: u32,
-    /// Per pixel of the finished image.
     pub samples_per_pixel: u32,
     pub supersample: u32,
 }
@@ -103,12 +100,10 @@ impl RenderOptions {
 pub struct Image {
     pub width: u32,
     pub height: u32,
-    /// 8-bit sRGB, opaque, row by row from the top.
     pub rgba: Vec<u8>,
 }
 
 impl Image {
-    /// FNV-1a over the pixels: two renders are the same image exactly when this matches (and the size does).
     pub fn hash(&self) -> u64 {
         self.rgba.iter().fold(0xCBF2_9CE4_8422_2325, |h, b| {
             (h ^ u64::from(*b)).wrapping_mul(0x0000_0100_0000_01B3)
@@ -138,7 +133,6 @@ impl std::error::Error for RenderError {}
 #[derive(Default, Clone, Copy)]
 pub struct Control<'a> {
     pub cancel: Option<&'a AtomicBool>,
-    /// Called with the done share, 0 to 1, from the render threads.
     pub progress: Option<&'a (dyn Fn(f64) + Sync)>,
 }
 
@@ -254,7 +248,6 @@ pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> 
         composite(&mut canvas, &developed, layer.blend, layer.opacity as f32);
     }
 
-    // Ordered dithering: without it the faint glow on a dark background shows as bands one level apart.
     let mut rgba = Vec::with_capacity(width * height * 4);
     for (index, pixel) in canvas.chunks_exact(3).enumerate() {
         let threshold = BAYER[index / width % 8][index % width % 8];

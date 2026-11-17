@@ -1,6 +1,3 @@
-// Draws the flame as the window's background, and glass panels that refract and blur it.
-// Both read the same two textures: the flame, and a blurred copy made once per render.
-
 struct Uniforms {
     screen: vec4<f32>, // width, height (pixels), unused, unused
     rect: vec4<f32>,   // panel: left, top, right, bottom (pixels)
@@ -15,7 +12,6 @@ struct Uniforms {
 
 @vertex
 fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
-    // One triangle that covers the viewport egui sets to the callback's rectangle.
     let x = f32(i32(index & 1u) * 4 - 1);
     let y = f32(i32(index >> 1u) * 4 - 1);
     return vec4<f32>(x, y, 0.0, 1.0);
@@ -39,7 +35,6 @@ fn fs_glass(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let half_size = (u.rect.zw - u.rect.xy) * 0.5;
     let radius = min(u.shape.x, min(half_size.x, half_size.y));
 
-    // Signed distance to the rounded rectangle (negative inside) and the outward direction at this pixel.
     let from_center = p - center;
     let q = abs(from_center) - half_size + vec2<f32>(radius);
     let distance = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - radius;
@@ -51,30 +46,23 @@ fn fs_glass(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     }
     outward = outward * vec2<f32>(select(-1.0, 1.0, from_center.x >= 0.0), select(-1.0, 1.0, from_center.y >= 0.0));
 
-    // 0 on the flat middle of the pane, 1 at its rim: the bezel is where the glass curves and bends light.
     let rim = clamp(1.0 + distance / max(u.shape.y, 1.0), 0.0, 1.0);
     let bend = rim * rim * rim;
 
-    // The curved rim works as a lens: it shows the background from further in, squeezed, with a little dispersion.
     let shift = -outward * bend * u.optics.x;
-    // The rim stays sharper than the middle, so the bending is seen and not blurred away.
     let blur = u.optics.y * (1.0 - 0.6 * bend);
     let red = look(p + shift * 1.1, blur).r;
     let green = look(p + shift, blur).g;
     let blue = look(p + shift * 0.9, blur).b;
     var color = vec3<f32>(red, green, blue);
 
-    // Glass body: opacity 0 is clear glass, 1 is dark smoked glass that hides most of the flame.
     let smoke = vec3<f32>(0.035, 0.04, 0.06);
     color = mix(color * 1.08, smoke, u.optics.z * 0.85);
 
-    // What makes the pane look thick: its rim is curved, so the side turned to the light (top left) shows the
-    // background brighter and the far side darker. It scales the background instead of painting white over it.
     let facing = dot(outward, normalize(vec2<f32>(-0.6, -0.8)));
     let curve = rim * rim;
     color = color * (1.0 + 0.6 * curve * facing * u.optics.w) + vec3<f32>(0.03 * curve * max(facing, 0.0) * u.optics.w);
 
-    // A thin soft glint on the very edge, on the lit corner and fainter on the opposite one.
     let edge = smoothstep(-2.6, -0.7, distance);
     let glint = edge * (0.3 * pow(max(facing, 0.0), 2.0) + 0.13 * pow(max(-facing, 0.0), 2.0) + 0.035);
     color = color + vec3<f32>(glint * u.optics.w);

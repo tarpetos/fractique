@@ -1,5 +1,3 @@
-//! The chaos game: one walker follows randomly chosen transforms and reports every point it visits.
-
 use crate::math::{TAU, cos, sin};
 use crate::rng::Rng;
 use crate::scene::{Flame, Transform};
@@ -127,7 +125,6 @@ impl Walker {
         xf
     }
 
-    /// Takes `count` steps and calls `plot(x, y, color)` for each visible point, in world coordinates.
     pub(crate) fn run(&mut self, flame: &Compiled, rng: &mut Rng, count: u64, mut plot: impl FnMut(f64, f64, f64)) {
         for _ in 0..count {
             let xf = self.step(flame, rng);

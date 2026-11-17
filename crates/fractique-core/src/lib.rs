@@ -1,5 +1,3 @@
-//! Deterministic fractal flame renderer: one [`Scene`] always gives the same pixels, on every platform.
-
 pub mod import;
 pub mod math;
 pub mod palette;

@@ -1,5 +1,3 @@
-//! Turns a hit histogram into a picture: log density, gamma, supersample average, glow.
-
 use crate::math::{exp, ln_1p, pow};
 use crate::render::Histogram;
 use crate::scene::Tone;
@@ -22,7 +20,6 @@ fn for_each_row(buffer: &mut [f32], row_len: usize, fill: impl Fn(usize, &mut [f
 
 // Widest density-estimation kernel, in histogram cells: the cost of a render grows with its square.
 const MAX_SPREAD: f64 = 9.0;
-// Share of the image's shorter side that one lone hit is spread over at smoothing 1.
 const SPREAD_SHARE: f64 = 0.004;
 // How fast the kernel narrows as a cell collects hits (flam3's estimator curve).
 const SPREAD_CURVE: f64 = 0.4;
@@ -52,8 +49,6 @@ fn kernels(levels: usize) -> Vec<Kernel> {
         .collect()
 }
 
-/// Density estimation: a cell with few hits is spread over its neighbours, a cell with many stays sharp.
-/// Returns [hits, red, green, blue] per cell.
 fn estimate(histogram: &Histogram, smoothing: f64) -> Vec<f32> {
     let (width, height) = (histogram.width, histogram.height);
     let spread = (SPREAD_SHARE * smoothing * width.min(height) as f64).min(MAX_SPREAD);
@@ -73,7 +68,6 @@ fn estimate(histogram: &Histogram, smoothing: f64) -> Vec<f32> {
     }
 
     let table = kernels(top);
-    // The level of a cell depends on its hits alone; past ‵sharp‵ hits the kernel is a single cell.
     let by_count: Vec<u8> = (0..4096u32)
         .map(|count| {
             let wide = spread / pow(f64::from(count.max(1)), SPREAD_CURVE);
@@ -130,7 +124,6 @@ fn offset(center: usize, at: usize, reach: usize) -> usize {
     at + reach - center
 }
 
-/// Premultiplied RGBA, 0 to 1, at the size of the finished image.
 pub(crate) fn develop(
     histogram: &Histogram,
     tone: &Tone,
@@ -140,7 +133,6 @@ pub(crate) fn develop(
 ) -> Vec<f32> {
     let (width, height) = (histogram.width / supersample, histogram.height / supersample);
     let per_cell = f64::from(samples_per_pixel) / (supersample * supersample) as f64;
-    // Zooming in spreads the same structure over more cells; the square keeps its brightness.
     let normalize = zoom * zoom / per_cell;
     let inverse_gamma = 1.0 / tone.gamma;
     let share = 1.0 / (supersample * supersample) as f64;

@@ -14,10 +14,8 @@ use fractique_core::{Control, Image, RenderOptions, Scene, presets, render};
 use glass::{Gfx, Optics};
 use widgets::{MEDIUM, SEMIBOLD, font};
 
-// Every change is answered at once with a small draft, then with the full picture.
 const DRAFT_SIDE: f32 = 480.0;
 const DRAFT_SAMPLES: u32 = 12;
-// A phone has a quarter of a desktop's cores: its full picture is smaller and thinner.
 const FULL_SIDE: f32 = if cfg!(target_os = "android") { 1600.0 } else { 2560.0 };
 const FULL_SAMPLES: u32 = if cfg!(target_os = "android") { 18 } else { 32 };
 
@@ -306,7 +304,6 @@ impl App {
         }
         self.shown_frames += 1;
         ctx.request_repaint();
-        // A few frames after the full picture arrives, so the panes have their final places.
         if self.shown_frames == 6
             && let Some(path) = self.screenshot.clone()
         {
@@ -364,7 +361,6 @@ impl eframe::App for App {
             );
         }
 
-        // On a phone the inspector would cover the flame: there it opens from the toolbar.
         let wide = content.width() >= 700.0;
         let open = *self.inspector_open.get_or_insert(wide);
         let mut panes = Vec::new();
@@ -452,7 +448,6 @@ impl eframe::App for App {
 #[cfg(target_os = "android")]
 static ANDROID: OnceLock<winit::platform::android::activity::AndroidApp> = OnceLock::new();
 
-/// The part of the window that system bars and notches leave free.
 fn safe_content(ctx: &egui::Context) -> egui::Rect {
     // egui knows the safe area on iOS; on Android the activity reports it, in pixels.
     #[cfg(target_os = "android")]
@@ -469,7 +464,6 @@ fn safe_content(ctx: &egui::Context) -> egui::Rect {
     ctx.content_rect()
 }
 
-/// Opens the app's window and returns when it closes.
 pub fn run(options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> eframe::Result {
     eframe::run_native(
         "frcq.",

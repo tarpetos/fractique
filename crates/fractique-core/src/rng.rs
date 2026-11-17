@@ -14,7 +14,6 @@ fn splitmix(state: &mut u64) -> u64 {
 }
 
 impl Rng {
-    /// An independent stream for each (seed, domain, index).
     pub fn derive(seed: u64, domain: u64, index: u64) -> Self {
         let mut state = seed;
         state = splitmix(&mut state) ^ domain.wrapping_mul(0xD6E8_FEB8_6659_FD93);
@@ -43,19 +42,16 @@ impl Rng {
         result
     }
 
-    /// Uniform in [0, 1).
     #[inline]
     pub fn next_f64(&mut self) -> f64 {
         (self.next_u64() >> 11) as f64 * (1.0 / (1u64 << 53) as f64)
     }
 
-    /// Uniform in [lo, hi).
     #[inline]
     pub fn range(&mut self, lo: f64, hi: f64) -> f64 {
         lo + (hi - lo) * self.next_f64()
     }
 
-    /// Uniform in 0..n; n must not be 0.
     #[inline]
     pub fn below(&mut self, n: u64) -> u64 {
         ((u128::from(self.next_u64()) * u128::from(n)) >> 64) as u64

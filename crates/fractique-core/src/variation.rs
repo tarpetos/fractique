@@ -70,7 +70,6 @@ impl Kind {
         Kind::Curl,
     ];
 
-    /// Names and defaults of the positional `params` of this variation.
     pub fn params(self) -> &'static [(&'static str, f64)] {
         match self {
             Kind::Julian => &[("power", 2.0), ("dist", 1.0)],
@@ -217,7 +216,6 @@ pub struct Variation {
     pub kind: Kind,
     #[serde(default = "one")]
     pub weight: f64,
-    /// Positional, see [`Kind::params`]; missing ones take their defaults.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub params: Vec<f64>,
 }

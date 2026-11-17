@@ -1,5 +1,3 @@
-//! MCP server over stdin and stdout: one JSON-RPC message per line, answered as it arrives.
-
 use std::fs;
 use std::io::{BufRead, Write};
 use std::time::Instant;
@@ -10,7 +8,6 @@ use fractique_core::{Control, Kind, Quality, RenderOptions, Scene, presets, rend
 use serde_json::{Value, json};
 
 const PROTOCOLS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
-// Above this an image is too heavy to hand to a model inline: it is saved to a file instead.
 const INLINE_PIXELS: u64 = 1_048_576;
 const SCENE_FORMAT: &str = include_str!("../../../docs/scene-format.md");
 
@@ -314,13 +311,11 @@ fn answer(line: &str) -> Option<Value> {
     };
     let id = message.get("id").cloned();
     let Some(method) = message.get("method").and_then(Value::as_str) else {
-        // A response to something this server never asked, or not a request at all.
         return message
             .is_array()
             .then(|| failure(Value::Null, -32600, "batches are not supported".into()));
     };
     let result = handle(method, message.get("params").unwrap_or(&Value::Null));
-    // A notification has no id and gets no answer.
     let id = id?;
     Some(match result {
         Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),

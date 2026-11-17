@@ -1,5 +1,3 @@
-//! The app's own controls, drawn to sit on glass.
-
 use fractique_core::math;
 
 use eframe::egui::{self, Align2, Color32, CornerRadius, FontFamily, FontId, Sense, Ui, vec2};
@@ -49,7 +47,6 @@ pub fn section(ui: &mut Ui, title: &str) {
     ui.add_space(2.0);
 }
 
-/// A full-width row of a list; true when it was clicked.
 pub fn row(ui: &mut Ui, text: &str, selected: bool) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
     let fill = if selected {
@@ -82,7 +79,6 @@ pub fn row(ui: &mut Ui, text: &str, selected: bool) -> bool {
     response.clicked()
 }
 
-/// A capsule button; true when it was clicked.
 pub fn pill(ui: &mut Ui, text: &str, primary: bool) -> bool {
     let color = if primary {
         Color32::from_rgb(14, 18, 34)
@@ -111,7 +107,6 @@ pub fn pill(ui: &mut Ui, text: &str, primary: bool) -> bool {
     response.clicked()
 }
 
-/// A labelled slider: the name and the value above a slim track. True when the value changed.
 pub fn slider(ui: &mut Ui, label: &str, value: &mut f64, range: (f64, f64), logarithmic: bool) -> bool {
     let (low, high) = range;
     let to_share = |v: f64| {

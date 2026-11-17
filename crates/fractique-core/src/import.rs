@@ -1,5 +1,3 @@
-//! Reads `.flame` files, the XML format of flam3 and Apophysis.
-
 use std::collections::BTreeSet;
 
 use roxmltree::{Document, Node};
@@ -11,7 +9,6 @@ use crate::variation::{Kind, Variation};
 
 pub struct Imported {
     pub scene: Scene,
-    /// What the file asks for that this renderer does not have.
     pub warnings: Vec<String>,
 }
 
@@ -26,7 +23,6 @@ impl core::fmt::Display for ImportError {
 
 impl std::error::Error for ImportError {}
 
-// Attributes of <xform> that are not variations.
 const SETTINGS: [&str; 14] = [
     "weight",
     "color",
@@ -260,12 +256,10 @@ fn import_one(node: Node, index: usize) -> Result<Imported, ImportError> {
     Ok(Imported { scene, warnings })
 }
 
-/// Every `<flame>` of the file as a scene of one layer.
 pub fn import_flames(xml: &str) -> Result<Vec<Imported>, ImportError> {
     let wrapped;
     let document = match Document::parse(xml) {
         Ok(document) => document,
-        // A file may hold several flames with no element around them.
         Err(first) => {
             let body = xml
                 .trim_start()

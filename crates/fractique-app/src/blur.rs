@@ -1,8 +1,5 @@
-//! The soft copy of the flame that the glass panes show through: shrunk, then blurred.
-
 const SHRINK: usize = 4;
 
-/// Returns the blurred image and its size. `radius` is in pixels of the full-size image.
 pub fn soften(rgba: &[u8], width: usize, height: usize, radius: f32) -> (Vec<u8>, u32, u32) {
     let (small_w, small_h) = ((width / SHRINK).max(1), (height / SHRINK).max(1));
     let mut small = vec![0f32; small_w * small_h * 3];

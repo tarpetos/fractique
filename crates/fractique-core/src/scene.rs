@@ -32,7 +32,6 @@ fn is_one_i(v: &i32) -> bool {
     *v == 1
 }
 
-/// Everything a render depends on. The same scene and the same render options always give the same pixels.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Scene {
@@ -40,7 +39,6 @@ pub struct Scene {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub name: String,
     pub seed: u64,
-    /// sRGB, 0 to 1.
     #[serde(default)]
     pub background: [f64; 3],
     pub layers: Vec<Layer>,
@@ -75,7 +73,6 @@ pub struct Flame {
     #[serde(default)]
     pub tone: Tone,
     pub palette: Palette,
-    /// Rotational copies of the flame around the origin; a negative number also mirrors it.
     #[serde(default = "one_i", skip_serializing_if = "is_one_i")]
     pub symmetry: i32,
     pub transforms: Vec<Transform>,
@@ -83,7 +80,6 @@ pub struct Flame {
     pub final_transform: Option<Transform>,
 }
 
-/// At zoom 1 the shorter side of the image shows 4 world units, whatever the resolution.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Camera {
@@ -91,10 +87,8 @@ pub struct Camera {
     pub center: [f64; 2],
     #[serde(default = "one")]
     pub zoom: f64,
-    /// Degrees, counter-clockwise.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub rotation: f64,
-    /// Draws the world's y axis downwards, as flam3 and Apophysis do.
     #[serde(default, skip_serializing_if = "is_false")]
     pub flip_y: bool,
 }
@@ -117,18 +111,14 @@ pub struct Tone {
     pub brightness: f64,
     #[serde(default = "Tone::default_gamma")]
     pub gamma: f64,
-    /// 1 keeps the palette's hue in dim areas, 0 applies gamma to each channel.
     #[serde(default = "one")]
     pub vibrancy: f64,
-    /// How fast the densest areas burn out to white.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub highlight: f64,
-    /// Radius of the glow as a share of the image's shorter side.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub glow_radius: f64,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub glow_strength: f64,
-    /// Density estimation: 0 leaves every hit in its own cell, 1 is the standard amount.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub smoothing: f64,
 }
@@ -157,7 +147,6 @@ impl Default for Tone {
 #[serde(deny_unknown_fields)]
 pub struct Stop {
     pub pos: f64,
-    /// sRGB, 0 to 1.
     pub color: [f64; 3],
 }
 
@@ -172,14 +161,12 @@ pub struct Palette {
 pub struct Transform {
     #[serde(default = "one")]
     pub weight: f64,
-    /// Position in the palette, 0 to 1.
     #[serde(default)]
     pub color: f64,
     #[serde(default = "half")]
     pub color_speed: f64,
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub opacity: f64,
-    /// [a, b, c, d, e, f]: x' = a x + b y + c, y' = d x + e y + f.
     #[serde(default = "identity")]
     pub affine: [f64; 6],
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -17,7 +17,6 @@ fn main() -> eframe::Result {
         .with_title("frcq.")
         .with_inner_size([1280.0, 800.0]);
     if screenshot.is_some() {
-        // A screenshot run is a test: it draws into a window nobody sees.
         viewport = viewport.with_visible(false).with_taskbar(false).with_active(false);
     }
     fractique_app::run(

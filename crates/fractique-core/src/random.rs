@@ -1,5 +1,3 @@
-//! Random and mutated scenes. The seed decides everything: the same seed always gives the same scene.
-
 use crate::chaos::{Compiled, Walker};
 use crate::math::{TAU, cos, sin};
 use crate::palette;
@@ -14,7 +12,6 @@ const PROBE_POINTS: u64 = 30_000;
 const GRID: usize = 48;
 const ATTEMPTS: u64 = 40;
 
-// How often the randomizer reaches for each variation.
 const CHOICES: [(Kind, u32); 27] = [
     (Kind::Linear, 6),
     (Kind::Spherical, 5),
@@ -130,7 +127,6 @@ fn random_flame(rng: &mut Rng) -> Flame {
     }
 }
 
-/// A camera that frames the flame, and whether the flame is worth showing (neither a dot nor a filled square).
 pub fn fit_camera(flame: &Flame) -> Option<(Camera, bool)> {
     let compiled = Compiled::new(flame);
     let mut rng = Rng::derive(0, PROBE_DOMAIN, 0);
@@ -218,7 +214,6 @@ pub fn random_scene(seed: u64) -> Scene {
     }
 }
 
-/// A variant of `scene`: every transform is nudged, by more as `strength` goes from 0 to 1.
 pub fn mutate(scene: &Scene, seed: u64, strength: f64) -> Scene {
     let strength = strength.clamp(0.0, 1.0);
     let mut out = scene.clone();

@@ -1,5 +1,3 @@
-//! The GPU side of the window: the flame as background and the glass panes over it.
-
 use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
 
@@ -131,7 +129,6 @@ impl Gfx {
         }
     }
 
-    /// Uploads a new flame and its blurred copy; both are RGBA, 8 bits, row by row.
     pub fn set_images(
         &mut self,
         device: &wgpu::Device,
@@ -281,7 +278,6 @@ impl egui_wgpu::CallbackTrait for Draw {
     }
 }
 
-/// Hands out the draws of one frame; each needs its own uniform slot.
 pub struct Frame<'a> {
     painter: &'a egui::Painter,
     next: usize,
