@@ -11,4 +11,5 @@ description = "Files that are never part of the source"
 paths = [
     '''^target/''',
     '''(^|/)Cargo\.lock$''',
+    '''^vendor/''',
 ]
