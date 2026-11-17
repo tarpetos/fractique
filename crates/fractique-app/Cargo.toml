@@ -9,11 +9,10 @@ repository.workspace = true
 publish.workspace = true
 
 [lib]
-name = "fractique_ui"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "fractique-app"
+name = "fractique-gui"
 path = "src/main.rs"
 
 [dependencies]
