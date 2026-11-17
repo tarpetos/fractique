@@ -1,5 +1,6 @@
 #!/bin/sh
 # Builds Fractique, signs it and starts it on the iPhone connected by cable: scripts/ios/run-iphone.sh
+# With --ipa it writes target/ios/Fractique.ipa instead; with --unsigned-ipa that file is not signed.
 # Needs a Mac with Xcode 15 or newer, an Apple Development certificate in the keychain, and a provisioning profile
 # that covers this app and this iPhone. docs/ios.md says how to get them.
 set -eu
@@ -8,6 +9,21 @@ cd "$(dirname "$0")/../.."
 bundle_id="${FRACTIQUE_BUNDLE_ID:-app.fractique}"
 work="target/ios/signing"
 mkdir -p "$work"
+mode="${1:-run}"
+
+pack() {
+    rm -rf target/ios/Payload target/ios/Fractique.ipa
+    mkdir -p target/ios/Payload
+    cp -R "$1" target/ios/Payload/
+    (cd target/ios && zip -qry Fractique.ipa Payload)
+    rm -rf target/ios/Payload
+    echo "[ios] Wrote target/ios/Fractique.ipa"
+}
+
+if [ "$mode" = "--unsigned-ipa" ]; then
+    pack "$(./scripts/ios/bundle.sh aarch64-apple-ios)"
+    exit 0
+fi
 
 identity="${FRACTIQUE_SIGN_IDENTITY:-$(security find-identity -v -p codesigning | sed -nE 's/.*"(Apple Development: [^"]+)".*/\1/p' | head -n1)}"
 if [ -z "$identity" ]; then
@@ -45,6 +61,12 @@ cp "$profile" "$app/embedded.mobileprovision"
 team="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.developer.team-identifier' "$work/profile.plist")"
 /usr/libexec/PlistBuddy -c "Set :application-identifier $team.$bundle_id" "$work/entitlements.plist"
 codesign --force --sign "$identity" --entitlements "$work/entitlements.plist" "$app"
+
+if [ "$mode" = "--ipa" ]; then
+    pack "$app"
+    echo "[ios] It installs only on the iPhones listed in the profile above."
+    exit 0
+fi
 
 device="${FRACTIQUE_DEVICE:-$(xcrun devicectl list devices 2>/dev/null | sed -nE 's/.* ([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}) +(available|connected).*/\1/p' | head -n1)}"
 if [ -z "$device" ]; then

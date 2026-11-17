@@ -66,6 +66,18 @@ FRACTIQUE_BUNDLE_ID=com.yourname.fractique ./scripts/ios/run-iphone.sh
 It builds, signs, installs and starts the app, and then shows what the app prints. With a free Apple account the
 app stops opening after 7 days; with a paid one, after a year. Running the script again renews it.
 
+### For an iPhone that is somewhere else
+
+```sh
+./scripts/ios/run-iphone.sh --ipa            # signed: installs on the iPhones in the provisioning profile
+./scripts/ios/run-iphone.sh --unsigned-ipa   # not signed: the one who installs it signs it
+```
+
+Both write `target/ios/Fractique.ipa`. The signed file installs on any iPhone registered in the team's profile,
+from a Mac (Apple Configurator, Xcode's Devices window) or from Windows with a sideloading tool. The unsigned file
+is for a tool such as Sideloadly, which signs it with the Apple account of the person who installs it; with a free
+account the app works for 7 days.
+
 | Setting | Meaning |
 | --- | --- |
 | `FRACTIQUE_BUNDLE_ID` | The app's identifier, when it is not `app.fractique` |
