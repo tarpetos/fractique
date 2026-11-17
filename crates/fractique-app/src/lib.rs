@@ -90,6 +90,7 @@ impl App {
         widgets::install_fonts(&cc.egui_ctx);
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         if let Some(state) = &cc.wgpu_render_state {
+            note(&format!("graphics: {:?}", state.adapter.get_info()));
             let gfx = Gfx::new(&state.device, state.target_format);
             state.renderer.write().callback_resources.insert(gfx);
         }
@@ -488,25 +489,48 @@ pub fn run(options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> efram
 }
 
 #[cfg(target_os = "android")]
+static LOG: OnceLock<PathBuf> = OnceLock::new();
+
+#[cfg(target_os = "android")]
+fn note(text: &str) {
+    use std::io::Write;
+    if let Some(path) = LOG.get()
+        && let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path)
+    {
+        let _ = writeln!(file, "{text}");
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+fn note(_text: &str) {}
+
+#[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: winit::platform::android::activity::AndroidApp) {
+    use winit::platform::android::activity::AndroidApp;
     let _ = ANDROID.set(app.clone());
     // A phone shows no console: what stops the app is left in a file its owner can copy off the phone.
-    let log = app.external_data_path().map(|folder| folder.join("fractique-log.txt"));
-    let note = move |text: String| {
-        if let Some(path) = &log {
-            let _ = std::fs::write(path, text);
-        }
-    };
-    note("started\n".to_owned());
-    let on_panic = note.clone();
-    std::panic::set_hook(Box::new(move |info| on_panic(format!("panic: {info}\n"))));
+    if let Some(folder) = app.external_data_path() {
+        let _ = std::fs::create_dir_all(&folder);
+        let path = folder.join("fractique-log.txt");
+        let _ = std::fs::remove_file(&path);
+        let _ = LOG.set(path);
+    }
+    let sdk = AndroidApp::sdk_version();
+    note(&format!("started, Android SDK {sdk}"));
+    std::panic::set_hook(Box::new(|info| note(&format!("panic: {info}"))));
+    // Vulkan drivers of phones older than Android 11 crash inside the driver; OpenGL ES works on them.
+    if sdk < 30 {
+        // SAFETY: no other thread exists yet.
+        unsafe { std::env::set_var("WGPU_BACKEND", "gl") };
+        note("using OpenGL ES");
+    }
     let options = eframe::NativeOptions {
         android_app: Some(app),
         ..Default::default()
     };
     match run(options, None) {
-        Ok(()) => note("closed\n".to_owned()),
-        Err(error) => note(format!("could not start: {error}\n")),
+        Ok(()) => note("closed"),
+        Err(error) => note(&format!("could not start: {error}")),
     }
 }
