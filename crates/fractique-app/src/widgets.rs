@@ -1,5 +1,7 @@
 //! The app's own controls, drawn to sit on glass.
 
+use fractique_core::math;
+
 use eframe::egui::{self, Align2, Color32, CornerRadius, FontFamily, FontId, Sense, Ui, vec2};
 
 pub const MEDIUM: &str = "medium";
@@ -114,14 +116,14 @@ pub fn slider(ui: &mut Ui, label: &str, value: &mut f64, range: (f64, f64), loga
     let (low, high) = range;
     let to_share = |v: f64| {
         if logarithmic {
-            (v / low).ln() / (high / low).ln()
+            math::ln(v / low) / math::ln(high / low)
         } else {
             (v - low) / (high - low)
         }
     };
     let from_share = |t: f64| {
         if logarithmic {
-            low * (high / low).powf(t)
+            low * math::pow(high / low, t)
         } else {
             low + (high - low) * t
         }
