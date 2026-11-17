@@ -360,15 +360,26 @@ impl eframe::App for App {
         }
 
         let painter = ctx.layer_painter(egui::LayerId::background()).with_clip_rect(screen);
-        if std::env::var_os("FRACTIQUE_DEBUG_LAYOUT").is_some() && self.shown_frames == 1 {
-            let insets = ctx.input(|input| input.safe_area_insets());
-            eprintln!(
-                "layout: viewport {:?} content {:?} egui-content {:?} scale {scale} insets {insets:?} pixels {size:?}",
-                screen,
-                content,
-                ctx.content_rect()
-            );
-            self.shown_frames = 2;
+        if std::env::var_os("FRACTIQUE_DEBUG_LAYOUT").is_some() {
+            let ruler = ctx.layer_painter(egui::LayerId::debug()).with_clip_rect(screen);
+            let mut y = 0.0;
+            while y <= screen.bottom() {
+                let color = egui::Color32::from_rgb(255, 60, 60);
+                ruler.hline(screen.x_range(), y, egui::Stroke::new(1.0, color));
+                ruler.text(
+                    egui::pos2(6.0, y),
+                    egui::Align2::LEFT_BOTTOM,
+                    format!("{y}"),
+                    egui::FontId::proportional(11.0),
+                    color,
+                );
+                y += 100.0;
+            }
+            if self.shown_frames == 1 {
+                eprintln!("layout: viewport {screen:?} content {content:?} scale {scale} pixels {size:?}");
+                eprintln!("layout: window {:?}", ctx.input(|input| input.viewport().clone()));
+                self.shown_frames = 2;
+            }
         }
         let mut glass = glass::Frame::new(&painter, screen);
         for (rect, radius) in &self.panes {
