@@ -97,17 +97,22 @@ pub fn row(ui: &mut Ui, text: &str, selected: bool) -> bool {
     response.clicked()
 }
 
-pub fn pill(ui: &mut Ui, text: &str, primary: bool) -> bool {
+pub fn pill_width(ui: &Ui, text: &str) -> f32 {
+    let galley = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), font(14.0, MEDIUM), Color32::WHITE);
+    galley.size().x + 2.0 * ui.spacing().button_padding.x
+}
+
+pub fn pill(ui: &mut Ui, text: &str, primary: bool, min_width: f32) -> bool {
     let color = if primary {
         Color32::from_rgb(14, 18, 34)
     } else {
         white(240)
     };
     let galley = ui.painter().layout_no_wrap(text.to_owned(), font(14.0, MEDIUM), color);
-    let (rect, response) = ui.allocate_exact_size(
-        vec2(galley.size().x + 2.0 * ui.spacing().button_padding.x, 38.0),
-        Sense::click(),
-    );
+    let width = (galley.size().x + 2.0 * ui.spacing().button_padding.x).max(min_width);
+    let (rect, response) = ui.allocate_exact_size(vec2(width, 38.0), Sense::click());
     let lift = if response.is_pointer_button_down_on() {
         -10
     } else if response.hovered() {

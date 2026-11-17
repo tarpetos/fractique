@@ -309,29 +309,47 @@ impl App {
         }
     }
 
-    fn toolbar(&mut self, ui: &mut egui::Ui, wide: bool) {
-        ui.spacing_mut().item_spacing.x = if wide { 8.0 } else { 5.0 };
+    fn toolbar(&mut self, ui: &mut egui::Ui, wide: bool, room: f32) {
+        let gap = if wide { 8.0 } else { 6.0 };
+        ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
         ui.spacing_mut().button_padding.x = if wide { 18.0 } else { 12.0 };
         let labels = ["randomize", "mutate", "controls", "reset", "random"].map(|key| self.t(key));
-        ui.horizontal(|ui| {
-            if widgets::pill(ui, &labels[0], true) {
-                self.seed += 1;
-                self.pick(random_scene(self.seed), format!("{} {}", labels[4], self.seed), true);
-            }
-            if widgets::pill(ui, &labels[1], false) {
-                self.seed += 1;
-                let scene = mutate(&self.base, self.seed, 0.25);
-                let (title, is_random) = (self.title.clone(), self.is_random);
-                self.pick(scene, title, is_random);
-            }
-            if widgets::pill(ui, &labels[2], false) {
-                self.inspector_open = Some(!self.inspector_open.unwrap_or(false));
-            }
-            if widgets::pill(ui, &labels[3], false) {
-                self.adjust = NEUTRAL;
-                self.requested = None;
-            }
-        });
+        let natural: f32 = labels[..4].iter().map(|label| widgets::pill_width(ui, label)).sum();
+        let one_row = natural + 3.0 * gap <= room;
+        let width = if one_row { 0.0 } else { (room - gap) * 0.5 };
+
+        let mut clicked = [false; 4];
+        let mut row = |ui: &mut egui::Ui, buttons: std::ops::Range<usize>| {
+            ui.horizontal(|ui| {
+                for index in buttons {
+                    clicked[index] = widgets::pill(ui, &labels[index], index == 0, width);
+                }
+            });
+        };
+        if one_row {
+            row(ui, 0..4);
+        } else {
+            row(ui, 0..2);
+            row(ui, 2..4);
+        }
+
+        if clicked[0] {
+            self.seed += 1;
+            self.pick(random_scene(self.seed), format!("{} {}", labels[4], self.seed), true);
+        }
+        if clicked[1] {
+            self.seed += 1;
+            let scene = mutate(&self.base, self.seed, 0.25);
+            let (title, is_random) = (self.title.clone(), self.is_random);
+            self.pick(scene, title, is_random);
+        }
+        if clicked[2] {
+            self.inspector_open = Some(!self.inspector_open.unwrap_or(false));
+        }
+        if clicked[3] {
+            self.adjust = NEUTRAL;
+            self.requested = None;
+        }
     }
 
     fn tuning(&mut self, ui: &mut egui::Ui) {
@@ -473,9 +491,9 @@ impl eframe::App for App {
             .show(&ctx, |ui| {
                 egui::Frame::NONE
                     .inner_margin(egui::Margin::same(9))
-                    .show(ui, |ui| self.toolbar(ui, wide));
+                    .show(ui, |ui| self.toolbar(ui, wide, content.width() - 58.0));
             });
-        panes.push((toolbar.response.rect, toolbar.response.rect.height() * 0.5));
+        panes.push((toolbar.response.rect, (toolbar.response.rect.height() * 0.5).min(28.0)));
 
         if wide || !open {
             let status = egui::Area::new(egui::Id::unique("status"))

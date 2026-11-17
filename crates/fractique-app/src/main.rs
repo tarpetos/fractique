@@ -8,14 +8,20 @@ fn main() -> eframe::Result {
 
     let mut args = std::env::args().skip(1);
     let mut screenshot = None;
+    let mut size = [1280.0, 800.0];
     while let Some(arg) = args.next() {
         if arg == "--screenshot" {
             screenshot = args.next().map(PathBuf::from);
+        } else if arg == "--size"
+            && let Some((width, height)) = args.next().as_deref().and_then(|text| text.split_once('x'))
+            && let (Ok(width), Ok(height)) = (width.parse::<f32>(), height.parse::<f32>())
+        {
+            size = [width, height];
         }
     }
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Fractique")
-        .with_inner_size([1280.0, 800.0])
+        .with_inner_size(size)
         .with_icon(fractique_app::window_icon());
     if screenshot.is_some() {
         // A screenshot run is a test: it draws into a window nobody sees.
