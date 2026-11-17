@@ -24,7 +24,7 @@ jobs:
           app=target/ios/aarch64-apple-ios-sim/Fractique.app
           codesign --force --sign - "$app"
           xcrun simctl list devices available | grep -E 'iPhone' | head -20
-          device="$(xcrun simctl list devices available | grep -E '^ +iPhone 1[5-9]( Pro)? \(' | head -n1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')"
+          device="$(xcrun simctl list devices available | sed -nE 's/^ +iPhone[^(]*\(([0-9A-F-]{36})\).*/\1/p' | head -n1)"
           echo "Simulator: $device"
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device" -b
