@@ -80,6 +80,7 @@ struct App {
     shown_frames: u32,
     screenshot: Option<PathBuf>,
     screenshot_done: Arc<AtomicBool>,
+    last_frame: Instant,
 }
 
 // Two cores stay free for the window: a render on every core makes it stutter.
@@ -144,6 +145,7 @@ impl App {
             shown_frames: 0,
             screenshot,
             screenshot_done: Arc::new(AtomicBool::new(false)),
+            last_frame: Instant::now(),
         }
     }
 
@@ -387,6 +389,16 @@ fn save_png(path: &std::path::Path, rgba: &[u8], size: [usize; 2]) -> Result<(),
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // Every mouse move asks for a redraw; at a 240 Hz screen's pace that makes a graphics card whine.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let pace = std::time::Duration::from_micros(16_600);
+            let since = self.last_frame.elapsed();
+            if since < pace {
+                std::thread::sleep(pace - since);
+            }
+            self.last_frame = Instant::now();
+        }
         self.receive(frame);
         if ctx.input(|input| input.key_pressed(egui::Key::F2)) {
             self.tuning = !self.tuning;
