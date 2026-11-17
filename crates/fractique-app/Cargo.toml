@@ -18,10 +18,19 @@ path = "src/main.rs"
 [dependencies]
 bytemuck = { version = "1.25.2", features = ["derive"] }
 eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "x11", "wayland"] }
-fractique-core = { path = "../fractique-core" }
-rayon.workspace = true
 png = "0.18.1"
 log = "0.4.35"
+web-time = "1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+fractique-core = { path = "../fractique-core" }
+rayon.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+fractique-core = { path = "../fractique-core", default-features = false }
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement", "console"] }
+wgpu = { version = "30", default-features = false, features = ["webgl", "webgpu", "wgsl"] }
 
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"

@@ -2,6 +2,9 @@
 target/
 **/*.rs.bk
 
+# The web build
+/crates/fractique-app/dist/
+
 # Renders: the CLI writes fractique.png by default. Sample images for the docs live in docs/samples/.
 /*.png
 /out/

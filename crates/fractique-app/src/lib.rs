@@ -3,9 +3,12 @@ mod glass;
 mod widgets;
 
 use std::path::PathBuf;
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock, mpsc};
-use std::time::Instant;
+use std::sync::{Arc, mpsc};
+
+use web_time::Instant;
 
 use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
@@ -17,12 +20,16 @@ use widgets::{MEDIUM, SEMIBOLD, font};
 
 const DRAFT_SIDE: f32 = 480.0;
 const DRAFT_SAMPLES: u32 = 12;
-const FULL_SIDE: f32 = if cfg!(any(target_os = "android", target_os = "ios")) {
+const FULL_SIDE: f32 = if cfg!(target_arch = "wasm32") {
+    900.0
+} else if cfg!(any(target_os = "android", target_os = "ios")) {
     1600.0
 } else {
     2560.0
 };
-const FULL_SAMPLES: u32 = if cfg!(any(target_os = "android", target_os = "ios")) {
+const FULL_SAMPLES: u32 = if cfg!(target_arch = "wasm32") {
+    14
+} else if cfg!(any(target_os = "android", target_os = "ios")) {
     18
 } else {
     32
@@ -72,6 +79,7 @@ struct App {
 }
 
 // Two cores stay free for the window: a render on every core makes it stutter.
+#[cfg(not(target_arch = "wasm32"))]
 fn render_pool() -> &'static rayon::ThreadPool {
     static POOL: OnceLock<rayon::ThreadPool> = OnceLock::new();
     POOL.get_or_init(|| {
@@ -153,39 +161,46 @@ impl App {
 
         let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
         let mut passes = vec![(true, fitted(size, DRAFT_SIDE, DRAFT_SAMPLES)), (false, full)];
-        if passes[0].1.width == full.width {
+        // A browser page has one thread: a draft first would only make it wait twice.
+        if passes[0].1.width == full.width || cfg!(target_arch = "wasm32") {
             passes.remove(0);
         }
         let (scene, cancel, generation) = (self.scene(), self.cancel.clone(), self.generation);
         let (sender, ctx) = (self.results.0.clone(), ctx.clone());
-        std::thread::spawn(move || {
+        let work = move || {
             for (draft, options) in passes {
                 let started = Instant::now();
                 let control = Control {
                     cancel: Some(&cancel),
                     progress: None,
                 };
-                let Ok(image) = render_pool().install(|| render(&scene, &options, &control)) else {
+                #[cfg(not(target_arch = "wasm32"))]
+                let result = render_pool().install(|| render(&scene, &options, &control));
+                #[cfg(target_arch = "wasm32")]
+                let result = render(&scene, &options, &control);
+                let Ok(image) = result else {
                     return;
                 };
                 let radius = image.width.min(image.height) as f32 * 0.03;
                 let soft = blur::soften(&image.rgba, image.width as usize, image.height as usize, radius);
                 let seconds = started.elapsed().as_secs_f32();
-                if sender
-                    .send(Rendered {
-                        generation,
-                        draft,
-                        image,
-                        soft,
-                        seconds,
-                    })
-                    .is_err()
-                {
+                let done = Rendered {
+                    generation,
+                    draft,
+                    image,
+                    soft,
+                    seconds,
+                };
+                if sender.send(done).is_err() {
                     return;
                 }
                 ctx.request_repaint();
             }
-        });
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        std::thread::spawn(work);
+        #[cfg(target_arch = "wasm32")]
+        work();
     }
 
     fn receive(&mut self, frame: &eframe::Frame) {
@@ -510,8 +525,10 @@ pub fn window_icon() -> egui::IconData {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 struct Problems;
 
+#[cfg(not(target_arch = "wasm32"))]
 impl log::Log for Problems {
     fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
         metadata.level() <= log::Level::Warn
@@ -528,12 +545,8 @@ impl log::Log for Problems {
     fn flush(&self) {}
 }
 
-pub fn run(mut options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> eframe::Result {
-    // eframe reports why it cannot start through the log crate and then exits with code 0.
-    if log::set_logger(&Problems).is_ok() {
-        log::set_max_level(log::LevelFilter::Warn);
-    }
-    if let egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup {
+fn offered_limits(wgpu_options: &mut egui_wgpu::WgpuConfiguration) {
+    if let egui_wgpu::WgpuSetup::CreateNew(setup) = &mut wgpu_options.wgpu_setup {
         // egui asks every GPU for fixed limits; an older phone or the iOS Simulator offers less and refuses to start.
         setup.device_descriptor = Arc::new(|adapter| wgpu::DeviceDescriptor {
             label: Some("fractique device"),
@@ -541,11 +554,31 @@ pub fn run(mut options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> e
             ..Default::default()
         });
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn run(mut options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> eframe::Result {
+    // eframe reports why it cannot start through the log crate and then exits with code 0.
+    if log::set_logger(&Problems).is_ok() {
+        log::set_max_level(log::LevelFilter::Warn);
+    }
+    offered_limits(&mut options.wgpu_options);
     eframe::run_native(
         "Fractique",
         options,
         Box::new(move |cc| Ok(Box::new(App::new(cc, screenshot)))),
     )
+}
+
+#[cfg(target_arch = "wasm32")]
+pub async fn run_web(canvas: eframe::web_sys::HtmlCanvasElement) -> Result<(), eframe::wasm_bindgen::JsValue> {
+    let _ = eframe::WebLogger::init(log::LevelFilter::Warn);
+    let mut options = eframe::WebOptions::default();
+    offered_limits(&mut options.wgpu_options);
+    let runner = eframe::WebRunner::new();
+    runner
+        .start(canvas, options, Box::new(|cc| Ok(Box::new(App::new(cc, None)))))
+        .await
 }
 
 #[cfg(target_os = "android")]
