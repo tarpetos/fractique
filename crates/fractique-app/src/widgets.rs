@@ -88,7 +88,10 @@ pub fn pill(ui: &mut Ui, text: &str, primary: bool) -> bool {
         white(240)
     };
     let galley = ui.painter().layout_no_wrap(text.to_owned(), font(14.0, MEDIUM), color);
-    let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x + 36.0, 38.0), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(
+        vec2(galley.size().x + 2.0 * ui.spacing().button_padding.x, 38.0),
+        Sense::click(),
+    );
     let lift = if response.is_pointer_button_down_on() {
         -10
     } else if response.hovered() {

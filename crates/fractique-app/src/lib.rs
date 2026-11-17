@@ -17,8 +17,9 @@ use widgets::{MEDIUM, SEMIBOLD, font};
 // Every change is answered at once with a small draft, then with the full picture.
 const DRAFT_SIDE: f32 = 480.0;
 const DRAFT_SAMPLES: u32 = 12;
-const FULL_SIDE: f32 = 2560.0;
-const FULL_SAMPLES: u32 = 32;
+// A phone has a quarter of a desktop's cores: its full picture is smaller and thinner.
+const FULL_SIDE: f32 = if cfg!(target_os = "android") { 1600.0 } else { 2560.0 };
+const FULL_SAMPLES: u32 = if cfg!(target_os = "android") { 18 } else { 32 };
 
 struct Rendered {
     generation: u64,
@@ -210,8 +211,8 @@ impl App {
         self.requested = None;
     }
 
-    fn inspector(&mut self, ui: &mut egui::Ui) {
-        ui.set_width(248.0);
+    fn inspector(&mut self, ui: &mut egui::Ui, width: f32) {
+        ui.set_width(width);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         ui.label(
             egui::RichText::new("frcq.")
@@ -256,8 +257,9 @@ impl App {
         }
     }
 
-    fn toolbar(&mut self, ui: &mut egui::Ui) {
-        ui.spacing_mut().item_spacing.x = 8.0;
+    fn toolbar(&mut self, ui: &mut egui::Ui, wide: bool) {
+        ui.spacing_mut().item_spacing.x = if wide { 8.0 } else { 5.0 };
+        ui.spacing_mut().button_padding.x = if wide { 18.0 } else { 12.0 };
         ui.horizontal(|ui| {
             if widgets::pill(ui, "Randomize", true) {
                 self.seed += 1;
@@ -340,7 +342,7 @@ impl eframe::App for App {
         }
 
         let screen = ctx.viewport_rect();
-        let content = ctx.content_rect();
+        let content = safe_content(&ctx);
         let scale = ctx.pixels_per_point();
         let size = [
             (screen.width() * scale).round() as u32,
@@ -376,50 +378,54 @@ impl eframe::App for App {
                         egui::ScrollArea::vertical()
                             .max_height(room)
                             .min_scrolled_height(room)
-                            .show(ui, |ui| self.inspector(ui));
+                            .show(ui, |ui| self.inspector(ui, (content.width() - 84.0).min(248.0)));
                     });
                 });
             panes.push((inspector.response.rect, self.optics.radius));
         }
 
         let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
-            .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -24.0))
+            .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
+            .pivot(egui::Align2::CENTER_BOTTOM)
             .show(&ctx, |ui| {
                 egui::Frame::NONE
                     .inner_margin(egui::Margin::same(9))
-                    .show(ui, |ui| self.toolbar(ui));
+                    .show(ui, |ui| self.toolbar(ui, wide));
             });
         panes.push((toolbar.response.rect, toolbar.response.rect.height() * 0.5));
 
-        let status = egui::Area::new(egui::Id::unique("status"))
-            .enabled(wide || !open)
-            .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-20.0, 20.0))
-            .show(&ctx, |ui| {
-                egui::Frame::NONE
-                    .inner_margin(egui::Margin::symmetric(18, 11))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            let name = egui::RichText::new(&self.title)
-                                .font(font(13.5, MEDIUM))
-                                .color(egui::Color32::WHITE);
-                            ui.add(egui::Label::new(name).extend());
-                            let detail = if self.rendering {
-                                "rendering".to_owned()
-                            } else {
-                                self.status.clone()
-                            };
-                            let detail = egui::RichText::new(detail)
-                                .size(13.0)
-                                .color(egui::Color32::from_white_alpha(170));
-                            ui.add(egui::Label::new(detail).extend());
+        if wide || !open {
+            let status = egui::Area::new(egui::Id::unique("status"))
+                .fixed_pos(egui::pos2(content.right() - 20.0, content.top() + 20.0))
+                .pivot(egui::Align2::RIGHT_TOP)
+                .show(&ctx, |ui| {
+                    egui::Frame::NONE
+                        .inner_margin(egui::Margin::symmetric(18, 11))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let name = egui::RichText::new(&self.title)
+                                    .font(font(13.5, MEDIUM))
+                                    .color(egui::Color32::WHITE);
+                                ui.add(egui::Label::new(name).extend());
+                                let detail = if self.rendering {
+                                    "rendering".to_owned()
+                                } else {
+                                    self.status.clone()
+                                };
+                                let detail = egui::RichText::new(detail)
+                                    .size(13.0)
+                                    .color(egui::Color32::from_white_alpha(170));
+                                ui.add(egui::Label::new(detail).extend());
+                            });
                         });
-                    });
-            });
-        panes.push((status.response.rect, status.response.rect.height() * 0.5));
+                });
+            panes.push((status.response.rect, status.response.rect.height() * 0.5));
+        }
 
         if self.tuning {
             let tuning = egui::Area::new(egui::Id::unique("tuning"))
-                .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-20.0, -20.0))
+                .fixed_pos(egui::pos2(content.right() - 20.0, content.bottom() - 20.0))
+                .pivot(egui::Align2::RIGHT_BOTTOM)
                 .show(&ctx, |ui| {
                     egui::Frame::NONE
                         .inner_margin(egui::Margin::same(20))
@@ -443,6 +449,26 @@ impl eframe::App for App {
     }
 }
 
+#[cfg(target_os = "android")]
+static ANDROID: OnceLock<winit::platform::android::activity::AndroidApp> = OnceLock::new();
+
+/// The part of the window that system bars and notches leave free.
+fn safe_content(ctx: &egui::Context) -> egui::Rect {
+    // egui knows the safe area on iOS; on Android the activity reports it, in pixels.
+    #[cfg(target_os = "android")]
+    if let Some(app) = ANDROID.get() {
+        let (free, scale) = (app.content_rect(), ctx.pixels_per_point());
+        let rect = egui::Rect::from_min_max(
+            egui::pos2(free.left as f32 / scale, free.top as f32 / scale),
+            egui::pos2(free.right as f32 / scale, free.bottom as f32 / scale),
+        );
+        if rect.width() > 1.0 && rect.height() > 1.0 {
+            return rect.intersect(ctx.viewport_rect());
+        }
+    }
+    ctx.content_rect()
+}
+
 /// Opens the app's window and returns when it closes.
 pub fn run(options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> eframe::Result {
     eframe::run_native(
@@ -455,6 +481,7 @@ pub fn run(options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> efram
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: winit::platform::android::activity::AndroidApp) {
+    let _ = ANDROID.set(app.clone());
     let options = eframe::NativeOptions {
         android_app: Some(app),
         ..Default::default()
