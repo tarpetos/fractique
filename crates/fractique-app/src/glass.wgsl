@@ -5,7 +5,7 @@ struct Uniforms {
     screen: vec4<f32>, // width, height (pixels), unused, unused
     rect: vec4<f32>,   // panel: left, top, right, bottom (pixels)
     shape: vec4<f32>,  // corner radius, bezel width, shadow reach (pixels), shadow strength
-    optics: vec4<f32>, // refraction (pixels), blur (0..1), opacity (0..1), edge line (0..1)
+    optics: vec4<f32>, // refraction (pixels), blur (0..1), opacity (0..1), depth (0..1)
 };
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
@@ -27,9 +27,9 @@ fn fs_background(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     return vec4<f32>(color, 1.0);
 }
 
-fn look(p: vec2<f32>) -> vec3<f32> {
+fn look(p: vec2<f32>, blur: f32) -> vec3<f32> {
     let uv = p / u.screen.xy;
-    return mix(textureSample(flame, smp, uv).rgb, textureSample(soft, smp, uv).rgb, u.optics.y);
+    return mix(textureSample(flame, smp, uv).rgb, textureSample(soft, smp, uv).rgb, blur);
 }
 
 @fragment
@@ -57,19 +57,27 @@ fn fs_glass(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 
     // The curved rim works as a lens: it shows the background from further in, squeezed, with a little dispersion.
     let shift = -outward * bend * u.optics.x;
-    let red = look(p + shift * 1.12).r;
-    let green = look(p + shift).g;
-    let blue = look(p + shift * 0.88).b;
+    // The rim stays sharper than the middle, so the bending is seen and not blurred away.
+    let blur = u.optics.y * (1.0 - 0.6 * bend);
+    let red = look(p + shift * 1.1, blur).r;
+    let green = look(p + shift, blur).g;
+    let blue = look(p + shift * 0.9, blur).b;
     var color = vec3<f32>(red, green, blue);
 
     // Glass body: opacity 0 is clear glass, 1 is dark smoked glass that hides most of the flame.
     let smoke = vec3<f32>(0.035, 0.04, 0.06);
     color = mix(color * 1.08, smoke, u.optics.z * 0.85);
 
-    // A hairline along the edge, a little stronger where the light from the top left meets it.
+    // What makes the pane look thick: its rim is curved, so the side turned to the light (top left) shows the
+    // background brighter and the far side darker. It scales the background instead of painting white over it.
     let facing = dot(outward, normalize(vec2<f32>(-0.6, -0.8)));
-    let hairline = smoothstep(-1.7, -0.5, distance) * (0.07 + 0.11 * max(facing, 0.0));
-    color = color + vec3<f32>(hairline * u.optics.w);
+    let curve = rim * rim;
+    color = color * (1.0 + 0.6 * curve * facing * u.optics.w) + vec3<f32>(0.03 * curve * max(facing, 0.0) * u.optics.w);
+
+    // A thin soft glint on the very edge, on the lit corner and fainter on the opposite one.
+    let edge = smoothstep(-2.6, -0.7, distance);
+    let glint = edge * (0.3 * pow(max(facing, 0.0), 2.0) + 0.13 * pow(max(-facing, 0.0), 2.0) + 0.035);
+    color = color + vec3<f32>(glint * u.optics.w);
 
     let inside = clamp(0.5 - distance, 0.0, 1.0);
     let reach = max(u.shape.z, 1.0);

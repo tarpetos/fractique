@@ -101,12 +101,12 @@ impl App {
             seed: 0,
             adjust: NEUTRAL,
             optics: Optics {
-                refraction: 16.0,
-                blur: 0.75,
-                tint: 0.45,
+                refraction: 38.0,
+                blur: 0.7,
+                tint: 0.4,
                 rim: 1.0,
                 radius: 30.0,
-                bezel: 16.0,
+                bezel: 20.0,
             },
             tuning: false,
             inspector_open: None,
@@ -290,7 +290,7 @@ impl App {
             *value = wide as f32;
         };
         edit(ui, "Refraction", &mut optics.refraction, (-80.0, 80.0));
-        edit(ui, "Edge line", &mut optics.rim, (0.0, 3.0));
+        edit(ui, "Depth", &mut optics.rim, (0.0, 2.0));
         edit(ui, "Bezel", &mut optics.bezel, (4.0, 48.0));
     }
 
