@@ -6,7 +6,7 @@ Set-Location (Join-Path $PSScriptRoot '..\..')
 $version = (Select-String -Path Cargo.toml -Pattern '^version *= *"(.*)"' | Select-Object -First 1).Matches.Groups[1].Value
 $packaged = (Select-String -Path crates\fractique-app\Packager.toml -Pattern '^version *= *"([^"]*)"' | Select-Object -First 1).Matches.Groups[1].Value
 if ($version -ne $packaged) {
-    throw "Cargo.toml says $version, Packager.toml says $packaged: make them equal."
+    throw "Cargo.toml says ${version}, Packager.toml says ${packaged}: make them equal."
 }
 
 if (-not (Get-Command cargo-packager -ErrorAction SilentlyContinue)) {
