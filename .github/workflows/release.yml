@@ -1,0 +1,201 @@
+name: Release
+
+on:
+  # Only for a release (a version tag) or when started by hand: never on every push.
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  desktop:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            os: windows-latest
+            kind: windows
+          # 22.04 (glibc 2.35) so the AppImage also runs on older distributions.
+          - name: Linux x64
+            os: ubuntu-22.04
+            kind: linux
+          - name: macOS Apple Silicon
+            os: macos-latest
+            kind: macos
+    steps:
+      - uses: actions/checkout@v7
+      - name: Rust (the version in rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.os }}
+
+      - name: Linux build dependencies
+        if: matrix.kind == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config libxkbcommon-dev \
+            libwayland-dev libx11-dev libxcursor-dev libxi-dev libxrandr-dev libvulkan-dev file
+
+      - name: Signing key
+        shell: bash
+        env:
+          KEY: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY }}
+          PASSWORD: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEY" ]; then
+            echo "CARGO_PACKAGER_SIGN_PRIVATE_KEY=$KEY" >> "$GITHUB_ENV"
+            echo "CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No signing key: the installers are not signed for updates."
+          fi
+
+      - name: Build (Windows)
+        if: matrix.kind == 'windows'
+        shell: pwsh
+        run: ./scripts/build/build-win.ps1
+
+      - name: Build (Linux)
+        if: matrix.kind == 'linux'
+        run: ./scripts/build/build-linux.sh
+
+      - name: Build (macOS)
+        if: matrix.kind == 'macos'
+        run: ./scripts/build/build-mac.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: installers-${{ matrix.kind }}
+          if-no-files-found: error
+          path: |
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.dmg
+            dist/*.app.tar.gz
+            dist/*.sig
+
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Rust (the version in rust-toolchain.toml)
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-linux-android armv7-linux-androideabi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-android
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Build the APK
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          CARGO_APK_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::error::No Android keystore: an APK signed with another key cannot update an installed app."
+            exit 1
+          fi
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/fractique.keystore"
+          export CARGO_APK_RELEASE_KEYSTORE="$RUNNER_TEMP/fractique.keystore"
+          export ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME"
+          cargo install cargo-apk --locked
+          cd crates/fractique-app
+          cargo apk build --release --lib
+          version="$(sed -n 's/^version *= *"\(.*\)"/\1/p' ../../Cargo.toml | head -n1)"
+          mkdir -p ../../dist
+          cp ../../target/release/apk/fractique-app.apk "../../dist/Fractique_${version}_android.apk"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: installers-android
+          if-no-files-found: error
+          path: dist/*.apk
+
+  publish:
+    name: Publish release
+    needs: [desktop, android]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the tag matches the version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -n1)"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match the version $version in Cargo.toml"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: installers-*
+          path: out
+          merge-multiple: true
+
+      - name: Release notes, update manifest and checksums
+        run: |
+          awk -v v="## $VERSION" '$0 == v {on = 1; next} on && /^## / {exit} on {print}' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then echo "See CHANGELOG.md." > notes.md; fi
+          cd out
+          if [ -f Fractique.app.tar.gz ]; then
+            mv Fractique.app.tar.gz "Fractique_${VERSION}_aarch64.app.tar.gz"
+            mv Fractique.app.tar.gz.sig "Fractique_${VERSION}_aarch64.app.tar.gz.sig"
+          fi
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          # One manifest entry: <os>-<arch>, a file pattern and the updater's format for it.
+          entry() {
+            f="$(ls $2 2>/dev/null | head -n1)"
+            if [ -z "$f" ] || [ ! -f "$f.sig" ]; then
+              echo "::warning::No signed $2: $1 gets no automatic update."
+              return
+            fi
+            jq -n --arg k "$1" --arg url "$base/$f" --arg sig "$(cat "$f.sig")" --arg fmt "$3" \
+              '{($k): {url: $url, signature: $sig, format: $fmt}}'
+          }
+          {
+            entry windows-x86_64 '*_x64-setup.exe' nsis
+            entry linux-x86_64 '*_x86_64.AppImage' appimage
+            entry macos-aarch64 '*_aarch64.app.tar.gz' app
+          } | jq -s 'add // {}' > ../platforms.json
+          jq -n --arg v "$VERSION" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --rawfile n ../notes.md \
+            --slurpfile p ../platforms.json '{version: $v, notes: $n, pub_date: $d, platforms: $p[0]}' > latest.json
+          # The updater reads each signature from latest.json, so the .sig files are not published.
+          rm -f ./*.sig
+          sha256sum -- * > SHA256SUMS.txt
+          jq . latest.json
+          ls -l
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" out/* --clobber
+          else
+            # A full release, not a pre-release: the updater reads releases/latest, which skips pre-releases.
+            gh release create "$GITHUB_REF_NAME" out/* --latest --title "$GITHUB_REF_NAME" --notes-file notes.md
+          fi

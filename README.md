@@ -64,6 +64,7 @@ On Windows the tool is `target\release\fractique.exe`. All commands and options:
 | [docs/scene-format.md](docs/scene-format.md) | Every field of a scene file, every variation |
 | [docs/mcp.md](docs/mcp.md) | The MCP server: connecting an AI agent, the tools |
 | [docs/ios.md](docs/ios.md) | Building and running on an iPhone or in the iOS Simulator |
+| [docs/releasing.md](docs/releasing.md) | How a release is made, how the app updates itself |
 | [docs/architecture.md](docs/architecture.md) | How the parts fit together, how a render works |
 | [docs/determinism.md](docs/determinism.md) | Why a render repeats exactly, and what is and is not promised |
 | [docs/performance.md](docs/performance.md) | Measured render times and memory |

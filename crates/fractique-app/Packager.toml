@@ -1,0 +1,54 @@
+# cargo-packager configuration, driven by scripts/build/build-{linux.sh,mac.sh,win.ps1}.
+# Paths are relative to this file's folder.
+
+name = "fractique"
+product-name = "Fractique"
+version = "0.1.0" # keep equal to the workspace version in the root Cargo.toml (the build scripts check it)
+identifier = "app.fractique"
+description = "Fractal flame wallpapers"
+long-description = """\
+Pick a preset, roll a random scene or change one yourself, and export a fractal flame at any size. \
+The same scene gives the same picture on every platform."""
+authors = ["tarpetos"]
+publisher = "tarpetos"
+homepage = "https://github.com/tarpetos/fractique"
+copyright = "Copyright (c) 2026 tarpetos. PolyForm Noncommercial License 1.0.0."
+license-file = "../../LICENSE.md"
+
+out-dir = "../../dist"
+binaries-dir = "../../target/release"
+binaries = [{ path = "fractique-gui", main = true }, { path = "fractique" }]
+
+icons = [
+    "../../assets/icon/icon-32.png",
+    "../../assets/icon/icon-64.png",
+    "../../assets/icon/icon-128.png",
+    "../../assets/icon/icon-256.png",
+    "../../assets/icon/icon-512.png",
+    "../../assets/icon/icon.ico",
+    "../../assets/icon/icon.icns",
+]
+
+[deb]
+section = "graphics"
+depends = [
+    "libxkbcommon0",
+    "libvulkan1",
+    "libwayland-client0",
+    "libx11-6",
+    "libxcursor1",
+    "libxi6",
+    "libxrandr2",
+]
+
+[macos]
+minimum-system-version = "13.0"
+
+[nsis]
+installer-mode = "currentUser"
+compression = "lzma"
+
+[dmg]
+window-size = { width = 540, height = 380 }
+app-position = { x = 140, y = 190 }
+application-folder-position = { x = 400, y = 190 }
