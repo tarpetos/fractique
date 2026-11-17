@@ -17,8 +17,16 @@ use widgets::{MEDIUM, SEMIBOLD, font};
 
 const DRAFT_SIDE: f32 = 480.0;
 const DRAFT_SAMPLES: u32 = 12;
-const FULL_SIDE: f32 = if cfg!(target_os = "android") { 1600.0 } else { 2560.0 };
-const FULL_SAMPLES: u32 = if cfg!(target_os = "android") { 18 } else { 32 };
+const FULL_SIDE: f32 = if cfg!(any(target_os = "android", target_os = "ios")) {
+    1600.0
+} else {
+    2560.0
+};
+const FULL_SAMPLES: u32 = if cfg!(any(target_os = "android", target_os = "ios")) {
+    18
+} else {
+    32
+};
 
 struct Rendered {
     generation: u64,

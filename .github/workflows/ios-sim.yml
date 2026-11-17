@@ -1,0 +1,45 @@
+# Starts the app in the iOS Simulator and keeps a screenshot of it. Started by hand only: macOS minutes are costly.
+name: iOS simulator
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    name: Run in the simulator
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - name: Rust (the version in rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: Build Fractique.app
+        run: ./scripts/ios/bundle.sh aarch64-apple-ios-sim
+      - name: Run it
+        run: |
+          app=target/ios/aarch64-apple-ios-sim/Fractique.app
+          codesign --force --sign - "$app"
+          xcrun simctl list devices available | grep -E 'iPhone' | head -20
+          device="$(xcrun simctl list devices available | grep -E '^ +iPhone 1[5-9]( Pro)? \(' | head -n1 | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/')"
+          echo "Simulator: $device"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl install "$device" "$app"
+          mkdir -p out
+          xcrun simctl launch --stdout="$PWD/out/stdout.txt" --stderr="$PWD/out/stderr.txt" "$device" app.fractique
+          sleep 45
+          xcrun simctl io "$device" screenshot out/start.png
+          sleep 20
+          xcrun simctl io "$device" screenshot out/later.png
+          xcrun simctl spawn "$device" log show --last 2m --predicate 'process == "Fractique"' > out/system-log.txt 2>&1 || true
+          xcrun simctl spawn "$device" launchctl list | grep -i fractique > out/running.txt 2>&1 || echo "not running" > out/running.txt
+          cat out/running.txt out/stderr.txt | tail -40
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ios-simulator
+          path: out
