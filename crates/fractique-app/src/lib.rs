@@ -125,6 +125,8 @@ struct App {
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     full_pending: bool,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    maximize_pending: bool,
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     probe: u32,
     language_anchor: egui::Pos2,
     results: (mpsc::Sender<Rendered>, mpsc::Receiver<Rendered>),
@@ -214,6 +216,8 @@ impl App {
             maximize_again: false,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             full_pending: false,
+            #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+            maximize_pending: false,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             probe: 0,
             results: mpsc::channel(),
@@ -389,6 +393,14 @@ impl App {
                 self.full_screen(ctx, true);
             }
         }
+        if self.maximize_pending {
+            if is_full {
+                ctx.request_repaint();
+            } else {
+                self.maximize_pending = false;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+            }
+        }
         self.probe_full_screen(ctx);
         self.resize_edges(ctx, is_full);
     }
@@ -407,7 +419,25 @@ impl App {
         self.full_pending = false;
         ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(on));
         if !on && std::mem::take(&mut self.maximize_again) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+            self.maximize_pending = true;
+            ctx.request_repaint();
+        }
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn toggle_maximized(&mut self, ctx: &egui::Context) {
+        let (maximized, is_full) = ctx.input(|input| {
+            (
+                input.viewport().maximized.unwrap_or(false),
+                input.viewport().fullscreen.unwrap_or(false),
+            )
+        });
+        // Maximizing a window that is in full screen leaves it over the taskbar with a black strip in its place.
+        if is_full {
+            self.maximize_again = true;
+            self.full_screen(ctx, false);
+        } else {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
         }
     }
 
@@ -421,16 +451,21 @@ impl App {
         match self.probe {
             20 => ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true)),
             90 => self.full_screen(ctx, true),
+            150 => self.toggle_maximized(ctx),
             91..240 => {
                 let line = format!(
                     "{} {:?} {:?}\n",
                     self.probe,
                     ctx.viewport_rect().size() * ctx.pixels_per_point(),
-                    ctx.input(|input| (
-                        input.viewport().maximized,
-                        input.viewport().fullscreen,
-                        input.viewport().monitor_size
-                    )),
+                    ctx.input(|input| {
+                        let window = input.viewport();
+                        (
+                            window.maximized,
+                            window.fullscreen,
+                            window.inner_rect.map(|rect| rect.size()),
+                            window.outer_rect.map(|rect| rect.size()),
+                        )
+                    }),
                 );
                 use std::io::Write;
                 if self.probe.is_multiple_of(10)
@@ -482,13 +517,12 @@ impl App {
             egui::pos2(screen.right() - BAR_GAP, screen.top() + BAR_GAP + BAR),
         );
         let is_full = ctx.input(|input| input.viewport().fullscreen.unwrap_or(false));
-        let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
         egui::Area::new(egui::Id::unique("title bar"))
             .fixed_pos(bar.min)
             .show(ctx, |ui| {
                 let (rect, grip) = ui.allocate_exact_size(bar.size(), egui::Sense::click_and_drag());
                 if grip.double_clicked() {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+                    self.toggle_maximized(ctx);
                 } else if grip.drag_started_by(egui::PointerButton::Primary) {
                     ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                 }
@@ -567,7 +601,7 @@ impl App {
                     if pressed.clicked() {
                         match button {
                             "close" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
-                            "maximize" => ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized)),
+                            "maximize" => self.toggle_maximized(ctx),
                             "minimize" => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
                             "full" => self.full_screen(ctx, !is_full),
                             _ => self.bare = true,
