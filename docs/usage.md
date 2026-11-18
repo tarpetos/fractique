@@ -62,6 +62,7 @@ flames and wallpapers; a switch in the controls goes from one to the other.
 | Inspector (left; **Controls** in the toolbar shows and hides it) | **Flames** or **Shapes**, then the preset or the wallpaper's choices, the colors, the size, the layers, the tone, the zoom, the glass, the scene |
 | Toolbar (bottom) | The picture's name, its size, the time it took and the magnification; **Randomize**, **Mutate**, **Export**, **Controls** |
 | **Presets** (inspector) | A list of the 29 built-in flames |
+| **Recent** (inspector; in the styles on a phone) | The last 24 pictures that were on the screen, newest first: presets, random flames, opened files and wallpapers. A click brings one back. A flame that is being adjusted counts once. The list is kept between launches |
 | **Randomize** | Flames: a new random flame in the chosen layer, made by the second random generator ([Random scenes](#5-random-scenes)). Wallpapers: a new wallpaper |
 | **Mutate** | Flames: a variant of the chosen layer's flame. Wallpapers: another wallpaper of the same layout and material |
 | **Layout**, **Material**, **Light** and **Dark** (inspector, wallpapers) | One of the 14 layouts and 6 materials of [Wallpapers](#6-wallpapers), or **Any**, which leaves the choice to each new wallpaper; and its light or dark version |

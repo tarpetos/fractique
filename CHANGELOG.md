@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* **App:** the last 24 pictures are remembered. **Recent** in the inspector lists them, and the styles of a phone
+  show them as a row of small pictures; a click brings one back. The list is kept between launches.
 * **MCP over HTTP:** `fractique-server` speaks MCP at `POST /mcp` (Streamable HTTP, revisions `2025-06-18` and
   `2025-03-26`) with the tools of `fractique mcp`, from the same code ([docs/mcp.md](docs/mcp.md#over-http)). A
   tool call is answered as an event stream with its progress; `notifications/cancelled`, the end of the session
