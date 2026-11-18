@@ -128,7 +128,16 @@ fn parse_size(text: &str) -> Result<(u32, u32), String> {
 
 fn load(path: &Path) -> Result<Scene, String> {
     let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    Scene::from_json(&text).map_err(|e| format!("{}: {e}", path.display()))
+    // A .frcq file of the app holds its session; the scene as it was on the screen is under "shown".
+    let shown = serde_json::from_str::<serde_json::Value>(&text)
+        .ok()
+        .filter(|file| file.get("fractique").is_some())
+        .and_then(|mut file| file.get_mut("shown").map(serde_json::Value::take));
+    match shown {
+        Some(scene) => Scene::from_json(&scene.to_string()),
+        None => Scene::from_json(&text),
+    }
+    .map_err(|e| format!("{}: {e}", path.display()))
 }
 
 fn emit(scene: &Scene, output: Option<PathBuf>) -> Result<(), String> {
