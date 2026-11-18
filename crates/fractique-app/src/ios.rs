@@ -51,9 +51,12 @@ pub fn share(path: &Path) {
         if root.is_null() {
             return;
         }
-        // An iPad shows this sheet as a popover and stops the app when it has no view to hang on.
+        // An iPad shows this sheet as a popover and stops the app when it has no view to hang on. An iPhone given
+        // a view hangs the sheet on it too, as a narrow panel in a corner, instead of raising it from the bottom.
+        let device: *mut AnyObject = msg_send![class!(UIDevice), currentDevice];
+        let idiom: isize = msg_send![device, userInterfaceIdiom];
         let popover: *mut AnyObject = msg_send![sheet, popoverPresentationController];
-        if !popover.is_null() {
+        if idiom == 1 && !popover.is_null() {
             let view: *mut AnyObject = msg_send![root, view];
             let _: () = msg_send![popover, setSourceView: view];
         }

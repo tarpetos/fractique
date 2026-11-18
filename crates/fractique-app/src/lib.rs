@@ -968,7 +968,18 @@ impl App {
                 .press_start_time()
                 .is_some_and(|start| input.time - start > phone::HOLD)
         });
-        let holding = self.phone.on && picture.is_pointer_button_down_on() && held && self.phone.swipe.length() < 12.0;
+        // A finger that moved, or a second finger, is a drag or a pinch for the rest of that press, not a hold.
+        let down = picture.is_pointer_button_down_on();
+        let moved = ui.input(|input| {
+            let strayed = input
+                .pointer
+                .press_origin()
+                .zip(input.pointer.interact_pos())
+                .is_some_and(|(from, to)| (to - from).length() > 10.0);
+            strayed || input.multi_touch().is_some()
+        });
+        self.phone.strayed = down && (self.phone.strayed || moved);
+        let holding = self.phone.on && down && held && !self.phone.strayed;
         if holding != self.phone.preview {
             self.phone.preview = holding;
             self.phone.previewed |= holding;

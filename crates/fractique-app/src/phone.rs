@@ -25,6 +25,8 @@ const TINTS: [(f64, [u8; 3]); 8] = [
     (350.0, [214, 92, 147]),
 ];
 pub const HOLD: f64 = 0.5;
+const SHEET_TOP: f32 = 0.3;
+const SHEET_TALL: f32 = 0.06;
 
 #[derive(Clone, PartialEq)]
 pub enum Kind {
@@ -94,6 +96,9 @@ pub struct Phone {
     pub swipe: egui::Vec2,
     pub preview: bool,
     pub previewed: bool,
+    pub strayed: bool,
+    pub lift: f32,
+    pub pull: f32,
     pub clear: Vec<Rect>,
     pub kept: Vec<Piece>,
     thumbs: HashMap<String, egui::TextureHandle>,
@@ -119,6 +124,9 @@ impl Phone {
             swipe: egui::Vec2::ZERO,
             preview: false,
             previewed: false,
+            strayed: false,
+            lift: SHEET_TOP,
+            pull: 0.0,
             clear: Vec::new(),
             kept,
             thumbs: HashMap::new(),
@@ -403,7 +411,11 @@ impl App {
         self.phone.clear.push(button.response.rect);
 
         match pressed {
-            Some("style") => self.phone.sheet = true,
+            Some("style") => {
+                self.phone.sheet = true;
+                self.phone.lift = SHEET_TOP;
+                self.phone.pull = 0.0;
+            }
             Some("similar") => self.act("mutate"),
             Some("keep") => {
                 crate::tick(true);
@@ -623,7 +635,8 @@ impl App {
     }
 
     fn phone_sheet(&mut self, ctx: &egui::Context, content: Rect, size: [u32; 2], panes: &mut Panes) {
-        let top = content.top() + content.height() * 0.3;
+        let high = content.height();
+        let top = content.top() + (high * self.phone.lift + self.phone.pull).clamp(high * SHEET_TALL, high * 0.92);
         let rect = Rect::from_min_max(egui::pos2(content.left() + 8.0, top), content.max - vec2(8.0, 8.0));
         let scale = ctx.pixels_per_point();
         let mut close = false;
@@ -644,13 +657,24 @@ impl App {
                     .show(ui, |ui| {
                         ui.spacing_mut().item_spacing = vec2(8.0, 2.0);
                         let (bar, grab) =
-                            ui.allocate_exact_size(vec2(ui.available_width() - 12.0, 26.0), Sense::click());
+                            ui.allocate_exact_size(vec2(ui.available_width() - 12.0, 30.0), Sense::click_and_drag());
                         ui.painter().rect_filled(
                             Rect::from_center_size(bar.center(), vec2(40.0, 4.5)),
                             CornerRadius::same(2),
                             Color32::from_white_alpha(150),
                         );
                         close = grab.clicked();
+                        if grab.dragged() {
+                            self.phone.pull += grab.drag_delta().y;
+                        }
+                        if grab.drag_stopped() {
+                            let at = self.phone.lift + std::mem::take(&mut self.phone.pull) / high;
+                            if at > 0.55 {
+                                close = true;
+                            } else {
+                                self.phone.lift = if at < 0.2 { SHEET_TALL } else { SHEET_TOP };
+                            }
+                        }
                         let mut scroll = egui::style::ScrollStyle::floating();
                         scroll.bar_width = 5.0;
                         scroll.floating_allocated_width = 0.0;
