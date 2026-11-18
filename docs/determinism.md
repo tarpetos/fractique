@@ -45,8 +45,9 @@ fractique render --preset aurora-spiral --size 192x108 --samples 20 --supersampl
 - **The PNG file's bytes.** The pixels are the same; the compression is the PNG library's business.
 - **The picture on the app's screen.** It is a preview: fewer samples, and at most 4096 pixels a side (1600 on a
   phone). An export, and a render of the saved scene by the command line tool, are exact.
-- **A seed across versions.** The random flame or the wallpaper of a seed may change when the generators improve.
-  A saved scene does not: it holds the shapes, not the seed that made them.
+- **A wallpaper's seed across versions.** The wallpaper of a seed may change when its generator improves. A saved
+  scene does not: it holds the shapes, not the seed that made them. The random flame of a seed does not change
+  either: the random generators are numbered, tests pin scenes of each, and a better one is added as a new number.
 
 ## Rules for changes
 

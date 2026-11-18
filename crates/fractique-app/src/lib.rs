@@ -29,7 +29,7 @@ use web_time::Instant;
 
 use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
-use fractique_core::random::{mutate, random_scene};
+use fractique_core::random::{Generator, mutate, random_scene, random_scene_of};
 use fractique_core::scene::{Blend, MAX_LAYERS};
 use fractique_core::wallpaper::{Layout, Material, Request, chosen as wallpaper_choice, random_wallpaper};
 use fractique_core::{Control, Developed, Image, RenderError, RenderOptions, Scene, compose, presets, render_layer};
@@ -378,6 +378,7 @@ struct App {
     title: String,
     is_random: bool,
     seed: u64,
+    generator: Generator,
     adjust: Adjust,
     view: View,
     shown: View,
@@ -575,6 +576,7 @@ impl App {
             title,
             is_random: false,
             seed: 0,
+            generator: Generator::First,
             adjust: NEUTRAL,
             view: WHOLE,
             shown: WHOLE,
@@ -802,6 +804,7 @@ impl App {
             "title": self.title,
             "random": self.is_random,
             "seed": self.seed,
+            "generator": self.generator.number(),
             "adjust": [self.adjust.brightness, self.adjust.gamma, self.adjust.glow, self.adjust.zoom],
             "view": [self.view.right, self.view.down, self.view.zoom],
             "layer": self.layer,
@@ -836,6 +839,7 @@ impl App {
         self.title = session.get("title")?.as_str()?.to_owned();
         self.is_random = session.get("random")?.as_bool()?;
         self.seed = session.get("seed")?.as_u64()?;
+        self.generator = generator_of(&session);
         if let Some(&[brightness, gamma, glow, zoom]) = numbers("adjust").as_deref() {
             self.adjust = Adjust {
                 brightness,
@@ -910,9 +914,8 @@ impl App {
             .max_height((room - 110.0).max(90.0))
             .show(ui, |ui| {
                 if adding && widgets::row(ui, &shown(&self.t("random")), false) {
-                    self.seed += 1;
-                    let title = format!("{} {}", shown(&self.t("random")), self.seed);
-                    chosen = Some((random_scene(self.seed), title));
+                    let title = self.next_random();
+                    chosen = Some((random_scene_of(self.generator, self.seed), title));
                 }
                 for name in presets::names() {
                     let current = !adding && !self.is_random && self.title == name;
@@ -1374,6 +1377,12 @@ impl App {
         bar
     }
 
+    fn next_random(&mut self) -> String {
+        self.seed += 1;
+        self.generator = Generator::LATEST;
+        format!("{} {}", shown(&self.t("random")), self.seed)
+    }
+
     fn pick(&mut self, scene: Scene, title: String, is_random: bool) {
         self.base = scene;
         self.title = title;
@@ -1762,16 +1771,18 @@ impl App {
                 self.new_wallpaper();
             }
             Some("randomize") if self.base.layers.is_empty() => {
-                self.seed += 1;
-                let title = format!("{} {}", shown(&self.t("random")), self.seed);
-                self.pick(named(random_scene(self.seed), &title), title.clone(), true);
+                let title = self.next_random();
+                self.pick(
+                    named(random_scene_of(self.generator, self.seed), &title),
+                    title.clone(),
+                    true,
+                );
             }
             Some("mutate") if self.base.layers.is_empty() => {}
             Some("randomize") => {
-                self.seed += 1;
-                let title = format!("{} {}", shown(&self.t("random")), self.seed);
+                let title = self.next_random();
                 let at = self.layer.min(self.base.layers.len() - 1);
-                let fresh = random_scene(self.seed).layers.swap_remove(0);
+                let fresh = random_scene_of(self.generator, self.seed).layers.swap_remove(0);
                 self.base.layers[at].flame = fresh.flame;
                 self.base.layers[at].name = title.clone();
                 if self.base.layers.len() == 1 {
@@ -2820,9 +2831,28 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
     }
 }
 
+// A session written before the second generator has no number: its random flames came from the first.
+fn generator_of(session: &serde_json::Value) -> Generator {
+    session
+        .get("generator")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(Generator::from_number)
+        .unwrap_or(Generator::First)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_session_without_a_generator_is_from_the_first() {
+        let of = |text: &str| generator_of(&serde_json::from_str(text).expect("it is JSON"));
+        assert_eq!(of(r#"{"random": true, "seed": 12}"#), Generator::First);
+        assert_eq!(of(r#"{"generator": 1}"#), Generator::First);
+        assert_eq!(of(r#"{"generator": 2}"#), Generator::Second);
+        assert_eq!(of(r#"{"generator": 9}"#), Generator::First);
+        assert_eq!(Generator::LATEST, Generator::Second);
+    }
 
     #[test]
     fn file_names_are_words_joined() {

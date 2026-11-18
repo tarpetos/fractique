@@ -29,8 +29,7 @@ What the app does not do yet:
 ## Renderer, next
 
 - MCP over HTTP with the server.
-- The randomizer does not use the 21 variations added after the first version (`waves` to `twintrian`): a new
-  entry in its list would change the scene of every seed. They need a second randomizer beside the first.
+- The second random generator in the MCP server and the HTTP server: both still make random scenes with the first.
 - More presets, and named palettes in scene files.
 - Rendering in tiles, to lower the memory of large supersampled images.
 - Animation: interpolating between two scenes.

@@ -21,6 +21,12 @@
   `fractique variations` lists them with their parameters, and the `.flame` import reads them and their
   parameters. Existing scenes render as before, and `fractique randomize` gives the same scene for every seed: the
   randomizer does not use the new variations.
+* **Randomizer:** a second random generator beside the first. It draws from all 49 variations, gives the
+  parametric ones random parameters and skips more of the pictures that come out as specks, a dim haze or an even
+  fog. `fractique randomize SEED --generator 2` and `fractique render --random SEED --generator 2` use it; without
+  the option both commands give the scene they always gave. The app's Randomize makes its new flames with it, and a
+  session or a `.frcq` file holds the number of the generator (`generator`; a file without it opens as before).
+  The scenes of the first generator are now pinned by tests.
 * **Presets:** `golden-filigree`, `frost-lotus`, `azure-turbine`, `orchid-pinwheel`, `lilac-mosaic`,
   `amber-lantern`, `emerald-plume` and `ember-thorns`, made with the new variations.
 * **App (desktop):** one window at a time. A second start brings the open window to the front and passes it the

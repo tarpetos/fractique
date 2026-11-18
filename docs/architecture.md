@@ -131,12 +131,21 @@ which layout and material a seed gives, without building the scene.
 
 ## The randomizer
 
-`random_scene(seed)` builds a flame of 2 to 4 transforms from a weighted list of variations, picks a palette and
-sometimes a symmetry and a second layer. It then probes the flame with 30 000 points to place the camera, and
-rejects flames that are a dot, dust or a filled square, trying up to 40 candidates per layer. All of it is driven by
-the seed alone, so a seed is a scene. `mutate(scene, seed, strength)` nudges the transforms of an existing scene.
-The list does not hold the 21 variations added after the first version (`waves` to `twintrian`): a new entry
-would change the scene of every seed.
+`random_scene_of(generator, seed)` builds a flame of 2 to 4 transforms from a weighted list of variations, picks a
+palette and sometimes a symmetry and a second layer. It then probes the flame with 30 000 points to place the
+camera, and rejects flames that are a dot, dust or a filled square, trying up to 40 candidates per layer. All of it
+is driven by the seed alone, so a seed is a scene. `mutate(scene, seed, strength)` nudges the transforms of an
+existing scene.
+
+A change to a generator's list, parameters or checks would change the scene of every seed, so a generator is never
+changed: a better one is added beside it with the next number, its own random streams and its own pinned tests.
+
+| Generator | What |
+| --- | --- |
+| 1 (`random_scene(seed)`) | The first 27 variations (all of the first 28 but `blur`); `julian` and `curl` get random parameters. The command line tool's default |
+| 2 | All 49 variations, each parametric one with random parameters in a range chosen for it. A variation that ignores its point (`blur`, `gaussian_blur`, `square`, `pie`, `arch`) is used at most once per flame, alone in its transform, only in a flame of three or four transforms, and with a small `post` map that places it; `noise` and `radial_blur` are never a transform's second variation, and `noise` leads a transform only where one of those five still could. On the 48×48 grid of the probe it also refuses specks (less than 16 % of the cells hit, or 90 % of the points in fewer than 130 cells), a dot in a haze and an even fog (too little difference between neighbouring cells), and moves the camera 1.6 times closer when half of the points are in fewer than 45 cells of a frame more than half covered. The app's Randomize uses it |
+
+The limits of generator 2 were chosen by looking at the pictures of seeds 1 to 144, not derived.
 
 ## The app
 
