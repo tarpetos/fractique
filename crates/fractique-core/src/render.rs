@@ -193,21 +193,103 @@ fn for_each_stream(run: impl Fn(u64) + Sync + Send) {
     (0..STREAMS).for_each(run);
 }
 
+pub struct Developed {
+    width: u32,
+    height: u32,
+    pixels: Vec<f32>,
+}
+
+impl Developed {
+    pub fn bytes(&self) -> usize {
+        self.pixels.len() * size_of::<f32>()
+    }
+}
+
+pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> Result<Image, RenderError> {
+    scene.validate().map_err(RenderError::Scene)?;
+    options.validate()?;
+    let count = scene.layers.len() as f64;
+    let mut layers = Vec::with_capacity(scene.layers.len());
+    for index in 0..scene.layers.len() {
+        let report = |share: f64| {
+            if let Some(progress) = control.progress {
+                progress((index as f64 + share) / count);
+            }
+        };
+        layers.push(develop_layer(scene, index, options, control.cancel, &report)?);
+    }
+    Ok(composed(scene, &layers.iter().collect::<Vec<_>>(), options))
+}
+
+pub fn render_layer(
+    scene: &Scene,
+    index: usize,
+    options: &RenderOptions,
+    control: &Control<'_>,
+) -> Result<Developed, RenderError> {
+    scene.validate().map_err(RenderError::Scene)?;
+    options.validate()?;
+    let report = |share: f64| {
+        if let Some(progress) = control.progress {
+            progress(share);
+        }
+    };
+    develop_layer(
+        scene,
+        index.min(scene.layers.len() - 1),
+        options,
+        control.cancel,
+        &report,
+    )
+}
+
+pub fn compose(scene: &Scene, layers: &[&Developed], options: &RenderOptions) -> Result<Image, RenderError> {
+    scene.validate().map_err(RenderError::Scene)?;
+    options.validate()?;
+    let fits = |layer: &&Developed| layer.width == options.width && layer.height == options.height;
+    if layers.len() != scene.layers.len() || !layers.iter().all(fits) {
+        return Err(RenderError::Cancelled);
+    }
+    Ok(composed(scene, layers, options))
+}
+
+fn develop_layer(
+    scene: &Scene,
+    index: usize,
+    options: &RenderOptions,
+    cancel: Option<&AtomicBool>,
+    report: &(dyn Fn(f64) + Sync),
+) -> Result<Developed, RenderError> {
+    let (histogram, normalize) = gather(scene, index, options, cancel, report, false)?;
+    let pixels = tone::develop(
+        &histogram,
+        &scene.layers[index].flame.tone,
+        options.supersample as usize,
+        normalize,
+    );
+    Ok(Developed {
+        width: options.width,
+        height: options.height,
+        pixels,
+    })
+}
+
 // The histogram of one layer and what turns its counts into densities. `plain` keeps to the plain chaos game.
 fn gather(
     scene: &Scene,
     index: usize,
     options: &RenderOptions,
-    control: &Control<'_>,
-    done: &AtomicU64,
+    cancel: Option<&AtomicBool>,
+    report: &(dyn Fn(f64) + Sync),
     plain: bool,
 ) -> Result<(Histogram, f64), RenderError> {
-    let flame = &scene.layers[index].flame;
     let (width, height) = (options.width as usize, options.height as usize);
     let supersample = options.supersample as usize;
     let per_layer = u64::from(options.samples_per_pixel) * width as u64 * height as u64;
-    let all_samples = (per_layer * scene.layers.len() as u64) as f64;
-    let cancelled = || control.cancel.is_some_and(|flag| flag.load(Ordering::Relaxed));
+    let done = AtomicU64::new(0);
+    let cancelled = || cancel.is_some_and(|flag| flag.load(Ordering::Relaxed));
+
+    let flame = &scene.layers[index].flame;
     let histogram = Histogram::new(width * supersample, height * supersample);
     let compiled = Compiled::new(flame);
     let lut = palette::lut(&flame.palette);
@@ -228,12 +310,9 @@ fn gather(
             histogram.add(py as usize * histogram.width + px as usize, lut[shade]);
         }
     };
-    let report = |count: u64, of: u64| {
-        if let Some(progress) = control.progress {
-            let share = (count as f64 * per_layer as f64 / of as f64) as u64;
-            let so_far = done.fetch_add(share, Ordering::Relaxed) + share;
-            progress((so_far as f64 / all_samples).min(1.0));
-        }
+    let count_up = |count: u64| {
+        let so_far = done.fetch_add(count, Ordering::Relaxed) + count;
+        report(so_far as f64 / per_layer as f64);
     };
 
     let plan = if plain {
@@ -261,7 +340,7 @@ fn gather(
                     let count = left.min(CHUNK);
                     walker.run(&compiled, &mut rng, count, plot);
                     left -= count;
-                    report(count, per_layer);
+                    count_up(count);
                 }
             });
             let per_cell = f64::from(options.samples_per_pixel) / (supersample * supersample) as f64;
@@ -281,7 +360,7 @@ fn gather(
                         plot(x, y, color);
                     }
                     left -= count;
-                    report(count, per_layer);
+                    count_up(count);
                 }
             });
             let landed = histogram.total();
@@ -298,25 +377,14 @@ fn gather(
     Ok((histogram, normalize))
 }
 
-pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> Result<Image, RenderError> {
-    scene.validate().map_err(RenderError::Scene)?;
-    options.validate()?;
-
+fn composed(scene: &Scene, layers: &[&Developed], options: &RenderOptions) -> Image {
     let (width, height) = (options.width as usize, options.height as usize);
-    let supersample = options.supersample as usize;
-    let done = AtomicU64::new(0);
-
     let mut canvas: Vec<f32> = Vec::with_capacity(width * height * 3);
     for _ in 0..width * height {
         canvas.extend(scene.background.map(|c| c as f32));
     }
-
-    for (index, layer) in scene.layers.iter().enumerate() {
-        let flame = &layer.flame;
-        let (histogram, normalize) = gather(scene, index, options, control, &done, false)?;
-
-        let developed = tone::develop(&histogram, &flame.tone, supersample, normalize);
-        composite(&mut canvas, &developed, layer.blend, layer.opacity as f32);
+    for (layer, developed) in scene.layers.iter().zip(layers) {
+        composite(&mut canvas, &developed.pixels, layer.blend, layer.opacity as f32);
     }
 
     let mut rgba = Vec::with_capacity(width * height * 4);
@@ -325,11 +393,11 @@ pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> 
         rgba.extend(pixel.iter().map(|c| (c.clamp(0.0, 1.0) * 255.0 + threshold) as u8));
         rgba.push(255);
     }
-    Ok(Image {
+    Image {
         width: options.width,
         height: options.height,
         rgba,
-    })
+    }
 }
 
 const fn bayer() -> [[f32; 8]; 8] {
@@ -386,7 +454,7 @@ mod tests {
                 samples_per_pixel: samples,
                 supersample: 1,
             };
-            let (histogram, _) = gather(&scene, 0, &options, &Control::default(), &AtomicU64::new(0), plain).unwrap();
+            let (histogram, _) = gather(&scene, 0, &options, None, &|_| {}, plain).unwrap();
             let block = 6;
             let mut sums = vec![0f64; (side as usize / block).pow(2)];
             for cell in 0..(side * side) as usize {

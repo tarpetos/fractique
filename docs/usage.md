@@ -143,8 +143,8 @@ view: lower `camera.zoom` then.
 | --- | --- |
 | Inspector (left; **Controls** in the toolbar shows and hides it) | Preset (a list of 21), size, layers, tone, zoom, glass, scene |
 | Title bar (desktop) | The version (opens the updates), the language, hide panels, minimize, maximize, close |
-| **Randomize** | The next random scene |
-| **Mutate** | A variant of the current scene |
+| **Randomize** | A new random flame in the chosen layer |
+| **Mutate** | A variant of the chosen layer's flame |
 | **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 21 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone); a larger one is shown scaled down and exported in full. It is shown whole in the window |
 | **Export** | A PNG at the picture's size, or at another size chosen in the same list there, and at the quality you choose; rendered in the background with a progress bar |
 | **Scene: Open, Save** | Scenes as `.json`; **Open** also reads `.flame` files |

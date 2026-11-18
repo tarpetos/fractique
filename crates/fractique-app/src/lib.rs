@@ -9,11 +9,12 @@ mod update;
 mod updates;
 mod widgets;
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, mpsc};
+use std::sync::{Arc, Mutex, mpsc};
 
 use web_time::Instant;
 
@@ -21,7 +22,7 @@ use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
 use fractique_core::random::{mutate, random_scene};
 use fractique_core::scene::{Blend, MAX_LAYERS};
-use fractique_core::{Control, Image, RenderOptions, Scene, presets, render};
+use fractique_core::{Control, Developed, Image, RenderError, RenderOptions, Scene, compose, presets, render_layer};
 
 use glass::{Gfx, Optics};
 use i18n::{Lang, Texts};
@@ -329,6 +330,7 @@ struct App {
     probe: u32,
     language_anchor: egui::Pos2,
     results: (mpsc::Sender<Rendered>, mpsc::Receiver<Rendered>),
+    kept: Layers,
     cancel: Arc<AtomicBool>,
     generation: u64,
     requested: Option<[u32; 2]>,
@@ -357,6 +359,54 @@ fn render_pool() -> &'static rayon::ThreadPool {
             .build()
             .expect("the render threads start")
     })
+}
+
+type Layers = Arc<Mutex<HashMap<String, Arc<Developed>>>>;
+
+const KEPT_BYTES: usize = if cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
+    160 << 20
+} else {
+    1200 << 20
+};
+
+// A layer's pixels depend only on its flame, its place in the scene, the seed and the size, so a layer that did
+// not change is taken from the last render.
+fn rendered(
+    scene: &Scene,
+    options: &RenderOptions,
+    control: &Control<'_>,
+    kept: &Layers,
+) -> Result<Image, RenderError> {
+    let size = format!(
+        "{} {} {} {} ",
+        options.width, options.height, options.samples_per_pixel, options.supersample
+    );
+    let (mut keys, mut layers) = (Vec::new(), Vec::new());
+    for (index, layer) in scene.layers.iter().enumerate() {
+        let flame = serde_json::to_string(&layer.flame).unwrap_or_default();
+        let key = format!("{size}{} {index} {flame}", scene.seed);
+        let found = kept.lock().unwrap_or_else(|e| e.into_inner()).get(&key).cloned();
+        let developed = match found {
+            Some(developed) => developed,
+            None => {
+                let developed = Arc::new(render_layer(scene, index, options, control)?);
+                kept.lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(key.clone(), developed.clone());
+                developed
+            }
+        };
+        keys.push(key);
+        layers.push(developed);
+    }
+    {
+        let mut kept = kept.lock().unwrap_or_else(|e| e.into_inner());
+        kept.retain(|key, _| !key.starts_with(&size) || keys.contains(key));
+        if kept.values().map(|layer| layer.bytes()).sum::<usize>() > KEPT_BYTES {
+            kept.retain(|key, _| keys.contains(key));
+        }
+    }
+    compose(scene, &layers.iter().map(|layer| &**layer).collect::<Vec<_>>(), options)
 }
 
 fn fitted(size: [u32; 2], side: f32, samples: u32) -> RenderOptions {
@@ -440,6 +490,7 @@ impl App {
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             probe: 0,
             results: mpsc::channel(),
+            kept: Layers::default(),
             cancel: Arc::new(AtomicBool::new(false)),
             generation: 0,
             requested: None,
@@ -497,7 +548,7 @@ impl App {
         }
         let (scene, cancel, generation) = (self.scene(), self.cancel.clone(), self.generation);
         let view = self.view;
-        let (sender, ctx) = (self.results.0.clone(), ctx.clone());
+        let (sender, ctx, kept) = (self.results.0.clone(), ctx.clone(), self.kept.clone());
         let work = move || {
             for (draft, options) in passes {
                 let started = Instant::now();
@@ -506,9 +557,9 @@ impl App {
                     progress: None,
                 };
                 #[cfg(not(target_arch = "wasm32"))]
-                let result = render_pool().install(|| render(&scene, &options, &control));
+                let result = render_pool().install(|| rendered(&scene, &options, &control, &kept));
                 #[cfg(target_arch = "wasm32")]
-                let result = render(&scene, &options, &control);
+                let result = rendered(&scene, &options, &control, &kept);
                 let Ok(image) = result else {
                     return;
                 };
@@ -595,7 +646,7 @@ impl App {
                 if adding && widgets::row(ui, &shown(&self.t("random")), false) {
                     self.seed += 1;
                     let title = format!("{} {}", shown(&self.t("random")), self.seed);
-                    chosen = Some((named(random_scene(self.seed), &title), title));
+                    chosen = Some((random_scene(self.seed), title));
                 }
                 for name in presets::names() {
                     let current = !adding && !self.is_random && self.title == name;
@@ -609,14 +660,15 @@ impl App {
         let Some((scene, title)) = chosen else { return };
         self.presets_open = false;
         if adding {
-            for mut layer in scene.layers {
-                if self.base.layers.len() < MAX_LAYERS {
-                    layer.blend = Blend::Screen;
-                    self.base.layers.push(layer);
-                }
+            if let Some(mut layer) = scene.layers.into_iter().next()
+                && self.base.layers.len() < MAX_LAYERS
+            {
+                layer.blend = Blend::Screen;
+                layer.name = shown(&title);
+                self.base.layers.push(layer);
+                self.layer = self.base.layers.len() - 1;
+                self.requested = None;
             }
-            self.layer = self.base.layers.len() - 1;
-            self.requested = None;
         } else {
             self.pick(scene, title, false);
         }
@@ -1270,14 +1322,27 @@ impl App {
         match clicked {
             Some("randomize") => {
                 self.seed += 1;
-                let title = format!("{} {}", self.t("random"), self.seed);
-                self.pick(named(random_scene(self.seed), &shown(&title)), title, true);
+                let title = format!("{} {}", shown(&self.t("random")), self.seed);
+                let at = self.layer.min(self.base.layers.len() - 1);
+                let fresh = random_scene(self.seed).layers.swap_remove(0);
+                self.base.layers[at].flame = fresh.flame;
+                self.base.layers[at].name = title.clone();
+                if self.base.layers.len() == 1 {
+                    self.title = title;
+                    self.is_random = true;
+                }
+                self.view = WHOLE;
+                self.requested = None;
             }
             Some("mutate") => {
                 self.seed += 1;
-                let scene = mutate(&self.base, self.seed, 0.25);
-                let (title, is_random) = (self.title.clone(), self.is_random);
-                self.pick(scene, title, is_random);
+                let at = self.layer.min(self.base.layers.len() - 1);
+                let mut alone = self.base.clone();
+                alone.layers = vec![self.base.layers[at].clone()];
+                if let Some(changed) = mutate(&alone, self.seed, 0.25).layers.pop() {
+                    self.base.layers[at].flame = changed.flame;
+                }
+                self.requested = None;
             }
             #[cfg(not(target_arch = "wasm32"))]
             Some("export") => {
@@ -2068,5 +2133,32 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
     match run(options, None) {
         Ok(()) => note("closed"),
         Err(error) => note(&format!("could not start: {error}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kept_layers_give_the_same_picture() {
+        let scene = presets::get("solar-mandala").expect("the preset exists");
+        let options = RenderOptions {
+            width: 96,
+            height: 64,
+            samples_per_pixel: 8,
+            supersample: 1,
+        };
+        let control = Control {
+            cancel: None,
+            progress: None,
+        };
+        let kept = Layers::default();
+        let whole = fractique_core::render(&scene, &options, &control).expect("it renders");
+        let first = rendered(&scene, &options, &control, &kept).expect("it renders");
+        let again = rendered(&scene, &options, &control, &kept).expect("it renders");
+        assert_eq!(first.rgba, whole.rgba);
+        assert_eq!(again.rgba, whole.rgba);
+        assert_eq!(kept.lock().expect("no thread panicked").len(), scene.layers.len());
     }
 }
