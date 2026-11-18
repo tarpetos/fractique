@@ -3,7 +3,12 @@ struct Uniforms {
     rect: vec4<f32>,   // panel: left, top, right, bottom (pixels)
     shape: vec4<f32>,  // corner radius, bezel width, shadow reach (pixels), shadow strength
     optics: vec4<f32>, // refraction (pixels), blur (0..1), opacity (0..1), depth (0..1)
+    view: vec4<f32>,   // the picture point at the middle of the screen (0..1, 0..1), magnification, unused
 };
+
+fn picture(p: vec2<f32>) -> vec2<f32> {
+    return (p / u.screen.xy - vec2<f32>(0.5)) / u.view.z + u.view.xy;
+}
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
 @group(0) @binding(1) var flame: texture_2d<f32>;
@@ -19,12 +24,12 @@ fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
 
 @fragment
 fn fs_background(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
-    let color = textureSample(flame, smp, pos.xy / u.screen.xy).rgb;
+    let color = textureSample(flame, smp, picture(pos.xy)).rgb;
     return vec4<f32>(color, 1.0);
 }
 
 fn look(p: vec2<f32>, blur: f32) -> vec3<f32> {
-    let uv = p / u.screen.xy;
+    let uv = picture(p);
     return mix(textureSample(flame, smp, uv).rgb, textureSample(soft, smp, uv).rgb, blur);
 }
 

@@ -59,6 +59,43 @@ struct Adjust {
     zoom: f64,
 }
 
+const MAX_MAGNIFICATION: f32 = 12.0;
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+const BAR: f32 = 38.0;
+
+#[derive(Clone, Copy, PartialEq)]
+struct View {
+    center: egui::Vec2,
+    zoom: f32,
+}
+
+const WHOLE: View = View {
+    center: egui::vec2(0.5, 0.5),
+    zoom: 1.0,
+};
+
+impl View {
+    fn settle(&mut self) {
+        self.zoom = self.zoom.clamp(1.0, MAX_MAGNIFICATION);
+        let edge = 0.5 / self.zoom;
+        self.center = self
+            .center
+            .clamp(egui::Vec2::splat(edge), egui::Vec2::splat(1.0 - edge));
+    }
+
+    fn moved(&mut self, by: egui::Vec2, screen: egui::Vec2) {
+        self.center -= by / screen / self.zoom;
+        self.settle();
+    }
+
+    fn magnified(&mut self, factor: f32, around: egui::Vec2) {
+        let held = around / self.zoom + self.center;
+        self.zoom = (self.zoom * factor).clamp(1.0, MAX_MAGNIFICATION);
+        self.center = held - around / self.zoom;
+        self.settle();
+    }
+}
+
 const NEUTRAL: Adjust = Adjust {
     brightness: 1.0,
     gamma: 1.0,
@@ -73,6 +110,8 @@ struct App {
     is_random: bool,
     seed: u64,
     adjust: Adjust,
+    view: View,
+    bare: bool,
     optics: Optics,
     tuning: bool,
     inspector_open: Option<bool>,
@@ -141,6 +180,8 @@ impl App {
             is_random: false,
             seed: 0,
             adjust: NEUTRAL,
+            view: WHOLE,
+            bare: false,
             optics: Optics {
                 refraction: 38.0,
                 blur,
@@ -260,11 +301,178 @@ impl App {
         }
     }
 
+    fn explore(&mut self, ui: &mut egui::Ui, screen: egui::Rect) {
+        let picture = ui.interact(screen, egui::Id::unique("picture"), egui::Sense::click_and_drag());
+        if picture.dragged() {
+            self.view.moved(picture.drag_delta(), screen.size());
+        }
+        if picture.double_clicked() {
+            self.view = WHOLE;
+        } else if picture.clicked() && (self.bare || cfg!(any(target_os = "android", target_os = "ios"))) {
+            self.bare = !self.bare;
+        }
+        if picture.contains_pointer() {
+            let (wheel, pinch, pointer) = ui.input(|input| {
+                (
+                    input.smooth_scroll_delta.y,
+                    input.zoom_delta(),
+                    input.pointer.hover_pos(),
+                )
+            });
+            let factor = pinch * (1.0 + wheel * 0.004).clamp(0.5, 2.0);
+            if factor != 1.0 {
+                let around = pointer.map_or(egui::Vec2::ZERO, |at| (at - screen.center()) / screen.size());
+                self.view.magnified(factor, around);
+            }
+        }
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn window_keys(&mut self, ctx: &egui::Context) {
+        let (hide, full, leave, is_full) = ctx.input(|input| {
+            (
+                input.key_pressed(egui::Key::H) && !ctx.egui_wants_keyboard_input(),
+                input.key_pressed(egui::Key::F11),
+                input.key_pressed(egui::Key::Escape),
+                input.viewport().fullscreen.unwrap_or(false),
+            )
+        });
+        if hide {
+            self.bare = !self.bare;
+        }
+        if full {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!is_full));
+        }
+        if leave {
+            if self.bare {
+                self.bare = false;
+            } else if is_full {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+            }
+        }
+        self.resize_edges(ctx, is_full);
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn resize_edges(&self, ctx: &egui::Context, is_full: bool) {
+        use egui::{CursorIcon, ResizeDirection};
+        let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
+        let Some(at) = ctx.input(|input| input.pointer.hover_pos()) else {
+            return;
+        };
+        if is_full || maximized {
+            return;
+        }
+        let screen = ctx.viewport_rect();
+        let grip = 6.0;
+        let (left, right) = (at.x < screen.left() + grip, at.x > screen.right() - grip);
+        let (top, bottom) = (at.y < screen.top() + grip, at.y > screen.bottom() - grip);
+        let edge = match (left, right, top, bottom) {
+            (true, _, true, _) => (ResizeDirection::NorthWest, CursorIcon::ResizeNwSe),
+            (_, true, true, _) => (ResizeDirection::NorthEast, CursorIcon::ResizeNeSw),
+            (true, _, _, true) => (ResizeDirection::SouthWest, CursorIcon::ResizeNeSw),
+            (_, true, _, true) => (ResizeDirection::SouthEast, CursorIcon::ResizeNwSe),
+            (true, ..) => (ResizeDirection::West, CursorIcon::ResizeHorizontal),
+            (_, true, ..) => (ResizeDirection::East, CursorIcon::ResizeHorizontal),
+            (_, _, true, _) => (ResizeDirection::North, CursorIcon::ResizeVertical),
+            (_, _, _, true) => (ResizeDirection::South, CursorIcon::ResizeVertical),
+            _ => return,
+        };
+        ctx.set_cursor_icon(edge.1);
+        if ctx.input(|input| input.pointer.primary_pressed()) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::BeginResize(edge.0));
+        }
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn title_bar(&mut self, ctx: &egui::Context, screen: egui::Rect) -> egui::Rect {
+        let bar = egui::Rect::from_min_size(screen.min, egui::vec2(screen.width(), BAR));
+        let (maximized, is_full) = ctx.input(|input| {
+            (
+                input.viewport().maximized.unwrap_or(false),
+                input.viewport().fullscreen.unwrap_or(false),
+            )
+        });
+        egui::Area::new(egui::Id::unique("title bar"))
+            .fixed_pos(bar.min)
+            .show(ctx, |ui| {
+                let (rect, grip) = ui.allocate_exact_size(bar.size(), egui::Sense::click_and_drag());
+                if grip.double_clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+                } else if grip.drag_started_by(egui::PointerButton::Primary) {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                }
+                let painter = ui.painter().clone();
+                painter.text(
+                    rect.left_center() + egui::vec2(16.0, 0.0),
+                    egui::Align2::LEFT_CENTER,
+                    "Fractique",
+                    font(13.5, MEDIUM),
+                    egui::Color32::from_white_alpha(225),
+                );
+
+                let ink = egui::Stroke::new(1.3, egui::Color32::from_white_alpha(225));
+                let mut slot =
+                    egui::Rect::from_min_size(egui::pos2(rect.right() - 46.0, rect.top()), egui::vec2(46.0, BAR));
+                for button in ["close", "maximize", "minimize", "full", "hide"] {
+                    let pressed = ui.interact(slot, egui::Id::unique(("title bar", button)), egui::Sense::click());
+                    if pressed.hovered() {
+                        let fill = if button == "close" {
+                            egui::Color32::from_rgb(196, 43, 28)
+                        } else {
+                            egui::Color32::from_white_alpha(28)
+                        };
+                        painter.rect_filled(slot, egui::CornerRadius::ZERO, fill);
+                    }
+                    let (c, r) = (slot.center(), 5.0);
+                    let line = |from: egui::Vec2, to: egui::Vec2| painter.line_segment([c + from, c + to], ink);
+                    match button {
+                        "close" => {
+                            line(egui::vec2(-r, -r), egui::vec2(r, r));
+                            line(egui::vec2(-r, r), egui::vec2(r, -r));
+                        }
+                        "maximize" => {
+                            let square = egui::Rect::from_center_size(c, egui::Vec2::splat(2.0 * r));
+                            painter.rect_stroke(square, egui::CornerRadius::same(1), ink, egui::StrokeKind::Middle);
+                        }
+                        "minimize" => {
+                            line(egui::vec2(-r, 0.0), egui::vec2(r, 0.0));
+                        }
+                        "full" => {
+                            for (x, y) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+                                let corner = egui::vec2(x * (r + 1.0), y * (r + 1.0));
+                                line(corner, corner - egui::vec2(x * 4.0, 0.0));
+                                line(corner, corner - egui::vec2(0.0, y * 4.0));
+                            }
+                        }
+                        _ => {
+                            let pane = egui::Rect::from_center_size(c, egui::vec2(2.0 * r + 4.0, 2.0 * r));
+                            painter.rect_stroke(pane, egui::CornerRadius::same(3), ink, egui::StrokeKind::Middle);
+                            line(egui::vec2(-r - 4.0, r + 2.0), egui::vec2(r + 4.0, -r - 2.0));
+                        }
+                    }
+                    if pressed.clicked() {
+                        match button {
+                            "close" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                            "maximize" => ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized)),
+                            "minimize" => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+                            "full" => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!is_full)),
+                            _ => self.bare = true,
+                        }
+                    }
+                    slot = slot.translate(egui::vec2(-46.0, 0.0));
+                }
+            });
+        // Only the lower edge of this pane is on the screen: the bar runs from side to side.
+        egui::Rect::from_min_max(bar.min - egui::vec2(60.0, 60.0), bar.max + egui::vec2(60.0, 0.0))
+    }
+
     fn pick(&mut self, scene: Scene, title: String, is_random: bool) {
         self.base = scene;
         self.title = title;
         self.is_random = is_random;
         self.requested = None;
+        self.view = WHOLE;
     }
 
     fn t(&self, key: &str) -> String {
@@ -653,6 +861,17 @@ impl eframe::App for App {
         }
 
         let screen = ctx.viewport_rect();
+        self.explore(ui, screen);
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        let content = {
+            self.window_keys(&ctx);
+            let mut content = safe_content(&ctx);
+            if !self.bare {
+                content.min.y += BAR;
+            }
+            content
+        };
+        #[cfg(any(target_os = "android", target_os = "ios", target_arch = "wasm32"))]
         let content = safe_content(&ctx);
         let scale = ctx.pixels_per_point();
         let size = [
@@ -685,7 +904,11 @@ impl eframe::App for App {
                 self.shown_frames = 2;
             }
         }
-        let mut glass = glass::Frame::new(&painter, screen);
+        let mut glass = glass::Frame::new(
+            &painter,
+            screen,
+            [self.view.center.x, self.view.center.y, self.view.zoom],
+        );
         for (rect, radius) in &self.panes {
             glass.pane(
                 *rect,
@@ -696,11 +919,24 @@ impl eframe::App for App {
             );
         }
 
+        if self.bare {
+            if !self.panes.is_empty() {
+                self.panes.clear();
+                ctx.request_repaint();
+            }
+            if self.screenshot.is_some() {
+                self.take_screenshot(&ctx);
+            }
+            return;
+        }
+
         let wide = content.width() >= 700.0;
         let open = *self.inspector_open.get_or_insert(wide);
         #[cfg(not(target_arch = "wasm32"))]
         let open = open && (wide || !self.export.open);
         let mut panes = Vec::new();
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        panes.push((self.title_bar(&ctx, screen), 0.0));
         if open {
             let corner = content.min + egui::vec2(20.0, 20.0);
             let inspector = egui::Area::new(egui::Id::unique("inspector"))
