@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* **GPU acceleration:** the trial that decides whether a built-in graphics chip is used draws a larger picture and
+  asks for the card to be 1.3 times as fast, not twice: a phone with an Adreno 740 was left out at 1.7.
 * **GPU acceleration:** a graphics card of its own (not one built into the processor) is used without a trial.
   Elsewhere the card's best of three trial runs counts, and a verdict that it is slow is not kept between launches,
   so one trial at a bad moment no longer hides the switch for good.

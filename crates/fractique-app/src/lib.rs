@@ -572,9 +572,11 @@ struct Trial {
 // machine does at that moment would decide it.
 const TRIAL_RUNS: u8 = 3;
 
-const TRIAL_SIZE: [u32; 2] = [800, 450];
+// A smaller picture is over before the card's fixed costs stop counting: a phone's card then looks slower than it is.
+const TRIAL_SIZE: [u32; 2] = [1280, 720];
 // The card is used where it ends the trial at least this many times sooner than the processor.
-const CLEARLY: f32 = 2.0;
+// Measured on an Adreno 740, which is 1.7 times as fast at 800 × 450 and clearly quicker to use.
+const CLEARLY: f32 = 1.3;
 // A run of the card may take as long as the processor is expected to, and at least this many seconds.
 const PATIENCE: f64 = 0.3;
 
