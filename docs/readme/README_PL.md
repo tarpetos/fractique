@@ -47,6 +47,15 @@ Fraktale innych rodzajów: zbiór Mandelbrota, zbiór Julii i atraktor Clifforda
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
+Orbity rysowane jako gęstości: Buddhabrot oraz atraktory De Jonga, Lorenza, Gumowskiego-Miry i Hopalong:
+
+| | | |
+| --- | --- | --- |
+| ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
+| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
+| `gumowski_mira-feathers` | `hopalong-web` | |
+
 Tapety, jasne i ciemne, każda ze swoim układem i materiałem:
 
 | | | | |

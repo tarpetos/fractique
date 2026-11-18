@@ -47,6 +47,15 @@ Fractique तीन तरह की तस्वीरें बनाता �
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
+घनत्व के रूप में बनी कक्षाएँ: बुद्धब्रॉट और डी जोंग, लोरेंज़, गुमोव्स्की-मीरा और होपालोंग आकर्षक:
+
+| | | |
+| --- | --- | --- |
+| ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
+| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
+| `gumowski_mira-feathers` | `hopalong-web` | |
+
 हल्के और गहरे वॉलपेपर, हर एक अपने लेआउट और सामग्री के साथ:
 
 | | | | |

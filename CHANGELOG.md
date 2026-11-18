@@ -35,6 +35,24 @@
     and as its Julia form). In the app a parameter that is a choice (the form, the type, the polynomial) shows
     the names of its values in place of a slider. The Mandelbrot and Julia sets render as before.
 
+* **Five more fractals, the rest of the orbit family:** the **Buddhabrot** and the **De Jong**, **Lorenz**,
+  **Gumowski-Mira** and **Hopalong** attractors, drawn as densities like the Clifford attractor. Each has six
+  presets, a random picture for every seed that is checked to be worth looking at, and a mutation
+  ([docs/scene-format.md](docs/scene-format.md#orbit-kinds)).
+  * **Buddhabrot:** the orbits that leave, or with `anti` those that stay; colored by the length of the orbit,
+    by where it started, or as the Nebulabrot of three iteration limits in blue, green and red; `turn` and `tilt`
+    turn the picture towards the plane of the starting points. Its starting points are taken only from the
+    cells of the plane that can hold an orbit to draw, evenly, so the picture is the one blind sampling gives and
+    most of the wasted orbits are never started.
+  * **Lorenz:** integrated in fixed steps by the fourth-order Runge-Kutta method, turned and tipped by two
+    angles; `duration` goes from a few separate lines to the density of the whole attractor.
+  * **The attractors** are colored by the speed of the orbit, the direction of its step or the distance from the
+    middle (the height, for Lorenz), each spread evenly over the palette. In the app these colorings, those of
+    the Buddhabrot and its two kinds of orbits are choices by name.
+  * In `fractique-core`, a kind drawn as a density may bring its own colors in place of the layer's palette
+    (`Orbit::colors`); the Nebulabrot does. Nothing changes for the kinds that were there: their golden hashes
+    are untouched. The golden hashes of the five kinds were produced on Linux.
+
 * **GPU acceleration:** the trial of a built-in graphics chip gives way when a picture is asked for and begins
   again when the app rests; its verdict is kept again, so a slow phone is tried once, not at every start. The
   first picture after a start is no longer handed to the processor because the shaders took time to load.

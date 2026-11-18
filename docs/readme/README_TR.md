@@ -47,6 +47,15 @@ Başka türden fraktallar: Mandelbrot kümesi, bir Julia kümesi ve Clifford çe
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
+Yoğunluk olarak çizilen yörüngeler: Buddhabrot ile De Jong, Lorenz, Gumowski-Mira ve Hopalong çekicileri:
+
+| | | |
+| --- | --- | --- |
+| ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
+| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
+| `gumowski_mira-feathers` | `hopalong-web` | |
+
 Açık ve koyu duvar kâğıtları, her biri kendi düzeni ve malzemesiyle:
 
 | | | | |

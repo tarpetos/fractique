@@ -47,6 +47,15 @@ Fractique는 세 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
+밀도로 그리는 궤도: 부다브로와 더용, 로렌츠, 구모프스키-미라, 호팔롱 끌개:
+
+| | | |
+| --- | --- | --- |
+| ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
+| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
+| `gumowski_mira-feathers` | `hopalong-web` | |
+
 라이트 배경화면과 다크 배경화면, 각각의 레이아웃과 소재:
 
 | | | | |

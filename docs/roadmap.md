@@ -22,6 +22,7 @@ built on it.
 
 | 15 | **Fractals of other kinds:** a layer is a flame or a fractal of a kind from a registry, drawn per pixel or as a density; the Mandelbrot set, Julia sets and the Clifford attractor, with presets, a random picture for every seed and mutation; a third tab in the app, `fractique fractals` and `--fractal`, the MCP tools and the HTTP server ([architecture.md](architecture.md#fractals-of-other-kinds)) | The foundation and three kinds are done. Next, on the same registry: Burning Ship, Tricorn, Multibrot, Phoenix, Magnet; Newton, Nova; Buddhabrot, De Jong, Lorenz, Gumowski-Mira, Hopalong; Apollonian gasket, Kleinian groups, L-systems, Lyapunov; Mandelbulb, Mandelbox, Menger sponge |
 | 16 | **Escape-time and root-finding kinds:** Burning Ship, Tricorn, Multibrot, Phoenix and Magnet beside the Mandelbrot and Julia sets, and Newton and Nova, the first two of the root-finding family; each with six presets, a random picture for every seed and a mutation ([scene-format.md](scene-format.md#escape-time-kinds)) | Done. The golden hashes were produced on Linux |
+| 17 | **Orbit kinds:** the Buddhabrot, with the Nebulabrot coloring and the Anti-Buddhabrot, and the De Jong, Lorenz, Gumowski-Mira and Hopalong attractors beside the Clifford attractor, which makes the orbit family whole; each with six presets, a random picture for every seed and a mutation ([scene-format.md](scene-format.md#orbit-kinds)) | Done. The golden hashes were produced on Linux |
 
 ## App, next
 

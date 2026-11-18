@@ -47,6 +47,15 @@ Fractals of other kinds: the Mandelbrot set, a Julia set and the Clifford attrac
 | ![mandelbrot](docs/samples/fractal-mandelbrot.png) | ![julia](docs/samples/fractal-julia.png) | ![clifford](docs/samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
+Orbits drawn as densities: the Buddhabrot and the De Jong, Lorenz, Gumowski-Mira and Hopalong attractors:
+
+| | | |
+| --- | --- | --- |
+| ![buddhabrot](docs/samples/fractal-buddhabrot.png) | ![de_jong](docs/samples/fractal-de_jong.png) | ![lorenz](docs/samples/fractal-lorenz.png) |
+| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| ![gumowski_mira](docs/samples/fractal-gumowski_mira.png) | ![hopalong](docs/samples/fractal-hopalong.png) | |
+| `gumowski_mira-feathers` | `hopalong-web` | |
+
 Wallpapers, light and dark, each with its layout and material:
 
 | | | | |

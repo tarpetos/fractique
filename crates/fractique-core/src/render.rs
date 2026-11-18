@@ -547,7 +547,8 @@ fn gather_orbit(
     let done = AtomicU64::new(0);
     let cancelled = || cancel.is_some_and(|flag| flag.load(Ordering::Relaxed));
     let histogram = Histogram::new(width * supersample, height * supersample);
-    let plotter = Plotter::new(&histogram, &fractal.camera, palette::lut(&fractal.palette));
+    let colors = orbit.colors().unwrap_or_else(|| palette::lut(&fractal.palette));
+    let plotter = Plotter::new(&histogram, &fractal.camera, colors);
 
     for_each_stream(|stream| {
         let mut rng = Rng::derive(seed, ORBIT_DOMAIN + index as u64, stream);
