@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+* **MCP server:** `list_wallpaper_styles` and `randomize_wallpaper` make wallpapers; `render_scene` also takes
+  `wallpaper_seed` (with `layout`, `material`, `dark`), `file` (the path of a `.frcq` or JSON scene) and `frcq`
+  (the bytes of a `.frcq` in base64). A call with a progress token gets `notifications/progress` while it renders,
+  and `notifications/cancelled` stops a render, which then gets no answer. `ping` is answered during a render.
+* **Command line tool:** `fractique convert` turns a `.frcq` file into its scene as JSON (`--document` for
+  everything the file holds) and a JSON scene or document into a `.frcq`.
+
 * **Wallpapers:** a scene can hold `sheets`, a stack of flat shapes (rounded boxes, petals, rings and arcs, waves and
   ribbons) with lit edges, gradients, translucency and soft shadows, drawn under the flame layers.
   `fractique render --wallpaper SEED` makes one for every seed out of fourteen layouts (bands, discs, waves,

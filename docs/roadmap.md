@@ -7,7 +7,7 @@ built on it.
 | --- | --- | --- |
 | 1 | **Core:** scene format, renderer, presets, randomizer, exact repeatability | Done |
 | 2 | **CLI:** render scenes to PNG | Done |
-| 3 | **MCP server** over stdio: presets, random scenes, mutation, validation, `.flame` import, rendering with the image returned ([mcp.md](mcp.md)) | Done |
+| 3 | **MCP server** over stdio: presets, random scenes, mutation, validation, `.flame` import, wallpapers, rendering with the image returned, progress and cancelling ([mcp.md](mcp.md)) | Done |
 | 4 | **App:** one codebase for Windows, Linux, macOS, Android, iOS and the web; presets, randomize, mutate, tone, glass, 15 languages. Runs on Windows, Linux, Android, the iOS Simulator and in a browser. export, scenes, updates. Runs on Windows, Linux, Android, the iOS Simulator and in a browser. Still to do: layers editing, GPU preview, export on the web | In progress |
 | 5 | **Server:** HTTP API with a job queue and limits, web UI (the app compiled to WebAssembly), Docker image | Planned |
 | 6 | **Android app** | Planned |
@@ -15,7 +15,7 @@ built on it.
 
 ## Renderer, next
 
-- Cancelling a render and progress reports through MCP; MCP over HTTP with the server.
+- MCP over HTTP with the server.
 - More variations (the ones that take the transform's coefficients: waves, popcorn, rings, fan; and more
   parametric ones).
 - More presets, and named palettes in scene files.

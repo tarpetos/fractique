@@ -1,26 +1,26 @@
 use std::fs;
-use std::io::{BufRead, Write};
+use std::io::{self, BufRead, Write};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver};
+use std::sync::{Arc, Mutex, PoisonError};
+use std::thread;
 use std::time::Instant;
 
 use fractique_core::import::import_flames;
 use fractique_core::random::{fit_camera, mutate, random_scene};
-use fractique_core::{Control, Kind, Quality, RenderOptions, Scene, presets, render};
+use fractique_core::wallpaper::{Layout, Material, random_wallpaper};
+use fractique_core::{Control, Kind, Quality, RenderOptions, Scene, file, presets, render};
 use serde_json::{Value, json};
 
 const PROTOCOLS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const INLINE_PIXELS: u64 = 1_048_576;
+const WALLPAPER_SIZE: (u64, u64) = (1290, 2796);
 const SCENE_FORMAT: &str = include_str!("../../../docs/scene-format.md");
 
 struct RpcError {
     code: i64,
     message: String,
-}
-
-fn invalid(message: impl Into<String>) -> RpcError {
-    RpcError {
-        code: -32602,
-        message: message.into(),
-    }
 }
 
 fn tool(name: &str, description: &str, properties: Value, required: &[&str]) -> Value {
@@ -33,6 +33,11 @@ fn tool(name: &str, description: &str, properties: Value, required: &[&str]) -> 
 
 fn tools() -> Value {
     let scene = json!({ "type": "object", "description": "A scene, as returned by the other tools. describe_scene_format explains every field." });
+    let layout =
+        json!({ "type": "string", "enum": names(&Layout::ALL), "description": "Left out, the seed picks one." });
+    let material =
+        json!({ "type": "string", "enum": names(&Material::ALL), "description": "Left out, the seed picks one." });
+    let dark = json!({ "type": "boolean", "description": "The dark version of the same shapes. Default false." });
     let seed = json!({ "type": "integer", "minimum": 0, "description": "Any whole number. The same number always gives the same result." });
     json!([
         tool("list_presets", "Names of the built-in scenes.", json!({}), &[]),
@@ -47,6 +52,25 @@ fn tools() -> Value {
             "The random scene of a seed, with its camera already framing the flame.",
             json!({ "seed": seed }),
             &["seed"]
+        ),
+        tool(
+            "list_wallpaper_styles",
+            "The layouts and the materials a wallpaper can have.",
+            json!({}),
+            &[]
+        ),
+        tool(
+            "randomize_wallpaper",
+            "The wallpaper of a seed: a scene of flat sheets with lit edges and soft shadows instead of a flame. The shapes are laid out for the proportions of width and height, so render it with the same proportions.",
+            json!({
+                "seed": seed,
+                "layout": layout,
+                "material": material,
+                "dark": dark,
+                "width": { "type": "integer", "minimum": 1, "description": "Default 1290." },
+                "height": { "type": "integer", "minimum": 1, "description": "Default 2796." },
+            }),
+            &["seed"],
         ),
         tool(
             "mutate_scene",
@@ -86,11 +110,17 @@ fn tools() -> Value {
         ),
         tool(
             "render_scene",
-            "Renders a scene and returns the image, so you can look at it. Give exactly one of scene, preset or random_seed. The same input always gives the same pixels; the returned hash identifies them. Images above about one megapixel are not returned inline: give save_to.",
+            "Renders a scene and returns the image, so you can look at it. Give exactly one of scene, preset, random_seed, wallpaper_seed, file or frcq. The same input always gives the same pixels; the returned hash identifies them. Images above about one megapixel are not returned inline: give save_to. A request with a progress token gets notifications/progress while it renders, and notifications/cancelled stops it.",
             json!({
                 "scene": scene,
                 "preset": { "type": "string", "description": "Name of a built-in scene." },
                 "random_seed": seed,
+                "wallpaper_seed": { "type": "integer", "minimum": 0, "description": "Renders the wallpaper of this seed, laid out for width and height. layout, material and dark choose its style." },
+                "layout": layout,
+                "material": material,
+                "dark": dark,
+                "file": { "type": "string", "description": "Path of a scene file to read: a .frcq of the app, or JSON." },
+                "frcq": { "type": "string", "description": "The bytes of a .frcq file, in base64." },
                 "width": { "type": "integer", "minimum": 1, "maximum": 16384, "description": "Default 640." },
                 "height": { "type": "integer", "minimum": 1, "maximum": 16384, "description": "Default 360." },
                 "quality": { "type": "string", "enum": ["draft", "mobile", "standard", "high", "ultra"], "description": "Default mobile: enough to judge a scene. Use high for a final image." },
@@ -104,8 +134,10 @@ fn tools() -> Value {
 fn scene_of(arguments: &Value) -> Result<Scene, String> {
     let scene = match arguments.get("scene") {
         // Some clients hand an object argument over as its JSON text.
-        Some(Value::String(text)) => return Scene::from_json(text).map_err(|e| e.to_string()),
-        Some(value) => serde_json::from_value::<Scene>(value.clone()).map_err(|e| format!("not a scene: {e}"))?,
+        Some(Value::String(text)) => return crate::scene_from_bytes(text.as_bytes()),
+        Some(value) => {
+            serde_json::from_value::<Scene>(crate::shown(value.clone())).map_err(|e| format!("not a scene: {e}"))?
+        }
         None => return Err("the scene argument is missing".into()),
     };
     scene.validate().map_err(|e| e.to_string())?;
@@ -120,6 +152,29 @@ fn whole(arguments: &Value, name: &str) -> Result<Option<u64>, String> {
             .map(Some)
             .ok_or_else(|| format!("{name} must be a whole number, 0 or above")),
     }
+}
+
+fn word<'a>(arguments: &'a Value, name: &str) -> Result<Option<&'a str>, String> {
+    match arguments.get(name) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => value.as_str().map(Some).ok_or_else(|| format!("{name} must be a text")),
+    }
+}
+
+fn names<T>(all: &[(&'static str, T)]) -> Vec<&'static str> {
+    all.iter().map(|(name, _)| *name).collect()
+}
+
+fn wallpaper(arguments: &Value, seed: u64, width: u64, height: u64) -> Result<Scene, String> {
+    let side = |name: &str, value: u64| u32::try_from(value).map_err(|_| format!("{name} is too large"));
+    let request = crate::wallpaper_request(
+        word(arguments, "layout")?.map(str::to_owned),
+        word(arguments, "material")?.map(str::to_owned),
+        side("width", width)?.max(1),
+        side("height", height)?.max(1),
+        arguments.get("dark").and_then(Value::as_bool).unwrap_or(false),
+    )?;
+    Ok(random_wallpaper(seed, &request))
 }
 
 fn text(content: impl Into<String>) -> Vec<Value> {
@@ -144,24 +199,64 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
-fn render_scene(arguments: &Value) -> Result<Vec<Value>, String> {
-    let preset = arguments.get("preset").and_then(Value::as_str);
-    let random_seed = whole(arguments, "random_seed")?;
-    let given = usize::from(arguments.get("scene").is_some())
-        + usize::from(preset.is_some())
-        + usize::from(random_seed.is_some());
-    if given != 1 {
-        return Err("give exactly one of scene, preset or random_seed".into());
+fn unbase64(text: &str) -> Option<Vec<u8>> {
+    let mut out = Vec::with_capacity(text.len() / 4 * 3);
+    let (mut word, mut bits) = (0u32, 0);
+    for byte in text.bytes().filter(|byte| !byte.is_ascii_whitespace() && *byte != b'=') {
+        let six = match byte {
+            b'A'..=b'Z' => byte - b'A',
+            b'a'..=b'z' => byte - b'a' + 26,
+            b'0'..=b'9' => byte - b'0' + 52,
+            b'+' | b'-' => 62,
+            b'/' | b'_' => 63,
+            _ => return None,
+        };
+        word = word << 6 | u32::from(six);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((word >> bits) as u8);
+        }
     }
-    let scene = match (preset, random_seed) {
-        (Some(name), _) => presets::get(name).ok_or_else(|| format!("no preset is called '{name}'"))?,
-        (_, Some(seed)) => random_scene(seed),
-        _ => scene_of(arguments)?,
-    };
+    Some(out)
+}
+
+const SOURCES: [&str; 6] = ["scene", "preset", "random_seed", "wallpaper_seed", "file", "frcq"];
+
+fn render_scene(arguments: &Value, control: &Control<'_>) -> Result<Vec<Value>, String> {
     let side = |name: &str, default: u64| -> Result<u32, String> {
         u32::try_from(whole(arguments, name)?.unwrap_or(default)).map_err(|_| format!("{name} is too large"))
     };
     let (width, height) = (side("width", 640)?, side("height", 360)?);
+    let given: Vec<&str> = SOURCES
+        .into_iter()
+        .filter(|name| arguments.get(name).is_some_and(|value| !value.is_null()))
+        .collect();
+    let scene = match given[..] {
+        ["scene"] => scene_of(arguments)?,
+        ["preset"] => {
+            let name = word(arguments, "preset")?.unwrap_or_default();
+            presets::get(name).ok_or_else(|| format!("no preset is called '{name}'"))?
+        }
+        ["random_seed"] => random_scene(whole(arguments, "random_seed")?.unwrap_or_default()),
+        ["wallpaper_seed"] => wallpaper(
+            arguments,
+            whole(arguments, "wallpaper_seed")?.unwrap_or_default(),
+            u64::from(width),
+            u64::from(height),
+        )?,
+        ["file"] => crate::load(Path::new(word(arguments, "file")?.unwrap_or_default()))?,
+        ["frcq"] => {
+            let bytes = word(arguments, "frcq")?
+                .and_then(unbase64)
+                .ok_or("frcq must be the bytes of a .frcq file in base64")?;
+            if !file::is_packed(&bytes) {
+                return Err("frcq does not hold a .frcq file; a scene as JSON goes in scene".into());
+            }
+            crate::scene_from_bytes(&bytes)?
+        }
+        _ => return Err(format!("give exactly one of {}", SOURCES.join(", "))),
+    };
     let quality = arguments.get("quality").and_then(Value::as_str).unwrap_or("mobile");
     let quality = Quality::parse(quality).ok_or_else(|| format!("no quality is called '{quality}'"))?;
     let save_to = arguments.get("save_to").and_then(Value::as_str);
@@ -174,7 +269,7 @@ fn render_scene(arguments: &Value) -> Result<Vec<Value>, String> {
 
     let options = RenderOptions::new(width, height, quality);
     let started = Instant::now();
-    let image = render(&scene, &options, &Control::default()).map_err(|e| e.to_string())?;
+    let image = render(&scene, &options, control).map_err(|e| e.to_string())?;
     let png = crate::encode_png(&image)?;
     let mut note = format!(
         "{width}x{height}, {} samples per pixel, {:.1} s, hash {:016x}",
@@ -194,7 +289,7 @@ fn render_scene(arguments: &Value) -> Result<Vec<Value>, String> {
     Ok(content)
 }
 
-fn call(name: &str, arguments: &Value) -> Result<Vec<Value>, String> {
+fn call(name: &str, arguments: &Value, control: &Control<'_>) -> Result<Vec<Value>, String> {
     match name {
         "list_presets" => Ok(text(presets::names().join("\n"))),
         "get_preset" => {
@@ -209,6 +304,17 @@ fn call(name: &str, arguments: &Value) -> Result<Vec<Value>, String> {
         "randomize_scene" => {
             let seed = whole(arguments, "seed")?.ok_or("the seed argument is missing")?;
             Ok(text(random_scene(seed).to_json()))
+        }
+        "list_wallpaper_styles" => Ok(text(format!(
+            "layouts: {}\nmaterials: {}",
+            names(&Layout::ALL).join(", "),
+            names(&Material::ALL).join(", ")
+        ))),
+        "randomize_wallpaper" => {
+            let seed = whole(arguments, "seed")?.ok_or("the seed argument is missing")?;
+            let width = whole(arguments, "width")?.unwrap_or(WALLPAPER_SIZE.0);
+            let height = whole(arguments, "height")?.unwrap_or(WALLPAPER_SIZE.1);
+            Ok(text(wallpaper(arguments, seed, width, height)?.to_json()))
         }
         "mutate_scene" => {
             let seed = whole(arguments, "seed")?.ok_or("the seed argument is missing")?;
@@ -265,7 +371,7 @@ fn call(name: &str, arguments: &Value) -> Result<Vec<Value>, String> {
             }
             Ok(content)
         }
-        "render_scene" => render_scene(arguments),
+        "render_scene" => render_scene(arguments, control),
         _ => Err(format!("no tool is called '{name}'")),
     }
 }
@@ -279,23 +385,11 @@ fn handle(method: &str, params: &Value) -> Result<Value, RpcError> {
                 "protocolVersion": version,
                 "capabilities": { "tools": {} },
                 "serverInfo": { "name": "fractique", "title": "Fractique", "version": env!("CARGO_PKG_VERSION") },
-                "instructions": "Fractique renders fractal flames from scenes (JSON). A usual loop: get_preset or randomize_scene, render_scene to look at it, change the scene (describe_scene_format explains the fields), render again. The same scene always renders to the same pixels.",
+                "instructions": "Fractique renders fractal flames and wallpapers from scenes (JSON). A usual loop: get_preset, randomize_scene or randomize_wallpaper, render_scene to look at it, change the scene (describe_scene_format explains the fields), render again. The same scene always renders to the same pixels.",
             }))
         }
         "ping" => Ok(json!({})),
         "tools/list" => Ok(json!({ "tools": tools() })),
-        "tools/call" => {
-            let name = params
-                .get("name")
-                .and_then(Value::as_str)
-                .ok_or_else(|| invalid("tools/call needs a name"))?;
-            let empty = json!({});
-            let arguments = params.get("arguments").filter(|a| !a.is_null()).unwrap_or(&empty);
-            Ok(match call(name, arguments) {
-                Ok(content) => json!({ "content": content, "isError": false }),
-                Err(message) => json!({ "content": text(message), "isError": true }),
-            })
-        }
         _ => Err(RpcError {
             code: -32601,
             message: format!("method '{method}' is not supported"),
@@ -303,46 +397,187 @@ fn handle(method: &str, params: &Value) -> Result<Value, RpcError> {
     }
 }
 
-fn answer(line: &str) -> Option<Value> {
-    let failure = |id: Value, code: i64, message: String| json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } });
-    let message: Value = match serde_json::from_str(line) {
-        Ok(message) => message,
-        Err(e) => return Some(failure(Value::Null, -32700, format!("not JSON: {e}"))),
+fn failure(id: Value, code: i64, message: String) -> Value {
+    json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
+}
+
+struct Call {
+    id: Value,
+    params: Value,
+    cancelled: Arc<AtomicBool>,
+}
+
+struct Server<W> {
+    out: Mutex<W>,
+    calls: Mutex<Vec<(Value, Arc<AtomicBool>)>>,
+}
+
+impl<W: Write + Send> Server<W> {
+    // A cancelled request gets no further message: the flag is set and read under the lock of the output.
+    fn send(&self, cancelled: Option<&AtomicBool>, message: &Value) -> io::Result<()> {
+        let mut out = self.out.lock().unwrap_or_else(PoisonError::into_inner);
+        if cancelled.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+            return Ok(());
+        }
+        writeln!(out, "{message}").and_then(|()| out.flush())
+    }
+
+    fn cancel(&self, id: &Value) {
+        let calls = self.calls.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((_, flag)) = calls.iter().find(|(call, _)| call == id) {
+            let _out = self.out.lock().unwrap_or_else(PoisonError::into_inner);
+            flag.store(true, Ordering::Relaxed);
+        }
+    }
+
+    fn receive(&self, line: &str, queue: &mpsc::Sender<Call>) -> io::Result<()> {
+        let message: Value = match serde_json::from_str(line) {
+            Ok(message) => message,
+            Err(e) => return self.send(None, &failure(Value::Null, -32700, format!("not JSON: {e}"))),
+        };
+        let id = message.get("id").cloned();
+        let params = message.get("params").cloned().unwrap_or(Value::Null);
+        let Some(method) = message.get("method").and_then(Value::as_str) else {
+            if message.is_array() {
+                self.send(None, &failure(Value::Null, -32600, "batches are not supported".into()))?;
+            }
+            return Ok(());
+        };
+        match (method, id) {
+            ("notifications/cancelled", _) => {
+                if let Some(id) = params.get("requestId") {
+                    self.cancel(id);
+                }
+                Ok(())
+            }
+            ("tools/call", Some(id)) => {
+                let cancelled = Arc::new(AtomicBool::new(false));
+                self.calls
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push((id.clone(), cancelled.clone()));
+                let _ = queue.send(Call { id, params, cancelled });
+                Ok(())
+            }
+            (_, None) => Ok(()),
+            (_, Some(id)) => self.send(
+                None,
+                &match handle(method, &params) {
+                    Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
+                    Err(e) => failure(id, e.code, e.message),
+                },
+            ),
+        }
+    }
+
+    fn work(&self, request: &Call) -> io::Result<()> {
+        let flag = &*request.cancelled;
+        let Some(name) = request.params.get("name").and_then(Value::as_str) else {
+            return self.send(
+                Some(flag),
+                &failure(request.id.clone(), -32602, "tools/call needs a name".into()),
+            );
+        };
+        let empty = json!({});
+        let arguments = request
+            .params
+            .get("arguments")
+            .filter(|a| !a.is_null())
+            .unwrap_or(&empty);
+        let token = request
+            .params
+            .pointer("/_meta/progressToken")
+            .filter(|token| token.is_string() || token.is_i64() || token.is_u64());
+        // Progress must only grow and the render threads report in any order: the lock keeps the percents in order.
+        let reported = Mutex::new(0u64);
+        let report = |share: f64| {
+            let percent = (share.clamp(0.0, 1.0) * 100.0) as u64;
+            let mut last = reported.lock().unwrap_or_else(PoisonError::into_inner);
+            if percent > *last {
+                *last = percent;
+                let _ = self.send(
+                    Some(flag),
+                    &json!({
+                        "jsonrpc": "2.0",
+                        "method": "notifications/progress",
+                        "params": { "progressToken": token, "progress": percent, "total": 100, "message": "rendering" },
+                    }),
+                );
+            }
+        };
+        let control = Control {
+            cancel: Some(flag),
+            progress: token.map(|_| &report as &(dyn Fn(f64) + Sync)),
+        };
+        let result = match call(name, arguments, &control) {
+            Ok(content) => json!({ "content": content, "isError": false }),
+            Err(message) => json!({ "content": text(message), "isError": true }),
+        };
+        self.send(
+            Some(flag),
+            &json!({ "jsonrpc": "2.0", "id": request.id, "result": result }),
+        )
+    }
+
+    fn run(&self, calls: Receiver<Call>) -> io::Result<()> {
+        for call in calls {
+            let done = if call.cancelled.load(Ordering::Relaxed) {
+                Ok(())
+            } else {
+                self.work(&call)
+            };
+            self.calls
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .retain(|(_, flag)| !Arc::ptr_eq(flag, &call.cancelled));
+            done?;
+        }
+        Ok(())
+    }
+}
+
+fn serve_on(input: impl BufRead, output: impl Write + Send) -> Result<(), String> {
+    let server = Server {
+        out: Mutex::new(output),
+        calls: Mutex::new(Vec::new()),
     };
-    let id = message.get("id").cloned();
-    let Some(method) = message.get("method").and_then(Value::as_str) else {
-        return message
-            .is_array()
-            .then(|| failure(Value::Null, -32600, "batches are not supported".into()));
-    };
-    let result = handle(method, message.get("params").unwrap_or(&Value::Null));
-    let id = id?;
-    Some(match result {
-        Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
-        Err(e) => failure(id, e.code, e.message),
+    let (queue, calls) = mpsc::channel();
+    thread::scope(|scope| {
+        let worker = scope.spawn(|| server.run(calls));
+        let read = input.lines().try_for_each(|line| {
+            let line = line.map_err(|e| format!("stdin: {e}"))?;
+            if line.trim().is_empty() {
+                return Ok(());
+            }
+            server.receive(&line, &queue).map_err(|e| format!("stdout: {e}"))
+        });
+        drop(queue);
+        let worked = worker.join().map_err(|_| "the worker stopped".to_owned())?;
+        read.and(worked.map_err(|e| format!("stdout: {e}")))
     })
 }
 
 pub fn serve() -> Result<(), String> {
-    let stdin = std::io::stdin();
-    let mut stdout = std::io::stdout().lock();
-    for line in stdin.lock().lines() {
-        let line = line.map_err(|e| format!("stdin: {e}"))?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        if let Some(response) = answer(&line) {
-            writeln!(stdout, "{response}")
-                .and_then(|()| stdout.flush())
-                .map_err(|e| format!("stdout: {e}"))?;
-        }
-    }
-    Ok(())
+    serve_on(io::stdin().lock(), io::stdout())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn exchange(lines: &[String]) -> Vec<Value> {
+        let mut out = Vec::new();
+        serve_on(lines.join("\n").as_bytes(), &mut out).expect("the server runs");
+        String::from_utf8(out)
+            .expect("text")
+            .lines()
+            .map(|line| serde_json::from_str(line).expect("a JSON message"))
+            .collect()
+    }
+
+    fn answer(line: &str) -> Option<Value> {
+        exchange(&[line.to_owned()]).pop()
+    }
 
     fn ask(request: Value) -> Value {
         answer(&request.to_string()).expect("an answer")
@@ -387,7 +622,7 @@ mod tests {
     fn every_listed_tool_has_a_schema() {
         let listed = ask(json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" }));
         let tools = listed["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 10);
+        assert_eq!(tools.len(), 12);
         for tool in tools {
             assert_eq!(tool["inputSchema"]["type"], "object", "{}", tool["name"]);
             let unknown = call_tool(tool["name"].as_str().unwrap(), json!({ "scene": 5 }));
@@ -440,5 +675,145 @@ mod tests {
             json!({ "preset": "aurora-spiral", "width": 4000, "height": 4000 }),
         );
         assert!(large["content"][0]["text"].as_str().unwrap().contains("save_to"));
+    }
+
+    #[test]
+    fn base64_comes_back() {
+        let bytes: Vec<u8> = (0..=255).collect();
+        for length in [0, 1, 2, 3, 254, 255, 256] {
+            assert_eq!(unbase64(&base64(&bytes[..length])).as_deref(), Some(&bytes[..length]));
+        }
+        assert_eq!(unbase64("Zm9v\nYmFy").as_deref(), Some(&b"foobar"[..]));
+        assert!(unbase64("Zm9v!").is_none());
+    }
+
+    #[test]
+    fn wallpapers_are_listed_and_made() {
+        let styles = call_tool("list_wallpaper_styles", json!({}));
+        let listed = styles["content"][0]["text"].as_str().unwrap();
+        for name in names(&Layout::ALL).into_iter().chain(names(&Material::ALL)) {
+            assert!(listed.contains(name), "{name}");
+        }
+
+        let make = |arguments: Value| {
+            let made = call_tool("randomize_wallpaper", arguments);
+            assert_eq!(made["isError"], false, "{made}");
+            Scene::from_json(made["content"][0]["text"].as_str().unwrap()).expect("a valid scene")
+        };
+        let plain = make(json!({ "seed": 7 }));
+        assert_eq!(plain, make(json!({ "seed": 7 })));
+        assert!(plain.sheets.is_some() && plain.layers.is_empty());
+        let request = crate::wallpaper_request(Some("waves".into()), Some("glass".into()), 800, 600, true).unwrap();
+        assert_eq!(
+            make(
+                json!({ "seed": 7, "layout": "waves", "material": "glass", "dark": true, "width": 800, "height": 600 })
+            ),
+            Scene::from_json(&random_wallpaper(7, &request).to_json()).unwrap()
+        );
+        assert_ne!(plain, make(json!({ "seed": 7, "dark": true })));
+
+        let unknown = call_tool("randomize_wallpaper", json!({ "seed": 7, "layout": "spirals" }));
+        assert_eq!(unknown["isError"], true);
+        assert!(unknown["content"][0]["text"].as_str().unwrap().contains("spirals"));
+    }
+
+    fn hash_of(result: &Value) -> String {
+        assert_eq!(result["isError"], false, "{result}");
+        let note = result["content"][1]["text"].as_str().unwrap();
+        note.split("hash ").nth(1).unwrap()[..16].to_owned()
+    }
+
+    #[test]
+    fn a_wallpaper_renders_from_its_seed() {
+        let request = crate::wallpaper_request(None, Some("paper".into()), 90, 160, true).unwrap();
+        let options = RenderOptions::new(90, 160, Quality::Mobile);
+        let expected = render(&random_wallpaper(11, &request), &options, &Control::default()).unwrap();
+        let rendered = call_tool(
+            "render_scene",
+            json!({ "wallpaper_seed": 11, "material": "paper", "dark": true, "width": 90, "height": 160 }),
+        );
+        assert_eq!(hash_of(&rendered), format!("{:016x}", expected.hash()));
+        let both = call_tool("render_scene", json!({ "wallpaper_seed": 11, "random_seed": 11 }));
+        assert_eq!(both["isError"], true);
+    }
+
+    #[test]
+    fn a_frcq_renders_as_its_scene() {
+        let scene = presets::get("aurora-spiral").unwrap();
+        let shown = serde_json::to_value(&scene).unwrap();
+        let document = json!({ "fractique": 1, "scene": { "ignored": true }, "shown": shown });
+        let packed = file::pack(&document);
+        let path = std::env::temp_dir().join(format!("fractique-mcp-{}.frcq", std::process::id()));
+        fs::write(&path, &packed).unwrap();
+
+        let options = json!({ "width": 64, "height": 36, "quality": "draft" });
+        let with = |name: &str, value: Value| {
+            let mut arguments = options.clone();
+            arguments[name] = value;
+            call_tool("render_scene", arguments)
+        };
+        let expected = hash_of(&with("preset", "aurora-spiral".into()));
+        assert_eq!(hash_of(&with("file", path.to_string_lossy().into())), expected);
+        assert_eq!(hash_of(&with("frcq", base64(&packed).into())), expected);
+        assert_eq!(hash_of(&with("scene", document.clone())), expected);
+        assert_eq!(hash_of(&with("scene", document.to_string().into())), expected);
+        fs::remove_file(&path).unwrap();
+
+        assert_eq!(with("file", "/nowhere/missing.frcq".into())["isError"], true);
+        assert_eq!(with("frcq", base64(b"FRCQ\x01nonsense").into())["isError"], true);
+        assert_eq!(
+            with("frcq", base64(shown.to_string().as_bytes()).into())["isError"],
+            true
+        );
+    }
+
+    #[test]
+    fn progress_grows_and_ends_before_the_answer() {
+        let request = json!({
+            "jsonrpc": "2.0", "id": 5, "method": "tools/call",
+            "params": {
+                "_meta": { "progressToken": "render-5" },
+                "name": "render_scene",
+                "arguments": { "preset": "emerald-star", "width": 64, "height": 36, "quality": "draft" },
+            },
+        });
+        let messages = exchange(&[request.to_string()]);
+        let (answer, notes) = messages.split_last().unwrap();
+        assert_eq!(answer["id"], 5);
+        assert_eq!(answer["result"]["isError"], false);
+        assert!(!notes.is_empty());
+        let mut last = 0;
+        for note in notes {
+            assert_eq!(note["method"], "notifications/progress");
+            assert!(note.get("id").is_none());
+            assert_eq!(note["params"]["progressToken"], "render-5");
+            assert_eq!(note["params"]["total"], 100);
+            let progress = note["params"]["progress"].as_u64().unwrap();
+            assert!(progress > last && progress <= 100, "{progress} after {last}");
+            last = progress;
+        }
+        assert_eq!(last, 100);
+
+        let mut silent = request;
+        silent["params"]["_meta"] = json!({});
+        assert_eq!(exchange(&[silent.to_string()]).len(), 1);
+    }
+
+    #[test]
+    fn a_call_cancelled_before_it_starts_is_not_answered() {
+        let render = |id: u64| {
+            json!({
+                "jsonrpc": "2.0", "id": id, "method": "tools/call",
+                "params": { "name": "render_scene", "arguments": { "preset": "aurora-spiral", "quality": "standard" } },
+            })
+            .to_string()
+        };
+        let cancel = |id: Value| {
+            json!({ "jsonrpc": "2.0", "method": "notifications/cancelled", "params": { "requestId": id, "reason": "test" } })
+                .to_string()
+        };
+        let messages = exchange(&[render(1), render(2), cancel(2.into()), cancel("unknown".into())]);
+        assert_eq!(messages.len(), 1, "{messages:?}");
+        assert_eq!(messages[0]["id"], 1);
     }
 }
