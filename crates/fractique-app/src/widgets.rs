@@ -167,8 +167,8 @@ pub fn segments(ui: &mut Ui, labels: &[String], chosen: usize) -> Option<usize> 
         } else {
             (FontId::proportional(13.5), white(190))
         };
-        ui.painter()
-            .text(cell.center(), Align2::CENTER_CENTER, label, font, color);
+        let galley = fitted(ui, label, font, color, each - 14.0);
+        ui.painter().galley(cell.center() - galley.size() * 0.5, galley, color);
         if response.clicked() {
             picked = Some(index);
         }
@@ -187,6 +187,15 @@ pub fn add_row(ui: &mut Ui, enabled: bool) -> bool {
     enabled && response.clicked()
 }
 
+fn fitted(ui: &Ui, text: &str, mut font: FontId, color: Color32, room: f32) -> Arc<egui::Galley> {
+    let galley = ui.painter().layout_no_wrap(text.to_owned(), font.clone(), color);
+    if galley.size().x <= room || room <= 0.0 {
+        return galley;
+    }
+    font.size = (font.size * room / galley.size().x).max(8.0);
+    ui.painter().layout_no_wrap(text.to_owned(), font, color)
+}
+
 pub fn pill_width(ui: &Ui, text: &str) -> f32 {
     let galley = ui
         .painter()
@@ -200,8 +209,17 @@ pub fn pill(ui: &mut Ui, text: &str, primary: bool, min_width: f32) -> bool {
     } else {
         white(240)
     };
-    let galley = ui.painter().layout_no_wrap(text.to_owned(), font(14.0, MEDIUM), color);
-    let width = (galley.size().x + 2.0 * ui.spacing().button_padding.x).max(min_width);
+    let padding = ui.spacing().button_padding.x;
+    let (galley, width) = if min_width > 0.0 {
+        (
+            fitted(ui, text, font(14.0, MEDIUM), color, min_width - 2.0 * padding.min(12.0)),
+            min_width,
+        )
+    } else {
+        let galley = ui.painter().layout_no_wrap(text.to_owned(), font(14.0, MEDIUM), color);
+        let width = galley.size().x + 2.0 * padding;
+        (galley, width)
+    };
     let (rect, response) = ui.allocate_exact_size(vec2(width, 38.0), Sense::click());
     let lift = if response.is_pointer_button_down_on() {
         -10

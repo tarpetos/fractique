@@ -64,6 +64,7 @@ license texts are in each crate's repository and in its package on [crates.io](h
 | dispatch | 0.2.0 | MIT |
 | dispatch2 | 0.3.1 | Zlib OR Apache-2.0 OR MIT |
 | dlib | 0.5.3 | MIT |
+| doctest-file | 1.1.1 | 0BSD |
 | document-features | 0.2.12 | MIT OR Apache-2.0 |
 | downcast-rs | 1.2.1 | MIT/Apache-2.0 |
 | dpi | 0.1.2 | Apache-2.0 AND MIT |
@@ -118,6 +119,7 @@ license texts are in each crate's repository and in its package on [crates.io](h
 | hermit-abi | 0.5.3 | MIT OR Apache-2.0 |
 | image | 0.25.10 | MIT OR Apache-2.0 |
 | indexmap | 2.14.2 | Apache-2.0 OR MIT |
+| interprocess | 2.4.8 | 0BSD OR Apache-2.0 |
 | is_terminal_polyfill | 1.70.2 | MIT OR Apache-2.0 |
 | itertools | 0.15.0 | MIT OR Apache-2.0 |
 | itoa | 1.0.19 | MIT OR Apache-2.0 |
@@ -219,6 +221,7 @@ license texts are in each crate's repository and in its package on [crates.io](h
 | rayon | 1.12.0 | MIT OR Apache-2.0 |
 | rayon-core | 1.13.0 | MIT OR Apache-2.0 |
 | read-fonts | 0.41.0 | MIT OR Apache-2.0 |
+| recvmsg | 1.0.0 | 0BSD |
 | redox_syscall | 0.4.1 | MIT |
 | redox_syscall | 0.5.18 | MIT |
 | redox_syscall | 0.9.5 | MIT |
@@ -311,6 +314,7 @@ license texts are in each crate's repository and in its package on [crates.io](h
 | wgpu-hal | 30.0.2 | MIT OR Apache-2.0 |
 | wgpu-naga-bridge | 30.0.2 | MIT OR Apache-2.0 |
 | wgpu-types | 30.0.2 | MIT OR Apache-2.0 |
+| widestring | 1.2.1 | MIT OR Apache-2.0 |
 | winapi-util | 0.1.11 | Unlicense OR MIT |
 | windows | 0.62.2 | MIT OR Apache-2.0 |
 | windows-collections | 0.3.2 | MIT OR Apache-2.0 |
