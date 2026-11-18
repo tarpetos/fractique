@@ -148,7 +148,12 @@ pub fn segments(ui: &mut Ui, labels: &[String], chosen: usize) -> Option<usize> 
     let mut picked = None;
     for (index, label) in labels.iter().enumerate() {
         let cell = egui::Rect::from_min_size(track.min + vec2(each * index as f32, 0.0), vec2(each, track.height()));
-        let response = ui.interact(cell, ui.scope_id().with(("segment", index)), Sense::click());
+        // Two switches in one panel must not share ids: a click on one would count for the other.
+        let response = ui.interact(
+            cell,
+            ui.scope_id().with(("segment", labels.first(), index)),
+            Sense::click(),
+        );
         let selected = index == chosen;
         if selected {
             ui.painter()
