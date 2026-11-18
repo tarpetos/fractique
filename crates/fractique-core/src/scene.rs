@@ -104,6 +104,25 @@ impl Default for Camera {
     }
 }
 
+impl Camera {
+    // The camera that looks at the point `right` and `down` of this one's middle, in shorter sides of the image,
+    // and magnifies it `by` times.
+    pub fn looking_at(&self, right: f64, down: f64, by: f64) -> Camera {
+        let angle = self.rotation.to_radians();
+        let (cos, sin) = (crate::math::cos(angle), crate::math::sin(angle));
+        let across = right * 4.0 / self.zoom;
+        let up = if self.flip_y { down } else { -down } * 4.0 / self.zoom;
+        Camera {
+            center: [
+                self.center[0] + across * cos - up * sin,
+                self.center[1] + across * sin + up * cos,
+            ],
+            zoom: self.zoom * by,
+            ..self.clone()
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Tone {

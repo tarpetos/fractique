@@ -124,16 +124,8 @@ fn offset(center: usize, at: usize, reach: usize) -> usize {
     at + reach - center
 }
 
-pub(crate) fn develop(
-    histogram: &Histogram,
-    tone: &Tone,
-    supersample: usize,
-    samples_per_pixel: u32,
-    zoom: f64,
-) -> Vec<f32> {
+pub(crate) fn develop(histogram: &Histogram, tone: &Tone, supersample: usize, normalize: f64) -> Vec<f32> {
     let (width, height) = (histogram.width / supersample, histogram.height / supersample);
-    let per_cell = f64::from(samples_per_pixel) / (supersample * supersample) as f64;
-    let normalize = zoom * zoom / per_cell;
     let inverse_gamma = 1.0 / tone.gamma;
     let share = 1.0 / (supersample * supersample) as f64;
     let cells = estimate(histogram, tone.smoothing);

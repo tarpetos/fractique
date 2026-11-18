@@ -77,6 +77,7 @@ flowchart TB
 | Step | Where | What happens |
 | --- | --- | --- |
 | Chaos game | `chaos.rs` | A walker starts at a random point and repeats: pick a transform by weight, apply its affine map, then the weighted sum of its variations, then the optional post map. Each step moves the walker's color toward the transform's color. Every point after the first 24 is plotted. |
+| Deep views | `deep.rs` | When a view holds less than an eighth of the flame, the plain chaos game wastes its points outside it. Then the layer is drawn from 8192 particles: points of the flame inside the view, each with the seeds of the steps that made it. They are found window by window, every window half the size of the one before: particles that fall out are replaced by copies of those that stay, and each is moved about inside the window by giving it a new start and keeping its latest steps. The render moves the particles the same way and plots them. Brightness stays what it was where the view began to hold less than an eighth, so a deep view is neither burnt nor black. |
 | Streams | `render.rs` | The samples of a layer (`samples per pixel × width × height`) are split over 64 streams. The number is fixed, so the result does not depend on how many cores a machine has. |
 | Histogram | `render.rs` | Each plotted point adds 1 to its cell's hit count and its palette color to the cell's color sums. These are integer additions on atomics: the order in which threads add does not change the totals. |
 | Density estimation | `tone.rs` | A cell with few hits is noise, so it is spread with a wide kernel; a cell with many hits stays sharp. This is what makes sparse wisps smooth without blurring the dense structure. |
@@ -91,6 +92,14 @@ The camera is not in pixels. At zoom 1 the shorter side of the image shows 4 wor
 wider image shows more of the world on its long side. The number of samples grows with the number of pixels, and
 glow and smoothing are sized relative to the image. So one scene gives the same picture at 640×360 and at
 3840×2160: the large one is sharper, not different.
+
+### Any zoom
+
+A view can be magnified until the 64-bit numbers of the renderer run out of digits, at about ten thousand million
+times; the app stops there. A deep view costs five to ten times a plain one, because every point is sent through
+the steps its particle keeps. Where the flame has nothing, a deep view is empty: the gaps between its threads are
+wider than the threads. A flame whose transforms blur (`blur`, `gaussian_blur`) is smooth below the size of
+its blur and shows no more detail there.
 
 ### Phones
 

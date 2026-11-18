@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 
 use crate::chaos::{Compiled, Walker};
+use crate::deep;
 use crate::math::{cos, sin};
 use crate::palette;
 use crate::rng::Rng;
@@ -11,6 +12,8 @@ use crate::tone;
 pub const STREAMS: u64 = 64;
 const CHUNK: u64 = 1 << 16;
 const STREAM_DOMAIN: u64 = 0x1000;
+const PLAN_DOMAIN: u64 = 0x2000;
+const DEEP_DOMAIN: u64 = 0x3000;
 
 pub const MAX_SIDE: u32 = 16_384;
 pub const MAX_SUPERSAMPLE: u32 = 4;
@@ -163,6 +166,13 @@ impl Histogram {
         }
     }
 
+    fn total(&self) -> u64 {
+        self.counts
+            .iter()
+            .map(|count| u64::from(count.load(Ordering::Relaxed)))
+            .sum()
+    }
+
     #[inline]
     pub(crate) fn cell(&self, cell: usize) -> (u32, [u64; 3]) {
         let color = |ch: usize| self.colors[cell * 3 + ch].load(Ordering::Relaxed);
@@ -183,16 +193,118 @@ fn for_each_stream(run: impl Fn(u64) + Sync + Send) {
     (0..STREAMS).for_each(run);
 }
 
+// The histogram of one layer and what turns its counts into densities. `plain` keeps to the plain chaos game.
+fn gather(
+    scene: &Scene,
+    index: usize,
+    options: &RenderOptions,
+    control: &Control<'_>,
+    done: &AtomicU64,
+    plain: bool,
+) -> Result<(Histogram, f64), RenderError> {
+    let flame = &scene.layers[index].flame;
+    let (width, height) = (options.width as usize, options.height as usize);
+    let supersample = options.supersample as usize;
+    let per_layer = u64::from(options.samples_per_pixel) * width as u64 * height as u64;
+    let all_samples = (per_layer * scene.layers.len() as u64) as f64;
+    let cancelled = || control.cancel.is_some_and(|flag| flag.load(Ordering::Relaxed));
+    let histogram = Histogram::new(width * supersample, height * supersample);
+    let compiled = Compiled::new(flame);
+    let lut = palette::lut(&flame.palette);
+
+    let (wide, high) = (histogram.width as f64, histogram.height as f64);
+    let per_unit = flame.camera.zoom * wide.min(high) / 4.0;
+    let angle = flame.camera.rotation.to_radians();
+    let (rot_cos, rot_sin) = (cos(angle), sin(angle));
+    let [center_x, center_y] = flame.camera.center;
+    let up = if flame.camera.flip_y { -per_unit } else { per_unit };
+
+    let plot = |x: f64, y: f64, color: f64| {
+        let (dx, dy) = (x - center_x, y - center_y);
+        let px = wide * 0.5 + (dx * rot_cos + dy * rot_sin) * per_unit;
+        let py = high * 0.5 - (dy * rot_cos - dx * rot_sin) * up;
+        if px >= 0.0 && px < wide && py >= 0.0 && py < high {
+            let shade = ((color * 255.0 + 0.5) as usize).min(255);
+            histogram.add(py as usize * histogram.width + px as usize, lut[shade]);
+        }
+    };
+    let report = |count: u64, of: u64| {
+        if let Some(progress) = control.progress {
+            let share = (count as f64 * per_layer as f64 / of as f64) as u64;
+            let so_far = done.fetch_add(share, Ordering::Relaxed) + share;
+            progress((so_far as f64 / all_samples).min(1.0));
+        }
+    };
+
+    let plan = if plain {
+        None
+    } else {
+        deep::plan(
+            &compiled,
+            &flame.camera,
+            wide,
+            high,
+            &|stream| Rng::derive(scene.seed, PLAN_DOMAIN + index as u64, stream),
+            &cancelled,
+        )
+    };
+    if cancelled() {
+        return Err(RenderError::Cancelled);
+    }
+    let normalize = match &plan {
+        None => {
+            for_each_stream(|stream| {
+                let mut rng = Rng::derive(scene.seed, STREAM_DOMAIN + index as u64, stream);
+                let mut walker = Walker::new(&compiled, &mut rng);
+                let mut left = per_layer / STREAMS + u64::from(stream < per_layer % STREAMS);
+                while left > 0 && !cancelled() {
+                    let count = left.min(CHUNK);
+                    walker.run(&compiled, &mut rng, count, plot);
+                    left -= count;
+                    report(count, per_layer);
+                }
+            });
+            let per_cell = f64::from(options.samples_per_pixel) / (supersample * supersample) as f64;
+            flame.camera.zoom * flame.camera.zoom / per_cell
+        }
+        Some(plan) if plan.is_empty() => 0.0,
+        Some(plan) => {
+            for_each_stream(|stream| {
+                let mut rng = Rng::derive(scene.seed, DEEP_DOMAIN + index as u64, stream);
+                let mut tracer = deep::Tracer::new(&compiled, &mut rng);
+                let mut chains = plan.chains(stream as usize, STREAMS as usize);
+                let mut left = per_layer / STREAMS + u64::from(stream < per_layer % STREAMS);
+                while left > 0 && !cancelled() {
+                    let count = left.min(CHUNK);
+                    for _ in 0..count {
+                        let (x, y, color) = plan.point(&compiled, &mut chains, &mut tracer, &mut rng);
+                        plot(x, y, color);
+                    }
+                    left -= count;
+                    report(count, per_layer);
+                }
+            });
+            let landed = histogram.total();
+            if landed == 0 {
+                0.0
+            } else {
+                plan.exposure * (wide * high) / landed as f64
+            }
+        }
+    };
+    if cancelled() {
+        return Err(RenderError::Cancelled);
+    }
+    Ok((histogram, normalize))
+}
+
 pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> Result<Image, RenderError> {
     scene.validate().map_err(RenderError::Scene)?;
     options.validate()?;
 
     let (width, height) = (options.width as usize, options.height as usize);
     let supersample = options.supersample as usize;
-    let per_layer = u64::from(options.samples_per_pixel) * width as u64 * height as u64;
-    let all_samples = (per_layer * scene.layers.len() as u64) as f64;
     let done = AtomicU64::new(0);
-    let cancelled = || control.cancel.is_some_and(|flag| flag.load(Ordering::Relaxed));
 
     let mut canvas: Vec<f32> = Vec::with_capacity(width * height * 3);
     for _ in 0..width * height {
@@ -201,50 +313,9 @@ pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> 
 
     for (index, layer) in scene.layers.iter().enumerate() {
         let flame = &layer.flame;
-        let histogram = Histogram::new(width * supersample, height * supersample);
-        let compiled = Compiled::new(flame);
-        let lut = palette::lut(&flame.palette);
+        let (histogram, normalize) = gather(scene, index, options, control, &done, false)?;
 
-        let (wide, high) = (histogram.width as f64, histogram.height as f64);
-        let per_unit = flame.camera.zoom * wide.min(high) / 4.0;
-        let angle = flame.camera.rotation.to_radians();
-        let (rot_cos, rot_sin) = (cos(angle), sin(angle));
-        let [center_x, center_y] = flame.camera.center;
-        let up = if flame.camera.flip_y { -per_unit } else { per_unit };
-
-        for_each_stream(|stream| {
-            let mut rng = Rng::derive(scene.seed, STREAM_DOMAIN + index as u64, stream);
-            let mut walker = Walker::new(&compiled, &mut rng);
-            let mut left = per_layer / STREAMS + u64::from(stream < per_layer % STREAMS);
-            while left > 0 && !cancelled() {
-                let count = left.min(CHUNK);
-                walker.run(&compiled, &mut rng, count, |x, y, color| {
-                    let (dx, dy) = (x - center_x, y - center_y);
-                    let px = wide * 0.5 + (dx * rot_cos + dy * rot_sin) * per_unit;
-                    let py = high * 0.5 - (dy * rot_cos - dx * rot_sin) * up;
-                    if px >= 0.0 && px < wide && py >= 0.0 && py < high {
-                        let shade = ((color * 255.0 + 0.5) as usize).min(255);
-                        histogram.add(py as usize * histogram.width + px as usize, lut[shade]);
-                    }
-                });
-                left -= count;
-                if let Some(progress) = control.progress {
-                    let so_far = done.fetch_add(count, Ordering::Relaxed) + count;
-                    progress(so_far as f64 / all_samples);
-                }
-            }
-        });
-        if cancelled() {
-            return Err(RenderError::Cancelled);
-        }
-
-        let developed = tone::develop(
-            &histogram,
-            &flame.tone,
-            supersample,
-            options.samples_per_pixel,
-            flame.camera.zoom,
-        );
+        let developed = tone::develop(&histogram, &flame.tone, supersample, normalize);
         composite(&mut canvas, &developed, layer.blend, layer.opacity as f32);
     }
 
@@ -300,6 +371,41 @@ fn composite(canvas: &mut [f32], layer: &[f32], blend: Blend, opacity: f32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // A zoomed view drawn from particles shows what the plain chaos game shows there with far more points.
+    #[test]
+    fn a_deep_view_matches_the_plain_chaos_game() {
+        let mut scene = crate::presets::get("aurora-spiral").unwrap();
+        let camera = &mut scene.layers[0].flame.camera;
+        (camera.center, camera.zoom) = ([-0.9, 0.56], 24.0);
+        let side = 48;
+        let counts = |samples: u32, plain: bool| {
+            let options = RenderOptions {
+                width: side,
+                height: side,
+                samples_per_pixel: samples,
+                supersample: 1,
+            };
+            let (histogram, _) = gather(&scene, 0, &options, &Control::default(), &AtomicU64::new(0), plain).unwrap();
+            let block = 6;
+            let mut sums = vec![0f64; (side as usize / block).pow(2)];
+            for cell in 0..(side * side) as usize {
+                let (x, y) = (cell % side as usize / block, cell / side as usize / block);
+                sums[y * (side as usize / block) + x] += f64::from(histogram.cell(cell).0);
+            }
+            let total: f64 = sums.iter().sum();
+            assert!(total > 0.0);
+            (sums.into_iter().map(|sum| sum / total).collect::<Vec<_>>(), total)
+        };
+        let (plain, landed) = counts(60_000, true);
+        let (deep, _) = counts(2_000, false);
+        assert!(
+            landed < 0.125 * 60_000.0 * f64::from(side * side),
+            "the view holds too much for a deep render"
+        );
+        let off: f64 = plain.iter().zip(&deep).map(|(a, b)| (a - b).abs()).sum();
+        assert!(off < 0.05, "the deep view is {off} away from the plain one");
+    }
 
     #[test]
     fn dither_thresholds_are_a_permutation() {
