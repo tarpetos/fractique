@@ -84,6 +84,18 @@
     bright at every zoom. No existing kind renders differently: every golden hash from before is untouched, and
     those of the four kinds were produced on Linux.
 
+* **GPU acceleration:** the graphics card draws three attractors beside flames: **Clifford**, **De Jong** and
+  **Lorenz**, alone or in a scene with flames. The Gumowski-Mira map, the Hopalong and the Buddhabrot stay the
+  processor's: the first is slower on a card than on the processor, 32-bit numbers leave the curve of the second,
+  and the work of the third has no bound that is known before it is done
+  ([docs/architecture.md](docs/architecture.md#orbits-on-the-graphics-card)).
+* **GPU acceleration, safer:** what the graphics card is given in one go now has a hard bound that is known before
+  it is sent: at most 4 steps a pixel and 4 194 304 steps for the walkers of all layers, and a density estimation
+  over at most 1 610 612 736 cells. Before, a batch could grow to all the samples of a picture and was given 20 s.
+  A batch that takes longer than 0.5 s now ends the card's part for the session. The price: a picture takes more
+  batches, so the last samples come later than before, and a picture of 3840×2160, or one of 2560×1440 with
+  more than two layers, is rendered by the processor
+  ([docs/architecture.md](docs/architecture.md#the-work-of-one-submission)).
 * **GPU acceleration:** the trial of a built-in graphics chip gives way when a picture is asked for and begins
   again when the app rests; its verdict is kept again, so a slow phone is tried once, not at every start. The
   first picture after a start is no longer handed to the processor because the shaders took time to load.

@@ -1,4 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use eframe::egui;
@@ -7,11 +8,12 @@ use fractique_core::scene::Transform;
 use fractique_core::{Flame, Kind, RenderOptions, Scene, Tone, math, palette};
 use web_time::Instant;
 
+use crate::orbit::{self, Recipe};
 use crate::preview::{LEVELS, guarded};
 
 const TRANSFORMS: usize = 64;
 const VARIATIONS: usize = 256;
-const GROUP: u32 = 64;
+const GROUP: u32 = orbit::GROUP;
 const MOST_WALKERS: u32 = 1 << 18;
 const FUSE: u32 = 24;
 // The first picture is drawn from this many samples a pixel: the density estimation makes it whole.
@@ -32,6 +34,25 @@ const FINEST: f64 = 4.0e5;
 const PACE: f32 = 0.04;
 // However slow the graphics card, a run takes about this many batches at most.
 const MOST_BATCHES: u64 = 16;
+// A walker of an orbit takes steps that plot nothing before its first point: the walkers of a layer together
+// take up to this many times the points asked of them in a batch.
+const UNSEEN: u64 = 4;
+// Whatever the pace asks for, the walkers of all layers together take no more steps in one submission than this
+// many a pixel, and no more than the second number: a shader that works for seconds takes the screen with it. A
+// step of a flame counts once for every four variations it may apply.
+const MOST_STEPS: u64 = 4;
+const MOST_IN_ALL: u64 = 1 << 22;
+const HEAVY: u64 = 4;
+// The cells the density estimation of one submission may look at, all layers together: for every cell of a layer
+// those its widest kernel reaches.
+const MOST_TAPS: u64 = 3 << 29;
+// An orbit whose walkers would take more steps than this many a pixel in all is the processor's.
+const MOST_WORK: u64 = 512;
+// A submission that takes longer than this many milliseconds ends the card's part for the session.
+const LONGEST: u32 = 500;
+// A run whose walkers have plotted nothing after this many batches is given up.
+const IDLE_BATCHES: u32 = 64;
+const RECIPES: usize = 8;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -74,6 +95,8 @@ struct Batch {
     seed: [u32; 2],
     layer: u32,
     walkers: u32,
+    budget: u32,
+    spare: u32,
 }
 
 #[repr(C)]
@@ -173,10 +196,20 @@ fn packed(flame: &Flame, [width, height]: [u32; 2], finest: f64) -> Option<(Box<
     Some((data, plotted / total))
 }
 
+fn widest(tone: &Tone, [width, height]: [u32; 2]) -> (f64, usize) {
+    let spread = (SPREAD_SHARE * tone.smoothing * f64::from(width.min(height))).min(MAX_SPREAD);
+    (spread, ((spread * 2.0).round() as usize).min(KERNELS - 1))
+}
+
+// The most cells the density estimation looks at for one cell of a picture of this size.
+fn taps(tone: &Tone, size: [u32; 2]) -> u64 {
+    let reach = widest(tone, size).1.div_ceil(2) as u64;
+    (2 * reach + 1) * (2 * reach + 1)
+}
+
 // The kernels of fractique-core's density estimation for a picture of this size.
 fn look(tone: &Tone, [width, height]: [u32; 2]) -> Box<Look> {
-    let spread = (SPREAD_SHARE * tone.smoothing * f64::from(width.min(height))).min(MAX_SPREAD);
-    let top = ((spread * 2.0).round() as usize).min(KERNELS - 1);
+    let (spread, top) = widest(tone, [width, height]);
     let mut kernels = [[0f32; 4]; KERNELS];
     for (level, kernel) in kernels.iter_mut().enumerate().take(top + 1) {
         let wide = level as f64 * 0.5;
@@ -203,6 +236,15 @@ fn look(tone: &Tone, [width, height]: [u32; 2]) -> Box<Look> {
     })
 }
 
+// What a step of the flame counts for among the steps a submission may take.
+fn weight(flame: &Flame) -> u64 {
+    let applied = |transform: &Transform| transform.variations.len() as u64;
+    let heaviest = flame.transforms.iter().map(applied).max().unwrap_or(0);
+    (heaviest + flame.final_transform.as_ref().map_or(0, applied))
+        .div_ceil(HEAVY)
+        .max(1)
+}
+
 fn bound(binding: u32, buffer: &wgpu::Buffer) -> wgpu::BindGroupEntry<'_> {
     wgpu::BindGroupEntry {
         binding,
@@ -212,6 +254,7 @@ fn bound(binding: u32, buffer: &wgpu::Buffer) -> wgpu::BindGroupEntry<'_> {
 
 struct Pipelines {
     walk: wgpu::ComputePipeline,
+    orbit: wgpu::ComputePipeline,
     survey: wgpu::ComputePipeline,
     resolve: wgpu::ComputePipeline,
     walking: wgpu::BindGroupLayout,
@@ -281,6 +324,7 @@ impl Pipelines {
         };
         Self {
             walk: pipeline(&walking, include_str!("chaos.wgsl"), "walk"),
+            orbit: pipeline(&walking, orbit::SHADER, "walk"),
             survey: pipeline(&looking, include_str!("levels.wgsl"), "survey"),
             resolve: pipeline(&looking, include_str!("levels.wgsl"), "resolve"),
             walking,
@@ -304,6 +348,28 @@ struct Layer {
     kernels: Box<Look>,
     plotted: f64,
     zoom: f64,
+    weight: u64,
+    // A flame's walkers plot the points they are asked for. An orbit's tell how many they plotted, and its levels
+    // are made from the points that are told of: with the next batch, and once more after the last.
+    orbit: bool,
+    done: u64,
+    resolved: u64,
+}
+
+impl Layer {
+    fn pictured(&self) -> bool {
+        if self.orbit { self.resolved > 0 } else { self.done > 0 }
+    }
+
+    fn settled(&self, goal: u64) -> bool {
+        self.done >= goal && (!self.orbit || self.resolved == self.done)
+    }
+}
+
+// What a layer is drawn from.
+enum Plan {
+    Flame(Box<Packed>, f64),
+    Orbit(Box<orbit::Packed>, Vec<f32>),
 }
 
 #[derive(Default)]
@@ -316,6 +382,7 @@ struct Flight {
 
 struct Run {
     keys: Vec<String>,
+    class: String,
     size: [u32; 2],
     seed: u64,
     layers: Vec<Layer>,
@@ -323,17 +390,24 @@ struct Run {
     steps: u32,
     sent: u32,
     batches: u32,
-    done: u64,
     goal: u64,
     staging: wgpu::Buffer,
     flight: Arc<Mutex<Flight>>,
     started: Instant,
     submitted: Instant,
     fastest: f32,
+    took: Vec<(f32, u64)>,
+    working: u64,
     spent: f32,
     limit: Option<f32>,
     first: Option<f32>,
     full: Option<f32>,
+}
+
+impl Run {
+    fn pictured(&self) -> bool {
+        self.layers.iter().all(Layer::pictured)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -355,9 +429,12 @@ pub struct Chaos {
     #[cfg(not(target_arch = "wasm32"))]
     waiter: std::sync::mpsc::Sender<wgpu::SubmissionIndex>,
     refused: Option<Vec<String>>,
-    finest: f64,
-    // Samples a second, the most a batch has shown: the first batch of the next run is sized by it.
-    speed: f64,
+    longest: Arc<AtomicU32>,
+    finest: Option<f64>,
+    // Samples a second, the most a batch has shown of layers of these kinds: the first batch of the next run
+    // is sized by it.
+    speeds: HashMap<String, f64>,
+    recipes: Vec<(String, Option<Arc<Recipe>>)>,
     run: Option<Run>,
 }
 
@@ -394,6 +471,7 @@ impl Chaos {
         }
         let limits = device.limits();
         let failed = Arc::new(AtomicBool::new(false));
+        let longest = Arc::new(AtomicU32::new(LONGEST));
         let pipelines = Arc::new(OnceLock::new());
         let build = {
             let (device, failed, pipelines, ctx) = (device.clone(), failed.clone(), pipelines.clone(), ctx.clone());
@@ -415,12 +493,14 @@ impl Chaos {
         #[cfg(not(target_arch = "wasm32"))]
         let waiter = {
             let (sender, receiver) = std::sync::mpsc::channel::<wgpu::SubmissionIndex>();
-            let (device, failed, ctx) = (device.clone(), failed.clone(), ctx.clone());
+            let (device, failed, ctx, longest) = (device.clone(), failed.clone(), ctx.clone(), longest.clone());
             std::thread::spawn(move || {
                 while let Ok(index) = receiver.recv() {
                     let wait = wgpu::PollType::Wait {
                         submission_index: Some(index),
-                        timeout: Some(std::time::Duration::from_secs(20)),
+                        timeout: Some(std::time::Duration::from_millis(u64::from(
+                            longest.load(Ordering::Relaxed),
+                        ))),
                     };
                     if let Err(error) = device.poll(wait) {
                         log::warn!("the chaos game on the graphics card is off: {error}");
@@ -441,8 +521,10 @@ impl Chaos {
             #[cfg(not(target_arch = "wasm32"))]
             waiter,
             refused: None,
-            finest: FINEST,
-            speed: 0.0,
+            longest,
+            finest: None,
+            speeds: HashMap::new(),
+            recipes: Vec::new(),
             run: None,
         })
     }
@@ -469,6 +551,11 @@ impl Chaos {
         self.run.as_ref().map_or(0.0, |run| run.spent)
     }
 
+    // The seconds each batch of the run took and the steps its walkers were allowed.
+    pub fn batches(&self) -> &[(f32, u64)] {
+        self.run.as_ref().map_or(&[], |run| run.took.as_slice())
+    }
+
     pub fn finished(&self) -> bool {
         self.run.as_ref().is_some_and(|run| run.full.is_some())
     }
@@ -488,7 +575,7 @@ impl Chaos {
     }
 
     pub fn levels(&self) -> Option<([u32; 2], Vec<&wgpu::TextureView>)> {
-        let run = self.run.as_ref().filter(|run| run.batches > 0)?;
+        let run = self.run.as_ref().filter(|run| run.batches > 0 && run.pictured())?;
         Some((run.size, run.layers.iter().map(|layer| &layer.levels).collect()))
     }
 
@@ -514,7 +601,8 @@ impl Chaos {
         if self.refused.as_deref() == Some(keys) {
             return false;
         }
-        let Some(pipelines) = self.pipelines.get() else {
+        let pipelines = self.pipelines.clone();
+        let Some(pipelines) = pipelines.get() else {
             return false;
         };
         let size = [options.width, options.height];
@@ -526,19 +614,59 @@ impl Chaos {
             || size[0].max(size[1]) > self.largest_side
             || cells * 16 > self.largest_buffer
             || cells * 24 * layers > ROOM
+            || scene
+                .layers
+                .iter()
+                .map(|layer| cells * taps(layer.tone(), size))
+                .sum::<u64>()
+                > MOST_TAPS
         {
             return false;
         }
-        let Some(flames) = scene
+        let goal = u64::from(options.samples_per_pixel) * cells;
+        let weights: Vec<u64> = scene
             .layers
             .iter()
-            .map(|layer| packed(layer.flame()?, size, self.finest))
-            .collect::<Option<Vec<_>>>()
-        else {
-            return false;
-        };
-        let walkers = ((cells / 16) as u32).div_ceil(GROUP).clamp(GROUP, MOST_WALKERS / GROUP) * GROUP;
-        let first = (f64::from(FIRST_SAMPLES) * cells as f64).max(self.speed * f64::from(PACE) * 0.5 / layers as f64);
+            .map(|layer| layer.flame().map_or(1, weight))
+            .collect();
+        // Few enough that the unplotted steps of the first batch leave half of what it may take for points.
+        let room = (MOST_STEPS * cells).min(MOST_IN_ALL) / layers;
+        let heaviest = weights.iter().copied().max().unwrap_or(1);
+        let fit = (room / (heaviest * 2 * u64::from(FUSE))).min(u64::from(MOST_WALKERS)) as u32;
+        let walkers = ((cells / 16) as u32)
+            .min(fit)
+            .div_ceil(GROUP)
+            .clamp(1, MOST_WALKERS / GROUP)
+            * GROUP;
+        let mut plans = Vec::new();
+        for layer in &scene.layers {
+            let plan = match (layer.flame(), layer.fractal()) {
+                (Some(flame), _) => {
+                    packed(flame, size, self.finest.unwrap_or(FINEST)).map(|(data, plotted)| Plan::Flame(data, plotted))
+                }
+                // The walkers count the points they plot in 32 bits.
+                (_, Some(shown)) if goal < 1 << 31 => self.recipe(shown).and_then(|recipe| {
+                    if recipe.work(goal, walkers) > MOST_WORK * cells {
+                        return None;
+                    }
+                    let (data, tables) = recipe.packed(shown, size, goal, walkers, self.finest)?;
+                    Some(Plan::Orbit(data, tables))
+                }),
+                _ => None,
+            };
+            let Some(plan) = plan else {
+                return false;
+            };
+            plans.push(plan);
+        }
+        let class = scene
+            .layers
+            .iter()
+            .map(|layer| layer.fractal().map_or("flame", |shown| shown.kind.as_str()))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let speed = self.speeds.get(&class).copied().unwrap_or(0.0);
+        let first = (f64::from(FIRST_SAMPLES) * cells as f64).max(speed * f64::from(PACE) * 0.5 / layers as f64);
         let (device, failed) = (self.device.clone(), self.failed.clone());
         let made = guarded(&device, &failed, ctx, || {
             let buffer = |label, size: u64, usage| {
@@ -556,15 +684,42 @@ impl Chaos {
             let layers = scene
                 .layers
                 .iter()
-                .zip(&flames)
-                .map(|(layer, (data, plotted))| {
-                    let flame = buffer("fractique flame", size_of::<Packed>() as u64, uniform);
-                    self.queue.write_buffer(&flame, 0, bytemuck::bytes_of(&**data));
+                .zip(plans.iter().zip(&weights))
+                .map(|(layer, (plan, weight))| {
+                    let (flame, plotted, tail) = match plan {
+                        Plan::Flame(data, plotted) => {
+                            let flame = buffer("fractique flame", size_of::<Packed>() as u64, uniform);
+                            self.queue.write_buffer(&flame, 0, bytemuck::bytes_of(&**data));
+                            (flame, *plotted, Vec::new())
+                        }
+                        Plan::Orbit(data, tables) => {
+                            let flame = buffer("fractique orbit", size_of::<orbit::Packed>() as u64, uniform);
+                            self.queue.write_buffer(&flame, 0, bytemuck::bytes_of(&**data));
+                            // A slot of the walkers holds four numbers of a table.
+                            let tail: Vec<[f32; 8]> = tables
+                                .chunks(4)
+                                .map(|four| {
+                                    let mut slot = [0f32; 8];
+                                    slot[..four.len()].copy_from_slice(four);
+                                    slot
+                                })
+                                .collect();
+                            (flame, 1.0, tail)
+                        }
+                    };
                     let batch = buffer("fractique batch", size_of::<Batch>() as u64, uniform);
                     let kernels = look(layer.tone(), size);
                     let look_buffer = buffer("fractique look", size_of::<Look>() as u64, uniform);
                     self.queue.write_buffer(&look_buffer, 0, bytemuck::bytes_of(&*kernels));
-                    let walking = buffer("fractique walkers", u64::from(walkers) * 32, storage);
+                    let walking = buffer(
+                        "fractique walkers",
+                        (u64::from(walkers) + tail.len() as u64) * 32,
+                        storage | wgpu::BufferUsages::COPY_DST,
+                    );
+                    if !tail.is_empty() {
+                        self.queue
+                            .write_buffer(&walking, u64::from(walkers) * 32, bytemuck::cast_slice(&tail));
+                    }
                     let histogram = buffer("fractique histogram", cells * 16, storage);
                     let landed = buffer("fractique landed", 16, storage | wgpu::BufferUsages::COPY_SRC);
                     let tiles = buffer(
@@ -622,18 +777,23 @@ impl Chaos {
                         work: Some(work),
                         levels,
                         kernels,
-                        plotted: *plotted,
+                        plotted,
                         zoom: layer.camera().zoom,
+                        weight: *weight,
+                        orbit: matches!(plan, Plan::Orbit(..)),
+                        done: 0,
+                        resolved: 0,
                     }
                 })
                 .collect::<Vec<_>>();
             let staging = buffer(
                 "fractique landed",
-                4 * layers.len() as u64,
+                16 * layers.len() as u64,
                 wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             );
             Run {
                 keys: keys.to_vec(),
+                class,
                 size,
                 seed: scene.seed,
                 layers,
@@ -641,13 +801,14 @@ impl Chaos {
                 steps: ((first / f64::from(walkers)).ceil() as u32).max(1),
                 sent: 0,
                 batches: 0,
-                done: 0,
-                goal: u64::from(options.samples_per_pixel) * cells,
+                goal,
                 staging,
                 flight: Arc::default(),
                 started: asked,
                 submitted: asked,
                 fastest: f32::INFINITY,
+                took: Vec::new(),
+                working: 0,
                 spent: 0.0,
                 limit,
                 first: None,
@@ -659,6 +820,22 @@ impl Chaos {
         }
         self.run = Some(made);
         true
+    }
+
+    // What the kind worked out from the fractal's parameters, the same for every view of it, or nothing for a
+    // fractal the card does not draw.
+    fn recipe(&mut self, fractal: &fractique_core::Fractal) -> Option<Arc<Recipe>> {
+        let key = Recipe::key(fractal);
+        if let Some(at) = self.recipes.iter().position(|(kept, _)| *kept == key) {
+            let found = self.recipes.remove(at);
+            self.recipes.push(found);
+        } else {
+            self.recipes.push((key, Recipe::new(fractal).map(Arc::new)));
+            if self.recipes.len() > RECIPES {
+                self.recipes.remove(0);
+            }
+        }
+        self.recipes.last().and_then(|(_, recipe)| recipe.clone())
     }
 
     // Takes in the batch that has finished and sends the next one. After Drawn the levels are new and the
@@ -677,86 +854,90 @@ impl Chaos {
                 return Step::Waiting;
             }
             if let Some(at) = flight.finished.take() {
-                let sparse = flight
-                    .landed
-                    .iter()
-                    .zip(&run.layers)
-                    .any(|(landed, layer)| f64::from(*landed) < IN_VIEW * layer.plotted * run.done as f64);
+                let mut sparse = false;
+                for (layer, counts) in run.layers.iter_mut().zip(flight.landed.chunks_exact(4)) {
+                    if !layer.orbit {
+                        sparse |= f64::from(counts[0]) < IN_VIEW * layer.plotted * layer.done as f64;
+                        continue;
+                    }
+                    layer.done = u64::from(counts[1]);
+                }
                 // A card that would take longer than the processor is told to stop: the processor renders. Its
                 // own work counts, not the wait for its shaders or for a frame.
                 let since = run.started.elapsed().as_secs_f32();
                 let took = at.duration_since(run.submitted).as_secs_f32().max(1e-4);
                 let worked = run.spent + took;
-                let slow = run.done < run.goal
-                    && run
-                        .limit
-                        .is_some_and(|limit| worked * run.goal as f32 / run.done as f32 > limit);
-                if flight.broken || sparse || slow {
-                    if flight.broken {
+                let least = run.layers.iter().map(|layer| layer.done).min().unwrap_or(0);
+                let slow = least < run.goal
+                    && run.limit.is_some_and(|limit| {
+                        let share = if least == 0 {
+                            1.0
+                        } else {
+                            run.goal as f32 / least as f32
+                        };
+                        worked * share > limit
+                    });
+                let idle = least == 0 && run.batches >= IDLE_BATCHES;
+                let hung = took * 1000.0 > self.longest.load(Ordering::Relaxed) as f32;
+                if hung {
+                    log::warn!("the chaos game on the graphics card is off: a batch took {took:.2} s");
+                }
+                if flight.broken || sparse || slow || idle || hung {
+                    if flight.broken || hung {
                         self.failed.store(true, Ordering::Relaxed);
                     }
                     drop(flight);
                     self.refused = self.run.take().map(|run| run.keys);
                     return Step::Refused;
                 }
-                run.first.get_or_insert(since);
-                if run.done >= run.goal {
+                if run.pictured() {
+                    run.first.get_or_insert(since);
+                }
+                run.spent += took;
+                run.took.push((took, run.working));
+                if run.sent > 0 {
+                    // Drawing the levels costs the same after a short batch: a batch walks for longer than that
+                    // takes.
+                    run.fastest = run.fastest.min(took);
+                    let pace = PACE.max(2.5 * run.fastest);
+                    let next = (run.sent as f32 * pace / took) as u32;
+                    let least = run.goal.div_ceil(u64::from(run.walkers) * MOST_BATCHES) as u32;
+                    run.steps = next.clamp(run.sent / 4, run.sent.saturating_mul(4)).max(least).max(1);
+                    let speed =
+                        f64::from(run.sent) * f64::from(run.walkers) * run.layers.len() as f64 / f64::from(took);
+                    let most = self.speeds.entry(run.class.clone()).or_insert(0.0);
+                    *most = most.max(speed);
+                }
+                if run.layers.iter().all(|layer| layer.settled(run.goal)) {
                     run.full.get_or_insert(since);
                     run.layers.iter_mut().for_each(|layer| layer.work = None);
                 }
-                // Drawing the levels costs the same after a short batch: a batch walks for longer than that takes.
-                run.fastest = run.fastest.min(took);
-                run.spent += took;
-                let pace = PACE.max(2.5 * run.fastest);
-                let next = (run.sent as f32 * pace / took) as u32;
-                let least = run.goal.div_ceil(u64::from(run.walkers) * MOST_BATCHES) as u32;
-                run.steps = next.clamp(run.sent / 4, run.sent.saturating_mul(4)).max(least).max(1);
-                let speed = f64::from(run.sent) * f64::from(run.walkers) * run.layers.len() as f64 / f64::from(took);
-                self.speed = self.speed.max(speed);
             }
         }
-        if run.done >= run.goal {
+        if run.full.is_some() {
             return Step::Waiting;
         }
         let Some(pipelines) = self.pipelines.get() else {
             return Step::Waiting;
         };
-        let left = (run.goal - run.done).div_ceil(u64::from(run.walkers));
-        let steps = u64::from(run.steps).min(left) as u32;
-        run.done += u64::from(steps) * u64::from(run.walkers);
-        let per_pixel = run.done as f64 / (f64::from(run.size[0]) * f64::from(run.size[1]));
+        let cells = f64::from(run.size[0]) * f64::from(run.size[1]);
         let (device, failed) = (self.device.clone(), self.failed.clone());
         // Before the submission: a graphics card that is the processor in disguise works inside it.
         run.submitted = Instant::now();
+        let (mut sent, mut working) = (0, 0);
         let index = guarded(&device, &failed, ctx, || {
             let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("fractique chaos"),
             });
-            for (index, layer) in run.layers.iter().enumerate() {
+            let (goal, walkers, count) = (run.goal, run.walkers, run.layers.len() as u64);
+            for (index, layer) in run.layers.iter_mut().enumerate() {
                 let Some(work) = &layer.work else {
                     continue;
                 };
-                let batch = Batch {
-                    steps,
-                    fuse: if run.batches == 0 { FUSE } else { 0 },
-                    seed: [run.seed as u32, (run.seed >> 32) as u32],
-                    layer: index as u32,
-                    walkers: run.walkers,
-                };
-                self.queue.write_buffer(&work.batch, 0, bytemuck::bytes_of(&batch));
                 let look = &layer.kernels;
-                let scale = [(layer.zoom * layer.zoom / per_pixel) as f32, 0.0, 0.0, 0.0];
-                self.queue.write_buffer(&work.look, 16, bytemuck::bytes_of(&scale));
-                {
-                    let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                        label: Some("fractique chaos"),
-                        timestamp_writes: None,
-                    });
-                    pass.set_pipeline(&pipelines.walk);
-                    pass.set_bind_group(0, &work.walking, &[]);
-                    pass.dispatch_workgroups(run.walkers / GROUP, 1, 1);
-                }
-                {
+                let resolve = |encoder: &mut wgpu::CommandEncoder, points: u64| {
+                    let scale = [(layer.zoom * layer.zoom * cells / points as f64) as f32, 0.0, 0.0, 0.0];
+                    self.queue.write_buffer(&work.look, 16, bytemuck::bytes_of(&scale));
                     let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                         label: Some("fractique levels"),
                         timestamp_writes: None,
@@ -766,12 +947,57 @@ impl Chaos {
                     pass.dispatch_workgroups(look.size[2].div_ceil(8), look.size[3].div_ceil(8), 1);
                     pass.set_pipeline(&pipelines.resolve);
                     pass.dispatch_workgroups(look.size[0].div_ceil(8), look.size[1].div_ceil(8), 1);
+                };
+                if layer.orbit && layer.done > layer.resolved {
+                    resolve(&mut encoder, layer.done);
+                    layer.resolved = layer.done;
                 }
-                encoder.copy_buffer_to_buffer(&work.landed, 0, &run.staging, 4 * index as u64, 4);
+                let left = goal.saturating_sub(layer.done);
+                if left == 0 {
+                    continue;
+                }
+                let few = u64::from(walkers);
+                let fuse = if run.batches == 0 && !layer.orbit { FUSE } else { 0 };
+                let room = (MOST_STEPS * cells as u64).min(MOST_IN_ALL) / (count * few * layer.weight);
+                let most = room.saturating_sub(u64::from(fuse)).max(1);
+                let steps = (u64::from(run.steps) * u64::from(walkers))
+                    .min(left)
+                    .div_ceil(few)
+                    .min(most);
+                let budget = if layer.orbit { (steps * UNSEEN).min(most) } else { steps };
+                if !layer.orbit {
+                    layer.done += steps * few;
+                }
+                let batch = Batch {
+                    steps: steps as u32,
+                    fuse: if run.batches == 0 { FUSE } else { 0 },
+                    seed: [run.seed as u32, (run.seed >> 32) as u32],
+                    layer: index as u32,
+                    walkers: few as u32,
+                    budget: budget as u32,
+                    spare: 0,
+                };
+                self.queue.write_buffer(&work.batch, 0, bytemuck::bytes_of(&batch));
+                {
+                    let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                        label: Some("fractique chaos"),
+                        timestamp_writes: None,
+                    });
+                    pass.set_pipeline(if layer.orbit { &pipelines.orbit } else { &pipelines.walk });
+                    pass.set_bind_group(0, &work.walking, &[]);
+                    pass.dispatch_workgroups(few as u32 / GROUP, 1, 1);
+                }
+                if !layer.orbit {
+                    resolve(&mut encoder, layer.done);
+                }
+                sent = sent.max((steps * few).div_ceil(u64::from(walkers)) as u32);
+                working += (budget + u64::from(fuse)) * few * layer.weight;
+                encoder.copy_buffer_to_buffer(&work.landed, 0, &run.staging, 16 * index as u64, 16);
             }
             self.queue.submit([encoder.finish()])
         });
-        run.sent = steps;
+        run.sent = sent;
+        run.working = working;
         run.batches += 1;
         run.flight.lock().unwrap_or_else(|e| e.into_inner()).busy = true;
         let (flight, staging, ctx) = (run.flight.clone(), run.staging.clone(), ctx.clone());
@@ -795,11 +1021,14 @@ impl Chaos {
         let _ = self.waiter.send(index);
         #[cfg(target_arch = "wasm32")]
         let _ = index;
-        if self.works() {
-            Step::Drawn
-        } else {
+        let pictured = run.pictured();
+        if !self.works() {
             self.run = None;
             Step::Refused
+        } else if pictured {
+            Step::Drawn
+        } else {
+            Step::Waiting
         }
     }
 }
@@ -810,7 +1039,7 @@ mod tests {
     use std::path::PathBuf;
 
     use fractique_core::random::{Generator, random_scene_of};
-    use fractique_core::{Control, presets};
+    use fractique_core::{Control, fractal, presets};
 
     use super::*;
     use crate::preview::Preview;
@@ -867,6 +1096,10 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
         eprintln!("graphics: {:?}", adapter.get_info());
+        // A software adapter compiles a shader when it is first run.
+        if adapter.get_info().device_type == wgpu::DeviceType::Cpu {
+            chaos.longest.store(20_000, Ordering::Relaxed);
+        }
         chaos.works().then_some(Card {
             device,
             queue,
@@ -1037,7 +1270,7 @@ mod tests {
     #[ignore = "a report, not a check"]
     fn how_far_single_precision_reaches() {
         let mut card = card().expect("a graphics card with compute shaders");
-        card.chaos.finest = f64::INFINITY;
+        card.chaos.finest = Some(f64::INFINITY);
         let options = options(960, 540);
         println!("| Cells a unit × distance | Mean | Largest |");
         for away in [0.0, 300.0, 1000.0, 3000.0, 10_000.0, 30_000.0, 100_000.0] {
@@ -1142,6 +1375,157 @@ mod tests {
             if let Some(folder) = &folder {
                 let both: Vec<u8> = quick.iter().chain(&exact.rgba).copied().collect();
                 save(&folder.join(format!("{}.png", kind.name())), &both, 640, 720);
+            }
+        }
+    }
+
+    #[test]
+    fn the_graphics_card_draws_the_orbits_the_processor_renders() {
+        let Some(mut card) = card() else {
+            eprintln!("no graphics card with compute shaders: nothing is compared");
+            return;
+        };
+        let options = options(320, 200);
+        for name in ["clifford-classic", "de_jong-classic", "lorenz-butterfly"] {
+            let scene = fractal::preset(name).expect("the preset exists");
+            let exact = fractique_core::render(&scene, &options, &Control::default()).expect("it renders");
+            let (quick, _, _) = card.drawn(&scene, &options).expect("the graphics card draws it");
+            let (mean, largest) = apart(&quick, &exact.rgba, 320, 200);
+            assert!(
+                mean < 3.0 && largest < 40.0,
+                "{name}: {mean:.2} on average, {largest:.1} at most"
+            );
+        }
+        let mut both = fractal::preset("clifford-classic").expect("the preset exists");
+        both.layers
+            .extend(presets::get("aurora-spiral").expect("the preset exists").layers);
+        let exact = fractique_core::render(&both, &options, &Control::default()).expect("it renders");
+        let (quick, _, _) = card
+            .drawn(&both, &options)
+            .expect("the graphics card draws a flame over an orbit");
+        let (mean, largest) = apart(&quick, &exact.rgba, 320, 200);
+        assert!(
+            mean < 3.0 && largest < 40.0,
+            "{mean:.2} on average, {largest:.1} at most"
+        );
+
+        for kind in ["mandelbrot", "hopalong", "buddhabrot", "gumowski_mira"] {
+            let scene = fractal::random_scene(kind, 1).expect("the kind is listed");
+            assert!(card.drawn(&scene, &options).is_none(), "{kind}");
+        }
+    }
+
+    // FRACTIQUE_COMPARE=folder cargo test --release -p fractique-app --lib every_orbit -- --ignored --nocapture
+    // writes the table of differences for the presets and ten random scenes of every kind of orbit, and for each
+    // the picture of the graphics card above the processor's. FRACTIQUE_COMPARE_SIZE, _SAMPLES and _ONLY as above.
+    #[test]
+    #[ignore = "a report, not a check"]
+    fn every_orbit_on_the_graphics_card_beside_the_processor() {
+        let mut card = card().expect("a graphics card with compute shaders");
+        let samples = std::env::var("FRACTIQUE_COMPARE_SAMPLES")
+            .ok()
+            .and_then(|samples| samples.parse().ok())
+            .unwrap_or(32);
+        let folder = std::env::var_os("FRACTIQUE_COMPARE").map(PathBuf::from);
+        let size: Vec<u32> = std::env::var("FRACTIQUE_COMPARE_SIZE")
+            .unwrap_or_else(|_| "960x540".to_owned())
+            .split('x')
+            .filter_map(|side| side.parse().ok())
+            .collect();
+        let only = std::env::var("FRACTIQUE_COMPARE_ONLY").ok();
+        let options = RenderOptions {
+            samples_per_pixel: samples,
+            ..options(size[0], size[1])
+        };
+        let mut scenes: Vec<(String, Scene)> = Vec::new();
+        for spec in fractal::all().filter(|spec| spec.is_density()) {
+            for preset in spec.presets {
+                let name = format!("{}-{}", spec.name, preset.name);
+                scenes.push((name.clone(), fractal::preset(&name).expect("the preset exists")));
+            }
+            for seed in 1..=10 {
+                let scene = fractal::random_scene(spec.name, seed).expect("the kind is listed");
+                scenes.push((format!("{}-random-{seed}", spec.name), scene));
+            }
+        }
+        println!("| Scene | Mean | Largest | First picture, s | All samples, s | Processor, s |");
+        println!("| --- | --- | --- | --- | --- | --- |");
+        for (name, scene) in scenes {
+            if only.as_ref().is_some_and(|only| !name.contains(only.as_str())) {
+                continue;
+            }
+            let started = Instant::now();
+            let exact = fractique_core::render(&scene, &options, &Control::default()).expect("it renders");
+            let slow = started.elapsed().as_secs_f32();
+            let Some((quick, first, full)) = card.drawn(&scene, &options) else {
+                println!("| {name} | not drawn | | | | {slow:.2} |");
+                continue;
+            };
+            let (mean, largest) = apart(&quick, &exact.rgba, size[0] as usize, size[1] as usize);
+            println!("| {name} | {mean:.2} | {largest:.1} | {first:.3} | {full:.3} | {slow:.2} |");
+            if let Some(folder) = &folder {
+                let both: Vec<u8> = quick.iter().chain(&exact.rgba).copied().collect();
+                save(&folder.join(format!("{name}.png")), &both, size[0], size[1] * 2);
+            }
+        }
+    }
+
+    // Magnifies a part of each attractor that holds many of its points and prints how far the graphics card's
+    // picture is from the processor's: where the limits of orbit.rs come from.
+    #[test]
+    #[ignore = "a report, not a check"]
+    fn how_far_single_precision_reaches_into_an_orbit() {
+        let mut card = card().expect("a graphics card with compute shaders");
+        card.chaos.finest = Some(f64::INFINITY);
+        let folder = std::env::var_os("FRACTIQUE_COMPARE").map(PathBuf::from);
+        let options = RenderOptions {
+            samples_per_pixel: 400,
+            ..options(320, 200)
+        };
+        println!("| Kind | Cells a unit × distance | Points in view | Mean | Largest |");
+        println!("| --- | --- | --- | --- | --- |");
+        for name in ["clifford-classic", "de_jong-classic", "lorenz-butterfly"] {
+            let whole = fractal::preset(name).expect("the preset exists");
+            let wide = RenderOptions {
+                samples_per_pixel: 8,
+                ..options
+            };
+            let picture = fractique_core::render(&whole, &wide, &Control::default()).expect("it renders");
+            let brightest = (0..320 * 200)
+                .max_by_key(|at| {
+                    picture.rgba[at * 4..at * 4 + 3]
+                        .iter()
+                        .map(|c| u32::from(*c))
+                        .sum::<u32>()
+                })
+                .expect("the picture has pixels");
+            let camera = whole.layers[0].camera().clone();
+            let per_unit = camera.zoom * 200.0 / 4.0;
+            let middle = [
+                camera.center[0] + ((brightest % 320) as f64 + 0.5 - 160.0) / per_unit,
+                camera.center[1] - ((brightest / 320) as f64 + 0.5 - 100.0) / per_unit,
+            ];
+            for reach in [1.0e4, 1.0e5, 4.0e5, 1.0e6, 4.0e6] {
+                let mut scene = whole.clone();
+                let far = middle[0].abs().max(middle[1].abs());
+                let camera = scene.layers[0].camera_mut();
+                (camera.center, camera.zoom) = (middle, reach / far / 50.0);
+                let exact = fractique_core::render(&scene, &options, &Control::default()).expect("it renders");
+                let lit = exact
+                    .rgba
+                    .chunks_exact(4)
+                    .filter(|pixel| pixel[0].max(pixel[1]) > 24)
+                    .count();
+                let Some((quick, _, _)) = card.drawn(&scene, &options) else {
+                    println!("| {name} | {reach:.0e} | {lit} | not drawn | |");
+                    continue;
+                };
+                let (mean, largest) = apart(&quick, &exact.rgba, 320, 200);
+                println!("| {name} | {reach:.0e} | {lit} | {mean:.2} | {largest:.1} |");
+                if let Some(folder) = &folder {
+                    let both: Vec<u8> = quick.iter().chain(&exact.rgba).copied().collect();
+                    save(&folder.join(format!("deep-{name}-{reach:.0e}.png")), &both, 320, 400);
+                }
             }
         }
     }

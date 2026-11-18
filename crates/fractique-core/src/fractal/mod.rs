@@ -132,6 +132,18 @@ pub trait Orbit: Sync {
     fn gain(&self) -> f64 {
         1.0
     }
+
+    fn prepared(&self) -> Prepared {
+        Prepared::default()
+    }
+}
+
+/// What a kind worked out from its parameters before any walk, in the order its file gives them: for a renderer
+/// outside the core that repeats the walks in its own arithmetic.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Prepared {
+    pub numbers: Vec<f64>,
+    pub tables: Vec<Vec<f64>>,
 }
 
 pub trait Walk {

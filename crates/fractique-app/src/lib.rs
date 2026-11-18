@@ -12,6 +12,7 @@ mod i18n;
 mod instance;
 #[cfg(target_os = "ios")]
 mod ios;
+mod orbit;
 mod phone;
 mod preview;
 #[cfg(any(feature = "store", test))]
@@ -831,9 +832,16 @@ fn source_key(scene: &Scene, index: usize, size: &str) -> String {
     format!("{size}{} {index} {}", scene.seed, content_key(&layer))
 }
 
-// The graphics card previews and plays the chaos game for flames; a fractal of another kind is the processor's.
+// The graphics card previews the layers the processor rendered when all of them are flames.
 fn all_flames(scene: &Scene) -> bool {
     scene.sheets.is_none() && scene.layers.iter().all(|layer| layer.flame().is_some())
+}
+
+// The graphics card plays the chaos game for flames and walks the orbits of the kinds it has a shader for; a scene
+// with any other layer is the processor's.
+fn all_densities(scene: &Scene) -> bool {
+    let drawn = |layer: &Layer| layer.fractal().is_none_or(orbit::drawn);
+    scene.sheets.is_none() && scene.layers.iter().all(drawn)
 }
 
 // A layer's pixels depend only on its flame, its place in the scene, the seed and the size, so a layer that did
@@ -1161,7 +1169,10 @@ impl App {
             toolbar_size: egui::Vec2::ZERO,
             languages_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "languages"),
             language_anchor: egui::Pos2::ZERO,
-            picture: stored("picture").and_then(|text| parsed_size(&text)),
+            picture: std::env::var("FRACTIQUE_PICTURE")
+                .ok()
+                .or_else(|| stored("picture"))
+                .and_then(|text| parsed_size(&text)),
             custom: Default::default(),
             typed: None,
             sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
@@ -1492,7 +1503,7 @@ impl App {
             return;
         }
         // The shaders are not compiled yet: a draft stands in, and the render begins again when they are.
-        let soon = self.gpu_on() && all_flames(&scene) && self.chaos.as_ref().is_some_and(Chaos::pending);
+        let soon = self.gpu_on() && all_densities(&scene) && self.chaos.as_ref().is_some_and(Chaos::pending);
         if soon && chaos_only() {
             return;
         }
@@ -1619,7 +1630,7 @@ impl App {
     }
 
     fn begin_chaos(&mut self, ctx: &egui::Context, scene: &Scene, full: &RenderOptions) -> bool {
-        let drawn = self.gpu_on() && !self.wall.live && all_flames(scene);
+        let drawn = self.gpu_on() && !self.wall.live && all_densities(scene);
         let Some(chaos) = &mut self.chaos else {
             return false;
         };
@@ -1823,7 +1834,7 @@ impl App {
         };
         let pending = chaos.pending();
         // The shaders are compiled, or refused: a render that began without them begins again.
-        let flames = self.wall.live || all_flames(&self.base);
+        let flames = self.wall.live || all_densities(&self.base);
         if self.compiling && !pending && self.rendering && !self.chaotic && self.gpu_on() && flames {
             self.requested = None;
         }
@@ -1911,7 +1922,13 @@ impl App {
             if timed()
                 && let Some(full) = times.1
             {
+                let batches: Vec<String> = chaos
+                    .batches()
+                    .iter()
+                    .map(|(took, steps)| format!("{:.0}/{:.1}", took * 1000.0, *steps as f64 / 1e6))
+                    .collect();
                 eprintln!("times: all samples from the graphics card after {full:.3} s");
+                eprintln!("times: its batches, ms/million steps: {}", batches.join(" "));
             }
             self.quick = times;
         }
