@@ -102,5 +102,6 @@
   "collection": "COLECCIÓN",
   "save_photos": "Guardar en Fotos",
   "share": "Compartir",
+  "allow_storage": "Permite el acceso al almacenamiento y guarda de nuevo.",
   "color": "COLOR"
 }

@@ -1,3 +1,5 @@
+#[cfg(target_os = "android")]
+mod android;
 mod blur;
 #[cfg(not(target_arch = "wasm32"))]
 mod export;
@@ -1938,7 +1940,7 @@ impl App {
         }
 
         ui.add_space(12.0);
-        let save = self.t(if cfg!(target_os = "ios") {
+        let save = self.t(if cfg!(any(target_os = "android", target_os = "ios")) {
             "save_photos"
         } else {
             "save_png"
@@ -1951,7 +1953,7 @@ impl App {
             clicked.1 = widgets::pill(ui, &save, true, half);
         });
         self.export.share = false;
-        if cfg!(target_os = "ios") {
+        if cfg!(any(target_os = "android", target_os = "ios")) {
             ui.add_space(8.0);
             if widgets::pill(ui, &self.t("share"), false, ui.available_width()) {
                 self.export.share = true;
@@ -2004,6 +2006,15 @@ impl App {
                         self.export.note = self.t("saved");
                     }
                     self.export.open = false;
+                }
+                #[cfg(target_os = "android")]
+                match android::keep(&path, self.export.share) {
+                    android::Kept::Done => {
+                        self.export.note = self.t("saved");
+                        self.export.open = false;
+                    }
+                    android::Kept::Asked => self.export.note = self.t("allow_storage"),
+                    android::Kept::Failed => {}
                 }
             }
             export::Outcome::Cancelled => self.export.note.clear(),

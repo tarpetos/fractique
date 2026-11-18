@@ -102,5 +102,6 @@
   "collection": "SAMMLUNG",
   "save_photos": "In Fotos sichern",
   "share": "Teilen",
+  "allow_storage": "Speicherzugriff erlauben, dann erneut speichern.",
   "color": "FARBE"
 }

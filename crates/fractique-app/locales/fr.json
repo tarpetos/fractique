@@ -102,5 +102,6 @@
   "collection": "COLLECTION",
   "save_photos": "Enregistrer dans Photos",
   "share": "Partager",
+  "allow_storage": "Autorisez l'accès au stockage, puis enregistrez à nouveau.",
   "color": "COULEUR"
 }
