@@ -175,11 +175,13 @@ its `Limits`, for `/render` and `/mcp` alike.
 
 ## The app
 
-`fractique-app` is built with `egui` and `eframe` on `wgpu`. The picture is always rendered by `fractique-core`
-on the processor, in a thread of its own. The graphics card shows it, draws the glass over it, draws a
-[preview](#the-preview-on-the-graphics-card) of what the processor will render while a control moves, and plays
-[the chaos game](#the-chaos-game-on-the-graphics-card) of a flame itself, so that a picture is on the screen while
-the processor still renders.
+`fractique-app` is built with `egui` and `eframe` on `wgpu`. The graphics card shows the picture and draws the
+glass over it. Who makes the picture depends on the device. Where the graphics card is
+[clearly faster than the processor](#when-the-graphics-card-is-used) and **GPU acceleration** is on, the card
+plays [the chaos game](#the-chaos-game-on-the-graphics-card) of a flame itself and its picture is the screen's:
+the processor renders nothing for the screen. Everywhere else, and for what the card does not draw, the picture is
+rendered by `fractique-core` on the processor, in a thread of its own, as an export at Standard, High or Ultra
+always is.
 
 | File | What |
 | --- | --- |
@@ -203,7 +205,7 @@ How the picture reaches the screen:
 | Step | What happens |
 | --- | --- |
 | A change | The scene, the size or the view changes. The render in progress is cancelled and a new one starts. A moved or zoomed view waits until it has rested for 0.18 s; until then the picture already on the screen is moved and scaled by the graphics card |
-| Passes | A draft first (480 pixels on its longer side, 12 samples per pixel), then the full picture. A view magnified more than 4 times gets a pass in between (1280 pixels, 16 samples). The picture is shown after each. Where the graphics card plays [the chaos game](#the-chaos-game-on-the-graphics-card), its picture stands in for the drafts |
+| Passes | A draft first (480 pixels on its longer side, 12 samples per pixel), then the full picture. A view magnified more than 4 times gets a pass in between (1280 pixels, 16 samples). The picture is shown after each. Where the graphics card plays [the chaos game](#the-chaos-game-on-the-graphics-card) of the scene, none of these passes runs |
 | The full picture | At the chosen size, up to 4096 pixels a side with 32 samples per pixel on a computer, 1600 and 18 on a phone, 900 and 14 in a browser |
 | Kept layers | A layer's pixels depend only on its flame, its place, the seed and the size. Developed layers are kept (up to 1200 MB on a computer, 160 MB on a phone and in a browser), so a change to one layer renders that layer only, and **Reset view** comes back without a render. With GPU acceleration on, the densities are kept in the same room: a change to a layer's tone develops it again without the chaos game |
 | Threads | Renders run on a pool that leaves two cores to the window. A browser page has one thread and renders there, without a draft |
@@ -239,9 +241,11 @@ variable is read in a debug build only: a release build cannot be unlocked from 
 
 ### The preview on the graphics card
 
-With **GPU acceleration** on, a change to the tone, to a layer's opacity or blend, or to the zoom does not start a
+This is for a picture the processor rendered while **GPU acceleration** is on: a view the graphics card gave up,
+or a flame it does not draw. A change to the tone, to a layer's opacity or blend, or to the zoom does not start a
 render at once. The graphics card draws the picture from the layers the processor rendered last, and the render
 starts when the control has rested for 0.18 s, as it does for a moved view. Its picture then replaces the preview.
+A picture the card made itself needs none of this: it is drawn again from its own levels.
 
 | Step | What happens |
 | --- | --- |
@@ -257,10 +261,10 @@ with sheets is not previewed), and a change to a flame itself, to the order of t
 when the layers on the graphics card are not those of the scene, the render starts at once, as it does with GPU
 acceleration off. A draft smaller than the preview on the screen is skipped.
 
-The preview is not offered when the graphics card cannot hold half-float textures or draw into an 8-bit picture.
-An error of the graphics card while the preview is built or drawn (no memory for a texture, a shader it refuses)
-switches the preview off for the session and the processor renders as before. `FRACTIQUE_GPU=off` starts the app
-without it.
+The preview exists only [where the graphics card is used](#when-the-graphics-card-is-used). An error of the
+graphics card while the preview is built or drawn (no memory for a texture, a shader it refuses) ends the card's
+part for the session: the switch goes and the processor renders as before. `FRACTIQUE_GPU=off` starts the app
+with the switch off.
 
 For a test, `FRACTIQUE_ADJUST=brightness,gamma,glow,zoom` starts the app with these tone settings, and with
 `FRACTIQUE_SHOW=preview` they are set once the picture is rendered and stay the graphics card's: a
@@ -268,53 +272,78 @@ For a test, `FRACTIQUE_ADJUST=brightness,gamma,glow,zoom` starts the app with th
 
 ### The chaos game on the graphics card
 
-With **GPU acceleration** on, a flame that has to be rendered anew (a random flame, a preset, a mutation, a moved
-view, another size) is drawn by the graphics card first: at the full size, with the first picture after one batch
-of samples and a finer one after each of the next. The processor renders the same scene meanwhile, without its
-drafts, and its picture replaces the graphics card's. The toolbar shows the time the first picture took.
-[performance.md](performance.md#the-first-picture-on-the-graphics-card) has the numbers.
+With **GPU acceleration** on, a flame is drawn by the graphics card alone: at the full size, with the first picture
+after one batch of samples and a finer one after each of the next, up to the samples per pixel of the full pass.
+That picture is the screen's. The processor does not render the scene, so a new flame costs it no more than the
+window does. The toolbar shows the time the picture took.
+[performance.md](performance.md#the-picture-of-the-graphics-card) has the numbers.
 
 | Step | What happens |
 | --- | --- |
 | Walkers | A compute shader (`chaos.wgsl`) runs one walker for every 16 pixels, up to 262 144 at once. Each does what `chaos.rs` and `render.rs` do: it picks a transform by weight, applies the affine map, the variations (all 49), the post map, moves its color, hides the point by the transform's opacity, and plots it through the final transform, the symmetry and the camera. The numbers are 32-bit floats. Each walker has its own random numbers (xoroshiro64**), seeded from the scene's seed, the layer and the walker's number, and starts with 24 steps that are not plotted |
 | Histogram | Four 32-bit integers a cell: the hits and the three color sums, added with atomic operations, so the order of the walkers does not matter. A cell's color sums stop at 16 000 000 hits, where they would overflow; its hits go on |
-| Levels | A second shader (`levels.wgsl`) repeats the density estimation of `tone.rs`: the same kernels, chosen by the same table of hits, gathered for every pixel. Tiles of 16 × 16 cells tell how far a pixel has to look. It writes the levels that the shaders of [the preview](#the-preview-on-the-graphics-card) start from, so the tone, the glow, the blending and the view are the preview's |
-| Batches | The first batch plots 2 samples per pixel; once a batch has shown how fast the card is, a later run starts with as many as fit in 20 ms. Each next batch is sized by how long the last one took: 40 ms, or 2.5 times the shortest batch when the levels alone take longer than that, and never less than a sixteenth of all samples. The run ends at the samples per pixel of the full pass |
+| Levels | A second shader (`levels.wgsl`) repeats the density estimation of `tone.rs`: the same kernels, chosen by the same table of hits, gathered for every pixel. Tiles of 16 × 16 cells tell how far a pixel has to look. It writes the levels that the shaders of [the preview](#the-preview-on-the-graphics-card) start from, so the tone, the glow and the blending are the preview's |
+| Batches | The first batch plots 2 samples per pixel; once a batch has shown how fast the card is, a later run starts with as many as fit in 20 ms. Each next batch is sized by how long the last one took: 40 ms, or 2.5 times the shortest batch when the levels alone take longer than that, and never less than a sixteenth of all samples |
 | Events | A batch is one submission. A thread that sleeps in the driver until that submission is finished takes in how many points landed in the picture and asks for a repaint; the next frame sends the next batch. The window's thread never waits for the graphics card |
-| Replaced | When the processor's picture arrives it is shown, and the histograms are freed. An export (**Instant** too), the recent pictures and a saved file never take the graphics card's picture |
+| Kept | With the last batch the histograms and the walkers are freed; the levels stay on the card (8 bytes a pixel for each layer) for as long as the picture is on the screen |
 
-A change to the tone, to an opacity or to a blend while the graphics card's picture is on the screen draws it again
-with the new settings; the chaos game goes on.
+What else follows from a picture that never leaves the card:
 
-What stays the processor's alone:
+| What | How |
+| --- | --- |
+| Tone, opacity, blend | A change draws the picture again from the levels, at once and as often as the control moves. Nothing is rendered and nothing waits for the control to rest |
+| View and zoom | A moved or zoomed view moves and scales the picture on the screen; when it has rested for 0.18 s the chaos game is played again for the new view |
+| **Instant** export | Saves the picture that is on the screen: it is copied back from the card and written as a PNG. While samples are still being plotted the export waits for the last batch. An export at another size than the picture's, and one of a picture the card gave up meanwhile, is rendered by the processor as before |
+| Light or dark ink, darker glass | The lightness that picks them is measured on the blurred picture under the panes, copied back from the card after each drawing |
+| **Recent** | A picture is remembered when its last batch is finished |
+| The two tabs | A tab keeps the processor's finished picture to come back to; the card's picture is not kept, so coming back to the flames plays the chaos game again |
+| Saved files, the session | They hold the scene, not pixels: nothing waits for a picture |
+
+What the processor still renders for the screen, with its drafts and passes as before:
 
 | What | Why |
 | --- | --- |
 | Wallpapers | Sheets are drawn exactly, not sampled |
-| A view that holds less than an eighth of the flame's points | The processor draws it from particles ([Any zoom](#any-zoom)); the plain chaos game would waste its points and give another brightness. The graphics card counts the points that land in the picture, gives the view up after its first batch, and the render begins again with its drafts |
+| A view that holds less than an eighth of the flame's points | The processor draws it from particles ([Any zoom](#any-zoom)); the plain chaos game would waste its points and give another brightness. The graphics card counts the points that land in the picture and gives the view up after its first batch |
 | A view too fine for 32-bit floats | When the cells per unit times the distance of the view's far edge from the origin is above 400 000. Measured by moving a flame away from the origin: up to a million the picture stays the processor's, at three million it begins to differ |
-| A layer whose density the processor kept | It develops the layer faster than the chaos game is played again |
-| A flame with more than 256 variations in all, a picture whose histogram is larger than the card's largest buffer, a scene whose layers need more than 1 GB | The processor renders, with drafts |
-| A browser | The page renders on the thread that draws, so the graphics card's picture would wait for it |
-
-The chaos game is not offered where the graphics card has no compute shaders (WebGL2, OpenGL ES 3.0), where a
-compute shader cannot write a half-float texture, or where a limit is too low: 64 invocations a workgroup, 4096
-workgroups, 3 storage buffers and 1 storage texture a stage, 17 kB of uniforms. The shaders are compiled in a
-thread of their own when the app starts; a render that began before they were ready begins again. An error of the
-graphics card (a shader it refuses, no memory for a histogram, a batch that does not finish in 20 s) switches the
-chaos game off for the session: the processor renders as before.
+| A picture the card is slow at | After every batch the time the run will take is held against what the processor is expected to need for the picture (its samples a second in the trial below, and never less than 0.3 s). A run that would take longer is given up |
+| A flame with more than 256 variations in all, a picture whose histogram is larger than the card's largest buffer, a scene whose layers need more than 1 GB | The card does not hold them |
+| A layer that is not a flame | `packed` in `chaos.rs` answers for each layer whether the card draws it; a scene with one it does not draw is the processor's whole |
+| The first picture after the app starts, sometimes | The shaders are compiled in a thread of their own. Until they are, a draft from the processor stands in |
 
 The graphics card's picture is not the processor's pixel for pixel: its random numbers are others, so the grain
 differs, and 32-bit floats round differently from one card to the next. Shapes, colors and brightness are the
 same. On one card and driver a scene gives the same picture again.
 
-For a test, `FRACTIQUE_SHOW=gpu` keeps the graphics card's picture (the processor does not render) and hides the
-panels, so a `--screenshot` is that picture; `FRACTIQUE_SHOW=gpu-first` stops after the first batch;
-`FRACTIQUE_SHOW=picture` hides the panels over the processor's picture, to compare with. A scene file given on the
-command line is the scene. `FRACTIQUE_DEBUG_TIMES=1` prints the graphics card and the seconds from the request to
-each picture. The tests of `chaos.rs` compare three presets with the processor's render when the machine has a
-graphics card with compute shaders; three more, run with `--ignored`, print the differences for every preset,
-for 20 seeds of each random generator and for every variation, and how far 32-bit floats reach.
+### When the graphics card is used
+
+The **Graphics** section with the switch exists only where the card plays the chaos game clearly faster than the
+processor. Elsewhere there is no switch and nothing is done on the card but showing the picture: no chaos game and
+no preview, so the app behaves as it did before either.
+
+| Step | What happens |
+| --- | --- |
+| Able | Asked once, when the app starts: compute shaders, a half-float texture a compute shader can write, 64 invocations a workgroup, 4096 workgroups, 3 storage buffers and 1 storage texture a stage, 17 kB of uniforms. WebGL2 and OpenGL ES 3.0 have no compute shaders. A browser is counted as not able: the page renders on the thread that draws |
+| The trial | A card that is able and not known yet is tried once the first picture is on the screen (rendered by the processor) and no render runs: `aurora-spiral` at 800 × 450 with the samples of the full pass, first on the card, then on the processor. The card's time is the sum of its batches; the processor's counts only when no other render ran beside it, and is taken again otherwise |
+| The verdict | The card is used when it needed at most half the processor's time. The margin of two is a choice, not a measurement: a card that is merely as fast is not worth pictures that differ from device to device |
+| Remembered | The verdict is kept in the app's settings with the card's name, the driver's version and the app's version, together with the processor's samples a second. The trial runs again when one of the three changes |
+| Errors | A shader the card refuses, no memory for a histogram or a texture, a batch that does not finish in 20 s: the card's part ends for the session, the switch goes and the processor renders. During the trial the same ends as a verdict against the card |
+
+Under the switch the app shows the card's name and the graphics interface as the system reports them, cut to the
+panel's width, and a note that the picture and an Instant export can differ slightly from device to device.
+
+For a test, `FRACTIQUE_GPU` sets the device: `none` is one that is not able, `slow` one whose card takes ten
+thousand times as long in the trial, `measure` runs the trial whatever is remembered, `fast` skips it and uses
+the card, `off` starts with the switch off. A `--screenshot` waits for the verdict. `FRACTIQUE_SCROLL=points`
+scrolls the controls down, to where the switch is. `FRACTIQUE_SHOW=gpu` hides the panels over the card's
+picture; `FRACTIQUE_SHOW=gpu-first` stops it after the first batch; `FRACTIQUE_SHOW=picture` hides the panels
+over whatever picture the device makes. `FRACTIQUE_EXPORT=file` starts an Instant export to that file as soon as
+the card's first picture is on the screen, so that it has to wait, and the screenshot waits for it: the two files
+are then the same picture. A scene file given on the command line is the scene. `FRACTIQUE_DEBUG_TIMES=1` prints
+the graphics card, the trial, every render the processor starts and the seconds from the request to each picture
+and to a saved export. The tests of `chaos.rs` compare three presets with the processor's render when the
+machine has a graphics card with compute shaders; three more, run with `--ignored`, print the differences for
+every preset, for 20 seeds of each random generator and for every variation, and how far 32-bit floats reach.
 
 ## Limits
 

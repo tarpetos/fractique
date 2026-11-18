@@ -18,7 +18,7 @@ built on it.
 | 11 | **Server:** HTTP API with a job queue and limits, the web UI (the app compiled to WebAssembly) served beside it, Docker image ([server.md](server.md)) | Done |
 | 12 | **MCP over HTTP:** the tools of the MCP server at `/mcp` of the HTTP server (Streamable HTTP), from one implementation, under the limits and the queue of the server and without access to its disk ([mcp.md](mcp.md#over-http)) | Done |
 | 13 | **GPU preview:** while a tone slider, the zoom, an opacity or a blend moves, the graphics card draws the picture from the rendered layers; the processor's picture replaces it when the control rests ([architecture.md](architecture.md#the-preview-on-the-graphics-card)) | Done; seen running on Linux with a software graphics card only |
-| 14 | **The chaos game on the graphics card:** the first picture of a flame comes from the graphics card, at full size in a fraction of a second, and grows finer until the processor's exact picture replaces it ([architecture.md](architecture.md#the-chaos-game-on-the-graphics-card)) | Done; measured on Windows with an NVIDIA RTX 4070 and run on Linux with a software graphics card. Not run on macOS, on a phone or on an integrated graphics card |
+| 14 | **The chaos game on the graphics card:** with GPU acceleration on, a flame is drawn by the graphics card alone, at full size in a fraction of a second, and the processor renders only exact exports; the switch exists only where a trial shows the card clearly faster than the processor ([architecture.md](architecture.md#the-chaos-game-on-the-graphics-card)) | Done; measured on Windows with an NVIDIA RTX 4070 and run on Linux with a software graphics card. Not run on macOS, on a phone or on an integrated graphics card |
 
 ## App, next
 
@@ -43,7 +43,7 @@ What the app does not do yet:
 
 | Question | Decision |
 | --- | --- |
-| What the graphics card may draw | Pictures that the processor's replace: a preview while a control moves, and the first picture of a flame. The picture that stays on the screen and every export are the processor's, so a scene still gives the same pixels everywhere |
+| What the graphics card may draw | The screen's picture of a flame and its Instant export, where the card is clearly faster than the processor and the switch is on: a render beside it kept every core busy for seconds. Exports at Standard, High and Ultra, the command line tool, the MCP tools and the server are the processor's, so a scene still gives the same pixels everywhere |
 | UI framework for the app | `egui` with `eframe` on `wgpu`: Rust, and it reaches the five platforms and WebAssembly. `vendor/` carries the two crates with a fix for the iOS drawing surface |
 | Installers | `cargo-packager` for Linux and macOS. Windows gets no installer: the app is one file that replaces itself |
 | The app's own file | `.frcq`: packed JSON, not a binary encoding of the scene, which came out larger |

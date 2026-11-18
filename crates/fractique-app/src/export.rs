@@ -88,6 +88,20 @@ impl Job {
         Self { progress, cancel, done }
     }
 
+    // An export that is saved when its picture comes from the graphics card.
+    pub fn later(path: PathBuf, ctx: egui::Context) -> (Self, Later) {
+        let (progress, cancel) = (Arc::new(AtomicU32::new(0)), Arc::new(AtomicBool::new(false)));
+        let (sender, done) = mpsc::channel();
+        let later = Later {
+            path,
+            progress: progress.clone(),
+            cancel: cancel.clone(),
+            sender,
+            ctx,
+        };
+        (Self { progress, cancel, done }, later)
+    }
+
     pub fn cancel(&self) {
         self.cancel.store(true, Ordering::Relaxed);
     }
@@ -98,6 +112,48 @@ impl Job {
 
     pub fn finished(&self) -> Option<Outcome> {
         self.done.try_recv().ok()
+    }
+}
+
+pub struct Later {
+    path: PathBuf,
+    progress: Arc<AtomicU32>,
+    cancel: Arc<AtomicBool>,
+    sender: mpsc::Sender<Outcome>,
+    ctx: egui::Context,
+}
+
+impl Later {
+    pub fn cancelled(&self) -> bool {
+        self.cancel.load(Ordering::Relaxed)
+    }
+
+    pub fn path(&self) -> PathBuf {
+        self.path.clone()
+    }
+
+    pub fn save(self, mut rgba: Vec<u8>, size: [u32; 2]) {
+        std::thread::spawn(move || {
+            rgba.chunks_exact_mut(4).for_each(|pixel| pixel[3] = 255);
+            let outcome = match crate::save_png(&self.path, &rgba, [size[0] as usize, size[1] as usize]) {
+                Ok(()) => Outcome::Saved(self.path.clone()),
+                Err(error) => Outcome::Failed(error),
+            };
+            self.progress.store(1000, Ordering::Relaxed);
+            let _ = self.sender.send(outcome);
+        });
+    }
+
+    pub fn fail(self) {
+        let _ = self.sender.send(Outcome::Failed(String::new()));
+    }
+}
+
+// Dropped without a picture, the export ends as a cancelled one: the sheet must not wait for it for ever.
+impl Drop for Later {
+    fn drop(&mut self) {
+        let _ = self.sender.send(Outcome::Cancelled);
+        self.ctx.request_repaint();
     }
 }
 

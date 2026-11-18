@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 
 use web_time::Instant;
@@ -550,9 +550,49 @@ fn shows(what: &str) -> bool {
     std::env::var("FRACTIQUE_SHOW").is_ok_and(|shown| shown == what)
 }
 
+// Whether the graphics card is used. It is where a trial has shown it clearly faster than the processor.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Verdict {
+    Unknown,
+    // With the samples a second of the processor in the trial: what a run of the card is held against.
+    Fast(Option<f64>),
+    Slow,
+}
+
+// The trial: one flame drawn by the graphics card, then rendered by the processor. The processor's part counts
+// when no other render ran beside it.
+struct Trial {
+    card: Option<f32>,
+    processor: Option<(mpsc::Receiver<f32>, bool)>,
+}
+
+const TRIAL_SIZE: [u32; 2] = [800, 450];
+// The card is used where it ends the trial at least this many times sooner than the processor.
+const CLEARLY: f32 = 2.0;
+// A run of the card may take as long as the processor is expected to, and at least this many seconds.
+const PATIENCE: f64 = 0.3;
+
+fn trial_options() -> RenderOptions {
+    RenderOptions {
+        width: TRIAL_SIZE[0],
+        height: TRIAL_SIZE[1],
+        samples_per_pixel: FULL_SAMPLES,
+        supersample: 1,
+    }
+}
+
 // A test run that keeps the picture of the graphics card: all of its samples, or those of its first batch.
 fn chaos_only() -> bool {
     shows("gpu") || shows("gpu-first")
+}
+
+// A test run that shows the controls scrolled down by FRACTIQUE_SCROLL points: the graphics card's switch is
+// near their end.
+fn scrolled(area: egui::ScrollArea) -> egui::ScrollArea {
+    match std::env::var("FRACTIQUE_SCROLL").ok().and_then(|by| by.parse().ok()) {
+        Some(by) => area.vertical_scroll_offset(by),
+        None => area,
+    }
 }
 
 fn timed() -> bool {
@@ -632,6 +672,10 @@ struct App {
     touched: Instant,
     gpu: bool,
     preview: Option<Preview>,
+    card: String,
+    card_key: String,
+    verdict: Verdict,
+    trial: Option<Trial>,
     held: Option<Held>,
     previewing: bool,
     chaos: Option<Chaos>,
@@ -642,6 +686,13 @@ struct App {
     quick: (Option<f32>, Option<f32>),
     look: String,
     asked: Instant,
+    measured: Arc<AtomicU32>,
+    #[cfg(not(target_arch = "wasm32"))]
+    instant: Option<(export::Later, [u32; 2])>,
+    #[cfg(not(target_arch = "wasm32"))]
+    export_at: Option<PathBuf>,
+    #[cfg(not(target_arch = "wasm32"))]
+    export_asked: Instant,
     frozen: bool,
     bare: bool,
     optics: Optics,
@@ -893,6 +944,30 @@ fn look_key(scene: &Scene) -> String {
     format!("{:?} {layers:?}", scene.background)
 }
 
+// How light a picture is, from every `step`th of its pixels: what picks dark ink and darker glass over it.
+fn lightness(rgba: &[u8], step: usize) -> f32 {
+    let pixels = rgba.chunks_exact(4).step_by(step);
+    let (sum, count) = pixels.fold((0u64, 0u64), |(sum, count), pixel| {
+        (
+            sum + u64::from(pixel[0]) * 2 + u64::from(pixel[1]) * 5 + u64::from(pixel[2]),
+            count + 8,
+        )
+    });
+    sum as f32 / (count.max(1) as f32 * 255.0)
+}
+
+// The verdict kept for a graphics card, if it is this card's and this version's.
+fn verdict_of(text: &str, card: &str) -> Verdict {
+    match text.strip_prefix(card).and_then(|rest| rest.strip_prefix('|')) {
+        Some("slow") => Verdict::Slow,
+        Some(rest) => match rest.strip_prefix("fast|").and_then(|rate| rate.parse().ok()) {
+            Some(rate) => Verdict::Fast(Some(rate)),
+            None => Verdict::Unknown,
+        },
+        None => Verdict::Unknown,
+    }
+}
+
 fn status_of(size: [u32; 2], seconds: f32, view: View) -> String {
     let mut status = format!("{} × {}  ·  {seconds:.2} s", size[0], size[1]);
     if view.zoom != 1.0 {
@@ -936,13 +1011,44 @@ impl App {
             let gfx = Gfx::new(&state.device, state.target_format);
             state.renderer.write().callback_resources.insert(gfx);
         }
-        let preview = cc
+        // The card accelerates only where it can play the chaos game; elsewhere the app is the processor's alone. A
+        // browser page renders on the thread that draws, so there the card's picture would wait for it.
+        // FRACTIQUE_GPU makes a test run a device that cannot (none), one whose card is slow (slow), one that is
+        // not asked (fast) or one that is asked anew (measure).
+        let forced = std::env::var("FRACTIQUE_GPU").ok();
+        let able = cfg!(not(target_arch = "wasm32")) && forced.as_deref() != Some("none");
+        let mut preview = cc
             .wgpu_render_state
             .as_ref()
+            .filter(|state| able && Chaos::able(&state.adapter, &state.device))
             .and_then(|state| Preview::new(&state.adapter, &state.device, &state.queue, &cc.egui_ctx));
-        let gpu = match std::env::var("FRACTIQUE_GPU") {
-            Ok(choice) => choice != "off",
-            Err(_) => stored("gpu").is_none_or(|choice| choice != "off"),
+        let info = cc.wgpu_render_state.as_ref().map(|state| state.adapter.get_info());
+        let card = info.as_ref().map_or_else(String::new, |card| {
+            let api = match card.backend {
+                wgpu::Backend::Vulkan => "Vulkan",
+                wgpu::Backend::Metal => "Metal",
+                wgpu::Backend::Dx12 => "Direct3D 12",
+                wgpu::Backend::Gl => "OpenGL",
+                wgpu::Backend::BrowserWebGpu => "WebGPU",
+                wgpu::Backend::Noop => "",
+            };
+            format!("{} · {api}", card.name)
+        });
+        let card_key = info.as_ref().map_or_else(String::new, |card| {
+            format!("{}|{}|{}", card.name, card.driver_info, env!("CARGO_PKG_VERSION"))
+        });
+        let verdict = match forced.as_deref() {
+            _ if preview.is_none() => Verdict::Slow,
+            Some("fast") => Verdict::Fast(None),
+            Some("slow" | "measure") => Verdict::Unknown,
+            _ => stored("card").map_or(Verdict::Unknown, |text| verdict_of(&text, &card_key)),
+        };
+        if verdict == Verdict::Slow {
+            preview = None;
+        }
+        let gpu = match forced.as_deref() {
+            Some(choice) => choice != "off",
+            None => stored("gpu").is_none_or(|choice| choice != "off"),
         };
         let restore = screenshot.is_none() || std::env::var_os("FRACTIQUE_RESTORE").is_some();
         let session = if restore { stored("session") } else { None };
@@ -971,6 +1077,10 @@ impl App {
             touched: Instant::now(),
             gpu,
             preview,
+            card,
+            card_key,
+            verdict,
+            trial: None,
             held: None,
             previewing: false,
             chaos: None,
@@ -981,6 +1091,13 @@ impl App {
             quick: (None, None),
             look: String::new(),
             asked: Instant::now(),
+            measured: Arc::new(AtomicU32::new(u32::MAX)),
+            #[cfg(not(target_arch = "wasm32"))]
+            instant: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            export_at: std::env::var_os("FRACTIQUE_EXPORT").map(PathBuf::from),
+            #[cfg(not(target_arch = "wasm32"))]
+            export_asked: Instant::now(),
             frozen: false,
             bare: chaos_only() || shows("picture"),
             optics: Optics {
@@ -1149,8 +1266,22 @@ impl App {
         scene
     }
 
+    fn card_used(&self) -> bool {
+        matches!(self.verdict, Verdict::Fast(_)) && self.preview.as_ref().is_some_and(Preview::works)
+    }
+
     fn gpu_on(&self) -> bool {
-        self.gpu && self.preview.as_ref().is_some_and(Preview::works)
+        self.gpu && self.card_used()
+    }
+
+    // The graphics card's own picture of the scene as it is now is on the screen. It follows the tone, the
+    // opacities and the blends by itself, so nothing has to be rendered.
+    fn card_shows(&self, size: [u32; 2]) -> bool {
+        if !self.chaotic || !self.gpu_on() || self.wall.live {
+            return false;
+        }
+        let keys = chaos_keys(&self.scene(), &fitted(size, FULL_SIDE, FULL_SAMPLES));
+        self.chaos.as_ref().is_some_and(|chaos| chaos.keys() == Some(&keys))
     }
 
     // False when the layers on the graphics card are not this scene's: then the processor has to render.
@@ -1161,11 +1292,6 @@ impl App {
         let scene = self.scene_in(self.shown, self.shown_zoom);
         if scene.sheets.is_some() || scene.validate().is_err() {
             return false;
-        }
-        // The picture of the chaos game on the graphics card is drawn again with the new tone by `chaos_frame`.
-        if self.chaotic {
-            let keys = chaos_keys(&scene, &fitted(size, FULL_SIDE, FULL_SAMPLES));
-            return self.chaos.as_ref().is_some_and(|chaos| chaos.keys() == Some(&keys));
         }
         let (Some(preview), Some(held)) = (&mut self.preview, &self.held) else {
             return false;
@@ -1247,13 +1373,21 @@ impl App {
             passes.retain(|(draft, options)| !draft || options.width >= held.options.width);
         }
         let (scene, cancel, generation) = (self.scene_at(size), self.cancel.clone(), self.generation);
-        // The graphics card shows the full picture before a draft would be ready.
-        let quick = self.begin_chaos(ctx, &scene, &full);
-        if quick {
-            passes.retain(|(draft, _)| !draft);
-        }
-        if chaos_only() && (quick || self.gpu_on() && self.chaos.as_ref().is_some_and(Chaos::pending)) {
+        // The graphics card's picture is the screen's: the processor renders only what the card does not draw.
+        if self.begin_chaos(ctx, &scene, &full) {
+            self.rendering = !self.chaos.as_ref().is_some_and(Chaos::finished);
             return;
+        }
+        // The shaders are not compiled yet: a draft stands in, and the render begins again when they are.
+        let soon = self.gpu_on() && scene.sheets.is_none() && self.chaos.as_ref().is_some_and(Chaos::pending);
+        if soon && chaos_only() {
+            return;
+        }
+        if soon && passes.iter().any(|(draft, _)| *draft) {
+            passes.retain(|(draft, _)| *draft);
+        }
+        if timed() {
+            eprintln!("times: the processor renders {} passes", passes.len());
         }
         let (view, zoom) = (self.view, self.adjust.zoom);
         let sources = self.gpu_on() && scene.sheets.is_none();
@@ -1315,7 +1449,6 @@ impl App {
                 continue;
             }
             self.previewing = false;
-            let first = self.quick.0.filter(|_| self.chaotic && !done.draft);
             self.chaotic = false;
             if let Some(chaos) = &mut self.chaos {
                 chaos.end();
@@ -1350,14 +1483,7 @@ impl App {
                 );
             }
             self.shown = done.view;
-            let pixels = done.image.rgba.chunks_exact(4).step_by(97);
-            let (sum, count) = pixels.fold((0u64, 0u64), |(sum, count), pixel| {
-                (
-                    sum + u64::from(pixel[0]) * 2 + u64::from(pixel[1]) * 5 + u64::from(pixel[2]),
-                    count + 8,
-                )
-            });
-            self.light = sum as f32 / (count.max(1) as f32 * 255.0);
+            self.light = lightness(&done.image.rgba, 97);
             self.last = (!done.draft).then(|| (done.generation, Arc::new(done.image.clone())));
             if !done.draft {
                 self.remember(self.requested.unwrap_or([done.image.width, done.image.height]));
@@ -1365,8 +1491,7 @@ impl App {
             if !done.draft {
                 self.rendering = false;
                 self.shown_frames = self.shown_frames.max(1);
-                let seconds = first.unwrap_or(done.seconds);
-                self.status = status_of([done.image.width, done.image.height], seconds, done.view);
+                self.status = status_of([done.image.width, done.image.height], done.seconds, done.view);
                 if shows("preview")
                     && !self.frozen
                     && let Some(adjust) = Adjust::asked()
@@ -1386,15 +1511,23 @@ impl App {
             return false;
         };
         let keys = chaos_keys(scene, full);
-        // The processor develops a layer whose density it kept faster than the chaos game is played again.
-        let kept = {
-            let kept = self.kept.lock().unwrap_or_else(|e| e.into_inner());
-            keys.iter().all(|key| kept.sources.contains_key(key))
-        };
-        if !drawn || kept {
-            chaos.end();
+        if !drawn {
+            if self.trial.is_none() {
+                chaos.end();
+            }
             return false;
         }
+        // A card that turns out slower on this picture than the processor was in the trial gives it up.
+        let limit = match self.verdict {
+            Verdict::Fast(Some(rate)) => {
+                let samples = scene.layers.len() as f64
+                    * f64::from(full.width)
+                    * f64::from(full.height)
+                    * f64::from(full.samples_per_pixel);
+                Some((samples / rate).max(PATIENCE) as f32)
+            }
+            _ => None,
+        };
         let goes_on = chaos.keys() == Some(&keys);
         let wanted = RenderOptions {
             samples_per_pixel: if shows("gpu-first") {
@@ -1404,7 +1537,7 @@ impl App {
             },
             ..*full
         };
-        if !chaos.begin(scene, &wanted, &keys, self.asked, ctx) {
+        if !chaos.begin(scene, &wanted, &keys, self.asked, limit, ctx) {
             if timed() && !chaos.pending() {
                 eprintln!("times: the graphics card does not draw this scene");
             }
@@ -1417,6 +1550,120 @@ impl App {
         true
     }
 
+    // Begins the trial of a graphics card nothing is known about yet, once the screen's picture is rendered.
+    fn try_card(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
+        if self.verdict != Verdict::Unknown || self.trial.is_some() || self.rendering || self.requested.is_none() {
+            return;
+        }
+        if !self.chaos_tried {
+            self.chaos_tried = true;
+            self.chaos = frame
+                .wgpu_render_state()
+                .and_then(|state| Chaos::new(&state.adapter, &state.device, &state.queue, ctx));
+            self.compiling = self.chaos.as_ref().is_some_and(Chaos::pending);
+        }
+        let Some(chaos) = &mut self.chaos else {
+            self.decide(None);
+            return;
+        };
+        if chaos.pending() {
+            return;
+        }
+        let Some(scene) = presets::get("aurora-spiral") else {
+            self.decide(None);
+            return;
+        };
+        if chaos.begin(
+            &scene,
+            &trial_options(),
+            &["trial".to_owned()],
+            Instant::now(),
+            None,
+            ctx,
+        ) {
+            self.trial = Some(Trial {
+                card: None,
+                processor: None,
+            });
+        } else {
+            self.decide(None);
+        }
+    }
+
+    fn trial_step(&mut self, chaos: &mut Chaos, ctx: &egui::Context) {
+        let Some(trial) = &mut self.trial else {
+            return;
+        };
+        let Some(card) = trial.card else {
+            if chaos.advance(ctx) == Step::Refused {
+                self.decide(None);
+            } else if chaos.finished() {
+                let slowed = std::env::var("FRACTIQUE_GPU").is_ok_and(|choice| choice == "slow");
+                trial.card = Some(chaos.spent() * if slowed { 1.0e4 } else { 1.0 });
+                chaos.end();
+                ctx.request_repaint();
+            }
+            return;
+        };
+        match &mut trial.processor {
+            None if self.rendering => {}
+            None => {
+                let (sender, done) = mpsc::channel();
+                let ctx = ctx.clone();
+                let work = move || {
+                    let Some(scene) = presets::get("aurora-spiral") else {
+                        return;
+                    };
+                    let started = Instant::now();
+                    let _ = fractique_core::render(&scene, &trial_options(), &Control::default());
+                    let _ = sender.send(started.elapsed().as_secs_f32());
+                    ctx.request_repaint();
+                };
+                #[cfg(not(target_arch = "wasm32"))]
+                std::thread::spawn(move || render_pool().install(work));
+                #[cfg(target_arch = "wasm32")]
+                work();
+                trial.processor = Some((done, true));
+            }
+            Some((done, alone)) => {
+                *alone &= !self.rendering;
+                match done.try_recv() {
+                    Ok(seconds) if *alone => self.decide(Some((card, seconds))),
+                    Ok(_) => trial.processor = None,
+                    Err(mpsc::TryRecvError::Empty) => {}
+                    Err(mpsc::TryRecvError::Disconnected) => self.decide(None),
+                }
+            }
+        }
+    }
+
+    // The trial's seconds on the card and on the processor, or nothing when the card could not run it.
+    fn decide(&mut self, seconds: Option<(f32, f32)>) {
+        self.trial = None;
+        self.verdict = match seconds {
+            Some((card, processor)) if card * CLEARLY <= processor => {
+                let options = trial_options();
+                let samples = f64::from(options.width * options.height * options.samples_per_pixel);
+                Verdict::Fast(Some(samples / f64::from(processor.max(1e-6))))
+            }
+            _ => Verdict::Slow,
+        };
+        if timed() {
+            let (card, processor) = seconds.unwrap_or((f32::NAN, f32::NAN));
+            let used = if self.verdict == Verdict::Slow {
+                "left out"
+            } else {
+                "used"
+            };
+            eprintln!(
+                "times: the trial took {card:.3} s on the graphics card, {processor:.3} s on the processor: {used}"
+            );
+        }
+        if self.verdict == Verdict::Slow {
+            (self.preview, self.chaos, self.held) = (None, None, None);
+        }
+    }
+
     // The chaos game on the graphics card: takes in the batch that has finished, sends the next and shows the
     // picture, with the tone as it is now.
     fn chaos_frame(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
@@ -1425,14 +1672,67 @@ impl App {
         };
         let pending = chaos.pending();
         // The shaders are compiled, or refused: a render that began without them begins again.
-        if self.compiling && !pending && self.rendering && !self.chaotic {
+        if self.compiling && !pending && self.rendering && !self.chaotic && self.gpu_on() {
             self.requested = None;
         }
         self.compiling = pending;
-        if chaos.keys().is_some() {
+        if self.trial.is_some() {
+            self.trial_step(&mut chaos, ctx);
+        } else if chaos.keys().is_some() {
             self.chaos_step(&mut chaos, ctx, frame);
         }
         self.chaos = Some(chaos);
+        let measured = self.measured.swap(u32::MAX, Ordering::Relaxed);
+        if measured != u32::MAX && self.chaotic {
+            self.light = f32::from_bits(measured);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if self.chaotic
+                && let Some(size) = self.requested
+                && let Some(path) = self.export_at.take()
+            {
+                self.export_to(ctx, size, path);
+            }
+            self.hand_over(ctx);
+        }
+    }
+
+    // An Instant export of the graphics card's picture: it waits for the last of the samples, then the picture
+    // is copied back from the card and saved. A picture the card gave up meanwhile is rendered by the processor.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn hand_over(&mut self, ctx: &egui::Context) {
+        let Some((later, size)) = self.instant.take() else {
+            return;
+        };
+        if later.cancelled() {
+            return;
+        }
+        if !self.requested.is_some_and(|shown| self.card_shows(shown)) {
+            let options = RenderOptions {
+                width: size[0],
+                height: size[1],
+                samples_per_pixel: FULL_SAMPLES,
+                supersample: 1,
+            };
+            let job = export::Job::start(self.scene_at(size), options, later.path(), ctx.clone(), render_pool());
+            self.export.job = Some(job);
+            return;
+        }
+        let (Some(preview), Some(chaos)) = (&self.preview, &self.chaos) else {
+            return;
+        };
+        if !chaos.finished() {
+            self.instant = Some((later, size));
+            return;
+        }
+        let saved = preview.read(false, ctx, move |pixels| match pixels {
+            Some((rgba, size)) => later.save(rgba, size),
+            None => later.fail(),
+        });
+        if let Some(index) = saved {
+            chaos.watch(index);
+        }
     }
 
     fn chaos_step(&mut self, chaos: &mut Chaos, ctx: &egui::Context, frame: &eframe::Frame) {
@@ -1445,9 +1745,10 @@ impl App {
             return;
         }
         let times = chaos.times();
+        let whole = times.1.is_some() && self.quick.1.is_none();
         if times != self.quick {
             if let (Some((size, _)), Some(first)) = (chaos.levels(), times.0) {
-                self.status = status_of(size, first, self.chaos_at.0);
+                self.status = status_of(size, times.1.unwrap_or(first), self.chaos_at.0);
                 if timed() && self.quick.0.is_none() {
                     eprintln!(
                         "times: the first picture of {} × {} from the graphics card after {first:.3} s",
@@ -1455,23 +1756,40 @@ impl App {
                     );
                 }
             }
-            if let Some(full) = times.1 {
-                if timed() {
-                    eprintln!("times: all samples from the graphics card after {full:.3} s");
-                }
-                if chaos_only() {
-                    self.rendering = false;
-                    self.shown_frames = self.shown_frames.max(1);
-                }
+            if timed()
+                && let Some(full) = times.1
+            {
+                eprintln!("times: all samples from the graphics card after {full:.3} s");
             }
             self.quick = times;
         }
-        if step != Step::Drawn && !self.chaotic {
+        self.chaos_draw(chaos, step == Step::Drawn, ctx, frame);
+        if whole && self.chaotic {
+            self.rendering = false;
+            self.shown_frames = self.shown_frames.max(1);
+            if let Some(size) = self.requested {
+                self.remember(size);
+            }
+            if shows("preview")
+                && !self.frozen
+                && let Some(adjust) = Adjust::asked()
+            {
+                self.adjust = adjust;
+                self.requested = None;
+                self.frozen = true;
+            }
+        }
+    }
+
+    // Draws the picture from the graphics card's levels when they are new or the tone has changed, and has its
+    // lightness measured.
+    fn chaos_draw(&mut self, chaos: &Chaos, fresh: bool, ctx: &egui::Context, frame: &eframe::Frame) {
+        if !fresh && !self.chaotic {
             return;
         }
         let scene = self.scene_in(self.chaos_at.0, self.chaos_at.1);
         let look = look_key(&scene);
-        if step != Step::Drawn && look == self.look {
+        if !fresh && look == self.look {
             return;
         }
         let (Some(preview), Some((size, levels))) = (&mut self.preview, chaos.levels()) else {
@@ -1488,10 +1806,21 @@ impl App {
             return;
         };
         gfx.show(&state.device, picture, soft);
+        let (measured, wake) = (self.measured.clone(), ctx.clone());
+        let read = preview.read(true, ctx, move |pixels| {
+            if let Some((rgba, _)) = pixels {
+                measured.store(lightness(&rgba, 1).to_bits(), Ordering::Relaxed);
+                wake.request_repaint();
+            }
+        });
+        if let Some(index) = read {
+            chaos.watch(index);
+        }
         self.chaotic = true;
         self.previewing = false;
         self.look = look;
         (self.shown, self.shown_zoom) = self.chaos_at;
+        (self.latest, self.last) = (None, None);
     }
 
     fn detail(&self) -> String {
@@ -2445,7 +2774,7 @@ impl App {
             }
         }
 
-        if self.preview.is_some() {
+        if self.card_used() {
             widgets::section(ui, &self.t("graphics"));
             if widgets::toggle(ui, &self.t("gpu"), &mut self.gpu) {
                 self.held = None;
@@ -2463,6 +2792,11 @@ impl App {
             }
             if self.gpu {
                 ui.add_space(4.0);
+                let card = egui::RichText::new(&self.card)
+                    .size(12.0)
+                    .color(egui::Color32::from_white_alpha(110));
+                ui.add(egui::Label::new(card).truncate());
+                ui.add_space(2.0);
                 ui.label(
                     egui::RichText::new(self.t("gpu_note"))
                         .size(12.0)
@@ -3048,14 +3382,27 @@ impl App {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn start_export(&mut self, ctx: &egui::Context, [width, height]: [u32; 2]) {
-        let (_, samples, supersample) = export::QUALITIES[self.export.quality];
         let name = format!("{}-{width}x{height}.png", file_name(&self.title));
-        let Some(path) = export::target(&name) else {
+        if let Some(path) = export::target(&name) {
+            self.export_to(ctx, [width, height], path);
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn export_to(&mut self, ctx: &egui::Context, [width, height]: [u32; 2], path: PathBuf) {
+        let (_, samples, supersample) = export::QUALITIES[self.export.quality];
+        self.export_asked = Instant::now();
+        let as_shown = samples == export::AS_SHOWN && (self.shown, self.shown_zoom) == (self.view, self.adjust.zoom);
+        let on_card = self.chaos.as_ref().and_then(Chaos::levels).map(|(size, _)| size);
+        if as_shown && on_card == Some([width, height]) && self.requested.is_some_and(|size| self.card_shows(size)) {
+            let (job, later) = export::Job::later(path, ctx.clone());
+            self.export.job = Some(job);
+            self.instant = Some((later, [width, height]));
+            ctx.request_repaint();
             return;
-        };
-        if samples == export::AS_SHOWN
+        }
+        if as_shown
             && !self.rendering
-            && (self.shown, self.shown_zoom) == (self.view, self.adjust.zoom)
             && let Some((generation, image)) = &self.last
             && *generation == self.generation
             && [image.width, image.height] == [width, height]
@@ -3179,6 +3526,10 @@ impl App {
                     .map(|name| name.to_string_lossy().into_owned())
                     .unwrap_or_default();
                 self.export.note = format!("{}: {name}", self.t("saved"));
+                if timed() {
+                    let seconds = self.export_asked.elapsed().as_secs_f32();
+                    eprintln!("times: the export is saved after {seconds:.3} s");
+                }
                 #[cfg(target_os = "ios")]
                 {
                     tick(true);
@@ -3220,6 +3571,15 @@ impl App {
     fn take_screenshot(&mut self, ctx: &egui::Context) {
         if self.screenshot_done.load(Ordering::Relaxed) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.export.job.is_some() || self.export_at.is_some() {
+            ctx.request_repaint();
+            return;
+        }
+        if self.verdict == Verdict::Unknown {
+            ctx.request_repaint();
             return;
         }
         if self.shown_frames == 0 {
@@ -3315,8 +3675,18 @@ impl eframe::App for App {
         ];
         let window = size;
         let size = self.picture.unwrap_or(window);
-        // A browser page renders on the thread that draws: there the picture of the graphics card would wait for it.
-        if self.gpu && !self.chaos_tried && self.preview.is_some() && cfg!(not(target_arch = "wasm32")) {
+        // An error of the graphics card ends its part for the session: the switch goes and the processor renders.
+        let broken = self.preview.as_ref().is_some_and(|preview| !preview.works())
+            || self.chaos.as_ref().is_some_and(|chaos| !chaos.works());
+        if broken && self.verdict == Verdict::Unknown {
+            self.decide(None);
+        }
+        if broken {
+            (self.preview, self.chaos, self.held) = (None, None, None);
+            self.kept.lock().unwrap_or_else(|e| e.into_inner()).sources.clear();
+        }
+        self.try_card(&ctx, frame);
+        if self.gpu && !self.chaos_tried && self.card_used() {
             self.chaos_tried = true;
             self.chaos = frame
                 .wgpu_render_state()
@@ -3325,7 +3695,10 @@ impl eframe::App for App {
         }
         if window[0] > 0 && window[1] > 0 {
             if self.requested != Some(size) {
-                if self.preview_now(&ctx, frame, size) {
+                if self.card_shows(size) {
+                    self.requested = Some(size);
+                    self.drawn = Some((self.view, self.adjust.zoom));
+                } else if self.preview_now(&ctx, frame, size) {
                     self.hold_render(&ctx, size);
                 } else {
                     self.previewing = false;
@@ -3467,7 +3840,7 @@ impl eframe::App for App {
                             bar.bar_width = 5.0;
                             bar.floating_allocated_width = 0.0;
                             ui.spacing_mut().scroll = bar;
-                            egui::ScrollArea::vertical()
+                            scrolled(egui::ScrollArea::vertical())
                                 .max_height(room)
                                 .min_scrolled_height(room)
                                 .show(ui, |ui| {
@@ -3671,8 +4044,9 @@ impl eframe::App for App {
             && let Some(storage) = frame.storage_mut()
         {
             let settings = format!(
-                "{} {} {} {} {} {:?} {}",
+                "{} {:?} {} {} {} {} {:?} {}",
                 self.gpu,
+                self.verdict,
                 self.phone.kept.len(),
                 self.texts.lang.code(),
                 self.optics.tint,
@@ -3695,6 +4069,14 @@ impl eframe::App for App {
         storage.set_string("glass_blur", self.optics.blur.to_string());
         if std::env::var_os("FRACTIQUE_GPU").is_none() {
             storage.set_string("gpu", if self.gpu { "on" } else { "off" }.to_owned());
+            let verdict = match self.verdict {
+                Verdict::Fast(Some(rate)) => Some(format!("fast|{rate}")),
+                Verdict::Slow if !self.card_key.is_empty() => Some("slow".to_owned()),
+                _ => None,
+            };
+            if let Some(verdict) = verdict {
+                storage.set_string("card", format!("{}|{verdict}", self.card_key));
+            }
         }
         let picture = self
             .picture
@@ -3980,6 +4362,19 @@ mod tests {
                 assert!(parsed_size(&format!("{}x{}", size[0], size[1])).is_some());
             }
         }
+    }
+
+    #[test]
+    fn a_verdict_is_kept_for_its_card_and_version() {
+        let card = "Adreno 610|V@0502.0|0.1.0";
+        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow", card), Verdict::Slow);
+        assert_eq!(
+            verdict_of("Adreno 610|V@0502.0|0.1.0|fast|1500000.5", card),
+            Verdict::Fast(Some(1_500_000.5))
+        );
+        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.0.9|slow", card), Verdict::Unknown);
+        assert_eq!(verdict_of("Mali-G52|r1|0.1.0|fast|9", card), Verdict::Unknown);
+        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|fast|", card), Verdict::Unknown);
     }
 
     #[test]

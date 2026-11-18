@@ -16,7 +16,7 @@ that what it saw is what you get. It holds for wallpapers as it does for flames.
 | The number of cores | The samples are always split over 64 streams, each with its own generator derived from (seed, layer, stream). A machine with 4 cores runs the same 64 streams as one with 32, only fewer at a time. |
 | The order threads finish in | Threads only add integers to the histogram. Integer addition gives the same total in any order. No floating-point sum ever crosses a thread. |
 | Floating-point rounding | Only IEEE 754 operations that are exactly defined (`+ - * /`, `sqrt`), in a fixed order. No fused multiply-add, no fast-math. Rust does not reorder or fuse them on its own. |
-| Graphics cards | Not used for rendering: drivers and vendors round differently. In the app the graphics card shows the rendered picture, draws the glass over it, draws a preview from the rendered layers while a control moves, and draws the first picture of a flame by playing the chaos game itself. Neither reaches a file: the picture that replaces them and every export are rendered by the processor. |
+| Graphics cards | Never used by the renderer: drivers and vendors round differently. The app alone uses one, for its screen, where the card is clearly faster and GPU acceleration is on: what that makes is listed under [Which outputs are exact](#which-outputs-are-exact). |
 | Wallpapers | The sheets are drawn pixel by pixel, each pixel from the scene alone, with the same `math.rs` functions; rows run on several threads, and no value crosses from one pixel to another. The generator that makes a wallpaper for a seed uses `rng.rs` and `math.rs` only. |
 | Deep views | The particles a magnified view is drawn from are moved in fixed groups of 128, each with its own generator, so the threads cannot change the result. |
 | Hash map order, the clock, the locale | None of them is used on the way to a pixel. |
@@ -35,6 +35,21 @@ The command line tool prints the hash of every image it renders, so you can comp
 fractique render --preset aurora-spiral --size 192x108 --samples 20 --supersample 1
 ```
 
+## Which outputs are exact
+
+| Output | Exact, bit for bit? |
+| --- | --- |
+| The command line tool (`fractique render`) | Yes |
+| The MCP tools, over stdio and over HTTP | Yes |
+| The HTTP server | Yes |
+| The app's export at Standard, High and Ultra | Yes: rendered by the processor, whatever the switch says |
+| The app's screen and its Instant export with GPU acceleration off, or on a device that has no switch | Yes, for the size and the samples of the screen's picture |
+| The app's screen with GPU acceleration on | No, for flames the graphics card draws: its random numbers are others and 32-bit floats round differently from card to card. Shapes, colors and brightness are the same; the grain is not. Wallpapers and the views the card leaves to the processor are exact |
+| The app's Instant export with GPU acceleration on | No: it saves the screen's picture, so it is the graphics card's whenever the screen's is |
+
+A scene file saved by the app holds the scene, not pixels: rendered by any of the exact outputs it gives the same
+image everywhere, whatever drew it on the screen.
+
 ## What is not promised
 
 - **Different options give a different image.** 1920×1080 and 3840×2160 show the same picture, but the pixels of
@@ -43,8 +58,9 @@ fractique render --preset aurora-spiral --size 192x108 --samples 20 --supersampl
   is listed in [CHANGELOG.md](../CHANGELOG.md) as a breaking change. The `version` field of a scene exists so that
   old scenes can keep their old look when that matters.
 - **The PNG file's bytes.** The pixels are the same; the compression is the PNG library's business.
-- **The picture on the app's screen.** It is a preview: fewer samples, and at most 4096 pixels a side (1600 on a
-  phone). An export, and a render of the saved scene by the command line tool, are exact.
+- **The picture on the app's screen.** It has fewer samples and at most 4096 pixels a side (1600 on a phone), and
+  with GPU acceleration on it is the graphics card's. An export at Standard, High or Ultra, and a render of the
+  saved scene by the command line tool, are exact.
 - **A wallpaper's seed across versions.** The wallpaper of a seed may change when its generator improves. A saved
   scene does not: it holds the shapes, not the seed that made them. The random flame of a seed does not change
   either: the random generators are numbered, tests pin scenes of each, and a better one is added as a new number.

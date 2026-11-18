@@ -289,12 +289,17 @@ impl Pipelines {
     }
 }
 
-struct Layer {
+// What a layer needs while its samples are plotted: with the last of them its histogram and walkers are freed.
+struct Work {
     batch: wgpu::Buffer,
     look: wgpu::Buffer,
     landed: wgpu::Buffer,
     walking: wgpu::BindGroup,
     looking: wgpu::BindGroup,
+}
+
+struct Layer {
+    work: Option<Work>,
     levels: wgpu::TextureView,
     kernels: Box<Look>,
     plotted: f64,
@@ -325,6 +330,8 @@ struct Run {
     started: Instant,
     submitted: Instant,
     fastest: f32,
+    spent: f32,
+    limit: Option<f32>,
     first: Option<f32>,
     full: Option<f32>,
 }
@@ -355,32 +362,37 @@ pub struct Chaos {
 }
 
 impl Chaos {
-    pub fn new(
-        adapter: &wgpu::Adapter,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        ctx: &egui::Context,
-    ) -> Option<Self> {
+    // The graphics card can play the chaos game: it computes, and offers the limits and the format this needs.
+    pub fn able(adapter: &wgpu::Adapter, device: &wgpu::Device) -> bool {
         let limits = device.limits();
         let computes = adapter
             .get_downlevel_capabilities()
             .flags
             .contains(wgpu::DownlevelFlags::COMPUTE_SHADERS);
         let stored = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING;
-        if !computes
-            || limits.max_compute_workgroup_size_x < GROUP
-            || limits.max_compute_invocations_per_workgroup < GROUP
-            || limits.max_compute_workgroups_per_dimension < MOST_WALKERS / GROUP
-            || limits.max_storage_buffers_per_shader_stage < 3
-            || limits.max_storage_textures_per_shader_stage < 1
-            || limits.max_uniform_buffer_binding_size < size_of::<Look>().max(size_of::<Packed>()) as u64
-            || !adapter
+        computes
+            && limits.max_compute_workgroup_size_x >= GROUP
+            && limits.max_compute_invocations_per_workgroup >= GROUP
+            && limits.max_compute_workgroups_per_dimension >= MOST_WALKERS / GROUP
+            && limits.max_storage_buffers_per_shader_stage >= 3
+            && limits.max_storage_textures_per_shader_stage >= 1
+            && limits.max_uniform_buffer_binding_size >= size_of::<Look>().max(size_of::<Packed>()) as u64
+            && adapter
                 .get_texture_format_features(LEVELS)
                 .allowed_usages
                 .contains(stored)
-        {
+    }
+
+    pub fn new(
+        adapter: &wgpu::Adapter,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        ctx: &egui::Context,
+    ) -> Option<Self> {
+        if !Self::able(adapter, device) {
             return None;
         }
+        let limits = device.limits();
         let failed = Arc::new(AtomicBool::new(false));
         let pipelines = Arc::new(OnceLock::new());
         let build = {
@@ -452,6 +464,24 @@ impl Chaos {
         self.run = None;
     }
 
+    // Seconds the graphics card worked on the run so far, without the waits between its batches.
+    pub fn spent(&self) -> f32 {
+        self.run.as_ref().map_or(0.0, |run| run.spent)
+    }
+
+    pub fn finished(&self) -> bool {
+        self.run.as_ref().is_some_and(|run| run.full.is_some())
+    }
+
+    // Has the thread that waits for the graphics card wait for this submission too: what was asked to be told
+    // when it is finished is then told.
+    pub fn watch(&self, index: wgpu::SubmissionIndex) {
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = self.waiter.send(index);
+        #[cfg(target_arch = "wasm32")]
+        let _ = index;
+    }
+
     // Seconds from the start of the run to its first picture and to the last of its samples.
     pub fn times(&self) -> (Option<f32>, Option<f32>) {
         self.run.as_ref().map_or((None, None), |run| (run.first, run.full))
@@ -470,6 +500,7 @@ impl Chaos {
         options: &RenderOptions,
         keys: &[String],
         asked: Instant,
+        limit: Option<f32>,
         ctx: &egui::Context,
     ) -> bool {
         if !self.works() {
@@ -558,7 +589,7 @@ impl Chaos {
                             view_formats: &[],
                         })
                         .create_view(&wgpu::TextureViewDescriptor::default());
-                    Layer {
+                    let work = Work {
                         walking: self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                             label: Some("fractique chaos"),
                             layout: &pipelines.walking,
@@ -586,6 +617,9 @@ impl Chaos {
                         batch,
                         look: look_buffer,
                         landed,
+                    };
+                    Layer {
+                        work: Some(work),
                         levels,
                         kernels,
                         plotted: *plotted,
@@ -614,6 +648,8 @@ impl Chaos {
                 started: asked,
                 submitted: asked,
                 fastest: f32::INFINITY,
+                spent: 0.0,
+                limit,
                 first: None,
                 full: None,
             }
@@ -646,7 +682,13 @@ impl Chaos {
                     .iter()
                     .zip(&run.layers)
                     .any(|(landed, layer)| f64::from(*landed) < IN_VIEW * layer.plotted * run.done as f64);
-                if flight.broken || sparse {
+                // A card that would take longer than the processor is told to stop: the processor renders.
+                let since = run.started.elapsed().as_secs_f32();
+                let slow = run.done < run.goal
+                    && run
+                        .limit
+                        .is_some_and(|limit| since * run.goal as f32 / run.done as f32 > limit);
+                if flight.broken || sparse || slow {
                     if flight.broken {
                         self.failed.store(true, Ordering::Relaxed);
                     }
@@ -654,14 +696,15 @@ impl Chaos {
                     self.refused = self.run.take().map(|run| run.keys);
                     return Step::Refused;
                 }
-                let since = run.started.elapsed().as_secs_f32();
                 run.first.get_or_insert(since);
                 if run.done >= run.goal {
                     run.full.get_or_insert(since);
+                    run.layers.iter_mut().for_each(|layer| layer.work = None);
                 }
                 let took = at.duration_since(run.submitted).as_secs_f32().max(1e-4);
                 // Drawing the levels costs the same after a short batch: a batch walks for longer than that takes.
                 run.fastest = run.fastest.min(took);
+                run.spent += took;
                 let pace = PACE.max(2.5 * run.fastest);
                 let next = (run.sent as f32 * pace / took) as u32;
                 let least = run.goal.div_ceil(u64::from(run.walkers) * MOST_BATCHES) as u32;
@@ -681,11 +724,16 @@ impl Chaos {
         run.done += u64::from(steps) * u64::from(run.walkers);
         let per_pixel = run.done as f64 / (f64::from(run.size[0]) * f64::from(run.size[1]));
         let (device, failed) = (self.device.clone(), self.failed.clone());
+        // Before the submission: a graphics card that is the processor in disguise works inside it.
+        run.submitted = Instant::now();
         let index = guarded(&device, &failed, ctx, || {
             let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("fractique chaos"),
             });
             for (index, layer) in run.layers.iter().enumerate() {
+                let Some(work) = &layer.work else {
+                    continue;
+                };
                 let batch = Batch {
                     steps,
                     fuse: if run.batches == 0 { FUSE } else { 0 },
@@ -693,17 +741,17 @@ impl Chaos {
                     layer: index as u32,
                     walkers: run.walkers,
                 };
-                self.queue.write_buffer(&layer.batch, 0, bytemuck::bytes_of(&batch));
+                self.queue.write_buffer(&work.batch, 0, bytemuck::bytes_of(&batch));
                 let look = &layer.kernels;
                 let scale = [(layer.zoom * layer.zoom / per_pixel) as f32, 0.0, 0.0, 0.0];
-                self.queue.write_buffer(&layer.look, 16, bytemuck::bytes_of(&scale));
+                self.queue.write_buffer(&work.look, 16, bytemuck::bytes_of(&scale));
                 {
                     let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                         label: Some("fractique chaos"),
                         timestamp_writes: None,
                     });
                     pass.set_pipeline(&pipelines.walk);
-                    pass.set_bind_group(0, &layer.walking, &[]);
+                    pass.set_bind_group(0, &work.walking, &[]);
                     pass.dispatch_workgroups(run.walkers / GROUP, 1, 1);
                 }
                 {
@@ -711,19 +759,18 @@ impl Chaos {
                         label: Some("fractique levels"),
                         timestamp_writes: None,
                     });
-                    pass.set_bind_group(0, &layer.looking, &[]);
+                    pass.set_bind_group(0, &work.looking, &[]);
                     pass.set_pipeline(&pipelines.survey);
                     pass.dispatch_workgroups(look.size[2].div_ceil(8), look.size[3].div_ceil(8), 1);
                     pass.set_pipeline(&pipelines.resolve);
                     pass.dispatch_workgroups(look.size[0].div_ceil(8), look.size[1].div_ceil(8), 1);
                 }
-                encoder.copy_buffer_to_buffer(&layer.landed, 0, &run.staging, 4 * index as u64, 4);
+                encoder.copy_buffer_to_buffer(&work.landed, 0, &run.staging, 4 * index as u64, 4);
             }
             self.queue.submit([encoder.finish()])
         });
         run.sent = steps;
         run.batches += 1;
-        run.submitted = Instant::now();
         run.flight.lock().unwrap_or_else(|e| e.into_inner()).busy = true;
         let (flight, staging, ctx) = (run.flight.clone(), run.staging.clone(), ctx.clone());
         run.staging.slice(..).map_async(wgpu::MapMode::Read, move |mapped| {
@@ -839,7 +886,7 @@ mod tests {
         fn drawn(&mut self, scene: &Scene, options: &RenderOptions) -> Option<(Vec<u8>, f32, f32)> {
             let keys = vec![format!("{options:?} {}", scene.to_json())];
             self.chaos.end();
-            if !self.chaos.begin(scene, options, &keys, Instant::now(), &self.ctx) {
+            if !self.chaos.begin(scene, options, &keys, Instant::now(), None, &self.ctx) {
                 return None;
             }
             let (first, full) = loop {
