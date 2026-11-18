@@ -41,17 +41,18 @@ On Windows the program is `fractique.exe`.
 | Tool | Arguments | Returns |
 | --- | --- | --- |
 | `list_presets` | none | The names of the built-in scenes |
-| `get_preset` | `name` | That scene as JSON |
-| `randomize_scene` | `seed` | The random scene of the seed, framed |
+| `get_preset` | `name` | That scene as JSON; the presets of the fractals (`mandelbrot-whole`, ...) are listed by `list_fractals` |
+| `randomize_scene` | `seed`; `fractal` | The random scene of the seed, framed: a flame, or with `fractal` a fractal of that kind |
+| `list_fractals` | none | The kinds of fractal besides flames, with their parameters, defaults, ranges and presets |
 | `list_wallpaper_styles` | none | The layouts and the materials a wallpaper can have |
 | `randomize_wallpaper` | `seed`; `layout`, `material`, `dark` (false), `width` (1290), `height` (2796) | The wallpaper of the seed as a scene, laid out for those proportions |
 | `mutate_scene` | `scene`, `seed`, `strength` (0 to 1, default 0.3) | A variant of the scene |
-| `fit_camera` | `scene` | The scene with every layer's camera framing its flame |
+| `fit_camera` | `scene` | The scene with every flame layer's camera framing its flame; a fractal of another kind keeps its view |
 | `validate_scene` | `scene` | Whether it is valid, or the field that is wrong |
 | `describe_scene_format` | none | [scene-format.md](scene-format.md): every field, every variation |
 | `list_variations` | none | The variations with their parameters and defaults |
 | `import_flame` | `xml`, `index` (default 0) | A `.flame` file (flam3, Apophysis) as a scene, with what was left out |
-| `render_scene` | one of `scene`, `preset`, `random_seed`, `wallpaper_seed`, `file`, `frcq`; `width` (640), `height` (360), `quality` (`mobile`), `save_to`; with `wallpaper_seed`: `layout`, `material`, `dark` | The image as PNG, and a line with the size, the time and the hash |
+| `render_scene` | one of `scene`, `preset`, `random_seed`, `wallpaper_seed`, `file`, `frcq`; `width` (640), `height` (360), `quality` (`mobile`), `save_to`; with `random_seed`: `fractal`; with `wallpaper_seed`: `layout`, `material`, `dark` | The image as PNG, and a line with the size, the time and the hash |
 
 A `scene` argument is the scene as a JSON object; its JSON text is accepted too, and so is the document of a
 `.frcq` file (what `fractique convert file.frcq --document` prints): the scene under its `shown` is used.

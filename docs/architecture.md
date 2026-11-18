@@ -17,9 +17,11 @@ flowchart LR
         WAL["Wallpapers<br/>sheets for a seed"]
         IMP["Import<br/>.flame files"]
         REN["Renderer<br/>chaos game, histogram, deep views"]
+        FRA["Fractals<br/>kinds drawn per pixel or as a density"]
         TON["Tone<br/>density estimation, log, gamma, glow"]
         SHE["Sheets<br/>flat shapes, drawn exactly"]
         VAL --> REN --> TON
+        VAL --> FRA --> TON
         VAL --> SHE
         RND --> VAL
         PRE --> VAL
@@ -47,7 +49,7 @@ flowchart LR
 
 | Crate | State | What it is |
 | --- | --- | --- |
-| `fractique-core` | works | The renderer, the scene format, presets, the randomizer, the wallpapers, the `.frcq` packing |
+| `fractique-core` | works | The renderer, the scene format, presets, the randomizer, the fractals of other kinds, the wallpapers, the `.frcq` packing |
 | `fractique-cli` | works | The `fractique` command: renders scenes and wallpapers to PNG, converts `.flame` files and the app's `.frcq` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts |
 | `fractique-mcp` | works | The MCP tools and the JSON-RPC answers, without a transport: `fractique mcp` puts them on stdin and stdout, `fractique-server` on `/mcp` ([MCP](#mcp)) |
 | `fractique-app` | works | The app, `fractique-gui`: one codebase for Windows, macOS, Linux, Android, iOS and the web ([The app](#the-app)) |
@@ -60,8 +62,8 @@ in.
 
 - **One renderer.** The app, the CLI, the MCP server (over stdio and over HTTP) and the HTTP server all call the same `render` function with
   the same scene, so they cannot disagree about what a scene looks like.
-- **A scene is data.** Everything a render depends on is in one JSON document (`Scene`): the flames, the palettes,
-  the camera, the tone settings, the sheets of a wallpaper and the seed. Presets, random scenes, wallpapers,
+- **A scene is data.** Everything a render depends on is in one JSON document (`Scene`): the flames, the fractals
+  of other kinds, the palettes, the camera, the tone settings, the sheets of a wallpaper and the seed. Presets, random scenes, wallpapers,
   mutations, files and API requests are all the same type. The format is described in
   [scene-format.md](scene-format.md).
 - **No I/O in the core.** It compiles for every target unchanged (desktop, Android, iOS, WebAssembly) and is easy
@@ -101,7 +103,8 @@ flowchart TB
 | Tone mapping | `tone.rs` | Brightness follows the logarithm of the density, relative to the average density, so the same scene has the same brightness at any resolution, quality and zoom. Gamma, vibrancy and highlight shape it. |
 | Glow | `tone.rs` | A Gaussian blur of the layer is added back. Its radius is a share of the image's shorter side. |
 | Sheets | `sheets.rs` | A wallpaper's sheets are drawn onto the background before any layer. For every pixel and every sheet, bottom to top: the distance to the sheet's shapes gives its coverage (one pixel of soft edge), the rim along its edge and, moved toward the light, the shadow it casts on what is under it. Nothing is sampled, so the seed, the samples per pixel and the supersample do not change it. |
-| Layers | `render.rs` | Each layer has its own flame, camera and tone settings and is blended onto the canvas in order. `render_layer` develops one layer and `compose` blends developed layers, so a caller can keep the layers that did not change. `render_density` stops before the tone mapping and `develop` finishes it: together they are `render_layer`, bit for bit, so a caller can keep a layer's density and change its brightness, gamma, vibrancy, highlight and glow without the chaos game. The smoothing is already in the density. |
+| Fractals | `fractal/` | A layer that holds a fractal of another kind is drawn by that kind: pixel by pixel into the layer itself, or as the points of orbits into the same histogram, which then goes through the density estimation, the tone mapping and the glow above ([Fractals of other kinds](#fractals-of-other-kinds)). |
+| Layers | `render.rs` | Each layer has its own flame or fractal, camera and tone settings and is blended onto the canvas in order. `render_layer` develops one layer and `compose` blends developed layers, so a caller can keep the layers that did not change. `render_density` stops before the tone mapping and `develop` finishes it: together they are `render_layer`, bit for bit, so a caller can keep a layer's density and change its brightness, gamma, vibrancy, highlight and glow without the chaos game. The smoothing is already in the density. |
 | Dither | `render.rs` | An 8×8 ordered dither removes the bands that 8 bits would show in faint gradients on a dark background. |
 
 ### Any resolution
@@ -124,6 +127,80 @@ its blur and shows no more detail there.
 A phone renders the same scene with the same code at a lower quality level: fewer samples per pixel and no
 supersampling (`mobile`: 30 samples per pixel). Density estimation is what keeps that from looking noisy. See
 [performance.md](performance.md) for the numbers.
+
+## Fractals of other kinds
+
+A layer is a flame or a fractal of another kind (`Content` in `scene.rs`). A fractal names its kind and carries a
+camera, a tone, a palette and the kind's parameters by name ([scene-format.md](scene-format.md#fractal)).
+Everything a kind is lives in one file, as a `Spec`: its name, its family, its parameters with their ranges, its
+default tone, how it is drawn, its randomizer, its mutation and its presets. The command line tool, the MCP
+tools, the HTTP server and the app read the kinds from the registry, so none of them knows a kind by name.
+
+| Part | Where | What |
+| --- | --- | --- |
+| Registry | `fractal/mod.rs` | `Spec`, `Param`, `Preset`, the two traits a kind implements, `all`, `spec`, `random_scene`, `preset`. The kinds of a family are one sorted list in the family's `mod.rs`: `escape`, `root`, `orbit`, `geometric`, `solid` |
+| Per pixel | `fractal/pixel.rs` | A kind that is a `Field` answers for a point of the plane: a place on the palette and a light, or nothing. `pixel::draw` maps pixels to points through the camera, takes one sample a pixel on all cores, a row at a time, then draws the pixels that differ from a neighbour again from a grid of samples, and applies brightness and glow. Progress counts rows, and the cancel flag is read at every row |
+| Density | `render.rs`, `gather_orbit` | A kind that is an `Orbit` gives each of the 64 streams a `Walk`, which plots points with a place on the palette. They land in the flame's histogram through the same camera, as integer adds, and the layer is developed by `tone.rs` like a flame: `render_density` and `develop` work for it |
+| Escape-time helpers | `fractal/escape/mod.rs` | The parameters the family shares, the smooth count, the distance estimate with the dark rim and the fade, the step limit that grows with the zoom, and `Seen`, which measures a probe |
+| Probes for randomizers | `pixel::probe`, `density::probe` | A 48 × 48 grid of samples over the middle of a view, and the 30 000 points of one orbit with the camera that frames them, on the grid the flame randomizer judges by |
+
+A per-pixel layer is not a density, so `render_density` refuses it and `render_layer` draws it; a caller that
+keeps layers treats it like any other developed layer.
+
+### Random and Mutate
+
+`fractal::random_scene(kind, seed)` calls the kind's `random`, which tries candidates from its own random
+streams (`fractal::stream`) until one passes what it measures, and `random::mutate` calls the kind's `mutate`
+for a fractal layer. The limits below were chosen by looking at the pictures of seeds 1 to 80 of each kind.
+
+| Kind | A candidate | Kept when |
+| --- | --- | --- |
+| `mandelbrot` | A walk of 1 to 9 steps from the whole set: each step probes the view, weighs every cell by what its 3 × 3 neighbourhood holds (the edge of the set most, filaments by their spread of counts, flat cells nothing), moves into a cell drawn by weight and magnifies 2 to 5 times. Four views in ten are turned | At most 28 % of the probe is inside the set, 16 to 80 % of neighbouring cells differ by more than a tenth of the spread of counts, and the counts have a spread. The colors are then spread over the counts between the 10th and the 95th percentile, and the iterations set to three times the deepest count seen |
+| `julia` | The constant is where a walk of 2 to 5 steps on the Mandelbrot set ends; the view is the whole Julia set, or three times in ten a part of it | As for `mandelbrot` |
+| `clifford` | `a` and `b` between 1.1 and 2.6 of either sign, `c` and `d` between −1.6 and 1.6 | The orbit is framed as a flame must be, covers 22 % of the grid, holds half of its points in 20 cells or more and has contrast between neighbouring cells |
+
+### How to add a fractal type
+
+1. Write one file in the family's folder, `crates/fractique-core/src/fractal/<family>/<kind>.rs`, with a
+   `pub(super) static SPEC: Spec`. `escape/mandelbrot.rs` is the pattern for a per-pixel kind,
+   `orbit/clifford.rs` for a density kind. It holds the parameters, the default tone, `Draw::Pixel` or
+   `Draw::Density` with the function that builds the kind from its parameters (in the order of `params`) and
+   the camera, `random`, `mutate`, at least one preset, and a test with the kind's golden hash
+   (`fractal::golden`).
+2. Add the file's name to the list in the family's `mod.rs`, in alphabetical order. That is the whole
+   registration: a test refuses a list out of order, a kind without a preset, a random scene that does not
+   validate and a preset whose name is a flame's.
+3. Add the texts to `crates/fractique-app/locales/fractals/<family>.json`: `p_<parameter>` for each new
+   parameter, in all 15 languages. The names of the 22 planned kinds are there already as `f_<kind>`
+   (`f_burning_ship`, `f_de_jong`, `f_gumowski_mira`, `f_l_system`, `f_apollonian`, `f_kleinian`,
+   `f_menger_sponge` and the plain ones): name the kind accordingly. Run `tools/i18n/make_fonts.py` after it.
+4. Document the kind in its family's section of [scene-format.md](scene-format.md#fractal) and add it to the
+   table of families there; add a line to `CHANGELOG.md`.
+5. Look at 40 seeds of `fractique render --random SEED --fractal <kind>` and tune the randomizer until most are
+   pictures worth keeping.
+
+Nothing else changes: the app's list and tiles, its sliders, `fractique fractals`, `--fractal`, the MCP tools
+and `GET /fractals` take the kind from the registry. The rules of [determinism.md](determinism.md) hold for a
+kind as for the rest of the core: `math.rs` for every transcendental function, `fractal::stream` or the `Rng`
+it is handed for every random number, no state shared between samples or walks.
+
+A kind whose parameters are not numbers (the rules of an L-system) needs a field beside `params` in `Fractal`:
+add it as an optional field with a default, so that scenes written before keep loading, and document it.
+
+### The place of the ray-marched kinds
+
+The `solid` family (Mandelbulb, Mandelbox, Menger sponge) is drawn per pixel, so it needs no third way through
+the renderer: a solid kind is a `Field`, and `pixel::draw` gives it the sampling, the grid of samples at the
+edges, the threads, the progress, the cancel flag, the palette and the glow. What the family adds lives in
+`fractal/solid/mod.rs`, next to the list of its kinds:
+
+| Part | What it does |
+| --- | --- |
+| A distance estimator a kind | `fn distance(&self, point: [f64; 3]) -> (f64, f64)`: the distance to the solid and a value for its color (an orbit trap, the step count) |
+| The marcher, shared | Turns the point of the plane into a ray from the eye (the 2D camera pans and zooms the picture of the solid; the eye's direction and distance are parameters of the kind), walks it by the distance estimate up to a step limit, and returns `None` for a ray that leaves |
+| The light, shared | The normal from four more distance samples, a fixed light, ambient occlusion from the step count; the result is the `light` of the `Sample`, and the color value its place on the palette |
+
+All of it is float work for one pixel in a fixed order, so the promise holds without anything new.
 
 ## Wallpapers
 
@@ -186,14 +263,14 @@ always is.
 | File | What |
 | --- | --- |
 | `lib.rs` | The window: the inspector, the toolbar, the title bar the app draws itself, the sheets with lists, the session, the render passes of the picture |
-| `phone.rs` | The phone's screen: the round buttons, the placard, the styles with their small pictures, the collection |
+| `phone.rs` | The phone's screen: the round buttons, the placard, the styles with their small pictures (layouts, materials, presets, the kinds of fractal), the collection |
 | `export.rs` | An export: a render in a thread of its own, with progress and cancel |
 | `update.rs`, `updates.rs` | The releases, the download and the install; the updates window ([releasing.md](releasing.md)) |
 | `glass.rs`, `glass.wgsl`, `blur.rs` | The picture on the screen and the glass panes over it: each pane shows a blurred, refracted part of the picture |
 | `preview.rs`, `preview.wgsl` | The preview on the graphics card: the layers' levels as textures, the tone mapping, the glow and the blending in shaders |
 | `chaos.rs`, `chaos.wgsl`, `levels.wgsl` | The chaos game on the graphics card: the walkers and the histogram in one compute shader, the density estimation in another |
 | `widgets.rs` | The controls: rows, pills, sliders, switches; the fonts |
-| `i18n.rs`, `locales/` | The texts, in 15 languages |
+| `i18n.rs`, `locales/` | The texts, in 15 languages: one file a language, and in `locales/fractals/` one file a family of fractals with the names of its kinds and parameters in every language |
 | `android.rs`, `ios.rs` | The gallery, Photos and sharing |
 | `store.rs`, `storekit.rs` | The App Store builds only (the `store` feature): which sizes need the purchase, its states, StoreKit ([The purchase](#the-purchase-in-the-app-store-builds)) |
 | `main.rs` | The start on a computer and in a browser; a file given at start |
@@ -210,6 +287,17 @@ How the picture reaches the screen:
 | Kept layers | A layer's pixels depend only on its flame, its place, the seed and the size. Developed layers are kept (up to 1200 MB on a computer, 160 MB on a phone and in a browser), so a change to one layer renders that layer only, and **Reset view** comes back without a render. With GPU acceleration on, the densities are kept in the same room: a change to a layer's tone develops it again without the chaos game |
 | Threads | Renders run on a pool that leaves two cores to the window. A browser page has one thread and renders there, without a draft |
 | Events | A finished pass is sent over a channel and asks for a repaint. Nothing polls |
+
+The **Fractals** tab holds a scene like the **Flames** tab, with its own picture kept while another tab is shown.
+Its list of types, its tiles on a phone and its sliders are made from the registry of the core: a slider for
+every parameter of the chosen layer's kind, labelled by the text `p_<parameter>`. **Randomize** puts the random
+fractal of the next seed into the chosen layer, **Mutate** calls the core's mutation. A scene with a fractal in
+any layer is the processor's alone: it is not previewed by the graphics card and the chaos game is not played
+for it, so it renders with drafts as it does with GPU acceleration off, and its layers are kept like any others.
+
+For a test, `FRACTIQUE_SHOW=fractals` starts the app in that tab, `FRACTIQUE_FRACTAL=julia` with another kind
+than the first, `FRACTIQUE_SHOW=kinds` with the list of types open, and `fractals-phone` and
+`fractals-phone-sheet` give the phone's screen and its styles.
 
 An export is a separate render at the size and quality chosen, with the scene as it is on the screen. The session
 is written whenever it changes, not at exit: a phone ends an app without telling it.
@@ -304,6 +392,7 @@ What the processor still renders for the screen, with its drafts and passes as b
 | What | Why |
 | --- | --- |
 | Wallpapers | Sheets are drawn exactly, not sampled |
+| A scene with a fractal of another kind in any layer | The graphics card has shaders for flames only. The processor renders the whole scene, with drafts, and the preview is not drawn for it either |
 | A view that holds less than an eighth of the flame's points | The processor draws it from particles ([Any zoom](#any-zoom)); the plain chaos game would waste its points and give another brightness. The graphics card counts the points that land in the picture and gives the view up after its first batch |
 | A view too fine for 32-bit floats | When the cells per unit times the distance of the view's far edge from the origin is above 400 000. Measured by moving a flame away from the origin: up to a million the picture stays the processor's, at three million it begins to differ |
 | A picture the card is slow at | After every batch the time the run will take is held against what the processor is expected to need for the picture (its samples a second in the trial below, and never less than 0.3 s). A run that would take longer is given up |
@@ -355,7 +444,9 @@ every preset, for 20 seeds of each random generator and for every variation, and
 | Histogram cells (`width × height × supersample²`) | at most 2²⁸ |
 | Layers per scene | 1 to 16, or none when the scene has sheets |
 | Transforms per flame | 1 to 64 |
+| Iterations of an escape-time fractal | 16 to 100 000, and at most 4 000 000 steps a point after the zoom has raised them |
+| Samples a pixel of a per-pixel fractal | 1, and 4 to 64 where the picture is not smooth |
 | Sheets per scene | 1 to 48 |
 | Shapes per sheet | 1 to 32 |
-| Magnification of a view in the app | 0.0001 to 10 000 000 000 |
+| Magnification of a view in the app | 0.0001 to 10 000 000 000; for a fractal, together with the zoom of its scene |
 | Unpacked `.frcq` document | at most 64 MB |

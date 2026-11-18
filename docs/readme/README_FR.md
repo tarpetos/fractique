@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique crée deux sortes d’images. Des flammes fractales : ces fractales lumineuses et vaporeuses faites de courbes fines et de lumière douce. Et des fonds d’écran : des feuilles plates aux bords éclairés et aux ombres douces, chacun en version claire et en version sombre. Vous choisissez un préréglage, tirez une image au hasard ou superposez plusieurs flammes, puis vous exportez le résultat à n’importe quelle taille, de l’écran d’un téléphone à un moniteur 4K. Une scène est un seul petit fichier, et le même fichier donne toujours exactement les mêmes pixels, sous Windows, macOS, Linux, Android et iOS.
+Fractique crée trois sortes d’images. Des flammes fractales : ces fractales lumineuses et vaporeuses faites de courbes fines et de lumière douce. Des fractales classiques : l’ensemble de Mandelbrot, les ensembles de Julia et des attracteurs étranges, aux couleurs lisses et au zoom profond. Et des fonds d’écran : des feuilles plates aux bords éclairés et aux ombres douces, chacun en version claire et en version sombre. Vous choisissez un préréglage, tirez une image au hasard ou superposez plusieurs flammes, puis vous exportez le résultat à n’importe quelle taille, de l’écran d’un téléphone à un moniteur 4K. Une scène est un seul petit fichier, et le même fichier donne toujours exactement les mêmes pixels, sous Windows, macOS, Linux, Android et iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Le préréglage aurora-spiral : des volutes en spirale turquoise et vertes sur fond sombre" width="880">
@@ -17,6 +17,7 @@ Fractique crée deux sortes d’images. Des flammes fractales : ces fractales lu
 ## Ce que fait Fractique
 
 - **Flammes :** 49 variations, des calques avec modes de fusion, symétrie de rotation et en miroir, estimation de densité, lueur, et 29 préréglages intégrés.
+- **Fractales :** l’ensemble de Mandelbrot, les ensembles de Julia et l’attracteur de Clifford, chacun avec ses préréglages et une image pour chaque graine ; elles partagent les palettes, les calques et le zoom profond des flammes.
 - **Fonds d’écran :** un pour chaque graine, parmi 14 dispositions et 6 matières, chacun en version claire et en version sombre, disposé pour la taille de l’écran.
 - **L’application :** une seule base de code pour Windows, macOS, Linux, Android, iOS et le web. L’image remplit la fenêtre et des panneaux de verre flottent au-dessus ; sur ordinateur, l’application a sa propre barre de titre en verre. En 15 langues.
 - **« Aléatoire » et « Muter » :** chaque graine est une image ; les flammes qui ne seraient qu’un point ou un carré plein sont écartées. « Muter » crée une variante de celle qui vous plaît.
@@ -38,6 +39,13 @@ Fractique crée deux sortes d’images. Des flammes fractales : ces fractales lu
 | `emerald-star` (deux calques) | `ember-vortex` |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+Des fractales d’autres sortes : l’ensemble de Mandelbrot, un ensemble de Julia et l’attracteur de Clifford :
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 Des fonds d’écran, clairs et sombres, chacun avec sa disposition et sa matière :
 
@@ -71,6 +79,9 @@ Ou faites un rendu en ligne de commande :
 
 # la flamme aléatoire de graine 42, pour un écran de téléphone
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# la vue aléatoire de l’ensemble de Mandelbrot de graine 7
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # le fond d’écran de graine 7 pour un téléphone, clair et sombre
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png

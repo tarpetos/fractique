@@ -28,6 +28,33 @@ The time grows with `samples per pixel × width × height` and falls with the nu
 until it holds less than an eighth of the flame costs five to ten times as much
 ([architecture.md](architecture.md#any-zoom)). Phones were not measured yet.
 
+## Fractals of other kinds
+
+Measured the same way, with the PNG written, on the presets named. A fractal drawn per pixel does not depend on
+the samples per pixel as a flame does: the quality level only sets how many samples the pixels along edges get
+(9 at `standard`, 36 at `high`), so its time follows the iterations and how much of the picture is edge.
+`mandelbrot-whole` is mostly smooth, `mandelbrot-spiral` is a view magnified 60 000 times with edges everywhere.
+`clifford` is a density like a flame and costs about as much.
+
+| Preset | Level | 1920×1080 | 3840×2160 |
+| --- | --- | --- | --- |
+| `mandelbrot-whole` | `standard` | 0.6 s | 2.6 s |
+| `mandelbrot-whole` | `high` | 0.7 s | 2.8 s |
+| `mandelbrot-seahorse-valley` | `standard` | 1.1 s | 4.3 s |
+| `mandelbrot-seahorse-valley` | `high` | 2.5 s | 10.5 s |
+| `mandelbrot-spiral` | `standard` | 2.5 s | 5.6 s |
+| `mandelbrot-spiral` | `high` | 5.1 s | 12.1 s |
+| `julia-dragon` | `standard` | 0.7 s | 2.9 s |
+| `julia-dragon` | `high` | 1.2 s | 4.7 s |
+| `clifford-classic` | `standard` | 1.9 s | 9.2 s |
+| `clifford-classic` | `high` | 6.6 s | 39.0 s |
+
+At `mobile` and 1080×2400, `mandelbrot-seahorse-valley` took 1.3 s and `clifford-classic` 1.0 s. A Mandelbrot
+view magnified 10¹⁰ times with 1500 iterations (9000 steps a point after the zoom) took 4.1 s at 1920×1080 and
+`standard`. Phones were not measured, and in the app these kinds are always the processor's.
+
+A per-pixel layer has no histogram: it holds about 32 bytes a pixel while it is drawn, and 64 while its glow is added.
+
 ## Wallpapers
 
 A wallpaper is drawn exactly, so the quality level and the samples do not change its time. It grows with the

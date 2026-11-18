@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique 生成两类图像。一类是分形火焰：由纤细曲线和柔和光线构成的、发光而轻盈的分形。另一类是壁纸：边缘受光、带柔和阴影的扁平薄片，每张都有浅色和深色两个版本。你可以选择预设、生成随机图像，或把多个火焰叠加在一起，再以任意尺寸导出，从手机屏幕到 4K 显示器都可以。一个场景就是一个小文件，同一个文件在 Windows、macOS、Linux、Android 和 iOS 上始终渲染出完全相同的像素。
+Fractique 生成三类图像。一类是分形火焰：由纤细曲线和柔和光线构成的、发光而轻盈的分形。一类是经典分形：曼德博集合、朱利亚集合和奇异吸引子，色彩平滑，可以深度缩放。另一类是壁纸：边缘受光、带柔和阴影的扁平薄片，每张都有浅色和深色两个版本。你可以选择预设、生成随机图像，或把多个火焰叠加在一起，再以任意尺寸导出，从手机屏幕到 4K 显示器都可以。一个场景就是一个小文件，同一个文件在 Windows、macOS、Linux、Android 和 iOS 上始终渲染出完全相同的像素。
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="aurora-spiral 预设：深色背景上青绿色与绿色的螺旋光丝" width="880">
@@ -17,6 +17,7 @@ Fractique 生成两类图像。一类是分形火焰：由纤细曲线和柔和�
 ## 功能
 
 - **火焰：** 49 种变体、带混合模式的图层、旋转对称与镜像对称、密度估计、辉光，以及 29 个内置预设。
+- **分形：** 曼德博集合、朱利亚集合和克利福德吸引子，各有预设，每个种子对应一张图像；与火焰共用调色板、图层和深度缩放。
 - **壁纸：** 每个种子对应一张，由 14 种布局和 6 种材质组合而成，每张都有浅色和深色版本，并按屏幕尺寸排布。
 - **应用：** 一套代码支持 Windows、macOS、Linux、Android、iOS 和 Web。图像铺满窗口，玻璃面板浮在其上；在桌面端，应用有自己的玻璃标题栏。支持 15 种语言。
 - **“随机”与“变异”：** 每个种子都是一幅图像；会变成一个点或一块实心方形的火焰会被跳过。“变异”为你喜欢的图像生成一个变异版本。
@@ -38,6 +39,13 @@ Fractique 生成两类图像。一类是分形火焰：由纤细曲线和柔和�
 | `emerald-star`（两个图层） | `ember-vortex` |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+其他种类的分形：曼德博集合、朱利亚集合和克利福德吸引子：
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 浅色和深色壁纸，各自的布局与材质：
 
@@ -71,6 +79,9 @@ Fractique 生成两类图像。一类是分形火焰：由纤细曲线和柔和�
 
 # 种子 42 的随机火焰，用于手机屏幕
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# 种子 7 的随机曼德博集合视图
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # 种子 7 的手机壁纸，浅色和深色
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png

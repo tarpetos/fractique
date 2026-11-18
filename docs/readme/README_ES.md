@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique crea dos tipos de imágenes. Llamas fractales: esos fractales luminosos y etéreos hechos de curvas finas y luz suave. Y fondos de pantalla: láminas planas con bordes iluminados y sombras suaves, cada uno en versión clara y oscura. Eliges un preajuste, generas una imagen al azar o superpones varias llamas, y exportas el resultado a cualquier tamaño, desde la pantalla de un teléfono hasta un monitor 4K. Una escena es un único archivo pequeño, y el mismo archivo siempre da exactamente los mismos píxeles, en Windows, macOS, Linux, Android e iOS.
+Fractique crea tres tipos de imágenes. Llamas fractales: esos fractales luminosos y etéreos hechos de curvas finas y luz suave. Fractales clásicos: el conjunto de Mandelbrot, los conjuntos de Julia y atractores extraños, con colores suaves y zoom profundo. Y fondos de pantalla: láminas planas con bordes iluminados y sombras suaves, cada uno en versión clara y oscura. Eliges un preajuste, generas una imagen al azar o superpones varias llamas, y exportas el resultado a cualquier tamaño, desde la pantalla de un teléfono hasta un monitor 4K. Una escena es un único archivo pequeño, y el mismo archivo siempre da exactamente los mismos píxeles, en Windows, macOS, Linux, Android e iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="El preajuste aurora-spiral: volutas en espiral turquesas y verdes sobre un fondo oscuro" width="880">
@@ -17,6 +17,7 @@ Fractique crea dos tipos de imágenes. Llamas fractales: esos fractales luminoso
 ## Qué hace Fractique
 
 - **Llamas:** 49 variaciones, capas con modos de fusión, simetría rotacional y de espejo, estimación de densidad, resplandor y 29 preajustes integrados.
+- **Fractales:** el conjunto de Mandelbrot, los conjuntos de Julia y el atractor de Clifford, cada uno con preajustes y una imagen para cada semilla; comparten las paletas, las capas y el zoom profundo de las llamas.
 - **Fondos de pantalla:** uno para cada semilla, a partir de 14 diseños y 6 materiales, cada uno en versión clara y oscura, dispuesto para el tamaño de la pantalla.
 - **La aplicación:** una sola base de código para Windows, macOS, Linux, Android, iOS y la web. La imagen llena la ventana y sobre ella flotan paneles de vidrio; en el escritorio la aplicación tiene su propia barra de título de vidrio. En 15 idiomas.
 - **«Aleatorio» y «Mutar»:** cada semilla es una imagen; las llamas que serían un punto o un cuadrado relleno se descartan. «Mutar» crea una variante de la que te gusta.
@@ -38,6 +39,13 @@ Fractique crea dos tipos de imágenes. Llamas fractales: esos fractales luminoso
 | `emerald-star` (dos capas) | `ember-vortex` |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+Fractales de otros tipos: el conjunto de Mandelbrot, un conjunto de Julia y el atractor de Clifford:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 Fondos de pantalla, claros y oscuros, cada uno con su diseño y su material:
 
@@ -71,6 +79,9 @@ O renderiza desde la línea de comandos:
 
 # la llama aleatoria de la semilla 42, para la pantalla de un teléfono
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# la vista aleatoria del conjunto de Mandelbrot de la semilla 7
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # el fondo de pantalla de la semilla 7 para un teléfono, claro y oscuro
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png
