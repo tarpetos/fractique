@@ -424,6 +424,9 @@ struct App {
     waiting: Option<(PathBuf, bool)>,
     #[cfg(target_os = "android")]
     focused: bool,
+    #[cfg(target_os = "android")]
+    asking: Option<([u32; 2], bool)>,
+    last: Option<(u64, Arc<Image>)>,
     last_frame: Instant,
     #[cfg(not(target_arch = "wasm32"))]
     export: export::Sheet,
@@ -632,6 +635,9 @@ impl App {
             waiting: None,
             #[cfg(target_os = "android")]
             focused: true,
+            #[cfg(target_os = "android")]
+            asking: None,
+            last: None,
             last_frame: Instant::now(),
             #[cfg(not(target_arch = "wasm32"))]
             export: export::Sheet {
@@ -772,6 +778,7 @@ impl App {
                 )
             });
             self.light = sum as f32 / (count.max(1) as f32 * 255.0);
+            self.last = (!done.draft).then(|| (done.generation, Arc::new(done.image.clone())));
             if !done.draft {
                 self.rendering = false;
                 self.shown_frames = self.shown_frames.max(1);
@@ -2006,24 +2013,52 @@ impl App {
             self.export.open = false;
         }
         if clicked.1 {
-            let (_, samples_per_pixel, supersample) = export::QUALITIES[self.export.quality];
-            let options = RenderOptions {
-                width,
-                height,
-                samples_per_pixel,
-                supersample,
-            };
-            let name = format!("{}-{width}x{height}.png", file_name(&self.title));
-            if let Some(path) = export::target(&name) {
-                self.export.job = Some(export::Job::start(
-                    self.scene_at([width, height]),
-                    options,
-                    path,
-                    ui.ctx().clone(),
-                    render_pool(),
-                ));
+            // The owner is asked before the picture is made, not after the wait for it.
+            #[cfg(target_os = "android")]
+            if !android::granted() {
+                android::ask();
+                self.asking = Some(([width, height], self.export.share));
+                self.export.note = self.t("allow_storage");
+                return;
             }
+            self.start_export(ui.ctx(), [width, height]);
         }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn start_export(&mut self, ctx: &egui::Context, [width, height]: [u32; 2]) {
+        let (_, samples, supersample) = export::QUALITIES[self.export.quality];
+        let name = format!("{}-{width}x{height}.png", file_name(&self.title));
+        let Some(path) = export::target(&name) else {
+            return;
+        };
+        if samples == export::AS_SHOWN
+            && !self.rendering
+            && self.shown == self.view
+            && let Some((generation, image)) = &self.last
+            && *generation == self.generation
+            && [image.width, image.height] == [width, height]
+        {
+            self.export.job = Some(export::Job::save(image.clone(), path, ctx.clone()));
+            return;
+        }
+        let options = RenderOptions {
+            width,
+            height,
+            samples_per_pixel: if samples == export::AS_SHOWN {
+                FULL_SAMPLES
+            } else {
+                samples
+            },
+            supersample,
+        };
+        self.export.job = Some(export::Job::start(
+            self.scene_at([width, height]),
+            options,
+            path,
+            ctx.clone(),
+            render_pool(),
+        ));
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -2071,6 +2106,15 @@ impl App {
     fn keep_on_android(&mut self, ctx: &egui::Context) {
         // The permission dialog takes the screen; the app has it back once the owner has answered.
         let focused = ctx.input(|input| input.focused);
+        if focused
+            && !self.focused
+            && let Some((size, share)) = self.asking.take()
+            && android::granted()
+        {
+            self.export.note.clear();
+            self.export.share = share;
+            self.start_export(ctx, size);
+        }
         if focused
             && !self.focused
             && let Some((path, share)) = self.waiting.take()

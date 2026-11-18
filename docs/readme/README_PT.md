@@ -24,7 +24,7 @@ O Fractique cria dois tipos de imagem. Chamas fractais: fractais luminosos e et�
 - **Tamanho da imagem:** o da própria janela, uma de 21 telas (computadores até 4K, celulares e tablets Android, iPhones e iPads) ou qualquer largura e altura de 16 a 16384 pixels.
 - **Zoom profundo:** arrastar, a roda do mouse e a pinça movem a vista e a ampliam até dez bilhões de vezes. A imagem acompanha na hora e é redesenhada nítida quando a vista para.
 - **Celulares:** uma tela própria. Um botão redondo cria uma nova imagem, um deslize passa para o próximo papel de parede, uma folha de pequenas imagens ao vivo escolhe o estilo, e as imagens que você guarda formam uma coleção.
-- **Exportação:** um PNG de qualquer tamanho, em três níveis de qualidade, renderizado em segundo plano. No celular ele é salvo em Fotos ou na galeria, ou compartilhado.
+- **Exportação:** um PNG de qualquer tamanho: na hora, como está na tela, ou renderizado em segundo plano em três níveis de qualidade superiores. No celular ele é salvo em Fotos ou na galeria, ou compartilhado.
 - **Arquivos de projeto:** um arquivo `.frcq` guarda a cena com sua vista, tom e tamanho, então ela abre como foi salva ([docs/scene-format.md](../scene-format.md)). Cenas `.json` simples e arquivos `.flame` do flam3 e do Apophysis também abrem. Entre uma execução e outra, o aplicativo volta à sessão em que foi deixado.
 - **Atualizações:** uma janela lista cada versão lançada com suas notas e instala qualquer uma delas. No Windows o aplicativo é um único `.exe` portátil que substitui a si mesmo.
 - **Repetibilidade exata:** a mesma cena gera os mesmos pixels em qualquer máquina, o que é verificado por testes no Linux, Windows e macOS ([docs/determinism.md](../determinism.md)).
