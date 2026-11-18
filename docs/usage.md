@@ -141,7 +141,7 @@ view: lower `camera.zoom` then.
 
 | Where | What |
 | --- | --- |
-| Inspector (left; **Controls** in the toolbar shows and hides it) | Presets, tone, zoom, glass, scene |
+| Inspector (left; **Controls** in the toolbar shows and hides it) | Preset (a list of 21), size, layers, tone, zoom, glass, scene |
 | Title bar (desktop) | The version (opens the updates), the language, hide panels, minimize, maximize, close |
 | **Randomize** | The next random scene |
 | **Mutate** | A variant of the current scene |

@@ -164,6 +164,27 @@ fn size_list(
     picked
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Sheet {
+    Presets,
+    Sizes,
+}
+
+fn shown(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    for word in name.split('-') {
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        let mut letters = word.chars();
+        if let Some(first) = letters.next() {
+            out.extend(first.to_uppercase());
+            out.push_str(letters.as_str());
+        }
+    }
+    out
+}
+
 fn parsed_size(text: &str) -> Option<[u32; 2]> {
     let (width, height) = text.split_once('x')?;
     let side = |text: &str| {
@@ -239,6 +260,7 @@ struct App {
     picture: Option<[u32; 2]>,
     custom: [String; 2],
     sizes_open: bool,
+    presets_open: bool,
     layer: usize,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     maximize_again: bool,
@@ -345,6 +367,7 @@ impl App {
             picture: stored("picture").and_then(|text| parsed_size(&text)),
             custom: Default::default(),
             sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
+            presets_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "presets"),
             layer: 0,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             maximize_again: false,
@@ -463,6 +486,42 @@ impl App {
         }
     }
 
+    fn open_sheet(&mut self, which: Sheet) {
+        let (presets, sizes) = (self.presets_open, self.sizes_open);
+        self.presets_open = which == Sheet::Presets && !presets;
+        self.sizes_open = which == Sheet::Sizes && !sizes;
+        self.languages_open = false;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.export.open = false;
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        {
+            self.updates.open = false;
+        }
+    }
+
+    fn preset_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
+        ui.set_width(260.0);
+        ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+        widgets::section(ui, &self.t("presets"));
+        let mut bar = egui::style::ScrollStyle::floating();
+        bar.bar_width = 5.0;
+        ui.spacing_mut().scroll = bar;
+        egui::ScrollArea::vertical()
+            .max_height((room - 110.0).max(90.0))
+            .show(ui, |ui| {
+                for name in presets::names() {
+                    if widgets::row(ui, &shown(name), !self.is_random && self.title == name)
+                        && let Some(scene) = presets::get(name)
+                    {
+                        self.pick(scene, name.to_owned(), false);
+                        self.presets_open = false;
+                    }
+                }
+            });
+    }
+
     fn size_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
         ui.set_width(300.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
@@ -487,12 +546,33 @@ impl App {
             .fixed_pos(at)
             .pivot(egui::Align2::CENTER_BOTTOM)
             .show(ctx, |ui| {
-                egui::Frame::NONE.inner_margin(egui::Margin::same(6)).show(ui, |ui| {
-                    ui.spacing_mut().button_padding.x = 18.0;
-                    if widgets::pill(ui, &self.t("redraw"), true, 0.0) {
-                        self.redraw_here(size);
-                    }
-                });
+                let ink = egui::Color32::WHITE;
+                let galley = ui.painter().layout_no_wrap(self.t("redraw"), font(14.0, MEDIUM), ink);
+                let (rect, response) =
+                    ui.allocate_exact_size(egui::vec2(galley.size().x + 62.0, 42.0), egui::Sense::click());
+                if response.hovered() {
+                    ui.painter()
+                        .rect_filled(rect, egui::CornerRadius::same(21), egui::Color32::from_white_alpha(22));
+                }
+                let middle = egui::pos2(rect.left() + 26.0, rect.center().y);
+                let turn: Vec<egui::Pos2> = (0..=20)
+                    .map(|step| {
+                        let (sin, cos) = (-0.9 + step as f32 * 0.25).sin_cos();
+                        middle + egui::vec2(cos, sin) * 6.5
+                    })
+                    .collect();
+                let (tip, stroke) = (turn[0], egui::Stroke::new(1.5, ink));
+                ui.painter().line(turn, stroke);
+                ui.painter().line_segment([tip, tip + egui::vec2(-4.5, -0.5)], stroke);
+                ui.painter().line_segment([tip, tip + egui::vec2(0.5, -4.5)], stroke);
+                ui.painter().galley(
+                    egui::pos2(rect.left() + 42.0, rect.center().y - galley.size().y * 0.5),
+                    galley,
+                    ink,
+                );
+                if response.clicked() {
+                    self.redraw_here(size);
+                }
             });
         area.response.rect
     }
@@ -521,9 +601,10 @@ impl App {
         if picture.dragged() {
             self.view.moved(picture.drag_delta(), screen.size());
         }
-        if picture.clicked() && (self.languages_open || self.sizes_open) {
+        if picture.clicked() && (self.languages_open || self.sizes_open || self.presets_open) {
             self.languages_open = false;
             self.sizes_open = false;
+            self.presets_open = false;
         } else if picture.double_clicked() {
             self.view = WHOLE;
         } else if picture.clicked() && (self.bare || cfg!(any(target_os = "android", target_os = "ios"))) {
@@ -562,9 +643,10 @@ impl App {
             self.full_screen(ctx, !is_full);
         }
         if leave {
-            if self.languages_open || self.sizes_open {
+            if self.languages_open || self.sizes_open || self.presets_open {
                 self.languages_open = false;
                 self.sizes_open = false;
+                self.presets_open = false;
             } else if self.bare {
                 self.bare = false;
             } else if is_full {
@@ -742,6 +824,7 @@ impl App {
                 if version.clicked() {
                     self.languages_open = false;
                     self.sizes_open = false;
+                    self.presets_open = false;
                     self.export.open = false;
                     self.updates.show(ctx);
                 }
@@ -829,6 +912,7 @@ impl App {
                 if language.clicked() {
                     self.languages_open = !self.languages_open;
                     self.sizes_open = false;
+                    self.presets_open = false;
                     self.export.open = false;
                     self.updates.open = false;
                 }
@@ -869,19 +953,13 @@ impl App {
             if widgets::row(ui, self.texts.lang.name(), true) {
                 self.languages_open = !self.languages_open;
                 self.sizes_open = false;
+                self.presets_open = false;
             }
         }
 
         widgets::section(ui, &self.t("presets"));
-        if self.is_random {
-            widgets::row(ui, &self.title.clone(), true);
-        }
-        for name in presets::names() {
-            if widgets::row(ui, name, self.title == name)
-                && let Some(scene) = presets::get(name)
-            {
-                self.pick(scene, name.to_owned(), false);
-            }
+        if widgets::dropdown(ui, &shown(&self.title)) {
+            self.open_sheet(Sheet::Presets);
         }
 
         widgets::section(ui, &self.t("size"));
@@ -889,27 +967,9 @@ impl App {
             Some([width, height]) => format!("{width} × {height}"),
             None => self.t("size_window"),
         };
-        let mark = egui::pos2(
-            ui.cursor().min.x + ui.available_width() - 16.0,
-            ui.cursor().min.y + 15.0,
-        );
-        if widgets::row(ui, &label, true) {
-            self.sizes_open = !self.sizes_open;
-            self.languages_open = false;
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                self.export.open = false;
-            }
-            #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-            {
-                self.updates.open = false;
-            }
+        if widgets::dropdown(ui, &label) {
+            self.open_sheet(Sheet::Sizes);
         }
-        let ink = egui::Stroke::new(1.4, egui::Color32::from_white_alpha(210));
-        ui.painter()
-            .line_segment([mark + egui::vec2(-4.5, -2.5), mark + egui::vec2(0.0, 2.5)], ink);
-        ui.painter()
-            .line_segment([mark + egui::vec2(4.5, -2.5), mark + egui::vec2(0.0, 2.5)], ink);
 
         self.layers(ui);
 
@@ -959,61 +1019,105 @@ impl App {
 
     fn layers(&mut self, ui: &mut egui::Ui) {
         widgets::section(ui, &self.t("layers"));
+        ui.add_space(2.0);
         let before = self.base.layers.clone();
-        self.layer = self.layer.min(self.base.layers.len() - 1);
-        for index in 0..self.base.layers.len() {
-            let name = &self.base.layers[index].name;
-            let label = if name.is_empty() {
-                format!("{} {}", self.t("layer"), index + 1)
-            } else {
-                name.clone()
-            };
-            if widgets::row(ui, &label, index == self.layer) {
-                self.layer = index;
-            }
-        }
+        let count = self.base.layers.len();
+        self.layer = self.layer.min(count - 1);
+        let blends = ["blend_add", "blend_screen", "blend_over"].map(|key| self.t(key));
+        let (opacity, word) = (self.t("opacity"), self.t("layer"));
+        let (chosen, mut pick, mut act) = (self.layer, None, None);
+        let layers = &mut self.base.layers;
 
-        ui.add_space(6.0);
-        let (at, count) = (self.layer, self.base.layers.len());
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 6.0;
-            if widgets::round(ui, "add", count < MAX_LAYERS) {
+        egui::Frame::NONE
+            .fill(egui::Color32::from_white_alpha(10))
+            .corner_radius(14)
+            .inner_margin(egui::Margin::same(6))
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 4.0;
+                for (index, layer) in layers.iter_mut().enumerate() {
+                    let label = if layer.name.is_empty() {
+                        format!("{word} {}", index + 1)
+                    } else {
+                        layer.name.clone()
+                    };
+                    if index != chosen {
+                        if widgets::row(ui, &label, false) {
+                            pick = Some(index);
+                        }
+                        continue;
+                    }
+                    let card = egui::Margin {
+                        left: 12,
+                        right: 8,
+                        top: 6,
+                        bottom: 8,
+                    };
+                    egui::Frame::NONE
+                        .fill(egui::Color32::from_white_alpha(26))
+                        .corner_radius(10)
+                        .inner_margin(card)
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let name = egui::RichText::new(&label)
+                                    .font(font(14.0, MEDIUM))
+                                    .color(egui::Color32::WHITE);
+                                ui.add(egui::Label::new(name).truncate());
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.spacing_mut().item_spacing.x = 4.0;
+                                    for (kind, enabled) in
+                                        [("remove", count > 1), ("down", index + 1 < count), ("up", index > 0)]
+                                    {
+                                        if widgets::round(ui, kind, enabled) {
+                                            act = Some(kind);
+                                        }
+                                    }
+                                });
+                            });
+                            ui.add_space(6.0);
+                            ui.scope(|ui| {
+                                ui.set_width(ui.available_width() - 4.0);
+                                let current = [Blend::Add, Blend::Screen, Blend::Over]
+                                    .iter()
+                                    .position(|blend| *blend == layer.blend)
+                                    .unwrap_or(0);
+                                if let Some(index) = widgets::segments(ui, &blends, current) {
+                                    layer.blend = [Blend::Add, Blend::Screen, Blend::Over][index];
+                                }
+                                widgets::slider(ui, &opacity, &mut layer.opacity, (0.0, 1.0), false);
+                            });
+                        });
+                }
+                if widgets::add_row(ui, count < MAX_LAYERS) {
+                    act = Some("add");
+                }
+            });
+
+        if let Some(index) = pick {
+            self.layer = index;
+        }
+        let at = self.layer;
+        match act {
+            Some("add") => {
                 self.seed += 1;
                 let mut layer = random_scene(self.seed).layers.swap_remove(0);
                 layer.blend = Blend::Screen;
                 self.base.layers.push(layer);
                 self.layer = count;
             }
-            if widgets::round(ui, "remove", count > 1) {
+            Some("remove") => {
                 self.base.layers.remove(at);
                 self.layer = at.min(count - 2);
             }
-            if widgets::round(ui, "up", at > 0) {
+            Some("up") => {
                 self.base.layers.swap(at, at - 1);
                 self.layer = at - 1;
             }
-            if widgets::round(ui, "down", at + 1 < count) {
+            Some("down") => {
                 self.base.layers.swap(at, at + 1);
                 self.layer = at + 1;
             }
-        });
-
-        ui.add_space(6.0);
-        let labels = ["blend_add", "blend_screen", "blend_over"].map(|key| self.t(key));
-        let opacity = self.t("opacity");
-        let layer = &mut self.base.layers[self.layer];
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 4.0;
-            let each = (ui.available_width() - 8.0) / 3.0;
-            for (label, blend) in labels.iter().zip([Blend::Add, Blend::Screen, Blend::Over]) {
-                ui.allocate_ui(egui::vec2(each, 30.0), |ui| {
-                    if widgets::row(ui, label, layer.blend == blend) {
-                        layer.blend = blend;
-                    }
-                });
-            }
-        });
-        widgets::slider(ui, &opacity, &mut layer.opacity, (0.0, 1.0), false);
+            _ => {}
+        }
         if self.base.layers != before {
             self.requested = None;
         }
@@ -1064,6 +1168,7 @@ impl App {
             }
             #[cfg(not(target_arch = "wasm32"))]
             Some("export") => {
+                self.presets_open = false;
                 self.sizes_open = false;
                 self.languages_open = false;
                 self.export.open = !self.export.open;
@@ -1165,17 +1270,11 @@ impl App {
         );
         let [width, height] = self.export.size.unwrap_or(shown);
         widgets::section(ui, &self.t("quality"));
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 4.0;
-            let each = (ui.available_width() - 8.0) / 3.0;
-            for (index, (key, _, _)) in export::QUALITIES.into_iter().enumerate() {
-                ui.allocate_ui(egui::vec2(each, 30.0), |ui| {
-                    if widgets::row(ui, &self.t(key), self.export.quality == index) {
-                        self.export.quality = index;
-                    }
-                });
-            }
-        });
+        ui.add_space(2.0);
+        let qualities = export::QUALITIES.map(|(key, _, _)| self.t(key));
+        if let Some(index) = widgets::segments(ui, &qualities, self.export.quality) {
+            self.export.quality = index;
+        }
         if !self.export.note.is_empty() {
             ui.add_space(8.0);
             ui.label(
@@ -1407,9 +1506,9 @@ impl eframe::App for App {
         let open = *self.inspector_open.get_or_insert(wide);
         // A sheet's glass is drawn under every text, so a panel it would cover hides while the sheet is open.
         #[cfg(not(target_arch = "wasm32"))]
-        let sheet = self.export.open || self.sizes_open;
+        let sheet = self.export.open || self.sizes_open || self.presets_open;
         #[cfg(target_arch = "wasm32")]
-        let sheet = self.sizes_open;
+        let sheet = self.sizes_open || self.presets_open;
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         let sheet = sheet || self.updates.open;
         let sheet = sheet
@@ -1475,7 +1574,7 @@ impl eframe::App for App {
                         };
                         let name =
                             ui.painter()
-                                .layout_no_wrap(self.title.clone(), font(13.5, MEDIUM), egui::Color32::WHITE);
+                                .layout_no_wrap(shown(&self.title), font(13.5, MEDIUM), egui::Color32::WHITE);
                         let detail = ui.painter().layout_no_wrap(
                             detail,
                             egui::FontId::proportional(13.0),
@@ -1538,6 +1637,19 @@ impl eframe::App for App {
                     egui::Frame::NONE
                         .inner_margin(egui::Margin::same(22))
                         .show(ui, |ui| self.updates.ui(ui, &self.texts, width));
+                });
+            panes.push((sheet.response.rect, self.optics.radius, true));
+        }
+
+        if self.presets_open {
+            let sheet = egui::Area::new(egui::Id::unique("presets"))
+                .fixed_pos(content.center())
+                .pivot(egui::Align2::CENTER_CENTER)
+                .order(egui::Order::Foreground)
+                .show(&ctx, |ui| {
+                    egui::Frame::NONE
+                        .inner_margin(egui::Margin::same(22))
+                        .show(ui, |ui| self.preset_sheet(ui, content.height()));
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }
