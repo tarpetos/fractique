@@ -34,8 +34,12 @@ What the app does not do yet:
 - The chaos game on the graphics card in a browser: the page renders on its one thread, so the exact render would
   have to wait for the graphics card's picture first.
 - Choosing a wallpaper's color on a computer (a phone has it in its styles).
-- Fractals of other kinds on the graphics card: the preview and the first picture are for flames, and a scene
-  with another kind in it is rendered by the processor alone.
+- More fractals of other kinds on the graphics card: it draws flames and the Clifford, De Jong and Lorenz
+  attractors ([architecture.md](architecture.md#orbits-on-the-graphics-card)); a scene with any other kind in it
+  is rendered by the processor alone, and the preview is for flames.
+- The density estimation of the graphics card in bands, a few rows a submission: its work for a picture of
+  3840 × 2160 is more than [one submission may do](architecture.md#the-work-of-one-submission), so such a picture
+  is the processor's.
 - Editing the colors of a fractal beyond the eight palettes, and typing a parameter in as a number.
 - A build for the Mac App Store: the purchase code is shared with iOS, and no script signs, sandboxes and packs
   the app for it ([ios.md](ios.md#a-mac-app-store-build)).
@@ -57,7 +61,7 @@ What the app does not do yet:
 
 | Question | Decision |
 | --- | --- |
-| What the graphics card may draw | The screen's picture of a flame and its Instant export, where the card is clearly faster than the processor and the switch is on: a render beside it kept every core busy for seconds. Exports at Standard, High and Ultra, the command line tool, the MCP tools and the server are the processor's, so a scene still gives the same pixels everywhere |
+| What the graphics card may draw | The screen's picture of a flame or of an attractor it has a shader for, and its Instant export, where the card is clearly faster than the processor and the switch is on: a render beside it kept every core busy for seconds. Exports at Standard, High and Ultra, the command line tool, the MCP tools and the server are the processor's, so a scene still gives the same pixels everywhere |
 | UI framework for the app | `egui` with `eframe` on `wgpu`: Rust, and it reaches the five platforms and WebAssembly. `vendor/` carries the two crates with a fix for the iOS drawing surface |
 | Installers | `cargo-packager` for Linux and macOS. Windows gets no installer: the app is one file that replaces itself |
 | The app's own file | `.frcq`: packed JSON, not a binary encoding of the scene, which came out larger |

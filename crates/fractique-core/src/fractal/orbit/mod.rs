@@ -1,4 +1,4 @@
-use super::{Orbit, Param, Spec, Walk, random_palette, stream};
+use super::{Orbit, Param, Prepared, Spec, Walk, random_palette, stream};
 use crate::math::atan2;
 use crate::random::{GRID, PROBE_POINTS};
 use crate::rng::Rng;
@@ -24,6 +24,9 @@ const LARGEST_STRIDE: u64 = 64;
 const PROBED_SPANS: u64 = 4;
 // An attractor may be one of several that the starting point chooses between: the measures take a few.
 const STARTS: u64 = 8;
+// The states `Prepared` gives of an orbit that every walk follows: one of this many steps, of the first steps only.
+const TRACK_EVERY: u64 = 64;
+const TRACKED_STEPS: u64 = 1 << 20;
 
 trait System: Sync {
     type State: Copy;
@@ -34,6 +37,8 @@ trait System: Sync {
     const STRIDE: u64 = 1;
     // Whether a point is plotted somewhere between two steps, which draws the lines of a flow whole.
     const BLEND: bool = false;
+    // Whether every walk starts at the same point and so follows the one orbit.
+    const SHARED: bool = false;
 
     fn start(&self, rng: &mut Rng) -> Self::State;
     fn step(&self, state: Self::State) -> Self::State;
@@ -52,6 +57,16 @@ trait System: Sync {
     // The steps after which an orbit ends and another starts; 0 for an orbit that never ends.
     fn span(&self) -> u64 {
         0
+    }
+
+    // What `Prepared` adds for this system: the numbers its step and its point use besides the parameters.
+    fn numbers(&self) -> Vec<f64> {
+        Vec::new()
+    }
+
+    fn coordinates(&self, state: Self::State) -> [f64; 3] {
+        let (x, y) = self.point(state);
+        [x, y, 0.0]
     }
 }
 
@@ -219,6 +234,44 @@ impl<S: System> Orbit for Traced<S> {
             state: None,
             age: 0,
         })
+    }
+
+    // Numbers: the coloring, the middle (x, y), the unit, the span, the steps before the first point, 1 when the
+    // picture is fitted, 1 when points are blended, the lowest pace and the steps of the table a unit of pace,
+    // the same two for the heights, the steps between two tracked states, then the system's own.
+    // Tables: the ranks of the paces, those of the heights, the tracked states (x, y, z each).
+    fn prepared(&self) -> Prepared {
+        let mut track = Vec::new();
+        if S::SHARED {
+            let mut state = self.fresh(&mut Rng::derive(0, GAUGE_DOMAIN, 0));
+            for step in 0..self.system.span().min(TRACKED_STEPS) {
+                if step % TRACK_EVERY == 0 {
+                    track.extend(self.system.coordinates(state));
+                }
+                state = self.system.step(state);
+            }
+        }
+        let flag = |on: bool| if on { 1.0 } else { 0.0 };
+        let mut numbers = vec![
+            f64::from(self.color),
+            self.center.0,
+            self.center.1,
+            self.unit,
+            self.system.span() as f64,
+            f64::from(S::BURN),
+            flag(S::FITTED),
+            flag(S::BLEND),
+            self.paces.low,
+            self.paces.per_step,
+            self.heights.low,
+            self.heights.per_step,
+            if S::SHARED { TRACK_EVERY as f64 } else { 0.0 },
+        ];
+        numbers.extend(self.system.numbers());
+        Prepared {
+            numbers,
+            tables: vec![self.paces.steps.clone(), self.heights.steps.clone(), track],
+        }
     }
 }
 
@@ -470,6 +523,41 @@ mod tests {
                 assert_eq!(plotted, count, "{}", spec.name);
             }
         }
+    }
+
+    #[test]
+    fn what_a_kind_prepared_is_whole() {
+        for spec in KINDS {
+            let Draw::Density(make) = spec.draw else {
+                panic!("{} is not drawn as a density", spec.name);
+            };
+            let values: Vec<f64> = spec.params.iter().map(|param| param.default).collect();
+            let prepared = make(&values, &Camera::default()).prepared();
+            assert_eq!(prepared, make(&values, &Camera::default()).prepared(), "{}", spec.name);
+            assert!(
+                prepared.numbers.iter().all(|number| number.is_finite()),
+                "{}",
+                spec.name
+            );
+            match spec.name {
+                "clifford" => assert_eq!(prepared, super::Prepared::default()),
+                "buddhabrot" => assert_eq!(prepared, super::Prepared::default()),
+                name => {
+                    assert_eq!(prepared.tables[0].len(), Ranks::STEPS + 1, "{name}");
+                    assert_eq!(prepared.tables[1].len(), Ranks::STEPS + 1, "{name}");
+                    assert_eq!(prepared.tables[2].is_empty(), name != "lorenz", "{name}");
+                    assert_eq!(prepared.numbers[12] == 0.0, name != "lorenz", "{name}");
+                }
+            }
+        }
+        let Draw::Density(make) = KINDS.iter().find(|spec| spec.name == "lorenz").unwrap().draw else {
+            unreachable!()
+        };
+        let track = make(&[10.0, 28.0, 8.0 / 3.0, 0.0, 0.0, 5.0, 0.0], &Camera::default())
+            .prepared()
+            .tables[2]
+            .clone();
+        assert_eq!(track.len(), 1000usize.div_ceil(64) * 3);
     }
 
     #[test]

@@ -218,8 +218,41 @@ An **Instant** export of the card's picture, asked for while the first batch was
 0.7 s later at 1920×1080 and 2.2 to 2.5 s later at 3840×2160; nearly all of that is writing the PNG. The file held
 the same pixels as the screen.
 
-The trial that decides whether the card is used took 0.009 s on this card and 0.095 s on the processor. No other
-graphics card was measured, and no phone.
+The trial that decides whether the card is used took 0.009 s on this card and 0.095 s on the processor. These
+numbers are from before [the bounds of a submission](architecture.md#the-work-of-one-submission): with them a
+whole picture takes more batches, and the card was not measured again.
+
+With the bounds, on a laptop with Windows 11 and an **NVIDIA GeForce GTX 1650** (Vulkan), in a window nobody
+sees, at 32 samples per pixel. `solar-mandala` has two layers, the others one. "Card at work" is the sum of the
+batches, "longest batch" the one that took the card longest; between two batches the app waits for a frame, which
+took about 0.1 s in these runs, so the whole picture comes that much later for every batch.
+
+| Scene | Size | First picture | Batches | Card at work | Longest batch | Whole picture | Processor: whole picture |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `clifford-classic` | 1280×720 | 0.07 s | 10 | 0.13 s | 16 ms | 0.77 s | |
+| `de_jong-classic` | 1280×720 | 0.08 s | 10 | 0.15 s | 18 ms | 0.79 s | |
+| `lorenz-butterfly` | 1280×720 | 0.05 s | 10 | 0.07 s | 14 ms | 0.69 s | |
+| `aurora-spiral` | 1280×720 | 0.03 s | 9 | 0.07 s | 16 ms | 0.58 s | |
+| `solar-mandala` | 1280×720 | 0.04 s | 17 | 0.42 s | 26 ms | 1.83 s | |
+| `clifford-classic` | 1920×1080 | 0.09 s | 18 | 0.46 s | 29 ms | 2.00 s | 2.38 s |
+| `de_jong-classic` | 1920×1080 | 0.09 s | 18 | 0.48 s | 31 ms | 2.03 s | 3.05 s |
+| `lorenz-butterfly` | 1920×1080 | 0.07 s | 18 | 0.30 s | 20 ms | 1.83 s | 2.26 s |
+| `aurora-spiral` | 1920×1080 | 0.03 s | 17 | 0.29 s | 19 ms | 1.70 s | |
+| `solar-mandala` | 1920×1080 | 0.05 s | 33 | 1.58 s | 51 ms | 4.79 s | |
+| `clifford-classic` | 2560×1440 | 0.10 s | 31 | 1.06 s | 38 ms | 4.06 s | |
+| `de_jong-classic` | 2560×1440 | 0.10 s | 31 | 1.08 s | 40 ms | 4.09 s | |
+| `lorenz-butterfly` | 2560×1440 | 0.09 s | 30 | 0.88 s | 35 ms | 3.76 s | |
+| `aurora-spiral` | 2560×1440 | 0.04 s | 30 | 0.99 s | 46 ms | 3.86 s | |
+| `solar-mandala` | 2560×1440 | 0.08 s | 58 | 4.24 s | 76 ms | 10.26 s | |
+
+A picture of 3840×2160 is the processor's on every card: `aurora-spiral` took it 14.4 s on this laptop. With the
+bound on the density estimation lifted for a measurement, the same card needed up to 153 ms a batch for one layer
+of that size and up to 282 ms for two, which is why the bound is where it is.
+
+The same build on a Debian 13 box with the graphics chip of its processor, an **AMD Radeon Vega 3** (Vulkan,
+RADV), far weaker: at 1920×1080 the longest batch took 120 ms for `clifford-classic`, 148 ms for
+`de_jong-classic`, 100 ms for `lorenz-butterfly`, 190 ms for `aurora-spiral` and 301 ms for `solar-mandala`;
+at 1280×720, 65, 78, 47, 73 and 110 ms. All stay under the 0.5 s after which the card is given up.
 
 ## Memory
 

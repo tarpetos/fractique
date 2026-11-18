@@ -300,7 +300,8 @@ its `Limits`, for `/render` and `/mcp` alike.
 `fractique-app` is built with `egui` and `eframe` on `wgpu`. The graphics card shows the picture and draws the
 glass over it. Who makes the picture depends on the device. Where the graphics card is
 [clearly faster than the processor](#when-the-graphics-card-is-used) and **GPU acceleration** is on, the card
-plays [the chaos game](#the-chaos-game-on-the-graphics-card) of a flame itself and its picture is the screen's:
+plays [the chaos game](#the-chaos-game-on-the-graphics-card) of a flame, or walks the orbits of a Clifford, a De
+Jong or a Lorenz attractor, itself and its picture is the screen's:
 the processor renders nothing for the screen. Everywhere else, and for what the card does not draw, the picture is
 rendered by `fractique-core` on the processor, in a thread of its own, as an export at Standard, High or Ultra
 always is.
@@ -314,6 +315,7 @@ always is.
 | `glass.rs`, `glass.wgsl`, `blur.rs` | The picture on the screen and the glass panes over it: each pane shows a blurred, refracted part of the picture |
 | `preview.rs`, `preview.wgsl` | The preview on the graphics card: the layers' levels as textures, the tone mapping, the glow and the blending in shaders |
 | `chaos.rs`, `chaos.wgsl`, `levels.wgsl` | The chaos game on the graphics card: the walkers and the histogram in one compute shader, the density estimation in another |
+| `orbit.rs`, `orbit.wgsl` | The orbit kinds the graphics card draws: what the shader reads of each, and their walkers, which plot into the same histogram |
 | `widgets.rs` | The controls: rows, pills, sliders, switches; the fonts |
 | `i18n.rs`, `locales/` | The texts, in 15 languages: one file a language, and in `locales/fractals/` one file a family of fractals with the names of its kinds and parameters in every language |
 | `android.rs`, `ios.rs` | The gallery, Photos and sharing |
@@ -413,10 +415,10 @@ window does. The toolbar shows the time the picture took.
 
 | Step | What happens |
 | --- | --- |
-| Walkers | A compute shader (`chaos.wgsl`) runs one walker for every 16 pixels, up to 262 144 at once. Each does what `chaos.rs` and `render.rs` do: it picks a transform by weight, applies the affine map, the variations (all 49), the post map, moves its color, hides the point by the transform's opacity, and plots it through the final transform, the symmetry and the camera. The numbers are 32-bit floats. Each walker has its own random numbers (xoroshiro64**), seeded from the scene's seed, the layer and the walker's number, and starts with 24 steps that are not plotted |
+| Walkers | A compute shader (`chaos.wgsl`) runs one walker for every 16 pixels, up to 262 144 at once, and fewer where the 24 unplotted steps of that many would take more than half of what [one submission may do](#the-work-of-one-submission). Each does what `chaos.rs` and `render.rs` do: it picks a transform by weight, applies the affine map, the variations (all 49), the post map, moves its color, hides the point by the transform's opacity, and plots it through the final transform, the symmetry and the camera. The numbers are 32-bit floats. Each walker has its own random numbers (xoroshiro64**), seeded from the scene's seed, the layer and the walker's number, and starts with 24 steps that are not plotted |
 | Histogram | Four 32-bit integers a cell: the hits and the three color sums, added with atomic operations, so the order of the walkers does not matter. A cell's color sums stop at 16 000 000 hits, where they would overflow; its hits go on |
 | Levels | A second shader (`levels.wgsl`) repeats the density estimation of `tone.rs`: the same kernels, chosen by the same table of hits, gathered for every pixel. Tiles of 16 × 16 cells tell how far a pixel has to look. It writes the levels that the shaders of [the preview](#the-preview-on-the-graphics-card) start from, so the tone, the glow and the blending are the preview's |
-| Batches | The first batch plots 2 samples per pixel; once a batch has shown how fast the card is, a later run starts with as many as fit in 20 ms. Each next batch is sized by how long the last one took: 40 ms, or 2.5 times the shortest batch when the levels alone take longer than that, and never less than a sixteenth of all samples |
+| Batches | The first batch plots 2 samples per pixel; once a batch has shown how fast the card is, a later run starts with as many as fit in 20 ms. Each next batch is sized by how long the last one took: 40 ms, or 2.5 times the shortest batch when the levels alone take longer than that, and never less than a sixteenth of all samples. Whatever that asks for, a batch stays within [the work of one submission](#the-work-of-one-submission) |
 | Events | A batch is one submission. A thread that sleeps in the driver until that submission is finished takes in how many points landed in the picture and asks for a repaint; the next frame sends the next batch. The window's thread never waits for the graphics card |
 | Kept | With the last batch the histograms and the walkers are freed; the levels stay on the card (8 bytes a pixel for each layer) for as long as the picture is on the screen |
 
@@ -437,17 +439,62 @@ What the processor still renders for the screen, with its drafts and passes as b
 | What | Why |
 | --- | --- |
 | Wallpapers | Sheets are drawn exactly, not sampled |
-| A scene with a fractal of another kind in any layer | The graphics card has shaders for flames only. The processor renders the whole scene, with drafts, and the preview is not drawn for it either |
+| A scene with a fractal in any layer that is not one of [the orbits the card walks](#orbits-on-the-graphics-card) | The graphics card has shaders for flames and for three attractors. The processor renders the whole scene, with drafts, and the preview is not drawn for it either |
+| A picture whose density estimation would look at more than 1 610 612 736 cells in one submission | [The work of one submission](#the-work-of-one-submission) has a bound that is known before it is sent. With the smoothing at 1 that leaves the card two layers at 2560 × 1440 and six at 1920 × 1080; a picture of 3840 × 2160 is the processor's |
 | A view that holds less than an eighth of the flame's points | The processor draws it from particles ([Any zoom](#any-zoom)); the plain chaos game would waste its points and give another brightness. The graphics card counts the points that land in the picture and gives the view up after its first batch |
 | A view too fine for 32-bit floats | When the cells per unit times the distance of the view's far edge from the origin is above 400 000. Measured by moving a flame away from the origin: up to a million the picture stays the processor's, at three million it begins to differ |
 | A picture the card is slow at | After every batch the time the run will take is held against what the processor is expected to need for the picture (its samples a second in the trial below, and never less than 0.3 s). A run that would take longer is given up |
 | A flame with more than 256 variations in all, a picture whose histogram is larger than the card's largest buffer, a scene whose layers need more than 1 GB | The card does not hold them |
-| A layer that is not a flame | `packed` in `chaos.rs` answers for each layer whether the card draws it; a scene with one it does not draw is the processor's whole |
+| A layer the card does not draw | `packed` in `chaos.rs` answers for a flame and `Recipe` in `orbit.rs` for a fractal whether the card draws it; a scene with a layer it does not draw is the processor's whole |
 | The first picture after the app starts, sometimes | The shaders are compiled in a thread of their own. Until they are, a draft from the processor stands in |
 
 The graphics card's picture is not the processor's pixel for pixel: its random numbers are others, so the grain
 differs, and 32-bit floats round differently from one card to the next. Shapes, colors and brightness are the
 same. On one card and driver a scene gives the same picture again.
+
+#### The work of one submission
+
+A shader that works for seconds takes the screen with it, and a graphics driver that waits too long for one resets
+the card. So what a submission may do is bounded by constants of `chaos.rs`, and held against a scene before
+anything is sent:
+
+| Part | Bound |
+| --- | --- |
+| The walkers of all layers together | 4 steps a pixel and never more than 4 194 304 steps (`MOST_STEPS`, `MOST_IN_ALL`). A step of a flame counts once for every four variations its heaviest transform and the final transform apply. The unplotted steps of the first batch are inside the bound. A picture so small that this is less than a step for each walker gets one step for each of its 64 walkers a layer |
+| A walker of an orbit | The steps the batch gives it (`budget` in `orbit.wgsl`), plotted or not: its loop ends there whatever the orbit does |
+| The density estimation | For every cell of a layer the cells its widest kernel reaches, at most 19 × 19; all layers together at most 1 610 612 736 (`MOST_TAPS`). A scene that needs more is the processor's |
+| A submission that takes longer than 0.5 s | The card's part ends for the session, as after an error: the switch goes and the processor renders. The thread that waits for the card gives up after the same time, so a submission that never ends is found too |
+
+Before these bounds a batch was sized by the pace alone: it grew up to four times from one batch to the next, was
+never less than a sixteenth of all samples, and was given 20 s. Its worst case was all the samples of a picture in
+one submission (265 million steps for 3840 × 2160 at 32 samples per pixel, and 1400 million for the largest
+picture the card held) and a density estimation over every layer of a picture of any size.
+
+#### Orbits on the graphics card
+
+A layer that holds a Clifford, a De Jong or a Lorenz attractor is walked by a second compute shader
+(`orbit.wgsl`) into the same histogram, and everything after the histogram is the flame's: the levels, the
+preview's tone and glow, the batches and the bounds above. Flames and these layers can share a scene.
+
+| Kind | On the card | How, or why not |
+| --- | --- | --- |
+| `clifford` | Yes | The map in 32-bit floats, colored by its own rule. Every walker starts at a random point and takes 32 unplotted steps |
+| `de_jong` | Yes | The map in 32-bit floats. The ranks that color it (the pace, the direction, the height) are the tables the core measured, read by the shader |
+| `lorenz` | Yes | Every walk of the processor follows the one orbit, so the core tracks its state at every 64th step (`Orbit::prepared`), up to 1 048 576 steps. A walker begins at a tracked state and is set back onto the next one 64 steps later: 32-bit floats never drift from the 64-bit orbit for longer than that, and no walker walks to its place unseen |
+| `gumowski_mira` | No | An orbit is 202 000 steps that only one walker can take, one after another. With four times the bound of a submission it still came to 27 batches and 2.8 s for a picture of 1920 × 1080 on a GeForce GTX 1650, where the processor beside it needed 1.4 s |
+| `hopalong` | No | In 32-bit floats an orbit leaves the curve the 64-bit orbit draws |
+| `buddhabrot` | No | The steps a walker takes for one orbit depend on the point it tries: there is no bound that is known before it walks |
+
+Two more rules keep an attractor the processor's:
+
+| What | Why |
+| --- | --- |
+| An orbit that ends on a cycle | The card walks many short orbits where the processor walks 64 long ones. That shows the same only if an orbit looks late as it looks early: `steady` in `orbit.rs` compares three windows of 4096 points of one orbit on a grid of 32 × 32 and leaves the kind to the processor when they differ by half of their points |
+| More than 512 steps a pixel in all | `Recipe::work` gives the steps the walkers take for the whole picture; a scene above it is not begun |
+
+`Orbit::prepared` in `fractique-core` gives what a kind worked out from its parameters before any walk (numbers
+and tables, in the order the kind's file names them), for a renderer outside the core that repeats the walks in
+its own arithmetic. It changes no pixel of the core's render.
 
 ### When the graphics card is used
 
@@ -461,7 +508,7 @@ no preview, so the app behaves as it did before either.
 | The trial | A card that is able and not known yet is tried once the first picture is on the screen (rendered by the processor) and no render runs: `aurora-spiral` at 1280 × 720 with the samples of the full pass, first on the card, then on the processor. The card's time is the sum of its batches; the processor's counts only when no other render ran beside it, and is taken again otherwise |
 | The verdict | The card is used when the processor needed at least 1.3 times the card's time. The margin was two with a trial of 800 × 450; an Adreno 740 phone, whose card is plainly worth using, came out at 1.7 there, because so small a picture is over before the card's fixed costs stop counting. A card that is merely as fast is still left out: it is not worth pictures that differ from device to device |
 | Remembered | The verdict is kept in the app's settings with the card's name, the driver's version and the app's version, together with the processor's samples a second. The trial runs again when one of the three changes |
-| Errors | A shader the card refuses, no memory for a histogram or a texture, a batch that does not finish in 20 s: the card's part ends for the session, the switch goes and the processor renders. During the trial the same ends as a verdict against the card |
+| Errors | A shader the card refuses, no memory for a histogram or a texture, a batch that takes longer than 0.5 s: the card's part ends for the session, the switch goes and the processor renders. During the trial the same ends as a verdict against the card |
 
 Under the switch the app shows the card's name and the graphics interface as the system reports them, cut to the
 panel's width, and a note that the picture and an Instant export can differ slightly from device to device.
@@ -473,11 +520,14 @@ scrolls the controls down, to where the switch is. `FRACTIQUE_SHOW=gpu` hides th
 picture; `FRACTIQUE_SHOW=gpu-first` stops it after the first batch; `FRACTIQUE_SHOW=picture` hides the panels
 over whatever picture the device makes. `FRACTIQUE_EXPORT=file` starts an Instant export to that file as soon as
 the card's first picture is on the screen, so that it has to wait, and the screenshot waits for it: the two files
-are then the same picture. A scene file given on the command line is the scene. `FRACTIQUE_DEBUG_TIMES=1` prints
-the graphics card, the trial, every render the processor starts and the seconds from the request to each picture
-and to a saved export. The tests of `chaos.rs` compare three presets with the processor's render when the
-machine has a graphics card with compute shaders; three more, run with `--ignored`, print the differences for
-every preset, for 20 seeds of each random generator and for every variation, and how far 32-bit floats reach.
+are then the same picture. A scene file given on the command line is the scene, and `FRACTIQUE_PICTURE=320x200`
+is the size of the picture whatever the window's. `FRACTIQUE_DEBUG_TIMES=1` prints the graphics card, the trial,
+every render the processor starts, the seconds from the request to each picture and to a saved export, and for
+every batch of the card the milliseconds it took and the millions of steps its walkers were allowed. The tests of
+`chaos.rs` compare three flames and three attractors with the processor's render when the machine has a graphics
+card with compute shaders; five more, run with `--ignored`, print the differences for every preset, for 20 seeds
+of each random generator, for every variation and for the presets and ten seeds of every orbit kind, and how far
+32-bit floats reach into a flame and into an attractor.
 
 ## Limits
 

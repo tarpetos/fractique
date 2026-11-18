@@ -123,6 +123,7 @@ impl System for Lorenz {
     const FITTED: bool = true;
     const STRIDE: u64 = 16;
     const BLEND: bool = true;
+    const SHARED: bool = true;
 
     // Every stream follows the one orbit, so that a short one shows as lines.
     fn start(&self, _: &mut Rng) -> [f64; 3] {
@@ -159,6 +160,15 @@ impl System for Lorenz {
     #[inline]
     fn height(&self, state: [f64; 3]) -> Option<f64> {
         Some(state[2])
+    }
+
+    // The cosine and the sine of the turn, then those of the tilt.
+    fn numbers(&self) -> Vec<f64> {
+        vec![self.turn.0, self.turn.1, self.tilt.0, self.tilt.1]
+    }
+
+    fn coordinates(&self, state: [f64; 3]) -> [f64; 3] {
+        state
     }
 }
 
