@@ -94,5 +94,13 @@
   "m_glass": "Szkło",
   "m_glow": "Poświata",
   "m_steel": "Stal",
-  "m_carbon": "Karbon"
+  "m_carbon": "Karbon",
+  "similar": "Podobna",
+  "style": "Styl",
+  "fine_tune": "Dostrajanie",
+  "keep": "Zachowaj",
+  "collection": "KOLEKCJA",
+  "save_photos": "Zapisz w Zdjęciach",
+  "share": "Udostępnij",
+  "color": "KOLOR"
 }

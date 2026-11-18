@@ -94,5 +94,13 @@
   "m_glass": "유리",
   "m_glow": "글로우",
   "m_steel": "스틸",
-  "m_carbon": "카본"
+  "m_carbon": "카본",
+  "similar": "비슷하게",
+  "style": "스타일",
+  "fine_tune": "미세 조정",
+  "keep": "보관",
+  "collection": "컬렉션",
+  "save_photos": "사진에 저장",
+  "share": "공유",
+  "color": "색상"
 }

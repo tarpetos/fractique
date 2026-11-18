@@ -172,6 +172,7 @@ fn wallpaper_request(
             .transpose()?,
         ratio: f64::from(height) / f64::from(width),
         dark,
+        hue: None,
     })
 }
 

@@ -94,5 +94,13 @@
   "m_glass": "काँच",
   "m_glow": "चमक",
   "m_steel": "इस्पात",
-  "m_carbon": "कार्बन"
+  "m_carbon": "कार्बन",
+  "similar": "मिलता-जुलता",
+  "style": "शैली",
+  "fine_tune": "बारीक समायोजन",
+  "keep": "रखें",
+  "collection": "संग्रह",
+  "save_photos": "फ़ोटो में सहेजें",
+  "share": "साझा करें",
+  "color": "रंग"
 }

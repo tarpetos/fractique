@@ -76,6 +76,7 @@ pub struct Request {
     pub material: Option<Material>,
     pub ratio: f64,
     pub dark: bool,
+    pub hue: Option<f64>,
 }
 
 // OKLCH (Björn Ottosson's OKLab) to sRGB: equal steps in it look equal, so generated palettes stay even.
@@ -152,11 +153,12 @@ fn bands(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
         stack.push(vec![boxed([0.0, y], [ex + OVER, band / 2.0], corners, 0.0)]);
         if rng.next_f64() < 0.45 {
             let wide = (ex + OVER) / 2.0;
+            let round = band.min(2.0 * wide);
             let corners = match (rng.next_bool(), rng.next_bool()) {
-                (true, true) => [0.0, band, 0.0, 0.0],
-                (true, false) => [0.0, 0.0, band, 0.0],
-                (false, true) => [band, 0.0, 0.0, 0.0],
-                (false, false) => [0.0, 0.0, 0.0, band],
+                (true, true) => [0.0, round, 0.0, 0.0],
+                (true, false) => [0.0, 0.0, round, 0.0],
+                (false, true) => [round, 0.0, 0.0, 0.0],
+                (false, false) => [0.0, 0.0, 0.0, round],
             };
             let x = if corners[1] + corners[2] > 0.0 { -wide } else { wide };
             tabs.push(vec![boxed([x, y], [wide, band / 2.0], corners, 0.0)]);
@@ -482,7 +484,14 @@ fn lines(rng: &mut Rng, _ex: f64, ey: f64) -> Vec<Vec<Shape>> {
         .collect()
 }
 
-fn dress(rng: &mut Rng, material: Material, dark: bool, shapes: Vec<Vec<Shape>>, ex: f64, ey: f64) -> Sheets {
+fn dress(
+    rng: &mut Rng,
+    material: Material,
+    (dark, picked): (bool, Option<f64>),
+    shapes: Vec<Vec<Shape>>,
+    ex: f64,
+    ey: f64,
+) -> Sheets {
     let n = shapes.len() as f64;
     let hue = rng.range(0.0, 360.0);
     let turn = sign(rng)
@@ -506,6 +515,10 @@ fn dress(rng: &mut Rng, material: Material, dark: bool, shapes: Vec<Vec<Shape>>,
     };
     let accent = ACCENTS[rng.below(6) as usize] + rng.range(-6.0, 6.0);
     let accented = 1 + rng.below(2) as usize;
+    let (hue, grey, sober, sober_chroma, accent) = match picked.filter(|hue| hue.is_finite()) {
+        Some(hue) => (hue, false, hue, sober_chroma.max(0.03), hue),
+        None => (hue, grey, sober, sober_chroma, accent),
+    };
     let pick = |on_dark: f64, on_light: f64| if dark { on_dark } else { on_light };
 
     let (base, mut sheets) = match material {
@@ -719,7 +732,7 @@ pub fn random_wallpaper(seed: u64, request: &Request) -> Scene {
     let sheets = dress(
         &mut Rng::derive(seed, WALLPAPER_DOMAIN, 2),
         material,
-        request.dark,
+        (request.dark, request.hue),
         shapes,
         ex,
         ey,
@@ -744,6 +757,7 @@ mod tests {
             material: Some(material),
             ratio,
             dark,
+            hue: None,
         }
     }
 
@@ -751,8 +765,8 @@ mod tests {
     fn every_combination_is_repeatable_and_valid() {
         for (_, layout) in Layout::ALL {
             for (_, material) in Material::ALL {
-                for seed in 0..12 {
-                    for ratio in [0.25, 0.46, 1.0, 2.17, 4.0] {
+                for seed in 0..24 {
+                    for ratio in [0.25, 0.46, 0.75, 1.0, 1.3, 1.6, 1.78, 2.17, 3.0, 4.0] {
                         let ask = request(layout, material, ratio, seed % 2 == 0);
                         let scene = random_wallpaper(seed, &ask);
                         assert_eq!(scene, random_wallpaper(seed, &ask));
@@ -772,8 +786,15 @@ mod tests {
             material: None,
             ratio: 2.0,
             dark: false,
+            hue: None,
         };
         assert_ne!(random_wallpaper(1, &ask), random_wallpaper(2, &ask));
+        let tinted = Request {
+            hue: Some(140.0),
+            ..ask
+        };
+        assert_ne!(random_wallpaper(1, &ask), random_wallpaper(1, &tinted));
+        random_wallpaper(1, &tinted).validate().unwrap();
     }
 
     #[test]

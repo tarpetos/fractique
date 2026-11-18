@@ -3,6 +3,9 @@ mod blur;
 mod export;
 mod glass;
 mod i18n;
+#[cfg(target_os = "ios")]
+mod ios;
+mod phone;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 mod update;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -312,6 +315,7 @@ struct Wall {
     material: Option<Material>,
     held: Option<(Layout, Material)>,
     dark: bool,
+    hue: Option<f64>,
 }
 
 impl Wall {
@@ -321,6 +325,7 @@ impl Wall {
             material: self.material.or(self.held.map(|held| held.1)),
             ratio: f64::from(size[1].max(1)) / f64::from(size[0].max(1)),
             dark: self.dark,
+            hue: self.hue,
         }
     }
 }
@@ -329,6 +334,7 @@ struct App {
     texts: Texts,
     base: Scene,
     wall: Wall,
+    phone: phone::Phone,
     title: String,
     is_random: bool,
     seed: u64,
@@ -513,10 +519,14 @@ impl App {
             texts,
             base: named(presets::get(&title).unwrap_or_else(|| random_scene(1)), &shown(&title)),
             wall: Wall {
-                on: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "wallpaper" || what == "layouts"),
-                live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "wallpaper" || what == "layouts"),
+                on: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall") || what == "layouts"),
+                live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall") || what == "layouts"),
                 ..Default::default()
             },
+            phone: phone::Phone::new(
+                stored("hints").and_then(|text| text.parse().ok()).unwrap_or(0),
+                stored("kept"),
+            ),
             title,
             is_random: false,
             seed: 0,
@@ -747,6 +757,7 @@ impl App {
                 "material": self.wall.material.and_then(stuff),
                 "held": self.wall.held.and_then(|(layout, material)| Some([name(layout)?, stuff(material)?])),
                 "dark": self.wall.dark,
+                "hue": self.wall.hue,
             },
         });
         session.to_string()
@@ -796,6 +807,7 @@ impl App {
             live: wall.get("live")?.as_bool()?,
             layout: word("layout").and_then(Layout::parse),
             material: word("material").and_then(Material::parse),
+            hue: wall.get("hue").and_then(serde_json::Value::as_f64),
             held: held.and_then(|held| {
                 Some((
                     Layout::parse(held.first()?.as_str()?)?,
@@ -935,17 +947,47 @@ impl App {
         }
         let stretch = (size[0] as f32 / size[1] as f32) / (screen.width() / screen.height()).max(0.001);
         let before = self.view;
+        let swiping = self.phone.on && self.wall.live;
         if picture.dragged() {
-            self.view
-                .moved(sides(picture.drag_delta() / screen.size(), size, stretch));
+            if swiping {
+                self.phone.swipe += picture.drag_delta();
+            } else {
+                self.view
+                    .moved(sides(picture.drag_delta() / screen.size(), size, stretch));
+            }
         }
-        if picture.clicked() && (self.languages_open || self.sizes_open || self.presets_open) {
+        if picture.drag_stopped() {
+            let by = std::mem::take(&mut self.phone.swipe);
+            if swiping && by.x.abs() > phone::SWIPE && by.x.abs() > by.y.abs() * 1.4 {
+                self.step_wallpaper(by.x < 0.0);
+            }
+        }
+        let held = ui.input(|input| {
+            input
+                .pointer
+                .press_start_time()
+                .is_some_and(|start| input.time - start > phone::HOLD)
+        });
+        let holding = self.phone.on && picture.is_pointer_button_down_on() && held && self.phone.swipe.length() < 12.0;
+        if holding != self.phone.preview {
+            self.phone.preview = holding;
+            self.phone.previewed |= holding;
+            ui.ctx().request_repaint();
+        }
+        if self.phone.on && picture.is_pointer_button_down_on() && !held {
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(60));
+        }
+        if picture.clicked() && std::mem::take(&mut self.phone.previewed) {
+        } else if picture.clicked() && (self.phone.sheet || self.phone.tune) {
+            self.phone.sheet = false;
+            self.phone.tune = false;
+        } else if picture.clicked() && (self.languages_open || self.sizes_open || self.presets_open) {
             self.languages_open = false;
             self.sizes_open = false;
             self.presets_open = false;
         } else if picture.double_clicked() {
             self.view = WHOLE;
-        } else if picture.clicked() && (self.bare || cfg!(any(target_os = "android", target_os = "ios"))) {
+        } else if picture.clicked() && (self.bare || self.phone.on) {
             self.bare = !self.bare;
         }
         if picture.contains_pointer() {
@@ -1618,7 +1660,13 @@ impl App {
             row(ui, 2..labels.len());
         }
 
-        match clicked {
+        if let Some(key) = clicked {
+            self.act(key);
+        }
+    }
+
+    fn act(&mut self, key: &str) {
+        match Some(key) {
             Some("randomize") if self.wall.on => {
                 self.wall.held = None;
                 self.new_wallpaper();
@@ -1778,13 +1826,26 @@ impl App {
         }
 
         ui.add_space(12.0);
-        let (cancel, save) = (self.t("cancel"), self.t("save_png"));
+        let save = self.t(if cfg!(target_os = "ios") {
+            "save_photos"
+        } else {
+            "save_png"
+        });
+        let cancel = self.t("cancel");
         let half = (ui.available_width() - 8.0) * 0.5;
         let mut clicked = (false, false);
         ui.horizontal(|ui| {
             clicked.0 = widgets::pill(ui, &cancel, false, half);
             clicked.1 = widgets::pill(ui, &save, true, half);
         });
+        self.export.share = false;
+        if cfg!(target_os = "ios") {
+            ui.add_space(8.0);
+            if widgets::pill(ui, &self.t("share"), false, ui.available_width()) {
+                self.export.share = true;
+                clicked.1 = true;
+            }
+        }
         if clicked.0 {
             self.export.open = false;
         }
@@ -1822,6 +1883,16 @@ impl App {
                     .map(|name| name.to_string_lossy().into_owned())
                     .unwrap_or_default();
                 self.export.note = format!("{}: {name}", self.t("saved"));
+                #[cfg(target_os = "ios")]
+                {
+                    tick(true);
+                    if self.export.share {
+                        ios::share(&path);
+                    } else if ios::save_to_photos(&path) {
+                        self.export.note = self.t("saved");
+                    }
+                    self.export.open = false;
+                }
             }
             export::Outcome::Cancelled => self.export.note.clear(),
             export::Outcome::Failed(error) => self.export.note = format!("{}: {error}", self.t("failed")),
@@ -1868,6 +1939,13 @@ impl App {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(callback));
         }
     }
+}
+
+fn tick(strong: bool) {
+    #[cfg(target_os = "ios")]
+    ios::tick(strong);
+    #[cfg(not(target_os = "ios"))]
+    let _ = strong;
 }
 
 fn save_png(path: &std::path::Path, rgba: &[u8], size: [usize; 2]) -> Result<(), String> {
@@ -1978,14 +2056,20 @@ impl eframe::App for App {
                 optics.tint = optics.tint.max(0.82);
                 optics.blur = 1.0;
             }
-            // The texts are white: over a light picture the glass has to be dark enough to read them.
-            if self.light > 0.3 {
+            if self.phone.clear.contains(rect) {
+                optics.tint *= 0.25;
+                optics.blur *= 0.5;
+            } else if self.light > 0.3 {
+                // The texts are white: over a light picture the glass has to be dark enough to read them.
                 optics.tint = optics.tint.max((0.3 + 0.75 * self.light).min(0.92));
             }
             glass.pane(*rect, optics);
         }
 
-        if self.bare {
+        if self.bare || self.phone.preview {
+            if self.phone.preview {
+                self.clock(&ctx, content);
+            }
             let mut panes = Vec::new();
             if self.view != WHOLE {
                 let rect = self.reset_button(&ctx, egui::pos2(content.center().x, content.bottom() - 20.0));
@@ -2023,92 +2107,99 @@ impl eframe::App for App {
             self.toolbar_size.y.max(60.0) + 12.0 + lifted
         };
         let mut panes = Vec::new();
-        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        panes.push((self.title_bar(&ctx, screen), BAR * 0.5, false));
-        if open {
-            let corner = content.min + egui::vec2(20.0, 20.0);
-            let inspector = egui::Area::new(egui::Id::unique("inspector"))
-                .fixed_pos(corner)
-                .show(&ctx, |ui| {
-                    let margin = egui::Margin {
-                        left: 22,
-                        right: 8,
-                        top: 22,
-                        bottom: 22,
-                    };
-                    egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
-                        let room = content.height() - 40.0 - 44.0 - under;
-                        let mut bar = egui::style::ScrollStyle::floating();
-                        bar.bar_width = 5.0;
-                        bar.floating_allocated_width = 0.0;
-                        ui.spacing_mut().scroll = bar;
-                        egui::ScrollArea::vertical()
-                            .max_height(room)
-                            .min_scrolled_height(room)
-                            .show(ui, |ui| {
-                                let gutter = egui::Margin {
-                                    right: 14,
-                                    ..Default::default()
-                                };
-                                egui::Frame::NONE
-                                    .inner_margin(gutter)
-                                    .show(ui, |ui| self.inspector(ui, column));
-                            });
-                    });
-                });
-            panes.push((inspector.response.rect, self.optics.radius, false));
-        }
-
-        let covered = sheet || self.languages_open;
-        if !covered {
-            let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
-                .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
-                .pivot(egui::Align2::CENTER_BOTTOM)
-                .show(&ctx, |ui| {
-                    egui::Frame::NONE.inner_margin(egui::Margin::same(9)).show(ui, |ui| {
-                        let detail = if self.rendering {
-                            self.t("rendering")
-                        } else {
-                            self.status.clone()
+        if self.phone.on {
+            let covered = sheet || self.languages_open;
+            self.phone_home(&ctx, content, size, &mut panes, covered);
+        } else {
+            #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+            panes.push((self.title_bar(&ctx, screen), BAR * 0.5, false));
+            if open {
+                let corner = content.min + egui::vec2(20.0, 20.0);
+                let inspector = egui::Area::new(egui::Id::unique("inspector"))
+                    .fixed_pos(corner)
+                    .show(&ctx, |ui| {
+                        let margin = egui::Margin {
+                            left: 22,
+                            right: 8,
+                            top: 22,
+                            bottom: 22,
                         };
-                        let name =
-                            ui.painter()
-                                .layout_no_wrap(shown(&self.title), font(13.5, MEDIUM), egui::Color32::WHITE);
-                        let detail = ui.painter().layout_no_wrap(
-                            detail,
-                            egui::FontId::proportional(13.0),
-                            egui::Color32::from_white_alpha(170),
-                        );
-                        let width = (self.toolbar_size.x - 18.0).max(name.size().x + 10.0 + detail.size().x);
-                        let (line, _) = ui.allocate_exact_size(egui::vec2(width, 24.0), egui::Sense::hover());
-                        let left = line.center().x - (name.size().x + 10.0 + detail.size().x) * 0.5;
-                        let after = left + name.size().x + 10.0;
-                        ui.painter().galley(
-                            egui::pos2(left, line.center().y - name.size().y * 0.5),
-                            name,
-                            egui::Color32::WHITE,
-                        );
-                        ui.painter().galley(
-                            egui::pos2(after, line.center().y - detail.size().y * 0.5),
-                            detail,
-                            egui::Color32::WHITE,
-                        );
-                        ui.add_space(5.0);
-                        self.toolbar(ui, wide, content.width() - 58.0);
+                        egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
+                            let room = content.height() - 40.0 - 44.0 - under;
+                            let mut bar = egui::style::ScrollStyle::floating();
+                            bar.bar_width = 5.0;
+                            bar.floating_allocated_width = 0.0;
+                            ui.spacing_mut().scroll = bar;
+                            egui::ScrollArea::vertical()
+                                .max_height(room)
+                                .min_scrolled_height(room)
+                                .show(ui, |ui| {
+                                    let gutter = egui::Margin {
+                                        right: 14,
+                                        ..Default::default()
+                                    };
+                                    egui::Frame::NONE
+                                        .inner_margin(gutter)
+                                        .show(ui, |ui| self.inspector(ui, column));
+                                });
+                        });
                     });
-                });
-            self.toolbar_size = toolbar.response.rect.size();
-            panes.push((
-                toolbar.response.rect,
-                (toolbar.response.rect.height() * 0.5).min(28.0),
-                false,
-            ));
-        }
+                panes.push((inspector.response.rect, self.optics.radius, false));
+            }
 
-        if self.view != WHOLE && !covered {
-            let above = content.bottom() - 20.0 - self.toolbar_size.y - 10.0;
-            let rect = self.reset_button(&ctx, egui::pos2(content.center().x, above));
-            panes.push((rect, rect.height() * 0.5, false));
+            let covered = sheet || self.languages_open;
+            if !covered {
+                let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
+                    .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
+                    .pivot(egui::Align2::CENTER_BOTTOM)
+                    .show(&ctx, |ui| {
+                        egui::Frame::NONE.inner_margin(egui::Margin::same(9)).show(ui, |ui| {
+                            let detail = if self.rendering {
+                                self.t("rendering")
+                            } else {
+                                self.status.clone()
+                            };
+                            let name = ui.painter().layout_no_wrap(
+                                shown(&self.title),
+                                font(13.5, MEDIUM),
+                                egui::Color32::WHITE,
+                            );
+                            let detail = ui.painter().layout_no_wrap(
+                                detail,
+                                egui::FontId::proportional(13.0),
+                                egui::Color32::from_white_alpha(170),
+                            );
+                            let width = (self.toolbar_size.x - 18.0).max(name.size().x + 10.0 + detail.size().x);
+                            let (line, _) = ui.allocate_exact_size(egui::vec2(width, 24.0), egui::Sense::hover());
+                            let left = line.center().x - (name.size().x + 10.0 + detail.size().x) * 0.5;
+                            let after = left + name.size().x + 10.0;
+                            ui.painter().galley(
+                                egui::pos2(left, line.center().y - name.size().y * 0.5),
+                                name,
+                                egui::Color32::WHITE,
+                            );
+                            ui.painter().galley(
+                                egui::pos2(after, line.center().y - detail.size().y * 0.5),
+                                detail,
+                                egui::Color32::WHITE,
+                            );
+                            ui.add_space(5.0);
+                            self.toolbar(ui, wide, content.width() - 58.0);
+                        });
+                    });
+                self.toolbar_size = toolbar.response.rect.size();
+                panes.push((
+                    toolbar.response.rect,
+                    (toolbar.response.rect.height() * 0.5).min(28.0),
+                    false,
+                ));
+            }
+
+            if self.view != WHOLE && !covered {
+                let above = content.bottom() - 20.0 - self.toolbar_size.y - 10.0;
+                let rect = self.reset_button(&ctx, egui::pos2(content.center().x, above));
+                panes.push((rect, rect.height() * 0.5, false));
+            }
         }
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -2230,7 +2321,9 @@ impl eframe::App for App {
             && let Some(storage) = frame.storage_mut()
         {
             let settings = format!(
-                "{} {} {} {:?} {}",
+                "{} {} {} {} {} {:?} {}",
+                self.phone.hints,
+                self.phone.kept.len(),
                 self.texts.lang.code(),
                 self.optics.tint,
                 self.optics.blur,
@@ -2255,6 +2348,8 @@ impl eframe::App for App {
             .map_or("auto".to_owned(), |[width, height]| format!("{width}x{height}"));
         storage.set_string("picture", picture);
         storage.set_string("session", self.session());
+        storage.set_string("hints", self.phone.hints.to_string());
+        storage.set_string("kept", self.phone.kept_text());
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]

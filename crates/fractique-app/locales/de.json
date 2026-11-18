@@ -94,5 +94,13 @@
   "m_glass": "Glas",
   "m_glow": "Leuchten",
   "m_steel": "Stahl",
-  "m_carbon": "Carbon"
+  "m_carbon": "Carbon",
+  "similar": "Ähnlich",
+  "style": "Stil",
+  "fine_tune": "Feinabstimmung",
+  "keep": "Behalten",
+  "collection": "SAMMLUNG",
+  "save_photos": "In Fotos sichern",
+  "share": "Teilen",
+  "color": "FARBE"
 }

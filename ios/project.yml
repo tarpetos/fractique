@@ -28,6 +28,7 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: Fractique
+        NSPhotoLibraryAddUsageDescription: Fractique saves the pictures you export to your photo library.
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSRequiresIPhoneOS: true

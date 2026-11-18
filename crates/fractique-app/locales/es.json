@@ -94,5 +94,13 @@
   "m_glass": "Vidrio",
   "m_glow": "Brillo",
   "m_steel": "Acero",
-  "m_carbon": "Carbono"
+  "m_carbon": "Carbono",
+  "similar": "Similar",
+  "style": "Estilo",
+  "fine_tune": "Ajuste fino",
+  "keep": "Conservar",
+  "collection": "COLECCIÓN",
+  "save_photos": "Guardar en Fotos",
+  "share": "Compartir",
+  "color": "COLOR"
 }
