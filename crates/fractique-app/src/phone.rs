@@ -219,9 +219,11 @@ fn icon(painter: &egui::Painter, at: Pos2, which: Icon, ink: Color32) {
 
 type Panes = Vec<(Rect, f32, bool)>;
 
+pub(crate) const LIGHT: f32 = 0.55;
+
 impl App {
     fn ink(&self) -> Color32 {
-        if self.light > 0.55 {
+        if self.light > LIGHT {
             Color32::from_rgb(16, 16, 22)
         } else {
             Color32::WHITE
@@ -324,11 +326,8 @@ impl App {
         let ink = self.ink();
 
         self.phone.clear.clear();
-        let reverse = if ink == Color32::WHITE {
-            Color32::from_rgb(14, 18, 34)
-        } else {
-            Color32::WHITE
-        };
+        let (on_picture, ink) = (ink, Color32::WHITE);
+        let reverse = Color32::from_rgb(14, 18, 34);
         let labels = [self.t("flames"), self.t("wallpapers")];
         let walls = self.wall.on;
         let mut mode = None;
@@ -398,7 +397,7 @@ impl App {
                         Align2::RIGHT_CENTER,
                         self.t(key),
                         font(13.0, MEDIUM),
-                        ink,
+                        on_picture,
                     );
             }
         }
@@ -460,11 +459,11 @@ impl App {
                     Align2::LEFT_TOP,
                     format!("{}×", self.view.label()),
                     font(30.0, SEMIBOLD),
-                    ink,
+                    on_picture,
                 );
         }
 
-        self.placard(ctx, content, size, ink);
+        self.placard(ctx, content, size, on_picture);
 
         if self.view != WHOLE {
             let rect = self.reset_button(ctx, egui::pos2(content.center().x, content.top() + 112.0));
