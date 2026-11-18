@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "name": "icon-flame",
+  "seed": 22,
+  "background": [
+    0.045,
+    0.035,
+    0.11
+  ],
+  "layers": [
+    {
+      "name": "spiral",
+      "blend": "add",
+      "flame": {
+        "camera": {
+          "center": [
+            -0.2,
+            -0.75
+          ],
+          "zoom": 0.62
+        },
+        "tone": {
+          "brightness": 2.2,
+          "gamma": 2.2,
+          "vibrancy": 1,
+          "highlight": 0.3,
+          "glow_radius": 0.012,
+          "glow_strength": 1
+        },
+        "palette": {
+          "stops": [
+            {
+              "pos": 0,
+              "color": [
+                0.3569,
+                0.4235,
+                1
+              ]
+            },
+            {
+              "pos": 0.2,
+              "color": [
+                0.6588,
+                0.3333,
+                0.9686
+              ]
+            },
+            {
+              "pos": 0.4,
+              "color": [
+                0.9412,
+                0.3059,
+                0.549
+              ]
+            },
+            {
+              "pos": 0.6,
+              "color": [
+                1,
+                0.5412,
+                0.3137
+              ]
+            },
+            {
+              "pos": 0.8,
+              "color": [
+                1,
+                0.8,
+                0.3333
+              ]
+            },
+            {
+              "pos": 1,
+              "color": [
+                0.9412,
+                0.3059,
+                0.549
+              ]
+            }
+          ]
+        },
+        "transforms": [
+          {
+            "weight": 0.41584,
+            "color": 0,
+            "color_speed": 0.594048,
+            "affine": [
+              0.270637,
+              -0.362035,
+              0.413326,
+              0.366619,
+              0.308769,
+              0.750186
+            ],
+            "variations": [
+              {
+                "type": "swirl",
+                "weight": 0.937247
+              }
+            ]
+          },
+          {
+            "weight": 0.971756,
+            "color": 0.560451,
+            "color_speed": 0.611555,
+            "affine": [
+              0.192166,
+              -0.3657,
+              -0.593224,
+              0.315729,
+              0.05483,
+              0.317391
+            ],
+            "variations": [
+              {
+                "type": "linear",
+                "weight": 0.60783
+              },
+              {
+                "type": "spherical",
+                "weight": 0.488221
+              }
+            ]
+          },
+          {
+            "weight": 0.689413,
+            "color": 0.948481,
+            "color_speed": 0.660933,
+            "affine": [
+              0.095722,
+              -0.774776,
+              0.688673,
+              0.671933,
+              0.087378,
+              -0.481682
+            ],
+            "variations": [
+              {
+                "type": "curl",
+                "weight": 0.948709,
+                "params": [
+                  -0.347817,
+                  0.373239
+                ]
+              },
+              {
+                "type": "linear",
+                "weight": 0.345983
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
