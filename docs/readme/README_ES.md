@@ -19,11 +19,11 @@ Fractique crea dos tipos de imágenes. Llamas fractales: esos fractales luminoso
 - **Llamas:** 49 variaciones, capas con modos de fusión, simetría rotacional y de espejo, estimación de densidad, resplandor y 29 preajustes integrados.
 - **Fondos de pantalla:** uno para cada semilla, a partir de 14 diseños y 6 materiales, cada uno en versión clara y oscura, dispuesto para el tamaño de la pantalla.
 - **La aplicación:** una sola base de código para Windows, macOS, Linux, Android, iOS y la web. La imagen llena la ventana y sobre ella flotan paneles de vidrio; en el escritorio la aplicación tiene su propia barra de título de vidrio. En 15 idiomas.
-- **Randomize y Mutate:** cada semilla es una imagen; las llamas que serían un punto o un cuadrado relleno se descartan. Mutate crea una variante de la que te gusta.
-- **Capas:** añade una llama de los preajustes o una aleatoria, quítala, cambia el orden y ajusta la fusión (add, screen, over) y la opacidad de cada una. Hasta 16 capas.
+- **«Aleatorio» y «Mutar»:** cada semilla es una imagen; las llamas que serían un punto o un cuadrado relleno se descartan. «Mutar» crea una variante de la que te gusta.
+- **Capas:** añade una llama de los preajustes o una aleatoria, quítala, cambia el orden y ajusta la fusión («Suma», «Trama», «Encima») y la opacidad de cada una. Hasta 16 capas.
 - **Tamaño de la imagen:** el de la ventana, una de 21 pantallas (ordenadores hasta 4K, teléfonos y tabletas Android, iPhone y iPad) o cualquier ancho y alto de 16 a 16384 píxeles.
 - **Zoom profundo:** arrastrar, la rueda y el pellizco mueven la vista y la amplían hasta diez mil millones de veces. La imagen sigue al instante y se vuelve a dibujar nítida cuando la vista se detiene.
-- **Teléfonos:** una pantalla propia. Un botón redondo crea una imagen nueva, un deslizamiento pasa al siguiente fondo de pantalla, una hoja de pequeñas imágenes vivas elige el estilo y las imágenes que guardas forman una colección.
+- **Teléfonos:** una pantalla propia. Un botón redondo crea una imagen nueva, un deslizamiento pasa al siguiente fondo de pantalla, una hoja de pequeñas imágenes vivas elige el estilo y las imágenes que conservas forman una colección.
 - **Exportación:** un PNG de cualquier tamaño, en tres niveles de calidad, renderizado en segundo plano. En un teléfono se guarda en Fotos o en la galería, o se comparte.
 - **Archivos de proyecto:** un archivo `.frcq` guarda la escena con su vista, tono y tamaño, así que se abre tal como se guardó ([docs/scene-format.md](../scene-format.md)). También se abren escenas `.json` sencillas y archivos `.flame` de flam3 y Apophysis. Entre un inicio y otro, la aplicación vuelve a la sesión en la que se dejó.
 - **Actualizaciones:** una ventana muestra cada versión publicada con sus notas e instala cualquiera de ellas. En Windows la aplicación es un único `.exe` portátil que se reemplaza a sí mismo.
