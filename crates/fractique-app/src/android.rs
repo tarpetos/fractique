@@ -1,0 +1,193 @@
+use std::path::Path;
+
+use jni::objects::{JObject, JValue};
+use jni::{Env, JavaVM, jni_sig, jni_str};
+use winit::platform::android::activity::AndroidApp;
+
+pub enum Kept {
+    Done,
+    Asked,
+    Failed,
+}
+
+type Call<T> = jni::errors::Result<T>;
+
+fn text<'local>(env: &mut Env<'local>, value: &str) -> Call<JObject<'local>> {
+    Ok(env.new_string(value)?.into())
+}
+
+// Before Android 10 a picture goes into the gallery only with this permission, which the owner grants in a
+// dialog; from Android 10 on an app may add its own pictures without asking.
+fn allowed(env: &mut Env<'_>, activity: &JObject<'_>) -> Call<bool> {
+    if AndroidApp::sdk_version() >= 29 {
+        return Ok(true);
+    }
+    let permission = text(env, "android.permission.WRITE_EXTERNAL_STORAGE")?;
+    let state = env
+        .call_method(
+            activity,
+            jni_str!("checkSelfPermission"),
+            jni_sig!("(Ljava/lang/String;)I"),
+            &[JValue::Object(&permission)],
+        )?
+        .i()?;
+    if state == 0 {
+        return Ok(true);
+    }
+    let wanted = env.new_object_array(1, jni_str!("java/lang/String"), &permission)?;
+    env.call_method(
+        activity,
+        jni_str!("requestPermissions"),
+        jni_sig!("([Ljava/lang/String;I)V"),
+        &[JValue::Object(wanted.as_ref()), JValue::Int(1)],
+    )?;
+    Ok(false)
+}
+
+fn into_gallery<'local>(
+    env: &mut Env<'local>,
+    activity: &JObject<'_>,
+    name: &str,
+    png: &[u8],
+) -> Call<JObject<'local>> {
+    let values = env.new_object(jni_str!("android/content/ContentValues"), jni_sig!("()V"), &[])?;
+    let mut fields = vec![("_display_name", name), ("mime_type", "image/png")];
+    if AndroidApp::sdk_version() >= 29 {
+        fields.push(("relative_path", "Pictures/Fractique"));
+    }
+    for (key, value) in fields {
+        let (key, value) = (text(env, key)?, text(env, value)?);
+        env.call_method(
+            &values,
+            jni_str!("put"),
+            jni_sig!("(Ljava/lang/String;Ljava/lang/String;)V"),
+            &[JValue::Object(&key), JValue::Object(&value)],
+        )?;
+    }
+    let resolver = env
+        .call_method(
+            activity,
+            jni_str!("getContentResolver"),
+            jni_sig!("()Landroid/content/ContentResolver;"),
+            &[],
+        )?
+        .l()?;
+    let pictures = env
+        .get_static_field(
+            jni_str!("android/provider/MediaStore$Images$Media"),
+            jni_str!("EXTERNAL_CONTENT_URI"),
+            jni_sig!("Landroid/net/Uri;"),
+        )?
+        .l()?;
+    let place = env
+        .call_method(
+            &resolver,
+            jni_str!("insert"),
+            jni_sig!("(Landroid/net/Uri;Landroid/content/ContentValues;)Landroid/net/Uri;"),
+            &[JValue::Object(&pictures), JValue::Object(&values)],
+        )?
+        .l()?;
+    if place.is_null() {
+        return Err(jni::errors::Error::NullPtr("the gallery gave no place for the picture"));
+    }
+    let out = env
+        .call_method(
+            &resolver,
+            jni_str!("openOutputStream"),
+            jni_sig!("(Landroid/net/Uri;)Ljava/io/OutputStream;"),
+            &[JValue::Object(&place)],
+        )?
+        .l()?;
+    let bytes = env.byte_array_from_slice(png)?;
+    env.call_method(
+        &out,
+        jni_str!("write"),
+        jni_sig!("([B)V"),
+        &[JValue::Object(bytes.as_ref())],
+    )?;
+    env.call_method(&out, jni_str!("close"), jni_sig!("()V"), &[])?;
+    Ok(place)
+}
+
+fn offer(env: &mut Env<'_>, activity: &JObject<'_>, picture: &JObject<'_>) -> Call<()> {
+    let send = text(env, "android.intent.action.SEND")?;
+    let intent = env.new_object(
+        jni_str!("android/content/Intent"),
+        jni_sig!("(Ljava/lang/String;)V"),
+        &[JValue::Object(&send)],
+    )?;
+    let kind = text(env, "image/png")?;
+    env.call_method(
+        &intent,
+        jni_str!("setType"),
+        jni_sig!("(Ljava/lang/String;)Landroid/content/Intent;"),
+        &[JValue::Object(&kind)],
+    )?;
+    let stream = text(env, "android.intent.extra.STREAM")?;
+    env.call_method(
+        &intent,
+        jni_str!("putExtra"),
+        jni_sig!("(Ljava/lang/String;Landroid/os/Parcelable;)Landroid/content/Intent;"),
+        &[JValue::Object(&stream), JValue::Object(picture)],
+    )?;
+    // FLAG_GRANT_READ_URI_PERMISSION: the app that receives the picture may read it.
+    env.call_method(
+        &intent,
+        jni_str!("addFlags"),
+        jni_sig!("(I)Landroid/content/Intent;"),
+        &[JValue::Int(1)],
+    )?;
+    let chooser = env
+        .call_static_method(
+            jni_str!("android/content/Intent"),
+            jni_str!("createChooser"),
+            jni_sig!("(Landroid/content/Intent;Ljava/lang/CharSequence;)Landroid/content/Intent;"),
+            &[JValue::Object(&intent), JValue::Object(&JObject::null())],
+        )?
+        .l()?;
+    env.call_method(
+        activity,
+        jni_str!("startActivity"),
+        jni_sig!("(Landroid/content/Intent;)V"),
+        &[JValue::Object(&chooser)],
+    )?;
+    Ok(())
+}
+
+pub fn keep(path: &Path, share: bool) -> Kept {
+    let (Some(app), Ok(png)) = (crate::ANDROID.get(), std::fs::read(path)) else {
+        return Kept::Failed;
+    };
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    // SAFETY: the activity gives the pointer of the Java machine it runs in, which lives as long as the app.
+    let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) };
+    let done: Call<Kept> = vm.attach_current_thread(|env| {
+        // SAFETY: the pointer is the activity's own object, which outlives this call.
+        let activity = unsafe { JObject::from_raw(env, app.activity_as_ptr().cast()) };
+        let run = |env: &mut Env<'_>| -> Call<Kept> {
+            if !allowed(env, &activity)? {
+                return Ok(Kept::Asked);
+            }
+            let picture = into_gallery(env, &activity, &name, &png)?;
+            if share {
+                offer(env, &activity, &picture)?;
+            }
+            Ok(Kept::Done)
+        };
+        let done = run(env);
+        if done.is_err() {
+            env.exception_clear();
+        }
+        done
+    });
+    match done {
+        Ok(kept) => kept,
+        Err(error) => {
+            crate::note(&format!("gallery: {error}"));
+            Kept::Failed
+        }
+    }
+}

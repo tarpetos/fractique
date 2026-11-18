@@ -1024,6 +1024,7 @@ dependencies = [
  "cargo-packager-updater",
  "eframe",
  "fractique-core",
+ "jni",
  "log",
  "objc2 0.6.5",
  "png",

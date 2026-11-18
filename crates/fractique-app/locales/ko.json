@@ -102,5 +102,6 @@
   "collection": "컬렉션",
   "save_photos": "사진에 저장",
   "share": "공유",
+  "allow_storage": "저장소 접근을 허용한 뒤 다시 저장하세요.",
   "color": "색상"
 }

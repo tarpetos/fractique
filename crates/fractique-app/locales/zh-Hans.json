@@ -102,5 +102,6 @@
   "collection": "收藏夹",
   "save_photos": "存储到照片",
   "share": "分享",
+  "allow_storage": "请允许访问存储，然后再次保存。",
   "color": "颜色"
 }
