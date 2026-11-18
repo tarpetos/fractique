@@ -149,7 +149,7 @@ view: lower `camera.zoom` then.
 | **Export** | A PNG at the picture's size, or at another size chosen in the same list there, and at the quality you choose; rendered in the background with a progress bar |
 | **Scene: Open, Save** | Scenes as `.json`; **Open** also reads `.flame` files |
 | Drag, wheel or pinch on the picture | Moves and magnifies the picture as it is, up to 12 times, without a new render; a double click shows all of it again |
-| **Redraw here** (appears once the picture is moved or magnified) | Renders that view anew, sharp, and makes it the scene's camera: export and **Save** then give this view |
+| **Redraw here** (appears once the picture is moved or magnified) | Renders that view anew, sharp, and makes it the scene's camera: export and **Save** then give this view. It goes up to 8 times deeper than the scene's own view and spends up to 8 times the samples there; deeper, a flame breaks up into dots |
 | **Layers** (inspector) | The scene's flames, one over another: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity |
 | **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back. On a phone a tap hides and shows them |
 | **F11** | Full screen; **Esc** leaves it |

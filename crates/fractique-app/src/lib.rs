@@ -210,6 +210,10 @@ fn parsed_size(text: &str) -> Option<[u32; 2]> {
 }
 
 const MAX_MAGNIFICATION: f32 = 12.0;
+// Zoomed in, most of a flame's points fall outside the frame: past this depth no affordable number of samples
+// keeps the picture from breaking up into dots.
+const MAX_DEPTH: f32 = 8.0;
+const MAX_BOOST: f32 = 8.0;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 const BAR: f32 = 44.0;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -263,6 +267,7 @@ struct App {
     seed: u64,
     adjust: Adjust,
     view: View,
+    depth: f32,
     bare: bool,
     optics: Optics,
     tuning: bool,
@@ -412,6 +417,7 @@ impl App {
             } else {
                 WHOLE
             },
+            depth: 1.0,
             bare: false,
             optics: Optics {
                 refraction: 38.0,
@@ -482,7 +488,7 @@ impl App {
         self.requested = Some(size);
         self.rendering = true;
 
-        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let full = fitted(size, FULL_SIDE, (FULL_SAMPLES as f32 * self.boost()) as u32);
         let mut passes = vec![(true, fitted(size, DRAFT_SIDE, DRAFT_SAMPLES)), (false, full)];
         // A browser page has one thread: a draft first would only make it wait twice.
         if passes[0].1.width == full.width || cfg!(target_arch = "wasm32") {
@@ -665,10 +671,15 @@ impl App {
         area.response.rect
     }
 
+    fn boost(&self) -> f32 {
+        (self.depth * self.depth).clamp(1.0, MAX_BOOST)
+    }
+
     fn redraw_here(&mut self, size: [u32; 2]) {
         let (wide, high) = (f64::from(size[0]), f64::from(size[1]));
         let across = (f64::from(self.view.center.x) - 0.5) * wide;
         let down = (f64::from(self.view.center.y) - 0.5) * high;
+        let deeper = self.view.zoom.min(MAX_DEPTH / self.depth).max(1.0);
         for layer in &mut self.base.layers {
             let camera = &mut layer.flame.camera;
             let per_unit = camera.zoom * self.adjust.zoom * wide.min(high) / 4.0;
@@ -678,8 +689,9 @@ impl App {
             let (cos, sin) = (fractique_core::math::cos(angle), fractique_core::math::sin(angle));
             camera.center[0] += along * cos - raised * sin;
             camera.center[1] += along * sin + raised * cos;
-            camera.zoom *= f64::from(self.view.zoom);
+            camera.zoom *= f64::from(deeper);
         }
+        self.depth *= deeper;
         self.view = WHOLE;
         self.requested = None;
     }
@@ -1014,6 +1026,7 @@ impl App {
         self.is_random = is_random;
         self.requested = None;
         self.view = WHOLE;
+        self.depth = 1.0;
         self.layer = 0;
     }
 
@@ -1251,6 +1264,7 @@ impl App {
                 if self.base.layers.len() == 1 {
                     self.title = title;
                     self.is_random = true;
+                    self.depth = 1.0;
                 }
                 self.view = WHOLE;
                 self.requested = None;
@@ -1396,6 +1410,7 @@ impl App {
         }
         if clicked.1 {
             let (_, samples_per_pixel, supersample) = export::QUALITIES[self.export.quality];
+            let samples_per_pixel = (samples_per_pixel as f32 * self.boost()) as u32;
             let options = RenderOptions {
                 width,
                 height,
