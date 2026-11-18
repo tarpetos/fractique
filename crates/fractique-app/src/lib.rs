@@ -404,6 +404,12 @@ struct App {
     screenshot_done: Arc<AtomicBool>,
     saved: String,
     light: f32,
+    #[cfg(target_os = "android")]
+    keeping: Option<(PathBuf, bool, u8)>,
+    #[cfg(target_os = "android")]
+    waiting: Option<(PathBuf, bool)>,
+    #[cfg(target_os = "android")]
+    focused: bool,
     last_frame: Instant,
     #[cfg(not(target_arch = "wasm32"))]
     export: export::Sheet,
@@ -607,6 +613,12 @@ impl App {
             screenshot_done: Arc::new(AtomicBool::new(false)),
             saved: String::new(),
             light: 0.0,
+            #[cfg(target_os = "android")]
+            keeping: None,
+            #[cfg(target_os = "android")]
+            waiting: None,
+            #[cfg(target_os = "android")]
+            focused: true,
             last_frame: Instant::now(),
             #[cfg(not(target_arch = "wasm32"))]
             export: export::Sheet {
@@ -2025,6 +2037,40 @@ impl App {
         clicked
     }
 
+    #[cfg(target_os = "android")]
+    fn keep_on_android(&mut self, ctx: &egui::Context) {
+        // The permission dialog takes the screen; the app has it back once the owner has answered.
+        let focused = ctx.input(|input| input.focused);
+        if focused
+            && !self.focused
+            && let Some((path, share)) = self.waiting.take()
+            && android::granted()
+        {
+            self.export.open = false;
+            self.keeping = Some((path, share, 3));
+        }
+        self.focused = focused;
+
+        let Some((path, share, frames)) = self.keeping.take() else {
+            return;
+        };
+        // The share menu covers the app and stops its frames: the sheet must be gone from the screen first.
+        if frames > 0 {
+            self.keeping = Some((path, share, frames - 1));
+            ctx.request_repaint();
+            return;
+        }
+        match android::keep(&path, share) {
+            android::Kept::Done => self.export.note = self.t("saved"),
+            android::Kept::Asked => {
+                self.waiting = Some((path, share));
+                self.export.note = self.t("allow_storage");
+                self.export.open = true;
+            }
+            android::Kept::Failed => {}
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     fn finish_export(&mut self) {
         let Some(outcome) = self.export.job.as_ref().and_then(export::Job::finished) else {
@@ -2049,13 +2095,9 @@ impl App {
                     self.export.open = false;
                 }
                 #[cfg(target_os = "android")]
-                match android::keep(&path, self.export.share) {
-                    android::Kept::Done => {
-                        self.export.note = self.t("saved");
-                        self.export.open = false;
-                    }
-                    android::Kept::Asked => self.export.note = self.t("allow_storage"),
-                    android::Kept::Failed => {}
+                {
+                    self.export.open = false;
+                    self.keeping = Some((path, self.export.share, 3));
                 }
             }
             export::Outcome::Cancelled => self.export.note.clear(),
@@ -2138,6 +2180,8 @@ impl eframe::App for App {
         self.receive(frame);
         #[cfg(not(target_arch = "wasm32"))]
         self.finish_export();
+        #[cfg(target_os = "android")]
+        self.keep_on_android(&ctx);
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         self.updates.settle(&ctx);
         if ctx.input(|input| input.key_pressed(egui::Key::F2)) {
