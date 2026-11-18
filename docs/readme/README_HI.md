@@ -30,7 +30,7 @@ Fractique दो तरह की तस्वीरें बनाता ह�
 - **सटीक दोहराव:** एक ही सीन हर मशीन पर वही पिक्सेल देता है; Linux, Windows और macOS पर टेस्ट इसकी जाँच करते हैं ([docs/determinism.md](../determinism.md))।
 - **कमांड लाइन टूल** (`fractique`): लपटों और वॉलपेपर को PNG में रेंडर करता है, यादृच्छिक सीन और रूपांतर बनाता है, `.flame` फ़ाइलें कन्वर्ट करता है।
 - **MCP सर्वर** (`fractique mcp`): एक AI एजेंट सीन बनाता, बदलता और रेंडर करता है ([docs/mcp.md](../mcp.md))।
-- **HTTP सर्वर** (`fractique-server`): रेंडर कतार और सीमाओं वाला HTTP API, वेब ऐप भी परोसता है, Docker इमेज के रूप में उपलब्ध ([docs/server.md](../server.md))।
+- **HTTP सर्वर** (`fractique-server`): रेंडर कतार और सीमाओं वाला HTTP API, `/mcp` पर AI एजेंटों के लिए MCP, वेब ऐप भी परोसता है, Docker इमेज के रूप में उपलब्ध ([docs/server.md](../server.md))।
 
 | | |
 | --- | --- |

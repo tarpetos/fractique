@@ -16,6 +16,7 @@ built on it.
 | 9 | **Installers and updates:** one program file for Windows, an AppImage, a `.deb`, a macOS app and an Android APK built by the release workflow; the updates window ([releasing.md](releasing.md)) | Built; no version has been released |
 | 10 | **iOS distribution:** runs in the Simulator and on an iPhone from a Mac, uploads to TestFlight ([ios.md](ios.md)); the App Store | In progress |
 | 11 | **Server:** HTTP API with a job queue and limits, the web UI (the app compiled to WebAssembly) served beside it, Docker image ([server.md](server.md)) | Done |
+| 12 | **MCP over HTTP:** the tools of the MCP server at `/mcp` of the HTTP server (Streamable HTTP), from one implementation, under the limits and the queue of the server and without access to its disk ([mcp.md](mcp.md#over-http)) | Done |
 
 ## App, next
 
@@ -28,7 +29,6 @@ What the app does not do yet:
 
 ## Renderer, next
 
-- MCP over HTTP with the server.
 - The randomizer does not use the 21 variations added after the first version (`waves` to `twintrian`): a new
   entry in its list would change the scene of every seed. They need a second randomizer beside the first.
 - More presets, and named palettes in scene files.

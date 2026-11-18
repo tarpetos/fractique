@@ -3,7 +3,7 @@
 Fractique is three programs over one renderer: the app, `fractique-gui`, the command line tool, `fractique`, and
 the HTTP server, `fractique-server`. This guide covers the first two, with examples. For the fields of a scene
 file see [scene-format.md](scene-format.md); for render times see [performance.md](performance.md); for the HTTP
-server see [server.md](server.md).
+server see [server.md](server.md); for AI agents, over stdio or HTTP, see [mcp.md](mcp.md).
 
 ## Contents
 
