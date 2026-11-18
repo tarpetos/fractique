@@ -90,6 +90,37 @@ fractique render scene.json -o mine.png
 A random scene of a seed may change between versions of Fractique when the randomizer improves. A saved scene file
 does not.
 
+
+## Wallpapers
+
+A wallpaper is a scene made of flat sheets with lit edges and soft shadows instead of a flame. Every number is one:
+
+```sh
+fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png
+fractique render --wallpaper 7 --dark --size 1290x2796 -o wallpaper-dark.png
+```
+
+The seed picks the layout, the material, the colors and the light. `--dark` gives the dark version of the same
+shapes. To hold one of the choices and let the seed vary the rest:
+
+```sh
+fractique render --wallpaper 7 --layout waves --material glass --size 1290x2796 -o waves.png
+```
+
+| | Names |
+| --- | --- |
+| `--layout` | Round: `bands`, `discs`, `waves`, `ribbons`, `burst`, `arcs`, `tiles`, `bars`, `fan`. Straight: `slats`, `planes`, `steps`, `frames`, `lines` |
+| `--material` | `relief` (one color, bright edges), `paper` (a color ramp, deep shadows), `glass` (translucent sheets that mix where they overlap), `glow` (dim sheets, wide bright edges), `steel` (graphite, navy, forest, oxblood or bronze, thin sharp edges), `carbon` (near black or near white with one accent color) |
+
+The shapes are laid out for the size given, so render at the size of the screen the wallpaper is for. To keep one
+as a scene file, and change it by hand:
+
+```sh
+fractique wallpaper 7 --layout waves --size 1290x2796 -o wallpaper.json
+```
+
+The quality and the samples change nothing here: sheets are drawn exactly.
+
 ## 5. Edit a scene
 
 A scene is a JSON file ([scene-format.md](scene-format.md)). Start from a preset or a random scene:

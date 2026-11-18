@@ -22,6 +22,7 @@ use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
 use fractique_core::random::{mutate, random_scene};
 use fractique_core::scene::{Blend, MAX_LAYERS};
+use fractique_core::wallpaper::{Layout, Material, Request, chosen as wallpaper_choice, random_wallpaper};
 use fractique_core::{Control, Developed, Image, RenderError, RenderOptions, Scene, compose, presets, render_layer};
 
 use glass::{Gfx, Optics};
@@ -296,9 +297,31 @@ const NEUTRAL: Adjust = Adjust {
     zoom: 1.0,
 };
 
+#[derive(Default)]
+struct Wall {
+    on: bool,
+    live: bool,
+    layout: Option<Layout>,
+    material: Option<Material>,
+    held: Option<(Layout, Material)>,
+    dark: bool,
+}
+
+impl Wall {
+    fn request(&self, size: [u32; 2]) -> Request {
+        Request {
+            layout: self.layout.or(self.held.map(|held| held.0)),
+            material: self.material.or(self.held.map(|held| held.1)),
+            ratio: f64::from(size[1].max(1)) / f64::from(size[0].max(1)),
+            dark: self.dark,
+        }
+    }
+}
+
 struct App {
     texts: Texts,
     base: Scene,
+    wall: Wall,
     title: String,
     is_random: bool,
     seed: u64,
@@ -444,6 +467,11 @@ impl App {
         Self {
             texts,
             base: named(presets::get(&title).unwrap_or_else(|| random_scene(1)), &shown(&title)),
+            wall: Wall {
+                on: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "wallpaper"),
+                live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "wallpaper"),
+                ..Default::default()
+            },
             title,
             is_random: false,
             seed: 0,
@@ -519,6 +547,23 @@ impl App {
         scene
     }
 
+    fn scene_at(&self, size: [u32; 2]) -> Scene {
+        if self.wall.live {
+            random_wallpaper(self.seed, &self.wall.request(size))
+        } else {
+            self.scene()
+        }
+    }
+
+    fn new_wallpaper(&mut self) {
+        self.seed += 1;
+        self.title = format!("{} {}", self.t("wallpaper"), self.seed);
+        self.is_random = true;
+        self.wall.live = true;
+        self.requested = None;
+        self.view = WHOLE;
+    }
+
     fn start_render(&mut self, ctx: &egui::Context, size: [u32; 2]) {
         self.cancel.store(true, Ordering::Relaxed);
         self.cancel = Arc::new(AtomicBool::new(false));
@@ -538,7 +583,7 @@ impl App {
         if passes[0].1.width == full.width || cfg!(target_arch = "wasm32") {
             passes.remove(0);
         }
-        let (scene, cancel, generation) = (self.scene(), self.cancel.clone(), self.generation);
+        let (scene, cancel, generation) = (self.scene_at(size), self.cancel.clone(), self.generation);
         let view = self.view;
         let (sender, ctx, kept) = (self.results.0.clone(), ctx.clone(), self.kept.clone());
         let work = move || {
@@ -1060,6 +1105,7 @@ impl App {
         self.base = scene;
         self.title = title;
         self.is_random = is_random;
+        self.wall.live = false;
         self.requested = None;
         self.view = WHOLE;
         self.layer = 0;
@@ -1093,9 +1139,42 @@ impl App {
             }
         }
 
-        widgets::section(ui, &self.t("presets"));
-        if widgets::dropdown(ui, &shown(&self.title)) {
-            self.open_sheet(Sheet::Presets);
+        ui.add_space(12.0);
+        let (flames, wallpapers) = (self.t("flames"), self.t("wallpapers"));
+        let half = (ui.available_width() - 8.0) * 0.5;
+        let mut mode = None;
+        ui.horizontal(|ui| {
+            if widgets::pill(ui, &flames, !self.wall.on, half) {
+                mode = Some(false);
+            }
+            if widgets::pill(ui, &wallpapers, self.wall.on, half) {
+                mode = Some(true);
+            }
+        });
+        match mode {
+            Some(true) if !self.wall.on => {
+                self.wall.on = true;
+                self.new_wallpaper();
+            }
+            Some(false) if self.wall.on => {
+                self.wall.on = false;
+                if self.wall.live {
+                    let name = "aurora-spiral";
+                    if let Some(scene) = presets::get(name) {
+                        self.pick(named(scene, &shown(name)), name.to_owned(), false);
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        if self.wall.on {
+            self.wallpaper_controls(ui);
+        } else {
+            widgets::section(ui, &self.t("presets"));
+            if widgets::dropdown(ui, &shown(&self.title)) {
+                self.open_sheet(Sheet::Presets);
+            }
         }
 
         widgets::section(ui, &self.t("size"));
@@ -1107,19 +1186,24 @@ impl App {
             self.open_sheet(Sheet::Sizes);
         }
 
-        self.layers(ui);
+        let flames = !self.wall.live && !self.base.layers.is_empty();
+        if flames {
+            self.layers(ui);
+        }
 
-        widgets::section(ui, &self.t("tone"));
         let before = self.adjust;
-        widgets::slider(ui, &self.t("brightness"), &mut self.adjust.brightness, (0.3, 2.5), true);
-        widgets::slider(ui, &self.t("gamma"), &mut self.adjust.gamma, (0.5, 1.8), false);
-        widgets::slider(ui, &self.t("glow"), &mut self.adjust.glow, (0.0, 3.0), false);
-        widgets::section(ui, &self.t("view"));
-        widgets::slider(ui, &self.t("zoom"), &mut self.adjust.zoom, (0.4, 2.5), true);
+        if flames {
+            widgets::section(ui, &self.t("tone"));
+            widgets::slider(ui, &self.t("brightness"), &mut self.adjust.brightness, (0.3, 2.5), true);
+            widgets::slider(ui, &self.t("gamma"), &mut self.adjust.gamma, (0.5, 1.8), false);
+            widgets::slider(ui, &self.t("glow"), &mut self.adjust.glow, (0.0, 3.0), false);
+            widgets::section(ui, &self.t("view"));
+            widgets::slider(ui, &self.t("zoom"), &mut self.adjust.zoom, (0.4, 2.5), true);
 
-        ui.add_space(8.0);
-        if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
-            self.adjust = NEUTRAL;
+            ui.add_space(8.0);
+            if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
+                self.adjust = NEUTRAL;
+            }
         }
 
         widgets::section(ui, &self.t("glass"));
@@ -1257,6 +1341,80 @@ impl App {
         }
     }
 
+    fn wallpaper_controls(&mut self, ui: &mut egui::Ui) {
+        let before = (self.wall.layout, self.wall.material, self.wall.dark);
+        let any = self.t("any");
+        let chips = |ui: &mut egui::Ui, run: &mut dyn FnMut(&mut egui::Ui)| {
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
+                ui.spacing_mut().button_padding.x = 12.0;
+                run(ui);
+            });
+        };
+
+        widgets::section(ui, &self.t("layout"));
+        let layouts: Vec<(String, Layout)> = Layout::ALL
+            .iter()
+            .map(|(name, layout)| (self.t(&format!("l_{name}")), *layout))
+            .collect();
+        let mut layout = self.wall.layout;
+        chips(ui, &mut |ui| {
+            if widgets::pill(ui, &any, layout.is_none(), 0.0) {
+                layout = None;
+            }
+            for (label, value) in &layouts {
+                if widgets::pill(ui, label, layout == Some(*value), 0.0) {
+                    layout = Some(*value);
+                }
+            }
+        });
+        self.wall.layout = layout;
+
+        widgets::section(ui, &self.t("material"));
+        let materials: Vec<(String, Material)> = Material::ALL
+            .iter()
+            .map(|(name, material)| (self.t(&format!("m_{name}")), *material))
+            .collect();
+        let mut material = self.wall.material;
+        chips(ui, &mut |ui| {
+            if widgets::pill(ui, &any, material.is_none(), 0.0) {
+                material = None;
+            }
+            for (label, value) in &materials {
+                if widgets::pill(ui, label, material == Some(*value), 0.0) {
+                    material = Some(*value);
+                }
+            }
+        });
+        self.wall.material = material;
+
+        ui.add_space(12.0);
+        let (light, dark) = (self.t("light"), self.t("dark"));
+        let half = (ui.available_width() - 8.0) * 0.5;
+        let mut is_dark = self.wall.dark;
+        ui.horizontal(|ui| {
+            if widgets::pill(ui, &light, !is_dark, half) {
+                is_dark = false;
+            }
+            if widgets::pill(ui, &dark, is_dark, half) {
+                is_dark = true;
+            }
+        });
+        self.wall.dark = is_dark;
+
+        if before != (self.wall.layout, self.wall.material, self.wall.dark) {
+            if before.2 == self.wall.dark {
+                self.wall.held = None;
+            }
+            if self.wall.live {
+                self.requested = None;
+            } else {
+                self.new_wallpaper();
+            }
+        }
+    }
+
     fn toolbar(&mut self, ui: &mut egui::Ui, wide: bool, room: f32) {
         let gap = if wide { 8.0 } else { 6.0 };
         ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
@@ -1289,6 +1447,21 @@ impl App {
         }
 
         match clicked {
+            Some("randomize") if self.wall.on => {
+                self.wall.held = None;
+                self.new_wallpaper();
+            }
+            Some("mutate") if self.wall.live => {
+                let size = self.requested.unwrap_or([1, 2]);
+                self.wall.held = Some(wallpaper_choice(self.seed, &self.wall.request(size)));
+                self.new_wallpaper();
+            }
+            Some("randomize") if self.base.layers.is_empty() => {
+                self.seed += 1;
+                let title = format!("{} {}", shown(&self.t("random")), self.seed);
+                self.pick(named(random_scene(self.seed), &title), title.clone(), true);
+            }
+            Some("mutate") if self.base.layers.is_empty() => {}
             Some("randomize") => {
                 self.seed += 1;
                 let title = format!("{} {}", shown(&self.t("random")), self.seed);
@@ -1368,7 +1541,8 @@ impl App {
         else {
             return;
         };
-        self.status = match std::fs::write(&path, self.scene().to_json() + "\n") {
+        let scene = self.scene_at(self.requested.unwrap_or([1, 2]));
+        self.status = match std::fs::write(&path, scene.to_json() + "\n") {
             Ok(()) => self.t("saved"),
             Err(error) => format!("{}: {error}", self.t("failed")),
         };
@@ -1453,7 +1627,7 @@ impl App {
             let name = format!("{}-{width}x{height}.png", self.title.replace(' ', "-"));
             if let Some(path) = export::target(&name) {
                 self.export.job = Some(export::Job::start(
-                    self.scene(),
+                    self.scene_at([width, height]),
                     options,
                     path,
                     ui.ctx().clone(),

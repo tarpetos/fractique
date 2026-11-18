@@ -6,6 +6,9 @@ use crate::variation::{Kind, Variation};
 pub const SCENE_VERSION: u32 = 1;
 pub const MAX_LAYERS: usize = 16;
 pub const MAX_TRANSFORMS: usize = 64;
+pub const MAX_SHEETS: usize = 48;
+pub const MAX_SHAPES: usize = 32;
+pub const MAX_SWELLS: usize = 4;
 
 fn one() -> f64 {
     1.0
@@ -41,7 +44,120 @@ pub struct Scene {
     pub seed: u64,
     #[serde(default)]
     pub background: [f64; 3],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sheets: Option<Sheets>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub layers: Vec<Layer>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Sheets {
+    #[serde(default = "Sheets::default_light")]
+    pub light: f64,
+    #[serde(default = "Sheets::default_rim")]
+    pub rim: f64,
+    #[serde(default = "Sheets::default_rim_width")]
+    pub rim_width: f64,
+    #[serde(default = "Sheets::default_bevel")]
+    pub bevel: f64,
+    #[serde(default = "Sheets::default_shadow")]
+    pub shadow: f64,
+    #[serde(default = "Sheets::default_shadow_offset")]
+    pub shadow_offset: f64,
+    #[serde(default = "Sheets::default_shadow_blur")]
+    pub shadow_blur: f64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub gradient: f64,
+    pub stack: Vec<Sheet>,
+}
+
+impl Sheets {
+    fn default_light() -> f64 {
+        135.0
+    }
+    fn default_rim() -> f64 {
+        0.5
+    }
+    fn default_rim_width() -> f64 {
+        0.006
+    }
+    fn default_bevel() -> f64 {
+        0.12
+    }
+    fn default_shadow() -> f64 {
+        0.3
+    }
+    fn default_shadow_offset() -> f64 {
+        0.03
+    }
+    fn default_shadow_blur() -> f64 {
+        0.12
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Sheet {
+    pub color: [f64; 3],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_to: Option<[f64; 3]>,
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub opacity: f64,
+    pub shapes: Vec<Shape>,
+}
+
+fn full_turn() -> f64 {
+    360.0
+}
+fn is_full_turn(v: &f64) -> bool {
+    *v == 360.0
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Shape {
+    Box {
+        center: [f64; 2],
+        half: [f64; 2],
+        #[serde(default)]
+        corners: [f64; 4],
+        #[serde(default, skip_serializing_if = "is_zero")]
+        rotation: f64,
+    },
+    Petal {
+        base: [f64; 2],
+        length: f64,
+        width: f64,
+        #[serde(default, skip_serializing_if = "is_zero")]
+        rotation: f64,
+    },
+    Ring {
+        center: [f64; 2],
+        radius: f64,
+        thickness: f64,
+        #[serde(default = "full_turn", skip_serializing_if = "is_full_turn")]
+        span: f64,
+        #[serde(default, skip_serializing_if = "is_zero")]
+        rotation: f64,
+    },
+    Wave {
+        level: f64,
+        swells: Vec<Swell>,
+        #[serde(default, skip_serializing_if = "is_zero")]
+        thickness: f64,
+        #[serde(default, skip_serializing_if = "is_zero")]
+        rotation: f64,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Swell {
+    pub height: f64,
+    pub length: f64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub shift: f64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -310,6 +426,138 @@ impl Flame {
     }
 }
 
+impl Shape {
+    fn validate(&self, what: &str) -> Result<(), SceneError> {
+        match self {
+            Shape::Box {
+                center,
+                half,
+                corners,
+                rotation,
+            } => {
+                finite(center, what)?;
+                finite(half, what)?;
+                finite(corners, what)?;
+                finite(&[*rotation], what)?;
+                let [hx, hy] = *half;
+                if hx <= 0.0 || hy <= 0.0 {
+                    return fail(format!("{what}: half must be above 0"));
+                }
+                let [tl, tr, br, bl] = *corners;
+                if corners.iter().any(|r| *r < 0.0) {
+                    return fail(format!("{what}: corners must not be negative"));
+                }
+                let (wide, high) = (2.0 * hx, 2.0 * hy);
+                if tl + tr > wide || bl + br > wide || tl + bl > high || tr + br > high {
+                    return fail(format!("{what}: two corners on one side are larger than the side"));
+                }
+            }
+            Shape::Petal {
+                base,
+                length,
+                width,
+                rotation,
+            } => {
+                finite(base, what)?;
+                finite(&[*length, *width, *rotation], what)?;
+                if *width <= 0.0 || *length < *width {
+                    return fail(format!("{what}: width must be above 0 and length at least the width"));
+                }
+            }
+            Shape::Ring {
+                center,
+                radius,
+                thickness,
+                span,
+                rotation,
+            } => {
+                finite(center, what)?;
+                finite(&[*radius, *thickness, *span, *rotation], what)?;
+                if *radius <= 0.0 || *thickness <= 0.0 {
+                    return fail(format!("{what}: radius and thickness must be above 0"));
+                }
+                if !(*span > 0.0 && *span <= 360.0) {
+                    return fail(format!("{what}: span must be above 0 and at most 360"));
+                }
+            }
+            Shape::Wave {
+                level,
+                swells,
+                thickness,
+                rotation,
+            } => {
+                finite(&[*level, *thickness, *rotation], what)?;
+                if *thickness < 0.0 {
+                    return fail(format!("{what}: thickness must not be negative"));
+                }
+                if swells.len() > MAX_SWELLS {
+                    return fail(format!("{what}: takes up to {MAX_SWELLS} swells"));
+                }
+                for swell in swells {
+                    finite(&[swell.height, swell.length, swell.shift], what)?;
+                    if swell.length <= 0.0 {
+                        return fail(format!("{what}: a swell's length must be above 0"));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Sheets {
+    fn validate(&self) -> Result<(), SceneError> {
+        let what = "sheets";
+        finite(
+            &[
+                self.light,
+                self.rim,
+                self.rim_width,
+                self.bevel,
+                self.shadow,
+                self.shadow_offset,
+                self.shadow_blur,
+                self.gradient,
+            ],
+            what,
+        )?;
+        unit(self.shadow, "sheets: shadow")?;
+        if !(0.0..=4.0).contains(&self.rim) || !(-1.0..=1.0).contains(&self.bevel) {
+            return fail("sheets: rim must be between 0 and 4, bevel between -1 and 1".into());
+        }
+        if !(-1.0..=1.0).contains(&self.gradient) {
+            return fail("sheets: gradient must be between -1 and 1".into());
+        }
+        let width = |v: f64| v > 0.0 && v <= 2.0;
+        if !width(self.rim_width) || !width(self.shadow_blur) {
+            return fail("sheets: rim_width and shadow_blur must be above 0 and at most 2".into());
+        }
+        if !(0.0..=1.0).contains(&self.shadow_offset) {
+            return fail("sheets: shadow_offset must be between 0 and 1".into());
+        }
+        if self.stack.is_empty() || self.stack.len() > MAX_SHEETS {
+            return fail(format!("sheets: needs 1 to {MAX_SHEETS} sheets"));
+        }
+        for (i, sheet) in self.stack.iter().enumerate() {
+            finite(&sheet.color, &format!("sheet {i}"))?;
+            finite(&[sheet.opacity], &format!("sheet {i}"))?;
+            unit(sheet.opacity, &format!("sheet {i}: opacity"))?;
+            for c in sheet.color.into_iter().chain(sheet.color_to.into_iter().flatten()) {
+                if !(0.0..=1.0).contains(&c) {
+                    return fail(format!("sheet {i}: colors must be between 0 and 1"));
+                }
+            }
+            if sheet.shapes.is_empty() || sheet.shapes.len() > MAX_SHAPES {
+                return fail(format!("sheet {i}: needs 1 to {MAX_SHAPES} shapes"));
+            }
+            for (j, shape) in sheet.shapes.iter().enumerate() {
+                shape.validate(&format!("sheet {i}, shape {j}"))?;
+            }
+        }
+        Ok(())
+    }
+}
+
 impl Scene {
     pub fn validate(&self) -> Result<(), SceneError> {
         if self.version != SCENE_VERSION {
@@ -322,8 +570,11 @@ impl Scene {
         for c in self.background {
             unit(c, "background")?;
         }
-        if self.layers.is_empty() || self.layers.len() > MAX_LAYERS {
-            return fail(format!("a scene needs 1 to {MAX_LAYERS} layers"));
+        if let Some(sheets) = &self.sheets {
+            sheets.validate()?;
+        }
+        if (self.layers.is_empty() && self.sheets.is_none()) || self.layers.len() > MAX_LAYERS {
+            return fail(format!("a scene needs 1 to {MAX_LAYERS} layers, or sheets"));
         }
         for (i, layer) in self.layers.iter().enumerate() {
             finite(&[layer.opacity], &format!("layer {i}"))?;

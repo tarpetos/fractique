@@ -6,6 +6,7 @@ use crate::math::{cos, sin};
 use crate::palette;
 use crate::rng::Rng;
 use crate::scene::{Blend, Scene, SceneError};
+use crate::sheets;
 use crate::tone;
 
 /// Fixed, so that a render does not depend on how many cores the machine has.
@@ -229,6 +230,9 @@ pub fn render_layer(
 ) -> Result<Developed, RenderError> {
     scene.validate().map_err(RenderError::Scene)?;
     options.validate()?;
+    if scene.layers.is_empty() {
+        return Err(RenderError::Options("the scene has no layers".into()));
+    }
     let report = |share: f64| {
         if let Some(progress) = control.progress {
             progress(share);
@@ -382,6 +386,9 @@ fn composed(scene: &Scene, layers: &[&Developed], options: &RenderOptions) -> Im
     let mut canvas: Vec<f32> = Vec::with_capacity(width * height * 3);
     for _ in 0..width * height {
         canvas.extend(scene.background.map(|c| c as f32));
+    }
+    if let Some(stack) = &scene.sheets {
+        sheets::draw(stack, &mut canvas, width, height);
     }
     for (layer, developed) in scene.layers.iter().zip(layers) {
         composite(&mut canvas, &developed.pixels, layer.blend, layer.opacity as f32);

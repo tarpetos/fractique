@@ -156,7 +156,8 @@ The `azure-rings` preset:
 | `name` | string | empty | A label. Not used by the renderer. |
 | `seed` | integer, 0 to 2⁶⁴−1 | required | Seeds every random choice of the render. A different seed gives a different grain of the same picture. Above 2⁵³ a JavaScript client loses digits: keep seeds below it when scenes pass through one. |
 | `background` | color | `[0, 0, 0]` | The color under all layers. |
-| `layers` | list of layers | required | 1 to 16, blended in order: the first is at the bottom. |
+| `sheets` | sheets | none | A stack of flat shapes drawn over the background and under all layers: a wallpaper. See [Sheets](#sheets). |
+| `layers` | list of layers | empty | Up to 16, blended in order: the first is at the bottom. A scene needs at least one layer, or `sheets`. |
 
 ## Layer
 
@@ -203,6 +204,50 @@ The `azure-rings` preset:
 
 `stops` is a list of 1 to 256 `{ "pos": 0 to 1, "color": [r, g, b] }` entries in ascending `pos` order. Colors
 between two stops are interpolated.
+
+## Sheets
+
+A stack of flat sheets, each lying on the ones before it, lit from one side: every sheet has a bright rim along its
+edge, a gradient across it, and casts a soft shadow onto what is under it. It is drawn exactly, not sampled, so it
+does not depend on `seed`, on the samples per pixel or on the supersample.
+
+Positions and sizes are in units where the shorter side of the image is 2 wide, the middle of the image is
+`[0, 0]`, x grows to the right and y grows downwards. A 1000 × 2000 image shows x from −1 to 1 and y from −2 to 2.
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `light` | degrees | 135 | Where the light comes from, counter-clockwise from the right: 90 is from above, 135 from the upper left. |
+| `rim` | 0 to 4 | 0.5 | Brightness of the line along every edge; strongest on the edges that face the light. |
+| `rim_width` | above 0, at most 2 | 0.006 | How far the rim reaches into the sheet. |
+| `bevel` | −1 to 1 | 0.12 | How much brighter a sheet is on its side toward the light than on the other. |
+| `shadow` | 0 to 1 | 0.3 | Darkness of the shadow a sheet casts. |
+| `shadow_offset` | 0 to 1 | 0.03 | How far the shadow lies from the sheet, away from the light. |
+| `shadow_blur` | above 0, at most 2 | 0.12 | Softness of the shadow's edge. |
+| `gradient` | −1 to 1 | 0 | A brightness slope across the whole image, toward the light. |
+| `stack` | list of sheets | required | 1 to 48, the first at the bottom. |
+
+### Sheet
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `color` | color | required | The sheet's color. |
+| `color_to` | color | none | With it the sheet is a gradient: `color` on its side toward the light, `color_to` on the far side of the image. |
+| `opacity` | 0 to 1 | 1 | Below 1 the sheets under it show through, and its shadow is as much lighter. |
+| `shapes` | list of shapes | required | 1 to 32. The sheet is their union. |
+
+### Shape
+
+A shape has a `kind` and the fields of that kind. `rotation` is in degrees, clockwise, and 0 where it is left out.
+
+| Kind | Fields | What it is |
+| --- | --- | --- |
+| `box` | `center` `[x, y]`, `half` `[x, y]` above 0, `corners` `[top left, top right, bottom right, bottom left]`, `rotation` | A rectangle, half its width and height given, turned around its middle. Each corner is rounded with its own radius (0 where `corners` is left out); two corners on one side must fit on that side together. A radius as large as the height turns a short side into a quarter circle; all four at half the side make a circle. |
+| `petal` | `base` `[x, y]`, `length`, `width` above 0 and at most `length`, `rotation` | A leaf with two pointed tips, standing on `base` and pointing up at rotation 0. |
+| `ring` | `center` `[x, y]`, `radius`, `thickness`, both above 0, `span` above 0 and at most 360, `rotation` | A circle line `thickness` wide. With `span` below 360 it is an arc of that many degrees with round ends, its middle at the top at rotation 0. |
+| `wave` | `level`, `swells`, `thickness` 0 or more, `rotation` | A curve across the whole image: the line `y = level` moved up and down by its swells and turned around `[0, level]`. With `thickness` 0 the shape is everything under the curve; above 0 it is a ribbon that wide along the curve. Its edge distance is approximate where the curve is steep. |
+
+A swell is one sine: `height` (how far it moves the curve), `length` above 0 (the distance from crest to crest) and
+`shift` (radians, 0 where left out). A wave takes up to 4.
 
 ## Transform
 
