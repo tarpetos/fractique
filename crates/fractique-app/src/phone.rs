@@ -672,11 +672,7 @@ impl App {
                 _ => (title, String::new()),
             }
         };
-        let detail = if self.rendering {
-            self.t("rendering")
-        } else {
-            self.status.clone()
-        };
+        let detail = self.detail();
         let room = content.width() - 22.0 - 110.0;
         let left = content.left() + 22.0;
         let mut y = content.bottom() - 24.0;

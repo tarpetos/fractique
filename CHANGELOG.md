@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+* **App:** with GPU acceleration on, the graphics card plays the chaos game itself, so a new flame is on the screen
+  in a fraction of a second: at 3840×2160 the first picture comes after about 0.03 s and all of its samples after
+  0.2 to 0.4 s on an NVIDIA RTX 4070, where the processor takes 4 to 12 s. The picture is at the full size from the
+  start and grows finer with every frame. The processor renders the scene meanwhile and its picture replaces the
+  graphics card's, so the picture that stays, every export and every saved file are exact as before; the toolbar
+  shows the time the first picture took. Wallpapers, views that hold little of the flame and graphics cards
+  without compute shaders are left to the processor, and so is everything when the switch is off
+  ([docs/architecture.md](docs/architecture.md#the-chaos-game-on-the-graphics-card)).
+
 * **App:** while Export is open the controls are hidden, and while any sheet or list is open (export, presets,
   adding a layer, sizes, layouts, recent, languages, updates) the picture under it does not move, zoom or reset.
 * **App:** under **GPU acceleration**, while it is on, a line says that the quick picture can differ slightly
