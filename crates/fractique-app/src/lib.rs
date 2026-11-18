@@ -59,20 +59,28 @@ struct Adjust {
     zoom: f64,
 }
 
-const SIZES: [(&str, [u32; 2]); 13] = [
+const SIZES: [(&str, [u32; 2]); 21] = [
     ("HD", [1280, 720]),
     ("Full HD", [1920, 1080]),
     ("QHD", [2560, 1440]),
     ("Ultrawide", [3440, 1440]),
     ("4K", [3840, 2160]),
-    ("HD+", [720, 1600]),
-    ("Full HD", [1080, 1920]),
-    ("Full HD+", [1080, 2400]),
+    ("Android HD+", [720, 1600]),
+    ("Android HD+ 19.5:9", [720, 1560]),
+    ("Android Full HD", [1080, 1920]),
+    ("Android Full HD+", [1080, 2400]),
+    ("Galaxy S", [1080, 2340]),
+    ("Pixel", [1080, 2424]),
+    ("Xiaomi 1.5K", [1220, 2712]),
+    ("Pixel Pro", [1280, 2856]),
+    ("Pixel Pro XL", [1344, 2992]),
+    ("Galaxy S Ultra", [1440, 3120]),
+    ("Android QHD+", [1440, 3200]),
     ("iPhone", [1179, 2556]),
     ("iPhone Pro Max", [1290, 2796]),
-    ("QHD+", [1440, 3200]),
     ("iPad", [1640, 2360]),
     ("iPad Pro", [2048, 2732]),
+    ("Android tablet", [1600, 2560]),
 ];
 const LARGEST_SIDE: u32 = 16384;
 

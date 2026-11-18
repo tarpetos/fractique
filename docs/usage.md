@@ -145,7 +145,7 @@ view: lower `camera.zoom` then.
 | Title bar (desktop) | The version (opens the updates), the language, hide panels, minimize, maximize, close |
 | **Randomize** | The next random scene |
 | **Mutate** | A variant of the current scene |
-| **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 13 screens from phones to 4K, or any width and height from 16 to 16384 pixels. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone); a larger one is shown scaled down and exported in full. It is shown whole in the window |
+| **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 21 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone); a larger one is shown scaled down and exported in full. It is shown whole in the window |
 | **Export** | A PNG at the picture's size, or at another size chosen in the same list there, and at the quality you choose; rendered in the background with a progress bar |
 | **Scene: Open, Save** | Scenes as `.json`; **Open** also reads `.flame` files |
 | Drag, wheel or pinch on the picture | Moves and magnifies the picture as it is, up to 12 times, without a new render; a double click shows all of it again |
