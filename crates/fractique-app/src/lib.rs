@@ -120,6 +120,7 @@ struct App {
     panes: Vec<(egui::Rect, f32, bool)>,
     toolbar_size: egui::Vec2,
     languages_open: bool,
+    language_anchor: egui::Pos2,
     results: (mpsc::Sender<Rendered>, mpsc::Receiver<Rendered>),
     cancel: Arc<AtomicBool>,
     generation: u64,
@@ -201,7 +202,8 @@ impl App {
             inspector_open: None,
             panes: Vec::new(),
             toolbar_size: egui::Vec2::ZERO,
-            languages_open: false,
+            languages_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "languages"),
+            language_anchor: egui::Pos2::ZERO,
             results: mpsc::channel(),
             cancel: Arc::new(AtomicBool::new(false)),
             generation: 0,
@@ -315,7 +317,9 @@ impl App {
         if picture.dragged() {
             self.view.moved(picture.drag_delta(), screen.size());
         }
-        if picture.double_clicked() {
+        if picture.clicked() && self.languages_open {
+            self.languages_open = false;
+        } else if picture.double_clicked() {
             self.view = WHOLE;
         } else if picture.clicked() && (self.bare || cfg!(any(target_os = "android", target_os = "ios"))) {
             self.bare = !self.bare;
@@ -353,7 +357,9 @@ impl App {
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!is_full));
         }
         if leave {
-            if self.bare {
+            if self.languages_open {
+                self.languages_open = false;
+            } else if self.bare {
                 self.bare = false;
             } else if is_full {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
@@ -484,6 +490,38 @@ impl App {
                     }
                     slot = slot.translate(egui::vec2(-36.0, 0.0));
                 }
+
+                let ink = egui::Color32::from_white_alpha(235);
+                let galley = painter.layout_no_wrap(self.texts.lang.name().to_owned(), font(12.5, MEDIUM), ink);
+                let chip = egui::Rect::from_min_max(
+                    egui::pos2(slot.right() - galley.size().x - 40.0, rect.center().y - 15.0),
+                    egui::pos2(slot.right(), rect.center().y + 15.0),
+                );
+                let language = ui.interact(chip, egui::Id::unique("title bar language"), egui::Sense::click());
+                let lift = if language.hovered() || self.languages_open {
+                    26
+                } else {
+                    0
+                };
+                painter.rect_filled(
+                    chip,
+                    egui::CornerRadius::same(15),
+                    egui::Color32::from_white_alpha(30 + lift),
+                );
+                painter.galley(
+                    egui::pos2(chip.left() + 14.0, chip.center().y - galley.size().y * 0.5),
+                    galley,
+                    ink,
+                );
+                let mark = egui::pos2(chip.right() - 15.0, chip.center().y);
+                let tip = if self.languages_open { -2.0 } else { 2.0 };
+                let stroke = egui::Stroke::new(1.4, ink);
+                painter.line_segment([mark + egui::vec2(-4.0, -tip), mark + egui::vec2(0.0, tip)], stroke);
+                painter.line_segment([mark + egui::vec2(4.0, -tip), mark + egui::vec2(0.0, tip)], stroke);
+                self.language_anchor = chip.right_bottom();
+                if language.clicked() {
+                    self.languages_open = !self.languages_open;
+                }
             });
         bar
     }
@@ -513,6 +551,14 @@ impl App {
                 .size(12.5)
                 .color(egui::Color32::from_white_alpha(140)),
         );
+
+        #[cfg(any(target_os = "android", target_os = "ios", target_arch = "wasm32"))]
+        {
+            widgets::section(ui, &self.t("language"));
+            if widgets::row(ui, self.texts.lang.name(), true) {
+                self.languages_open = !self.languages_open;
+            }
+        }
 
         widgets::section(ui, &self.t("presets"));
         if self.is_random {
@@ -567,34 +613,6 @@ impl App {
             if clicked.1 {
                 self.save_scene();
             }
-        }
-
-        widgets::section(ui, &self.t("language"));
-        let mut chosen = self.texts.lang;
-        let mark = egui::pos2(
-            ui.cursor().min.x + ui.available_width() - 16.0,
-            ui.cursor().min.y + 15.0,
-        );
-        if widgets::row(ui, chosen.name(), true) {
-            self.languages_open = !self.languages_open;
-        }
-        let tip = if self.languages_open { -2.5 } else { 2.5 };
-        let ink = egui::Stroke::new(1.4, egui::Color32::from_white_alpha(210));
-        ui.painter()
-            .line_segment([mark + egui::vec2(-4.5, -tip), mark + egui::vec2(0.0, tip)], ink);
-        ui.painter()
-            .line_segment([mark + egui::vec2(4.5, -tip), mark + egui::vec2(0.0, tip)], ink);
-        if self.languages_open {
-            for lang in Lang::ALL {
-                if lang != chosen && widgets::row(ui, lang.name(), false) {
-                    chosen = lang;
-                    self.languages_open = false;
-                }
-            }
-        }
-        if chosen != self.texts.lang {
-            self.texts = Texts::new(chosen);
-            widgets::install_fonts(ui.ctx(), chosen);
         }
     }
 
@@ -960,7 +978,7 @@ impl eframe::App for App {
         let open = open && (wide || !self.export.open);
         let column = (content.width() - 84.0).min(248.0);
         let beside = content.left() + 20.0 + column + 44.0 + 16.0;
-        let fits = wide && open && content.right() - 20.0 - beside >= self.toolbar_size.x;
+        let fits = wide && open && content.center().x - self.toolbar_size.x * 0.5 >= beside;
         let under = if wide && (fits || !open) {
             0.0
         } else {
@@ -1004,14 +1022,7 @@ impl eframe::App for App {
         }
 
         let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
-            .fixed_pos(egui::pos2(
-                if fits {
-                    (beside + content.right() - 20.0) * 0.5
-                } else {
-                    content.center().x
-                },
-                content.bottom() - 20.0,
-            ))
+            .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
             .pivot(egui::Align2::CENTER_BOTTOM)
             .show(&ctx, |ui| {
                 egui::Frame::NONE
@@ -1080,6 +1091,43 @@ impl eframe::App for App {
                         .show(ui, |ui| self.updates.ui(ui, &self.texts, width));
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
+        }
+
+        if self.languages_open {
+            let (at, pivot) = if cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
+                (content.center(), egui::Align2::CENTER_CENTER)
+            } else {
+                (self.language_anchor + egui::vec2(0.0, 12.0), egui::Align2::RIGHT_TOP)
+            };
+            let mut chosen = self.texts.lang;
+            let menu = egui::Area::new(egui::Id::unique("languages"))
+                .fixed_pos(at)
+                .pivot(pivot)
+                .order(egui::Order::Foreground)
+                .show(&ctx, |ui| {
+                    egui::Frame::NONE.inner_margin(egui::Margin::same(10)).show(ui, |ui| {
+                        ui.set_width(196.0);
+                        ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+                        let mut bar = egui::style::ScrollStyle::floating();
+                        bar.bar_width = 5.0;
+                        ui.spacing_mut().scroll = bar;
+                        egui::ScrollArea::vertical()
+                            .max_height(content.height() - 110.0)
+                            .show(ui, |ui| {
+                                for lang in Lang::ALL {
+                                    if widgets::row(ui, lang.name(), lang == chosen) {
+                                        chosen = lang;
+                                        self.languages_open = false;
+                                    }
+                                }
+                            });
+                    });
+                });
+            if chosen != self.texts.lang {
+                self.texts = Texts::new(chosen);
+                widgets::install_fonts(&ctx, chosen);
+            }
+            panes.push((menu.response.rect, 22.0, true));
         }
 
         if self.tuning {
