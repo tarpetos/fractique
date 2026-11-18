@@ -244,7 +244,7 @@ const WHOLE: View = View {
 };
 
 // Past this the numbers of the renderer run out of digits.
-// The app's own scene files. Inside is the scene as JSON, so every other Fractique tool reads them too.
+// The app's own files: see `document`.
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 const SCENE_FILE: &str = "frcq";
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -1766,16 +1766,40 @@ impl App {
         let is_flame = path
             .extension()
             .is_some_and(|extension| extension.eq_ignore_ascii_case("flame"));
-        let loaded = std::fs::read_to_string(path)
-            .map_err(|error| error.to_string())
-            .and_then(|text| {
-                if is_flame {
-                    let mut flames = fractique_core::import::import_flames(&text).map_err(|error| error.to_string())?;
-                    Ok(flames.swap_remove(0).scene)
-                } else {
-                    Scene::from_json(&text).map_err(|error| error.to_string())
-                }
-            });
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(error) => {
+                self.status = error.to_string();
+                return;
+            }
+        };
+        if !is_flame && text.contains("\"fractique\"") {
+            self.view = WHOLE;
+            self.adjust = NEUTRAL;
+            if self.restore(&text).is_some() {
+                let size = serde_json::from_str::<serde_json::Value>(&text).ok();
+                let side = |index: usize| {
+                    size.as_ref()?
+                        .get("picture")?
+                        .get(index)?
+                        .as_u64()
+                        .map(|side| side as u32)
+                };
+                self.picture = side(0).zip(side(1)).map(|(width, height)| [width, height]);
+                self.requested = None;
+                self.drawn = None;
+            } else {
+                self.status = self.t("failed");
+            }
+            return;
+        }
+        let loaded = if is_flame {
+            fractique_core::import::import_flames(&text)
+                .map(|mut flames| flames.swap_remove(0).scene)
+                .map_err(|error| error.to_string())
+        } else {
+            Scene::from_json(&text).map_err(|error| error.to_string())
+        };
         match loaded {
             Ok(scene) => {
                 self.adjust = NEUTRAL;
@@ -1783,6 +1807,23 @@ impl App {
             }
             Err(error) => self.status = error,
         }
+    }
+
+    // The app's own file: the session, so that it opens as it was saved, and under "shown" the scene as it was on
+    // the screen, which is what the other tools render.
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn document(&self) -> String {
+        let size = self.requested.unwrap_or([1, 2]);
+        let mut document: serde_json::Value = serde_json::from_str(&self.session()).unwrap_or_default();
+        if let Some(fields) = document.as_object_mut() {
+            fields.insert("fractique".to_owned(), 1.into());
+            fields.insert("picture".to_owned(), serde_json::json!(self.picture));
+            fields.insert(
+                "shown".to_owned(),
+                serde_json::to_value(self.scene_at(size)).unwrap_or_default(),
+            );
+        }
+        serde_json::to_string_pretty(&document).unwrap_or_default() + "\n"
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -1796,8 +1837,15 @@ impl App {
         else {
             return;
         };
-        let scene = self.scene_at(self.requested.unwrap_or([1, 2]));
-        self.status = match std::fs::write(&path, scene.to_json() + "\n") {
+        let own = path
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case(SCENE_FILE));
+        let text = if own {
+            self.document()
+        } else {
+            self.scene_at(self.requested.unwrap_or([1, 2])).to_json() + "\n"
+        };
+        self.status = match std::fs::write(&path, text) {
             Ok(()) => self.t("saved"),
             Err(error) => format!("{}: {error}", self.t("failed")),
         };
@@ -2385,6 +2433,10 @@ impl eframe::App for App {
         storage.set_string("session", self.session());
         storage.set_string("hints", self.phone.hints.to_string());
         storage.set_string("kept", self.phone.kept_text());
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        if let Some(path) = std::env::var_os("FRACTIQUE_DOCUMENT") {
+            let _ = std::fs::write(path, self.document());
+        }
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
