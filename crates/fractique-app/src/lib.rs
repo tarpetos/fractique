@@ -2321,9 +2321,12 @@ impl eframe::App for App {
                 .pivot(egui::Align2::CENTER_CENTER)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE
-                        .inner_margin(egui::Margin::same(22))
-                        .show(ui, |ui| self.export_sheet(ui, window, content.height()));
+                    egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
+                        // A phone on its side is lower than the sheet: it scrolls there.
+                        egui::ScrollArea::vertical()
+                            .max_height(content.height() - 56.0)
+                            .show(ui, |ui| self.export_sheet(ui, window, content.height()));
+                    });
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }

@@ -128,7 +128,7 @@ impl Phone {
         Self {
             on: cfg!(any(target_os = "android", target_os = "ios")) || show.contains("phone"),
             sheet: show.contains("sheet"),
-            tune: false,
+            tune: show.contains("tune"),
             hints,
             swipe: egui::Vec2::ZERO,
             preview: false,
@@ -144,6 +144,12 @@ impl Phone {
             pressing: false,
         }
     }
+}
+
+// Four across on an upright phone; more on one lying on its side, where four would be taller than the screen.
+fn tile_width(room: f32, gap: f32) -> f32 {
+    let across = (room / 104.0).floor().max(4.0);
+    ((room - (across - 1.0) * gap) / across).floor()
 }
 
 #[derive(Clone, Copy)]
@@ -525,6 +531,8 @@ impl App {
 
     fn phone_tune(&mut self, ctx: &egui::Context, content: Rect, panes: &mut Panes) {
         let column = (content.width() - 84.0).min(320.0);
+        // On its side a phone has no height to give to a button under the panel: it goes beside it.
+        let lying = content.width() > content.height();
         let inspector = egui::Area::new(egui::Id::unique("phone_tune"))
             .fixed_pos(content.min + vec2(20.0, 20.0))
             .show(ctx, |ui| {
@@ -535,7 +543,7 @@ impl App {
                     bottom: 22,
                 };
                 egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
-                    let room = content.height() - 40.0 - 44.0 - 72.0;
+                    let room = content.height() - 40.0 - 44.0 - if lying { 0.0 } else { 72.0 };
                     let mut bar = egui::style::ScrollStyle::floating();
                     bar.bar_width = 5.0;
                     bar.floating_allocated_width = 0.0;
@@ -559,8 +567,16 @@ impl App {
         let close = self.t("close");
         let mut done = false;
         let button = egui::Area::new(egui::Id::unique("phone_tune_close"))
-            .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
-            .pivot(Align2::CENTER_BOTTOM)
+            .fixed_pos(if lying {
+                content.max - vec2(20.0, 20.0)
+            } else {
+                egui::pos2(content.center().x, content.bottom() - 20.0)
+            })
+            .pivot(if lying {
+                Align2::RIGHT_BOTTOM
+            } else {
+                Align2::CENTER_BOTTOM
+            })
             .show(ctx, |ui| {
                 let galley = ui.painter().layout_no_wrap(close, font(14.0, MEDIUM), Color32::WHITE);
                 let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x + 64.0, 46.0), Sense::click());
@@ -754,7 +770,7 @@ impl App {
             return false;
         }
         let ctx = ui.ctx().clone();
-        let wide = ((ui.available_width() - 24.0) / 4.0).floor();
+        let wide = tile_width(ui.available_width(), 8.0);
         let side = [wide, (wide * TILE_RATIO).round()];
         let pixels = [(side[0] * scale) as usize, (side[1] * scale) as usize];
         let mut budget = 1;
@@ -806,7 +822,7 @@ impl App {
         let (seed, dark, hue) = (self.seed, self.wall.dark, self.wall.hue);
         let any = self.t("any");
         let gap = 8.0;
-        let wide = ((ui.available_width() - 3.0 * gap) / 4.0).floor();
+        let wide = tile_width(ui.available_width(), gap);
         let mut budget = 3;
 
         widgets::section(ui, &self.t("layout"));
@@ -955,7 +971,7 @@ impl App {
     fn sheet_flames(&mut self, ui: &mut egui::Ui, scale: f32) -> bool {
         let ctx = ui.ctx().clone();
         let gap = 8.0;
-        let wide = ((ui.available_width() - 3.0 * gap) / 4.0).floor();
+        let wide = tile_width(ui.available_width(), gap);
         let side = [wide, (wide * TILE_RATIO).round()];
         let pixels = [(side[0] * scale) as usize, (side[1] * scale) as usize];
         let mut budget = 1;
