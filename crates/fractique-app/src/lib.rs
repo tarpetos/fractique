@@ -2297,7 +2297,11 @@ impl eframe::App for App {
                 optics.blur = 1.0;
             }
             if self.phone.clear.contains(rect) {
-                optics.tint *= 0.25;
+                optics.tint = if self.light > phone::LIGHT {
+                    0.6
+                } else {
+                    optics.tint * 0.25
+                };
                 optics.blur *= 0.5;
             } else if self.light > 0.3 {
                 // The texts are white: over a light picture the glass has to be dark enough to read them.
@@ -2619,6 +2623,13 @@ fn own_folder() -> Option<PathBuf> {
     std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Documents"))
 }
 
+#[cfg(target_os = "android")]
+fn focus_changed(ctx: &egui::Context) -> bool {
+    static FOCUSED: AtomicBool = AtomicBool::new(false);
+    let focused = ctx.input(|input| input.focused);
+    FOCUSED.swap(focused, Ordering::Relaxed) != focused
+}
+
 fn safe_content(ctx: &egui::Context) -> egui::Rect {
     // egui knows the safe area on iOS; on Android the activity reports it, in pixels.
     #[cfg(target_os = "android")]
@@ -2628,9 +2639,25 @@ fn safe_content(ctx: &egui::Context) -> egui::Rect {
             egui::pos2(free.left as f32 / scale, free.top as f32 / scale),
             egui::pos2(free.right as f32 / scale, free.bottom as f32 / scale),
         );
+        // From Android 15 on a window reaches under the system bars and the activity's rectangle is the whole of
+        // it: the bars and the camera cutout are asked for apart, once for each size of the window.
+        static BARS: Mutex<([i32; 4], [i32; 4])> = Mutex::new(([0; 4], [0; 4]));
+        let whole = [free.left, free.top, free.right, free.bottom];
+        let bars = BARS.lock().map_or([0; 4], |mut bars| {
+            if bars.0 != whole || focus_changed(ctx) {
+                *bars = (whole, android::insets());
+            }
+            bars.1
+        });
+        let window = ctx.viewport_rect();
+        let inside = egui::Rect::from_min_max(
+            window.min + egui::vec2(bars[0] as f32, bars[1] as f32) / scale,
+            window.max - egui::vec2(bars[2] as f32, bars[3] as f32) / scale,
+        );
         if rect.width() > 1.0 && rect.height() > 1.0 {
-            return rect.intersect(ctx.viewport_rect());
+            return rect.intersect(inside);
         }
+        return inside;
     }
     ctx.content_rect()
 }
