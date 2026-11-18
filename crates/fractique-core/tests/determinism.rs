@@ -1,6 +1,6 @@
 use std::sync::atomic::AtomicBool;
 
-use fractique_core::random::random_scene;
+use fractique_core::random::{Generator, random_scene, random_scene_of};
 use fractique_core::wallpaper::{Layout, Material, Request, random_wallpaper};
 use fractique_core::{Control, RenderError, RenderOptions, presets, render};
 
@@ -241,6 +241,28 @@ fn sheets_lie_under_the_flame_layers() {
     scene.sheets = wallpaper(7, Layout::Discs, Material::Paper, true).sheets;
     let over = render(&scene, &small(1), &Control::default()).unwrap();
     assert_ne!(plain.hash(), over.hash());
+}
+
+const GOLDEN_RANDOM: [(u64, u64, u64); 6] = [
+    (1, 7, 0xbb3f_de30_eabe_d098),
+    (1, 42, 0x4eb7_27e2_ac19_ad2e),
+    (1, 2024, 0x209d_745d_9eda_c0fd),
+    (2, 7, 0x828b_a85e_5732_f6f5),
+    (2, 42, 0xdd14_2f06_7063_86da),
+    (2, 2024, 0x4a69_d4e2_d63d_c712),
+];
+
+#[test]
+fn random_scenes_render_to_their_golden_hashes() {
+    let mut wrong = Vec::new();
+    for (generator, seed, expected) in GOLDEN_RANDOM {
+        let scene = random_scene_of(Generator::from_number(generator).unwrap(), seed);
+        let image = render(&scene, &small(1), &Control::default()).unwrap();
+        if image.hash() != expected {
+            wrong.push(format!("({generator}, {seed}, {:#018x})", image.hash()));
+        }
+    }
+    assert!(wrong.is_empty(), "got {}", wrong.join(", "));
 }
 
 fn showing(variation: &str) -> fractique_core::Scene {

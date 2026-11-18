@@ -124,3 +124,45 @@ fn what_cannot_be_converted_is_refused() {
     refused(&["convert", &wrong, "-o", &at("out.frcq")], "wrong.json");
     refused(&["convert", &at("missing.frcq")], "missing.frcq");
 }
+
+#[test]
+fn the_generator_is_chosen_by_its_number_and_the_first_is_the_default() {
+    let first = done(&["randomize", "42"]);
+    assert_eq!(done(&["randomize", "42", "--generator", "1"]), first);
+    let second = done(&["randomize", "42", "--generator", "2"]);
+    assert_ne!(second, first);
+    assert_eq!(done(&["randomize", "42", "--generator", "2"]), second);
+
+    let folder = folder("generator");
+    let at = |name: &str| folder.join(name).to_string_lossy().into_owned();
+    let (scene, picture) = (at("scene.json"), at("picture.png"));
+    let rendered = |arguments: &[&str]| {
+        let mut all = vec!["render", "--size", "64x36", "--quality", "draft", "-o", &picture];
+        all.extend_from_slice(arguments);
+        let (ok, _, stderr) = fractique(&all);
+        assert!(ok, "{stderr}");
+        stderr.split("hash ").nth(1).expect("a hash")[..16].to_owned()
+    };
+    fs::write(&scene, &first).unwrap();
+    assert_eq!(rendered(&["--random", "42"]), hash_of(&scene, &picture));
+    fs::write(&scene, &second).unwrap();
+    assert_eq!(
+        rendered(&["--random", "42", "--generator", "2"]),
+        hash_of(&scene, &picture)
+    );
+
+    let (ok, _, stderr) = fractique(&["randomize", "42", "--generator", "3"]);
+    assert!(!ok && stderr.contains("no generator has the number 3"), "{stderr}");
+    assert!(
+        !fractique(&[
+            "render",
+            "--preset",
+            "aurora-spiral",
+            "--generator",
+            "2",
+            "-o",
+            &picture
+        ])
+        .0
+    );
+}

@@ -381,6 +381,7 @@ The document is the app's session, so a file opens as it was saved:
 | `title` | string | The name the app shows. |
 | `random` | `true`, `false` | Whether the picture came from Randomize. |
 | `seed` | integer | The number of the last random flame or wallpaper. |
+| `generator` | `1`, `2` | The random generator that made the last random flame. A file without it was written before the second generator: `1`. |
 | `adjust` | `[brightness, gamma, glow, zoom]` | The tone and zoom sliders, as factors: 1 changes nothing. |
 | `view` | `[right, down, zoom]` | Where the picture was moved to, in shorter sides of the picture from its middle, and the magnification. |
 | `picture` | `[width, height]` or `null` | The picture's size; `null` is the window's own. |

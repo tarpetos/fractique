@@ -62,7 +62,7 @@ flames and wallpapers; a switch in the controls goes from one to the other.
 | Inspector (left; **Controls** in the toolbar shows and hides it) | **Flames** or **Shapes**, then the preset or the wallpaper's choices, the colors, the size, the layers, the tone, the zoom, the glass, the scene |
 | Toolbar (bottom) | The picture's name, its size, the time it took and the magnification; **Randomize**, **Mutate**, **Export**, **Controls** |
 | **Presets** (inspector) | A list of the 29 built-in flames |
-| **Randomize** | Flames: a new random flame in the chosen layer. Wallpapers: a new wallpaper |
+| **Randomize** | Flames: a new random flame in the chosen layer, made by the second random generator ([Random scenes](#5-random-scenes)). Wallpapers: a new wallpaper |
 | **Mutate** | Flames: a variant of the chosen layer's flame. Wallpapers: another wallpaper of the same layout and material |
 | **Layout**, **Material**, **Light** and **Dark** (inspector, wallpapers) | One of the 14 layouts and 6 materials of [Wallpapers](#6-wallpapers), or **Any**, which leaves the choice to each new wallpaper; and its light or dark version |
 | **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 21 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone, 900 in a browser); a larger one is shown scaled down and exported in full. It is shown whole in the window |
@@ -186,8 +186,18 @@ fractique randomize 42 -o scene.json
 fractique render scene.json -o mine.png
 ```
 
-A random scene of a seed may change between versions of Fractique when the randomizer improves. A saved scene file
-does not.
+There are two random generators, and the same number is a different scene in each. `--generator 1`, the one
+used when the option is left out, draws from the first 27 variations. `--generator 2` draws from all 49, gives the
+parametric ones (`blob`, `pdj`, `ngon`, `juliascope` and the rest) random parameters, and skips more of the
+pictures that come out as specks, a dim haze or an even fog:
+
+```sh
+fractique render --random 42 --generator 2 -o r42.png
+fractique randomize 42 --generator 2 -o scene.json
+```
+
+The app's **Randomize** uses generator 2. A seed keeps its scene in each generator from one version of Fractique
+to the next: a better randomizer comes as a new generator with a number of its own.
 
 ## 6. Wallpapers
 
