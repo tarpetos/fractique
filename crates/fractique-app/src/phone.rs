@@ -241,6 +241,42 @@ fn note(recent: &mut Vec<Piece>, piece: Piece) {
     recent.truncate(MOST_RECENT);
 }
 
+// A disc filled with a gradient from its upper left to its lower right, with a soft rim: rings of triangles,
+// each corner colored by its place along that line, and a last ring that fades out.
+fn gradient_disc(painter: &egui::Painter, at: Pos2, reach: f32, shade: impl Fn(f32) -> Color32) {
+    const RINGS: u32 = 6;
+    const AROUND: u32 = 48;
+    let feather = 1.0 / painter.ctx().pixels_per_point();
+    let along = vec2(1.0, 1.0).normalized();
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(at, shade(0.5));
+    for ring in 1..=RINGS + 1 {
+        let (radius, alpha) = if ring > RINGS {
+            (reach + feather * 0.5, 0.0)
+        } else {
+            ((reach - feather * 0.5) * ring as f32 / RINGS as f32, 1.0)
+        };
+        for step in 0..AROUND {
+            let angle = step as f32 / AROUND as f32 * std::f32::consts::TAU;
+            let offset = vec2(angle.cos(), angle.sin()) * radius;
+            let share = (offset.dot(along) / reach * 0.5 + 0.5).clamp(0.0, 1.0);
+            mesh.colored_vertex(at + offset, shade(share).gamma_multiply(alpha));
+        }
+    }
+    for step in 0..AROUND {
+        mesh.add_triangle(0, 1 + step, 1 + (step + 1) % AROUND);
+    }
+    for ring in 0..RINGS {
+        let (inner, outer) = (1 + ring * AROUND, 1 + (ring + 1) * AROUND);
+        for step in 0..AROUND {
+            let next = (step + 1) % AROUND;
+            mesh.add_triangle(inner + step, outer + step, outer + next);
+            mesh.add_triangle(inner + step, outer + next, inner + next);
+        }
+    }
+    painter.add(egui::Shape::mesh(mesh));
+}
+
 type Panes = Vec<(Rect, f32, bool)>;
 
 pub(crate) const LIGHT: f32 = 0.55;
@@ -404,21 +440,10 @@ impl App {
                         continue;
                     };
                     let fill = move |painter: &egui::Painter, at: Pos2, reach: f32| {
-                        let mut mesh = egui::Mesh::default();
-                        let turn = 24u32;
-                        let shade = |step: u32| {
-                            let [r, g, b] = shades[(step * 255 / turn) as usize];
+                        gradient_disc(painter, at, reach, |share| {
+                            let [r, g, b] = shades[(share * 255.0).round() as usize];
                             Color32::from_rgb(r, g, b)
-                        };
-                        mesh.colored_vertex(at, shade(turn / 2));
-                        for step in 0..=turn {
-                            let angle = step as f32 / turn as f32 * std::f32::consts::TAU;
-                            mesh.colored_vertex(at + vec2(angle.sin(), -angle.cos()) * reach, shade(step));
-                        }
-                        for step in 0..turn {
-                            mesh.add_triangle(0, 1 + step, 2 + step);
-                        }
-                        painter.add(egui::Shape::mesh(mesh));
+                        });
                     };
                     if cell(ui, self.palette == Some(index), &fill) {
                         self.palette = Some(index);
