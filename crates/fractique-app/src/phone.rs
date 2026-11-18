@@ -1031,7 +1031,7 @@ impl App {
                                 Kind::Flame(scene) => (**scene).clone(),
                             })
                         });
-                        if Self::tile(ui, side, picture, &piece.title, false) {
+                        if Self::tile(ui, side, picture, &shown(&piece.title), false) {
                             picked = Some(piece.clone());
                         }
                     }

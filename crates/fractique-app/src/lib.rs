@@ -2313,7 +2313,7 @@ impl App {
             .min_scrolled_height(tall)
             .show(ui, |ui| {
                 for (index, piece) in self.phone.recent.iter().enumerate() {
-                    if widgets::row(ui, &piece.title, index == 0) {
+                    if widgets::row(ui, &shown(&piece.title), index == 0) {
                         chosen = Some(piece.clone());
                     }
                 }
@@ -3016,7 +3016,7 @@ impl App {
         }
         if self.phone.recent.len() > 1 {
             widgets::section(ui, &self.t("recent"));
-            if widgets::dropdown(ui, &self.phone.recent[1].title) {
+            if widgets::dropdown(ui, &shown(&self.phone.recent[1].title)) {
                 self.open_listing(Listing::Recent);
             }
         }
