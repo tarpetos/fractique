@@ -662,16 +662,26 @@ impl App {
                         }
                         if turn {
                             let middle = egui::pos2(rect.left() + 26.0, rect.center().y);
-                            let arc: Vec<egui::Pos2> = (0..=20)
-                                .map(|step| {
-                                    let (sin, cos) = (-0.9 + step as f32 * 0.25).sin_cos();
-                                    middle + egui::vec2(cos, sin) * 6.5
-                                })
+                            // A clockwise arc open at the upper right, with an arrowhead on its end.
+                            let (from, to) = (0.45_f32, std::f32::consts::TAU - 0.75);
+                            let at = |angle: f32| {
+                                let (sin, cos) = angle.sin_cos();
+                                middle + egui::vec2(cos, sin) * 6.5
+                            };
+                            let arc: Vec<egui::Pos2> = (0..=24)
+                                .map(|step| at(from + (to - from) * step as f32 / 24.0))
                                 .collect();
-                            let (tip, stroke) = (arc[0], egui::Stroke::new(1.5, ink));
+                            let stroke = egui::Stroke::new(1.6, ink);
                             ui.painter().line(arc, stroke);
-                            ui.painter().line_segment([tip, tip + egui::vec2(-4.5, -0.5)], stroke);
-                            ui.painter().line_segment([tip, tip + egui::vec2(0.5, -4.5)], stroke);
+                            let (tip, back) = (at(to + 0.2), at(to - 0.55));
+                            let along = (tip - back).normalized();
+                            let across = egui::vec2(-along.y, along.x);
+                            let base = tip - along * 5.0;
+                            ui.painter().add(egui::Shape::convex_polygon(
+                                vec![tip, base + across * 3.4, base - across * 3.4],
+                                ink,
+                                egui::Stroke::NONE,
+                            ));
                         }
                         ui.painter().galley(
                             egui::pos2(rect.left() + lead, rect.center().y - galley.size().y * 0.5),
