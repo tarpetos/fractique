@@ -29,6 +29,7 @@
   "size_custom": "Özel",
   "apply": "Uygula",
   "redraw": "Burada yeniden çiz",
+  "reset_view": "Görünümü sıfırla",
   "layers": "KATMANLAR",
   "layer": "Katman",
   "blend_add": "Ekle",

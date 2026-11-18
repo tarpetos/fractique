@@ -21,7 +21,7 @@ use web_time::Instant;
 use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
 use fractique_core::random::{mutate, random_scene};
-use fractique_core::scene::{Blend, MAX_LAYERS};
+use fractique_core::scene::{Blend, Camera, MAX_LAYERS};
 use fractique_core::{Control, Developed, Image, RenderError, RenderOptions, Scene, compose, presets, render_layer};
 
 use glass::{Gfx, Optics};
@@ -268,6 +268,7 @@ struct App {
     adjust: Adjust,
     view: View,
     depth: f32,
+    home: Vec<Camera>,
     bare: bool,
     optics: Optics,
     tuning: bool,
@@ -418,6 +419,7 @@ impl App {
                 WHOLE
             },
             depth: 1.0,
+            home: Vec::new(),
             bare: false,
             optics: Optics {
                 refraction: 38.0,
@@ -607,6 +609,9 @@ impl App {
             {
                 layer.blend = Blend::Screen;
                 layer.name = shown(&title);
+                if self.home.len() == self.base.layers.len() {
+                    self.home.push(layer.flame.camera.clone());
+                }
                 self.base.layers.push(layer);
                 self.layer = self.base.layers.len() - 1;
                 self.requested = None;
@@ -640,35 +645,68 @@ impl App {
             .fixed_pos(at)
             .pivot(egui::Align2::CENTER_BOTTOM)
             .show(ctx, |ui| {
-                let ink = egui::Color32::WHITE;
-                let galley = ui.painter().layout_no_wrap(self.t("redraw"), font(14.0, MEDIUM), ink);
-                let (rect, response) =
-                    ui.allocate_exact_size(egui::vec2(galley.size().x + 62.0, 42.0), egui::Sense::click());
-                if response.hovered() {
-                    ui.painter()
-                        .rect_filled(rect, egui::CornerRadius::same(21), egui::Color32::from_white_alpha(22));
-                }
-                let middle = egui::pos2(rect.left() + 26.0, rect.center().y);
-                let turn: Vec<egui::Pos2> = (0..=20)
-                    .map(|step| {
-                        let (sin, cos) = (-0.9 + step as f32 * 0.25).sin_cos();
-                        middle + egui::vec2(cos, sin) * 6.5
-                    })
-                    .collect();
-                let (tip, stroke) = (turn[0], egui::Stroke::new(1.5, ink));
-                ui.painter().line(turn, stroke);
-                ui.painter().line_segment([tip, tip + egui::vec2(-4.5, -0.5)], stroke);
-                ui.painter().line_segment([tip, tip + egui::vec2(0.5, -4.5)], stroke);
-                ui.painter().galley(
-                    egui::pos2(rect.left() + 42.0, rect.center().y - galley.size().y * 0.5),
-                    galley,
-                    ink,
-                );
-                if response.clicked() {
-                    self.redraw_here(size);
-                }
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    let ink = egui::Color32::WHITE;
+                    let item = |ui: &mut egui::Ui, text: String, turn: bool| {
+                        let galley = ui.painter().layout_no_wrap(text, font(14.0, MEDIUM), ink);
+                        let lead = if turn { 42.0 } else { 20.0 };
+                        let (rect, response) = ui
+                            .allocate_exact_size(egui::vec2(galley.size().x + lead + 20.0, 42.0), egui::Sense::click());
+                        if response.hovered() {
+                            ui.painter().rect_filled(
+                                rect,
+                                egui::CornerRadius::same(21),
+                                egui::Color32::from_white_alpha(22),
+                            );
+                        }
+                        if turn {
+                            let middle = egui::pos2(rect.left() + 26.0, rect.center().y);
+                            let arc: Vec<egui::Pos2> = (0..=20)
+                                .map(|step| {
+                                    let (sin, cos) = (-0.9 + step as f32 * 0.25).sin_cos();
+                                    middle + egui::vec2(cos, sin) * 6.5
+                                })
+                                .collect();
+                            let (tip, stroke) = (arc[0], egui::Stroke::new(1.5, ink));
+                            ui.painter().line(arc, stroke);
+                            ui.painter().line_segment([tip, tip + egui::vec2(-4.5, -0.5)], stroke);
+                            ui.painter().line_segment([tip, tip + egui::vec2(0.5, -4.5)], stroke);
+                        }
+                        ui.painter().galley(
+                            egui::pos2(rect.left() + lead, rect.center().y - galley.size().y * 0.5),
+                            galley,
+                            ink,
+                        );
+                        response.clicked()
+                    };
+                    let redraw = self.view != WHOLE && item(ui, self.t("redraw"), true);
+                    let reset = item(ui, self.t("reset_view"), false);
+                    if redraw {
+                        self.redraw_here(size);
+                    }
+                    if reset {
+                        self.reset_view();
+                    }
+                });
             });
         area.response.rect
+    }
+
+    fn moved(&self) -> bool {
+        self.view != WHOLE || self.depth > 1.0
+    }
+
+    fn reset_view(&mut self) {
+        if self.home.len() == self.base.layers.len() {
+            for (layer, camera) in self.base.layers.iter_mut().zip(&self.home) {
+                layer.flame.camera = camera.clone();
+            }
+            self.requested = None;
+        }
+        self.home.clear();
+        self.depth = 1.0;
+        self.view = WHOLE;
     }
 
     fn boost(&self) -> f32 {
@@ -680,6 +718,14 @@ impl App {
         let across = (f64::from(self.view.center.x) - 0.5) * wide;
         let down = (f64::from(self.view.center.y) - 0.5) * high;
         let deeper = self.view.zoom.min(MAX_DEPTH / self.depth).max(1.0);
+        if self.home.len() != self.base.layers.len() {
+            self.home = self
+                .base
+                .layers
+                .iter()
+                .map(|layer| layer.flame.camera.clone())
+                .collect();
+        }
         for layer in &mut self.base.layers {
             let camera = &mut layer.flame.camera;
             let per_unit = camera.zoom * self.adjust.zoom * wide.min(high) / 4.0;
@@ -1027,6 +1073,7 @@ impl App {
         self.requested = None;
         self.view = WHOLE;
         self.depth = 1.0;
+        self.home.clear();
         self.layer = 0;
     }
 
@@ -1204,14 +1251,23 @@ impl App {
                 self.adding_layer = true;
             }
             Some("remove") => {
+                if at < self.home.len() {
+                    self.home.remove(at);
+                }
                 self.base.layers.remove(at);
                 self.layer = at.min(count - 2);
             }
             Some("up") => {
+                if at < self.home.len() {
+                    self.home.swap(at, at - 1);
+                }
                 self.base.layers.swap(at, at - 1);
                 self.layer = at - 1;
             }
             Some("down") => {
+                if at + 1 < self.home.len() {
+                    self.home.swap(at, at + 1);
+                }
                 self.base.layers.swap(at, at + 1);
                 self.layer = at + 1;
             }
@@ -1259,6 +1315,9 @@ impl App {
                 let title = format!("{} {}", shown(&self.t("random")), self.seed);
                 let at = self.layer.min(self.base.layers.len() - 1);
                 let fresh = random_scene(self.seed).layers.swap_remove(0);
+                if let Some(home) = self.home.get_mut(at) {
+                    *home = fresh.flame.camera.clone();
+                }
                 self.base.layers[at].flame = fresh.flame;
                 self.base.layers[at].name = title.clone();
                 if self.base.layers.len() == 1 {
@@ -1602,7 +1661,7 @@ impl eframe::App for App {
 
         if self.bare {
             let mut panes = Vec::new();
-            if self.view != WHOLE {
+            if self.moved() {
                 let rect = self.redraw_button(&ctx, egui::pos2(content.center().x, content.bottom() - 20.0), size);
                 panes.push((rect, rect.height() * 0.5, false));
             }
@@ -1631,7 +1690,7 @@ impl eframe::App for App {
         let column = (content.width() - 84.0).min(248.0);
         let beside = content.left() + 20.0 + column + 44.0 + 16.0;
         let fits = wide && open && content.center().x - self.toolbar_size.x * 0.5 >= beside;
-        let lifted = if self.view != WHOLE { 56.0 } else { 0.0 };
+        let lifted = if self.moved() { 56.0 } else { 0.0 };
         let under = if wide && (fits || !open) {
             0.0
         } else {
@@ -1720,7 +1779,7 @@ impl eframe::App for App {
             ));
         }
 
-        if self.view != WHOLE && !covered {
+        if self.moved() && !covered {
             let above = content.bottom() - 20.0 - self.toolbar_size.y - 10.0;
             let rect = self.redraw_button(&ctx, egui::pos2(content.center().x, above), size);
             panes.push((rect, rect.height() * 0.5, false));

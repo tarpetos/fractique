@@ -29,6 +29,7 @@
   "size_custom": "Eigene",
   "apply": "Anwenden",
   "redraw": "Hier neu zeichnen",
+  "reset_view": "Ansicht zurücksetzen",
   "layers": "EBENEN",
   "layer": "Ebene",
   "blend_add": "Summe",

@@ -29,6 +29,7 @@
   "size_custom": "Custom",
   "apply": "Apply",
   "redraw": "Redraw here",
+  "reset_view": "Reset view",
   "layers": "LAYERS",
   "layer": "Layer",
   "blend_add": "Add",
