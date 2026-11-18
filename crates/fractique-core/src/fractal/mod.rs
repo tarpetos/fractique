@@ -98,6 +98,24 @@ pub struct Sample {
 /// it must depend on the point alone. `None` is a point the layer leaves clear.
 pub trait Field: Sync {
     fn sample(&self, x: f64, y: f64) -> Option<Sample>;
+
+    /// The same for a picture whose pixels are `pixel` wide in the units of the plane: a kind whose detail
+    /// follows the size of the picture answers here, the others never see the size.
+    fn sample_within(&self, x: f64, y: f64, _pixel: f64) -> Option<Sample> {
+        self.sample(x, y)
+    }
+
+    /// The kind made ready for one picture, whose corners on the plane are `corners` and whose pixels are
+    /// `pixel` wide there: what it gives must depend on the picture and the point alone. `None` for a kind
+    /// with nothing to prepare.
+    fn framed<'a>(&'a self, _corners: [(f64, f64); 4], _pixel: f64) -> Option<Box<dyn Field + 'a>> {
+        None
+    }
+
+    /// How much a pixel may differ from its neighbours, in a channel, and still be drawn from one sample.
+    fn smooth(&self) -> f32 {
+        pixel::SMOOTH
+    }
 }
 
 /// A kind drawn as the density of the points of orbits. Each of the 64 streams of a render gets one walk.

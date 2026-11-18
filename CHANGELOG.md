@@ -52,6 +52,16 @@
   * In `fractique-core`, a kind drawn as a density may bring its own colors in place of the layer's palette
     (`Orbit::colors`); the Nebulabrot does. Nothing changes for the kinds that were there: their golden hashes
     are untouched. The golden hashes of the five kinds were produced on Linux.
+* **Solids:** three kinds in three dimensions, `mandelbulb` (any power from 2 to 16), `mandelbox` (scale, fold
+  limit, inner radius) and `menger_sponge` (the level, and a twist, a bend and a scale that fold it into other
+  shapes), each ray-marched by a distance estimate on the processor, with a key light, soft shadows, shading of
+  the pits, fog by depth, a halo and colors from orbit traps through the palette. The eye turns around the solid
+  (`turn`, `tilt`), comes nearer or goes inside (`distance`) and has a `field_of_view`; the app's pan and zoom
+  move and magnify the picture as a longer lens does. Six presets a kind, a random picture for every seed that is
+  measured before it is kept, and a mutation ([docs/scene-format.md](docs/scene-format.md#solid-kinds)). A
+  per-pixel kind can now learn the width of a pixel, prepare itself for a picture and say how much neighbouring
+  pixels may differ before they are drawn again; the pictures of the other kinds are untouched. The golden hashes
+  of the three kinds were produced on Linux.
 
 * **GPU acceleration:** the trial of a built-in graphics chip gives way when a picture is asked for and begins
   again when the app rests; its verdict is kept again, so a slow phone is tried once, not at every start. The

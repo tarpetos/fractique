@@ -8,7 +8,7 @@ use crate::scene::{Camera, Fractal};
 use crate::tone;
 
 // Neighbours that differ by less than this are taken for a smooth place, drawn from one sample a pixel.
-const SMOOTH: f32 = 0.02;
+pub(crate) const SMOOTH: f32 = 0.02;
 const LARGEST_GRID: u32 = 8;
 
 pub(crate) struct Frame {
@@ -93,6 +93,16 @@ pub(crate) fn draw(
     let lut = palette::lut(&fractal.palette);
     let curve = 2.5 / fractal.tone.gamma;
     let side = grid(options);
+    let pixel = 1.0 / frame.per_unit;
+    let corners = [
+        (0.0, 0.0),
+        (frame.wide, 0.0),
+        (0.0, frame.high),
+        (frame.wide, frame.high),
+    ];
+    let framed = field.framed(corners.map(|(px, py)| frame.world(px, py)), pixel);
+    let field = framed.as_deref().unwrap_or(field);
+    let smooth_within = field.smooth();
     let cancelled = || cancel.is_some_and(|flag| flag.load(Ordering::Relaxed));
     let rows = AtomicUsize::new(0);
     // The second pass draws many samples only where the first found an edge: it is given the larger share.
@@ -109,7 +119,7 @@ pub(crate) fn draw(
         }
         for x in 0..width {
             let (wx, wy) = frame.world(x as f64 + 0.5, y as f64 + 0.5);
-            row[x * 4..x * 4 + 4].copy_from_slice(&colored(&lut, curve, field.sample(wx, wy)));
+            row[x * 4..x * 4 + 4].copy_from_slice(&colored(&lut, curve, field.sample_within(wx, wy, pixel)));
         }
         count_up(0.0, first_share);
     });
@@ -132,7 +142,7 @@ pub(crate) fn draw(
                 let (x_from, x_to) = (x.saturating_sub(1), (x + 1).min(width - 1));
                 let own = at(x, y);
                 let smooth = (y_from..=y_to).all(|ny| {
-                    (x_from..=x_to).all(|nx| at(nx, ny).iter().zip(own).all(|(a, b)| (a - b).abs() < SMOOTH))
+                    (x_from..=x_to).all(|nx| at(nx, ny).iter().zip(own).all(|(a, b)| (a - b).abs() < smooth_within))
                 });
                 if smooth {
                     continue;
@@ -142,7 +152,7 @@ pub(crate) fn draw(
                     for sx in 0..side {
                         let (wx, wy) =
                             frame.world(x as f64 + (sx as f64 + 0.5) * step, y as f64 + (sy as f64 + 0.5) * step);
-                        let color = colored(&lut, curve, field.sample(wx, wy));
+                        let color = colored(&lut, curve, field.sample_within(wx, wy, pixel));
                         for ch in 0..4 {
                             sum[ch] += color[ch];
                         }
@@ -184,7 +194,7 @@ pub(crate) fn probe(field: &dyn Field, camera: &Camera) -> Vec<Option<Sample>> {
     (0..PROBE * PROBE)
         .map(|cell| {
             let (wx, wy) = frame.world((cell % PROBE) as f64 + 0.5, (cell / PROBE) as f64 + 0.5);
-            field.sample(wx, wy)
+            field.sample_within(wx, wy, 1.0 / frame.per_unit)
         })
         .collect()
 }

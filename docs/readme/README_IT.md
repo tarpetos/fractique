@@ -18,6 +18,7 @@ Fractique crea tre tipi di immagini. Fiamme frattali: frattali luminosi ed etere
 
 - **Fiamme:** 49 variazioni, livelli con metodi di fusione, simmetria rotazionale e speculare, stima della densità, bagliore e 29 preset integrati.
 - **Frattali:** l’insieme di Mandelbrot, gli insiemi di Julia e l’attrattore di Clifford, ciascuno con i suoi preset e un’immagine per ogni seme; condividono le palette, i livelli e lo zoom profondo delle fiamme.
+- **Solidi:** il Mandelbulb, la Mandelbox e la spugna di Menger in tre dimensioni, con luce, ombre e nebbia; giraci intorno o entra al loro interno.
 - **Sfondi:** uno per ogni seme, da 14 disposizioni e 6 materiali, ciascuno in versione chiara e scura, disposto per la dimensione dello schermo.
 - **L’app:** un’unica base di codice per Windows, macOS, Linux, Android, iOS e il web. L’immagine riempie la finestra e sopra fluttuano pannelli di vetro; sul desktop l’app ha una propria barra del titolo di vetro. In 15 lingue.
 - **«Casuale» e «Muta»:** ogni seme è un’immagine; le fiamme che sarebbero un punto o un quadrato pieno vengono scartate. «Muta» crea una variante di quella che ti piace.
@@ -55,6 +56,13 @@ Orbite disegnate come densità: il Buddhabrot e gli attrattori di De Jong, Loren
 | `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
+
+Solidi in tre dimensioni: il Mandelbulb, la Mandelbox e la spugna di Menger:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
+| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
 
 Sfondi, chiari e scuri, ciascuno con la sua disposizione e il suo materiale:
 

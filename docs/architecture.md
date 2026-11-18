@@ -206,7 +206,7 @@ it is handed for every random number, no state shared between samples or walks.
 A kind whose parameters are not numbers (the rules of an L-system) needs a field beside `params` in `Fractal`:
 add it as an optional field with a default, so that scenes written before keep loading, and document it.
 
-### The place of the ray-marched kinds
+### The ray-marched kinds
 
 The `solid` family (Mandelbulb, Mandelbox, Menger sponge) is drawn per pixel, so it needs no third way through
 the renderer: a solid kind is a `Field`, and `pixel::draw` gives it the sampling, the grid of samples at the
@@ -215,11 +215,28 @@ edges, the threads, the progress, the cancel flag, the palette and the glow. Wha
 
 | Part | What it does |
 | --- | --- |
-| A distance estimator a kind | `fn distance(&self, point: [f64; 3]) -> (f64, f64)`: the distance to the solid and a value for its color (an orbit trap, the step count) |
-| The marcher, shared | Turns the point of the plane into a ray from the eye (the 2D camera pans and zooms the picture of the solid; the eye's direction and distance are parameters of the kind), walks it by the distance estimate up to a step limit, and returns `None` for a ray that leaves |
-| The light, shared | The normal from four more distance samples, a fixed light, ambient occlusion from the step count; the result is the `light` of the `Sample`, and the color value its place on the palette |
+| A distance estimator a kind | `Solid::distance(point) -> (f64, f64)`: no more than the distance to the solid, and a value for its color (an orbit trap). `reach` is the radius of a ball that holds the solid, `STRIDE` the share of the estimate a ray may walk |
+| The marcher, shared | `Marcher<S>` turns the point of the plane into a ray from the eye (the 2D camera pans and zooms the picture of the solid; the eye's direction and distance are parameters of the kind), walks it by the estimate up to a step limit, and stops where the estimate is under a pixel's width at that depth |
+| The light, shared | The normal from four more estimates, a key light with a soft shadow, how open the surface is from five estimates along the normal, a fog by depth and a halo for the rays that pass close by; the result is the `light` of the `Sample`, and the trap its place on the palette ([scene-format.md](scene-format.md#solid-kinds)) |
+| The randomizer's eye, shared | `fitted` probes a view on the 48 × 48 grid and counts its flaws: too little of the frame filled, too dark, flat, colors that do not run, or noise (two points a pixel and a half apart that differ, measured as a picture 1080 high would draw them). `picked` takes the first attempt without a flaw |
 
-All of it is float work for one pixel in a fixed order, so the promise holds without anything new.
+The family needed three things of `Field`, each a method with a default that leaves the other kinds as they
+were:
+
+| Method | Why |
+| --- | --- |
+| `sample_within(x, y, pixel)` | The width of a pixel on the plane: a ray stops at a pixel's width from the solid, so a draft of 480 pixels walks fewer steps than the picture and a deep zoom finds its detail. The default calls `sample` |
+| `framed(corners, pixel)` | The kind made ready for one picture. A solid marches one wider ray for every 4 × 4 pixels and notes how deep the rays of that cell are clear of the solid; each sample starts there. The table is computed before the samples from the scene and the size alone, so no state is shared between samples and the threads change nothing. The default prepares nothing |
+| `smooth()` | How much a pixel may differ from its neighbours and still be drawn from one sample: 0.2 for a solid, whose lit surface differs a little everywhere, 0.02 for the rest |
+
+The zoom of the 2D camera is a longer lens, not a step forward. A step forward along the ray through the middle
+of the picture would have to stop at the solid, and the solid is full of holes: the smallest move of the view
+would make the eye jump. With a lens the point under the finger stays under it, the picture the app stretches
+while the next one renders is the right one, and `distance` is there to go nearer.
+
+All of it is float work for one pixel in a fixed order, so the promise holds without anything new. A whole power
+of the Mandelbulb is computed by products and square roots alone; the Mandelbox and the Menger sponge use no
+function of `math.rs` in their estimates at all.
 
 ## Wallpapers
 

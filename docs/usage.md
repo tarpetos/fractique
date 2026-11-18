@@ -306,6 +306,9 @@ fractique randomize 7 --fractal clifford -o attractor.json
 | `hopalong` | `a` and `c` between −12 and 12, `b` between 0.05 and 6, orbits of 30 000 to 600 000 steps, with any of the colorings; the camera frames the middle 92 % of the points, since the lace thins out far from its middle |
 | `lorenz` | `sigma` between 4 and 20, `rho` between 25 and 120, `beta` between 0.5 and 4, seen from any side, followed for 60 to 1800 units of time. Systems that come to rest, single closed curves and views along the attractor's edge are skipped |
 | `buddhabrot` | 300 to 9000 iterations, with the shortest orbits drawn 5 steps long or a 4th to a 40th of the iterations, any of the three colorings; a third of the pictures are turned towards the plane of the starting points, and one in seven is an Anti-Buddhabrot of 20 to 200 iterations |
+| `mandelbulb` | A bulb of power 8, or of a whole power from 3 to 12, seen whole from a random side or from near through a longer lens, under a light at a random angle. A view is probed before it is kept: one that fills too little of the frame, is dark, flat, of one color or noise is skipped, up to 12 times, and the colors are spread over what the view shows |
+| `mandelbox` | A box of a scale from 1.6 to 3.2 or from −2.6 to −1.5, mostly seen from inside its outer layers and sometimes whole, judged the same way, up to 16 times |
+| `menger_sponge` | The sponge, whole or from near, in a little over half of the seeds folded by a twist, a bend or a scale other than 3; judged the same way, with rough surfaces allowed |
 
 The random fractal of a seed may change from one version of Fractique to the next, as a wallpaper's does; a scene
 kept in a file does not. `--generator` is for flames and is refused with `--fractal`.
@@ -404,6 +407,9 @@ view: lower `camera.zoom` then, or run `fractique fit`. A fractal of another kin
 `clifford` nearby numbers and a camera that frames it again. `fractique fit` leaves a fractal's view as it is. The
 sheets of a wallpaper stay as they are. The other attractors change as `clifford` does, a `lorenz` is also turned
 a little, and a `buddhabrot` gets other limits and a small turn; none of them changes its coloring.
+A solid is seen from another side, a little nearer or farther, under a light that moved and in shifted colors: a
+`mandelbulb` may get the next power, a `mandelbox` a nearby scale and inner radius, a `menger_sponge` another
+twist and bend.
 
 ## 10. Flames from other programs
 
@@ -485,6 +491,9 @@ fractique render --preset de_jong-classic --size 640x360 --quality high -o docs/
 fractique render --preset lorenz-butterfly --size 640x360 --quality high -o docs/samples/fractal-lorenz.png
 fractique render --preset gumowski_mira-feathers --size 640x360 --quality high -o docs/samples/fractal-gumowski_mira.png
 fractique render --preset hopalong-web --size 640x360 --quality high -o docs/samples/fractal-hopalong.png
+fractique render --preset mandelbulb-crown --size 640x360 --quality high -o docs/samples/fractal-mandelbulb.png
+fractique render --preset mandelbox-station --size 640x360 --quality high -o docs/samples/fractal-mandelbox.png
+fractique render --preset menger_sponge-classic --size 640x360 --quality high -o docs/samples/fractal-menger-sponge.png
 fractique render --wallpaper 3 --layout waves --material glass --size 360x780 -o docs/samples/wallpaper-waves-light.png
 fractique render --wallpaper 5 --layout burst --material glow --size 360x780 -o docs/samples/wallpaper-burst-light.png
 fractique render --wallpaper 7 --layout tiles --material relief --size 360x780 -o docs/samples/wallpaper-tiles-light.png
