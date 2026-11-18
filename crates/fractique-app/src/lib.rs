@@ -363,6 +363,7 @@ struct App {
     screenshot: Option<PathBuf>,
     screenshot_done: Arc<AtomicBool>,
     saved: String,
+    light: f32,
     last_frame: Instant,
     #[cfg(not(target_arch = "wasm32"))]
     export: export::Sheet,
@@ -520,6 +521,7 @@ impl App {
             screenshot,
             screenshot_done: Arc::new(AtomicBool::new(false)),
             saved: String::new(),
+            light: 0.0,
             last_frame: Instant::now(),
             #[cfg(not(target_arch = "wasm32"))]
             export: export::Sheet {
@@ -641,6 +643,14 @@ impl App {
                 );
             }
             self.shown = done.view;
+            let pixels = done.image.rgba.chunks_exact(4).step_by(97);
+            let (sum, count) = pixels.fold((0u64, 0u64), |(sum, count), pixel| {
+                (
+                    sum + u64::from(pixel[0]) * 2 + u64::from(pixel[1]) * 5 + u64::from(pixel[2]),
+                    count + 8,
+                )
+            });
+            self.light = sum as f32 / (count.max(1) as f32 * 255.0);
             if !done.draft {
                 self.rendering = false;
                 self.shown_frames = self.shown_frames.max(1);
@@ -1805,6 +1815,10 @@ impl eframe::App for App {
             if *dark {
                 optics.tint = optics.tint.max(0.82);
                 optics.blur = 1.0;
+            }
+            // The texts are white: over a light picture the glass has to be dark enough to read them.
+            if self.light > 0.3 {
+                optics.tint = optics.tint.max((0.3 + 0.75 * self.light).min(0.92));
             }
             glass.pane(*rect, optics);
         }
