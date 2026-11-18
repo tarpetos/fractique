@@ -25,6 +25,7 @@ Fractique renders fractal flames: the glowing, wispy kind of fractal made of thi
 - **Import:** `.flame` files of flam3 and Apophysis convert to scenes.
 - **The command line tool** (`fractique`): renders scenes to PNG.
 - **MCP server** (`fractique mcp`): an AI agent makes, changes and renders scenes ([docs/mcp.md](docs/mcp.md)).
+- **HTTP server** (`fractique-server`): an HTTP API with a render queue and limits, serves the web app, ships as a Docker image ([docs/server.md](docs/server.md)).
 
 | | |
 | --- | --- |
@@ -63,6 +64,7 @@ On Windows the tool is `target\release\fractique.exe`. All commands and options:
 | [docs/usage.md](docs/usage.md) | The commands, the quality levels, how to edit a scene |
 | [docs/scene-format.md](docs/scene-format.md) | Every field of a scene file, every variation |
 | [docs/mcp.md](docs/mcp.md) | The MCP server: connecting an AI agent, the tools |
+| [docs/server.md](docs/server.md) | The HTTP server: endpoints, limits, Docker |
 | [docs/ios.md](docs/ios.md) | Building and running on an iPhone or in the iOS Simulator |
 | [docs/releasing.md](docs/releasing.md) | How a release is made, how the app updates itself |
 | [docs/architecture.md](docs/architecture.md) | How the parts fit together, how a render works |

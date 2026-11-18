@@ -25,6 +25,7 @@ Fractique はフラクタルフレームを描画します。細い曲線と柔�
 - **インポート：** flam3 と Apophysis の `.flame` ファイルをシーンに変換。
 - **コマンドラインツール**（`fractique`）：シーンを PNG にレンダリング。
 - **MCP サーバー**（`fractique mcp`）：AI エージェントがシーンを作成、変更、レンダリング（[docs/mcp.md](../mcp.md)）。
+- **HTTP サーバー**（`fractique-server`）：レンダリングのキューと上限を備えた HTTP API。Web アプリも配信し、Docker イメージとして提供（[docs/server.md](../server.md)）。
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ Windows ではツールは `target\release\fractique.exe` にあります。す�
 | [docs/usage.md](../usage.md) | コマンド、品質レベル、シーンの編集方法 |
 | [docs/scene-format.md](../scene-format.md) | シーンファイルの全フィールド、全バリエーション |
 | [docs/mcp.md](../mcp.md) | MCP サーバー：AI エージェントの接続、ツール |
+| [docs/server.md](../server.md) | HTTP サーバー：エンドポイント、上限、Docker |
 | [docs/ios.md](../ios.md) | iPhone または iOS シミュレーターでのビルドと実行 |
 | [docs/architecture.md](../architecture.md) | 各部分のつながり、レンダリングの仕組み |
 | [docs/determinism.md](../determinism.md) | レンダリングが正確に再現される理由、保証されることとされないこと |

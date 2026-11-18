@@ -25,6 +25,7 @@ Fractique fraktal alevler çizer: ince eğrilerden ve yumuşak ışıktan oluşa
 - **İçe aktarma:** flam3 ve Apophysis `.flame` dosyaları sahnelere dönüştürülür.
 - **Komut satırı aracı** (`fractique`): sahneleri PNG olarak oluşturur.
 - **MCP sunucusu** (`fractique mcp`): bir yapay zekâ ajanı sahneler oluşturur, değiştirir ve görüntüye dönüştürür ([docs/mcp.md](../mcp.md)).
+- **HTTP sunucusu** (`fractique-server`): işleme kuyruğu ve sınırları olan bir HTTP API’si; web uygulamasını sunar, Docker imajı olarak gelir ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ Belgeler İngilizcedir.
 | [docs/usage.md](../usage.md) | Komutlar, kalite düzeyleri, bir sahnenin nasıl düzenleneceği |
 | [docs/scene-format.md](../scene-format.md) | Sahne dosyasının her alanı, her varyasyon |
 | [docs/mcp.md](../mcp.md) | MCP sunucusu: bir yapay zekâ ajanını bağlama, araçlar |
+| [docs/server.md](../server.md) | HTTP sunucusu: uç noktalar, sınırlar, Docker |
 | [docs/ios.md](../ios.md) | iPhone’da ya da iOS Simülatöründe derleme ve çalıştırma |
 | [docs/architecture.md](../architecture.md) | Parçaların birbirine nasıl oturduğu, bir oluşturmanın nasıl işlediği |
 | [docs/determinism.md](../determinism.md) | Bir oluşturmanın neden tam olarak yinelendiği, nelerin vaat edilip nelerin edilmediği |

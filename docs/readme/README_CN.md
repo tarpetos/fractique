@@ -25,6 +25,7 @@ Fractique 渲染分形火焰：由细线和柔光构成的发光、轻盈的分�
 - **导入：** flam3 和 Apophysis 的 `.flame` 文件可转换为场景。
 - **命令行工具**（`fractique`）：将场景渲染为 PNG。
 - **MCP 服务器**（`fractique mcp`）：AI 智能体可以创建、修改并渲染场景（[docs/mcp.md](../mcp.md)）。
+- **HTTP 服务器**（`fractique-server`）：带渲染队列和限制的 HTTP API，同时提供网页版应用，并以 Docker 镜像发布（[docs/server.md](../server.md)）。
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ Fractique 渲染分形火焰：由细线和柔光构成的发光、轻盈的分�
 | [docs/usage.md](../usage.md) | 命令、质量等级、如何编辑场景 |
 | [docs/scene-format.md](../scene-format.md) | 场景文件的每个字段、每种变体 |
 | [docs/mcp.md](../mcp.md) | MCP 服务器：连接 AI 智能体、可用工具 |
+| [docs/server.md](../server.md) | HTTP 服务器：接口、限制、Docker |
 | [docs/ios.md](../ios.md) | 在 iPhone 或 iOS 模拟器上构建和运行 |
 | [docs/architecture.md](../architecture.md) | 各部分如何配合，渲染如何进行 |
 | [docs/determinism.md](../determinism.md) | 为什么渲染结果能精确重复，哪些有保证、哪些没有 |

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* **HTTP server:** `fractique-server` offers presets, random scenes, wallpapers and renders as PNG over HTTP
+  ([docs/server.md](docs/server.md)). Renders wait in a bounded queue and a full one answers 429; the size, the
+  samples and the time of a render are limited by settings; a client that disconnects cancels its render. It can
+  serve the web build of the app beside the API.
+* **Docker:** a `Dockerfile` and a `docker-compose.yml` build one small image with the server and the web app,
+  run as a user without rights.
 * **Wallpapers:** a scene can hold `sheets`, a stack of flat shapes (rounded boxes, petals, rings and arcs, waves and
   ribbons) with lit edges, gradients, translucency and soft shadows, drawn under the flame layers.
   `fractique render --wallpaper SEED` makes one for every seed out of fourteen layouts (bands, discs, waves,

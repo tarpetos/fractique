@@ -25,6 +25,7 @@ Fractique disegna fiamme frattali: frattali luminosi e impalpabili fatti di curv
 - **Importazione:** i file `.flame` di flam3 e Apophysis vengono convertiti in scene.
 - **Lo strumento da riga di comando** (`fractique`): renderizza le scene in PNG.
 - **Server MCP** (`fractique mcp`): un agente IA crea, modifica e renderizza scene ([docs/mcp.md](../mcp.md)).
+- **Server HTTP** (`fractique-server`): un’API HTTP con coda di rendering e limiti, serve l’app web, distribuito come immagine Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ La documentazione è in inglese.
 | [docs/usage.md](../usage.md) | I comandi, i livelli di qualità, come modificare una scena |
 | [docs/scene-format.md](../scene-format.md) | Ogni campo di un file di scena, ogni variazione |
 | [docs/mcp.md](../mcp.md) | Il server MCP: collegare un agente IA, gli strumenti |
+| [docs/server.md](../server.md) | Il server HTTP: endpoint, limiti, Docker |
 | [docs/ios.md](../ios.md) | Compilare ed eseguire su un iPhone o nel simulatore iOS |
 | [docs/architecture.md](../architecture.md) | Come si incastrano le parti, come funziona un render |
 | [docs/determinism.md](../determinism.md) | Perché un render si ripete esattamente, cosa è garantito e cosa no |
