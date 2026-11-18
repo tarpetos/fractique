@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* **App (desktop):** one window at a time. A second start brings the open window to the front and passes it the
+  file it was given. A debug build, or `FRACTIQUE_MANY=1`, still opens as many as asked.
 * **Wallpapers:** a scene can hold `sheets`, a stack of flat shapes (rounded boxes, petals, rings and arcs, waves and
   ribbons) with lit edges, gradients, translucency and soft shadows, drawn under the flame layers.
   `fractique render --wallpaper SEED` makes one for every seed out of fourteen layouts (bands, discs, waves,
