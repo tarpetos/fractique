@@ -575,7 +575,8 @@ impl App {
         self.phone.clear.push(strip.response.rect);
         let below = strip.response.rect.bottom() + 12.0;
 
-        let shutter = egui::pos2(content.right() - 52.0, content.bottom() - 54.0);
+        let edge = content.right() - 14.0;
+        let shutter = egui::pos2(edge - 34.0, content.bottom() - 54.0);
         let similar = if self.wall.live { "similar" } else { "mutate" };
         let piece = self.piece(size);
         let is_kept = self.phone.kept.iter().any(|kept| kept.kind == piece.kind);
@@ -589,7 +590,7 @@ impl App {
         let hinted = content.width() > content.height();
         let mut pressed = None;
         for (index, (which, key)) in rail.into_iter().enumerate() {
-            let at = shutter - vec2(0.0, 66.0 + 56.0 * index as f32);
+            let at = egui::pos2(edge - 23.0, shutter.y - 66.0 - 56.0 * index as f32);
             let button = egui::Area::new(egui::Id::unique(("phone_rail", index)))
                 .fixed_pos(at)
                 .pivot(Align2::CENTER_CENTER)
