@@ -69,6 +69,7 @@ flames and wallpapers; a switch in the controls goes from one to the other.
 | **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 21 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone, 900 in a browser); a larger one is shown scaled down and exported in full. It is shown whole in the window |
 | **Layers** (inspector, flames) | The scene's flames, one over another, up to 16: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity. Only the layer that changed is rendered again |
 | **Tone**, **View** (inspector, flames) | Brightness, gamma and glow of the whole picture, and a zoom; **Reset** brings them back |
+| **Graphics: GPU acceleration** (inspector; on at first) | While a tone slider, the zoom, a layer's opacity or its blend moves, the graphics card draws the picture from the layers already rendered, so it answers at once; when the control rests the processor renders the picture and replaces the preview. The preview is close to the rendered picture, not equal to it: it has no dithering and its glow is blurred at a lower resolution. An export never uses it. Off, every change is rendered by the processor straight away, drafts first. The switch is not shown where the graphics card cannot do it |
 | **Glass** (inspector) | Opacity and blur of the panels. **F2** opens the fine tuning of the glass: refraction, depth, bezel |
 | Drag, wheel or pinch on the picture | Moves the view and zooms in and out, from 10,000 times smaller to 10,000,000,000 times larger. The picture follows at once and is drawn anew, sharp, when the view rests; the toolbar shows the magnification. **Export** and **Save** take the view as it is. A double click shows the whole scene again |
 | **Reset view** (appears once the picture is moved or zoomed) | Shows the whole scene again, as a double click does |
@@ -119,7 +120,7 @@ On Android and iOS the picture fills the screen and the controls are a few round
 | Tap | Hides the buttons, and shows them again |
 | Press and hold | Shows the picture as the lock screen of an iPhone, with the date, the time, the torch and the camera, for as long as the finger rests. On an iPhone the date and the time are the real ones |
 | **Style** | A sheet that slides up, with small live pictures to choose from. First the **collection**, the pictures kept. For wallpapers: every layout, every material, a row of colors (any, or one of eight) and **Light** or **Dark**. For flames: every preset, and a random one. Its handle drags it taller or away |
-| **Fine-tune** (at the end of the styles) | The controls of the computer's inspector, over the whole screen: language, size, layers, tone, glass. The cross closes them |
+| **Fine-tune** (at the end of the styles) | The controls of the computer's inspector, over the whole screen: language, size, layers, tone, glass, GPU acceleration. The cross closes them |
 | **Export** | The size and the quality, then **Save to Photos** or **Share**. On an iPhone the picture goes to Photos or to the share sheet. On Android it goes to the gallery, into `Pictures/Fractique`, and **Share** then offers it to other apps. Android 9 and older ask for storage access when **Save** is pressed, before the picture is made; once allowed, the export goes on by itself |
 
 A phone has no **Scene: Open, Save** and no updates window: [releasing.md](releasing.md) says what updates itself
@@ -128,8 +129,8 @@ and what does not. In a browser the app has no export, no scene files and no upd
 ### What the app keeps
 
 The whole session is kept between launches: the scene that was open with its layers, the view, the tone, the size,
-flames or wallpapers and their choices, the collection, the language, the glass and the window (its place, size and
-screen). It is written when it changes, into the app's data folder: `%APPDATA%\Fractique\data` on Windows,
+flames or wallpapers and their choices, the collection, the language, the glass, GPU acceleration and the window
+(its place, size and screen). It is written when it changes, into the app's data folder: `%APPDATA%\Fractique\data` on Windows,
 `~/.local/share/fractique` on Linux, `~/Library/Application Support/Fractique` on macOS, and the app's own folder
 on a phone. The window never reopens in full screen.
 

@@ -73,4 +73,5 @@ is drawn.
 
 The app also keeps developed layers, so that a layer that did not change is not rendered again: 12 bytes a pixel
 each, up to 1200 MB on a computer and 160 MB on a phone or in a browser; the least recently used go first, the
-layers of the whole view last.
+layers of the whole view last. With GPU acceleration on, the densities of the layers share that room, 16 bytes a
+pixel each, and the graphics card holds 8 more for each density that has been on the screen, for as long as it is kept.

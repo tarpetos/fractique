@@ -105,5 +105,7 @@
   "save_photos": "Enregistrer dans Photos",
   "share": "Partager",
   "allow_storage": "Autorisez l'accès au stockage pour enregistrer l'image.",
-  "color": "COULEUR"
+  "color": "COULEUR",
+  "graphics": "GRAPHISMES",
+  "gpu": "Accélération GPU"
 }

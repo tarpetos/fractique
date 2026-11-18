@@ -15,7 +15,10 @@ mod deep;
 mod sheets;
 mod tone;
 
-pub use render::{Control, Developed, Image, Quality, RenderError, RenderOptions, compose, render, render_layer};
+pub use render::{
+    Control, Density, Developed, Image, Quality, RenderError, RenderOptions, compose, develop, render, render_density,
+    render_layer,
+};
 pub use scene::{
     Blend, Camera, Flame, Layer, Palette, SCENE_VERSION, Scene, SceneError, Shape, Sheet, Sheets, Stop, Swell, Tone,
     Transform,

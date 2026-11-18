@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+* **App:** GPU acceleration, a switch in the controls, on at first and kept between launches. While a tone slider,
+  the zoom, a layer's opacity or its blend moves, the graphics card draws the picture from the layers already
+  rendered, so it answers at once; when the control rests, the processor renders the picture and replaces the
+  preview. A change to a layer's tone no longer runs the chaos game again. The rendered picture and every export
+  are the processor's, as before; with the switch off the app renders as it did.
+* **Renderer:** `render_density` and `develop` split `render_layer` in two, before and after the tone mapping,
+  and give the same layer bit for bit. Existing scenes render as before.
 * **App:** the last 24 pictures are remembered. **Recent** in the inspector lists them, and the styles of a phone
   show them as a row of small pictures; a click brings one back. The list is kept between launches.
 * **MCP over HTTP:** `fractique-server` speaks MCP at `POST /mcp` (Streamable HTTP, revisions `2025-06-18` and

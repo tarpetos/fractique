@@ -105,5 +105,7 @@
   "save_photos": "Fotoğraflar’a kaydet",
   "share": "Paylaş",
   "allow_storage": "Görüntüyü kaydetmek için depolama erişimine izin verin.",
-  "color": "RENK"
+  "color": "RENK",
+  "graphics": "GRAFİK",
+  "gpu": "GPU hızlandırma"
 }

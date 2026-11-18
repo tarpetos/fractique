@@ -331,3 +331,44 @@ fn the_thread_count_does_not_change_the_added_variations() {
         }
     }
 }
+
+#[test]
+fn a_density_develops_to_the_rendered_layer() {
+    use fractique_core::{compose, develop, render_density};
+
+    for supersample in [1, 2] {
+        let mut scene = presets::get("solar-mandala").expect("the preset exists");
+        let options = small(supersample);
+        let densities: Vec<_> = (0..scene.layers.len())
+            .map(|index| render_density(&scene, index, &options, &Control::default()).unwrap())
+            .collect();
+        let from_densities = |scene: &fractique_core::Scene| {
+            let layers: Vec<_> = densities
+                .iter()
+                .enumerate()
+                .map(|(index, density)| develop(scene, index, density).unwrap())
+                .collect();
+            compose(scene, &layers.iter().collect::<Vec<_>>(), &options).unwrap()
+        };
+        assert_eq!(
+            from_densities(&scene),
+            render(&scene, &options, &Control::default()).unwrap()
+        );
+
+        for layer in &mut scene.layers {
+            let tone = &mut layer.flame.tone;
+            (tone.brightness, tone.gamma, tone.vibrancy, tone.highlight) = (1.8, 1.9, 0.4, 0.5);
+            (tone.glow_radius, tone.glow_strength) = (0.03, 0.7);
+        }
+        assert_eq!(
+            from_densities(&scene),
+            render(&scene, &options, &Control::default()).unwrap()
+        );
+
+        scene.layers[0].flame.tone.smoothing = 2.0;
+        assert!(develop(&scene, 0, &densities[0]).is_err());
+        let levels = densities[0].levels();
+        assert_eq!(levels.len(), (options.width * options.height * 4) as usize);
+        assert!(levels.iter().all(|level| level.is_finite() && *level >= 0.0));
+    }
+}

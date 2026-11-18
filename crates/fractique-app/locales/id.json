@@ -105,5 +105,7 @@
   "save_photos": "Simpan ke Foto",
   "share": "Bagikan",
   "allow_storage": "Izinkan akses penyimpanan untuk menyimpan gambar.",
-  "color": "WARNA"
+  "color": "WARNA",
+  "graphics": "GRAFIS",
+  "gpu": "Akselerasi GPU"
 }
