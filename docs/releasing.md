@@ -7,7 +7,8 @@ that version's part of the changelog; installed copies of the app then find it b
 
 | File | For | Updates itself |
 | --- | --- | --- |
-| `Fractique_<version>_x64-setup.exe` | Windows | yes |
+| `Fractique_<version>_x64.exe` | Windows: the app itself, one file, no installer | yes |
+| `fractique-cli_<version>_x64.exe` | Windows: the command line tool | no |
 | `Fractique_<version>_x86_64.AppImage` | Linux, any distribution | yes |
 | `Fractique_<version>_amd64.deb` | Debian, Ubuntu | no: it points at the download page |
 | `Fractique_<version>_aarch64.dmg` | macOS, Apple Silicon | yes (the app inside) |
@@ -16,7 +17,7 @@ that version's part of the changelog; installed copies of the app then find it b
 | `latest.json` | the update manifest the app reads | |
 | `SHA256SUMS.txt` | checksums | |
 
-The desktop installers carry the app (`fractique-gui`) and the command line tool (`fractique`).
+The Linux and macOS packages carry the app (`fractique-gui`) and the command line tool (`fractique`).
 
 ## How to release
 
@@ -57,14 +58,15 @@ flowchart LR
   one of the chosen version.
 - **The download is verified** against the signature in the manifest with the public key built into the app
   (`PUBKEY` in `crates/fractique-app/src/update.rs`). A file signed with another key is refused.
-- **Installing** happens when the app closes, or at once with **Restart now**. On Windows the installer runs in
-  passive mode and starts the new version.
+- **Installing** happens when the app closes, or at once with **Restart now**. On Windows the app renames its own
+  file to `.old`, puts the new one in its place and removes the old one at the next start.
 
 Which copy can do what:
 
 | Copy | Behaviour |
 | --- | --- |
-| Installed with the Windows setup, the AppImage, the macOS app | Updates itself |
+| The Windows program in a folder it can write to, the AppImage, the macOS app | Updates itself |
+| The Windows program in a folder it cannot write to (`Program Files`) | Shows the versions and opens the download page |
 | The `.deb`, or a binary copied by hand | Shows the versions and opens the download page |
 | Built from a checkout (`cargo build`, `setup.sh`) | Shows the versions, installs nothing |
 | Android, iOS, the web | No updates window: the stores, or a new APK by hand, replace the app; the web is always the newest |

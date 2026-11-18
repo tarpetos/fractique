@@ -1,4 +1,4 @@
-# cargo-packager configuration, driven by scripts/build/build-{linux.sh,mac.sh,win.ps1}.
+# cargo-packager configuration, driven by scripts/build/build-{linux.sh,mac.sh}. Windows ships the bare program.
 # Paths are relative to this file's folder.
 
 name = "fractique"
@@ -43,10 +43,6 @@ depends = [
 
 [macos]
 minimum-system-version = "13.0"
-
-[nsis]
-installer-mode = "currentUser"
-compression = "lzma"
 
 [dmg]
 window-size = { width = 540, height = 380 }

@@ -181,7 +181,8 @@ jobs:
               '{($k): {url: $url, signature: $sig, format: $fmt}}'
           }
           {
-            entry windows-x86_64 'Fractique_*_x64-setup.exe' nsis
+            # Windows has no installer: the app replaces its own file. "nsis" is only the name the manifest format wants.
+            entry windows-x86_64 'Fractique_*_x64.exe' nsis
             entry linux-x86_64 'Fractique_*_x86_64.AppImage' appimage
             entry macos-aarch64 '*_aarch64.app.tar.gz' app
           } | jq -s 'add // {}' > ../platforms.json

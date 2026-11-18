@@ -46,6 +46,7 @@ pub struct Updates {
 
 impl Updates {
     pub fn new() -> Self {
+        update::tidy();
         let mut updates = Self {
             open: false,
             kind: update::kind(),

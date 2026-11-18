@@ -37,7 +37,44 @@ pub fn kind() -> Kind {
             Kind::Manual
         };
     }
-    Kind::Auto
+    if own_folder_is_writable() {
+        Kind::Auto
+    } else {
+        Kind::Manual
+    }
+}
+
+// On Windows the app is one file that replaces itself, which it cannot do in a folder it may not write to.
+fn own_folder_is_writable() -> bool {
+    let Ok(exe) = std::env::current_exe() else {
+        return false;
+    };
+    let probe = exe.with_extension("probe");
+    let writable = std::fs::write(&probe, b"").is_ok();
+    let _ = std::fs::remove_file(probe);
+    writable
+}
+
+pub fn tidy() {
+    if let Ok(exe) = std::env::current_exe() {
+        let _ = std::fs::remove_file(exe.with_extension("old"));
+        let _ = std::fs::remove_file(exe.with_extension("new"));
+    }
+}
+
+#[cfg(windows)]
+fn replace_self(bytes: &[u8]) -> Result<PathBuf, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let (new, old) = (exe.with_extension("new"), exe.with_extension("old"));
+    std::fs::write(&new, bytes).map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(&old);
+    // Windows refuses to overwrite a running program but lets it be renamed.
+    std::fs::rename(&exe, &old).map_err(|e| e.to_string())?;
+    if let Err(error) = std::fs::rename(&new, &exe) {
+        let _ = std::fs::rename(&old, &exe);
+        return Err(error.to_string());
+    }
+    Ok(exe)
 }
 
 fn app_bundle() -> Option<PathBuf> {
@@ -220,6 +257,25 @@ pub fn install_pending(relaunch: bool) {
     let Some((update, bytes)) = READY.lock().unwrap_or_else(|e| e.into_inner()).take() else {
         return;
     };
+    #[cfg(windows)]
+    {
+        let _ = update;
+        match replace_self(&bytes) {
+            Ok(exe) if relaunch => {
+                if let Err(error) = std::process::Command::new(exe).spawn() {
+                    log::error!("the updated app could not be started: {error}");
+                }
+            }
+            Ok(_) => {}
+            Err(error) => log::error!("the update could not be installed: {error}"),
+        }
+    }
+    #[cfg(not(windows))]
+    install_bundle(&update, bytes, relaunch);
+}
+
+#[cfg(not(windows))]
+fn install_bundle(update: &Update, bytes: Vec<u8>, relaunch: bool) {
     if let Err(error) = update.install(bytes) {
         log::error!("the update could not be installed: {error}");
         return;

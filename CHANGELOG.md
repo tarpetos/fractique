@@ -17,6 +17,6 @@ First version: the renderer and the command line tool.
   languages.
 * **Export, scenes, updates:** the app exports PNGs at any size, opens and saves scenes, checks GitHub for newer
   versions and installs any released version.
-* **Installers:** a Windows setup, an AppImage and a .deb, a macOS app and an Android APK, built by a release
-  workflow.
+* **Downloads:** one program file for Windows (no installer), an AppImage and a .deb, a macOS app and an Android
+  APK, built by a release workflow.
 * **Setup:** `setup.sh` (Linux, macOS) and `setup.cmd` (Windows).
