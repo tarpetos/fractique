@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use eframe::egui;
 use eframe::egui_wgpu::wgpu;
 use fractique_core::scene::Transform;
-use fractique_core::{Flame, Kind, RenderOptions, Scene, math, palette};
+use fractique_core::{Flame, Kind, RenderOptions, Scene, Tone, math, palette};
 use web_time::Instant;
 
 use crate::preview::{LEVELS, guarded};
@@ -174,8 +174,8 @@ fn packed(flame: &Flame, [width, height]: [u32; 2], finest: f64) -> Option<(Box<
 }
 
 // The kernels of fractique-core's density estimation for a picture of this size.
-fn look(flame: &Flame, [width, height]: [u32; 2]) -> Box<Look> {
-    let spread = (SPREAD_SHARE * flame.tone.smoothing * f64::from(width.min(height))).min(MAX_SPREAD);
+fn look(tone: &Tone, [width, height]: [u32; 2]) -> Box<Look> {
+    let spread = (SPREAD_SHARE * tone.smoothing * f64::from(width.min(height))).min(MAX_SPREAD);
     let top = ((spread * 2.0).round() as usize).min(KERNELS - 1);
     let mut kernels = [[0f32; 4]; KERNELS];
     for (level, kernel) in kernels.iter_mut().enumerate().take(top + 1) {
@@ -532,7 +532,7 @@ impl Chaos {
         let Some(flames) = scene
             .layers
             .iter()
-            .map(|layer| packed(&layer.flame, size, self.finest))
+            .map(|layer| packed(layer.flame()?, size, self.finest))
             .collect::<Option<Vec<_>>>()
         else {
             return false;
@@ -561,7 +561,7 @@ impl Chaos {
                     let flame = buffer("fractique flame", size_of::<Packed>() as u64, uniform);
                     self.queue.write_buffer(&flame, 0, bytemuck::bytes_of(&**data));
                     let batch = buffer("fractique batch", size_of::<Batch>() as u64, uniform);
-                    let kernels = look(&layer.flame, size);
+                    let kernels = look(layer.tone(), size);
                     let look_buffer = buffer("fractique look", size_of::<Look>() as u64, uniform);
                     self.queue.write_buffer(&look_buffer, 0, bytemuck::bytes_of(&*kernels));
                     let walking = buffer("fractique walkers", u64::from(walkers) * 32, storage);
@@ -623,7 +623,7 @@ impl Chaos {
                         levels,
                         kernels,
                         plotted: *plotted,
-                        zoom: layer.flame.camera.zoom,
+                        zoom: layer.camera().zoom,
                     }
                 })
                 .collect::<Vec<_>>();
@@ -985,7 +985,7 @@ mod tests {
     fn flames_are_packed_as_the_shader_reads_them() {
         assert_eq!(size_of::<Packed>(), 80 + 65 * 80 + 256 * 32 + 1024 + 512);
         let scene = presets::get("solar-mandala").expect("the preset exists");
-        let flame = &scene.layers[0].flame;
+        let flame = scene.layers[0].flame().expect("the preset is a flame");
         let (data, plotted) = packed(flame, [640, 360], FINEST).expect("the flame is one the graphics card draws");
         assert_eq!(data.counts[0] as usize, flame.transforms.len());
         assert_eq!(data.counts[1], flame.symmetry.unsigned_abs());
@@ -1001,7 +1001,7 @@ mod tests {
     #[test]
     fn the_kernels_are_those_of_the_density_estimation() {
         let scene = presets::get("aurora-spiral").expect("the preset exists");
-        let look = look(&scene.layers[0].flame, [3840, 2160]);
+        let look = look(scene.layers[0].tone(), [3840, 2160]);
         assert_eq!(look.widths[0][1], 17);
         assert_eq!(look.widths[8][0], 4);
         assert_eq!(look.widths[1023][3], 0);
@@ -1040,7 +1040,7 @@ mod tests {
         println!("| Cells a unit × distance | Mean | Largest |");
         for away in [0.0, 300.0, 1000.0, 3000.0, 10_000.0, 30_000.0, 100_000.0] {
             let mut scene = presets::get("aurora-spiral").expect("the preset exists");
-            let flame = &mut scene.layers[0].flame;
+            let flame = scene.layers[0].flame_mut().expect("the preset is a flame");
             flame.final_transform = Some(Transform {
                 weight: 1.0,
                 color: 0.0,
@@ -1073,7 +1073,7 @@ mod tests {
             return;
         };
         let mut scene = presets::get("aurora-spiral").expect("the preset exists");
-        let camera = &mut scene.layers[0].flame.camera;
+        let camera = scene.layers[0].camera_mut();
         (camera.center, camera.zoom) = ([-0.9, 0.56], 24.0);
         assert!(card.drawn(&scene, &options(320, 200)).is_none());
         let request = fractique_core::wallpaper::Request {
@@ -1090,7 +1090,7 @@ mod tests {
     // A flame of two plain transforms and one that is the variation alone, framed by the randomizer's camera.
     fn flame_of(kind: Kind) -> Scene {
         let mut scene = presets::get("aurora-spiral").expect("the preset exists");
-        let flame = &mut scene.layers[0].flame;
+        let flame = scene.layers[0].flame_mut().expect("the preset is a flame");
         let plain = |color: f64, affine: [f64; 6], kind: Kind| Transform {
             weight: 1.0,
             color,

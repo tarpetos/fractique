@@ -4,9 +4,9 @@ use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
 use fractique_core::import::import_flames;
-use fractique_core::random::{fit_camera, mutate, random_scene};
+use fractique_core::random::{Generator, fit_camera, mutate, random_scene_of};
 use fractique_core::wallpaper::{Layout, Material, Request, random_wallpaper};
-use fractique_core::{Control, Image, Kind, Quality, RenderOptions, Scene, file, presets, render};
+use fractique_core::{Control, Image, Kind, Quality, RenderOptions, Scene, file, fractal, presets, render};
 use serde_json::{Value, json};
 
 pub const PROTOCOLS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -134,6 +134,101 @@ pub fn wallpaper_request(
     })
 }
 
+pub fn preset(name: &str) -> Result<Scene, String> {
+    presets::get(name)
+        .or_else(|| fractal::preset(name))
+        .ok_or_else(|| format!("no preset is called '{name}'"))
+}
+
+// The random scene of a seed: a flame of a generator, or a fractal of the kind named.
+pub fn random(kind: Option<&str>, generator: Option<u64>, seed: u64) -> Result<Scene, String> {
+    match (kind, generator) {
+        (Some(_), Some(_)) => Err("a generator makes flames: leave it out for a fractal".into()),
+        (Some(kind), None) => fractal::random_scene(kind, seed).ok_or_else(|| {
+            let kinds: Vec<&str> = fractal::all().map(|spec| spec.name).collect();
+            format!("no fractal is called '{kind}'; there are {}", kinds.join(", "))
+        }),
+        (None, generator) => {
+            let number = generator.unwrap_or(1);
+            let generator = Generator::from_number(number)
+                .ok_or_else(|| format!("no generator has the number {number}; there are 1 and 2"))?;
+            Ok(random_scene_of(generator, seed))
+        }
+    }
+}
+
+// Every layer's camera moved to frame its flame; a fractal keeps its view.
+pub fn fit(mut scene: Scene) -> Result<Scene, String> {
+    for (index, layer) in scene.layers.iter_mut().enumerate() {
+        if let Some(flame) = layer.flame_mut() {
+            let (camera, _) =
+                fit_camera(flame).ok_or_else(|| format!("layer {index}: the flame draws nothing to frame"))?;
+            flame.camera = camera;
+        }
+    }
+    Ok(scene)
+}
+
+// The kinds of fractal, with their parameters and presets.
+pub fn fractals() -> Value {
+    let kinds: Vec<Value> = fractal::all()
+        .map(|spec| {
+            let params: Vec<Value> = spec
+                .params
+                .iter()
+                .map(|param| {
+                    json!({
+                        "name": param.name,
+                        "default": param.default,
+                        "min": param.min,
+                        "max": param.max,
+                        "whole": param.whole,
+                    })
+                })
+                .collect();
+            let presets: Vec<String> = spec
+                .presets
+                .iter()
+                .map(|preset| format!("{}-{}", spec.name, preset.name))
+                .collect();
+            json!({
+                "name": spec.name,
+                "family": spec.family.name(),
+                "drawn": if spec.is_density() { "density" } else { "per pixel" },
+                "params": params,
+                "presets": presets,
+            })
+        })
+        .collect();
+    Value::Array(kinds)
+}
+
+pub fn fractal_list() -> String {
+    let mut lines = Vec::new();
+    for kind in fractals().as_array().into_iter().flatten() {
+        let word = |key: &str| kind[key].as_str().unwrap_or_default();
+        lines.push(format!("{} ({}, {})", word("name"), word("family"), word("drawn")));
+        for param in kind["params"].as_array().into_iter().flatten() {
+            let whole = if param["whole"] == true { ", whole" } else { "" };
+            lines.push(format!(
+                "  {}={} ({} to {}{whole})",
+                param["name"].as_str().unwrap_or_default(),
+                param["default"],
+                param["min"],
+                param["max"]
+            ));
+        }
+        let presets: Vec<&str> = kind["presets"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect();
+        lines.push(format!("  presets: {}", presets.join(", ")));
+    }
+    lines.join("\n")
+}
+
 fn sources(host: &Host) -> Vec<&'static str> {
     SOURCES
         .into_iter()
@@ -163,12 +258,15 @@ pub fn tools(host: &Host) -> Value {
     let material =
         json!({ "type": "string", "enum": names(&Material::ALL), "description": "Left out, the seed picks one." });
     let dark = json!({ "type": "boolean", "description": "The dark version of the same shapes. Default false." });
+    let kinds: Vec<&str> = fractal::all().map(|spec| spec.name).collect();
+    let kind = json!({ "type": "string", "enum": kinds, "description": "With a random seed: the random fractal of this kind instead of a flame. list_fractals describes the kinds." });
     let seed = json!({ "type": "integer", "minimum": 0, "description": "Any whole number. The same number always gives the same result." });
     let side = host.limits.as_ref().map_or(16384, |limits| limits.max_side.min(16384));
     let mut render = json!({
             "scene": scene,
             "preset": { "type": "string", "description": "Name of a built-in scene." },
             "random_seed": seed,
+            "fractal": kind,
             "wallpaper_seed": { "type": "integer", "minimum": 0, "description": "Renders the wallpaper of this seed, laid out for width and height. layout, material and dark choose its style." },
             "layout": layout,
             "material": material,
@@ -202,8 +300,8 @@ pub fn tools(host: &Host) -> Value {
         ),
         tool(
             "randomize_scene",
-            "The random scene of a seed, with its camera already framing the flame.",
-            json!({ "seed": seed }),
+            "The random scene of a seed, with its camera already framing the picture: a flame, or with fractal a fractal of that kind.",
+            json!({ "seed": seed, "fractal": kind }),
             &["seed"]
         ),
         tool(
@@ -227,13 +325,13 @@ pub fn tools(host: &Host) -> Value {
         ),
         tool(
             "mutate_scene",
-            "A variant of a scene: every transform is nudged. The camera is kept; call fit_camera afterwards if the flame moved out of view.",
+            "A variant of a scene: every transform of a flame is nudged, and a fractal gets a nearby view or nearby constants. A flame's camera is kept; call fit_camera afterwards if it moved out of view.",
             json!({ "scene": scene, "seed": seed, "strength": { "type": "number", "minimum": 0, "maximum": 1, "description": "0 changes nothing, 1 leaves it barely related. Default 0.3." } }),
             &["scene", "seed"],
         ),
         tool(
             "fit_camera",
-            "The scene with every layer's camera moved to frame its flame.",
+            "The scene with every flame layer's camera moved to frame its flame. A fractal layer keeps its view.",
             json!({ "scene": scene }),
             &["scene"]
         ),
@@ -252,6 +350,12 @@ pub fn tools(host: &Host) -> Value {
         tool(
             "list_variations",
             "The variations a transform can use, with their parameters and defaults.",
+            json!({}),
+            &[]
+        ),
+        tool(
+            "list_fractals",
+            "The kinds of fractal a layer can hold besides a flame, with their parameters, defaults, ranges and presets.",
             json!({}),
             &[]
         ),
@@ -385,11 +489,12 @@ fn plan(arguments: &Value, host: &Host) -> Result<Render, String> {
     let chosen: Vec<&str> = sources.iter().copied().filter(|name| given(arguments, name)).collect();
     let scene = match chosen[..] {
         ["scene"] => scene_of(arguments)?,
-        ["preset"] => {
-            let name = word(arguments, "preset")?.unwrap_or_default();
-            presets::get(name).ok_or_else(|| format!("no preset is called '{name}'"))?
-        }
-        ["random_seed"] => random_scene(whole(arguments, "random_seed")?.unwrap_or_default()),
+        ["preset"] => preset(word(arguments, "preset")?.unwrap_or_default())?,
+        ["random_seed"] => random(
+            word(arguments, "fractal")?,
+            None,
+            whole(arguments, "random_seed")?.unwrap_or_default(),
+        )?,
         ["wallpaper_seed"] => wallpaper(
             arguments,
             whole(arguments, "wallpaper_seed")?.unwrap_or_default(),
@@ -463,13 +568,12 @@ pub fn prepare(name: &str, arguments: &Value, host: &Host) -> Result<Step, Strin
                 .get("name")
                 .and_then(Value::as_str)
                 .ok_or("the name argument is missing")?;
-            let scene = presets::get(name)
-                .ok_or_else(|| format!("no preset is called '{name}'; list_presets has the names"))?;
+            let scene = preset(name).map_err(|e| format!("{e}; list_presets and list_fractals have the names"))?;
             Ok(text(scene.to_json()))
         }
         "randomize_scene" => {
             let seed = whole(arguments, "seed")?.ok_or("the seed argument is missing")?;
-            Ok(text(random_scene(seed).to_json()))
+            Ok(text(random(word(arguments, "fractal")?, None, seed)?.to_json()))
         }
         "list_wallpaper_styles" => Ok(text(format!(
             "layouts: {}\nmaterials: {}",
@@ -487,17 +591,10 @@ pub fn prepare(name: &str, arguments: &Value, host: &Host) -> Result<Step, Strin
             let strength = arguments.get("strength").and_then(Value::as_f64).unwrap_or(0.3);
             Ok(text(mutate(&scene_of(arguments)?, seed, strength).to_json()))
         }
-        "fit_camera" => {
-            let mut scene = scene_of(arguments)?;
-            for (index, layer) in scene.layers.iter_mut().enumerate() {
-                let (camera, _) = fit_camera(&layer.flame)
-                    .ok_or_else(|| format!("layer {index}: the flame draws nothing to frame"))?;
-                layer.flame.camera = camera;
-            }
-            Ok(text(scene.to_json()))
-        }
+        "fit_camera" => Ok(text(fit(scene_of(arguments)?)?.to_json())),
         "validate_scene" => scene_of(arguments).map(|_| text("The scene is valid.")),
         "describe_scene_format" => Ok(text(SCENE_FORMAT)),
+        "list_fractals" => Ok(text(fractal_list())),
         "list_variations" => {
             let lines: Vec<String> = Kind::ALL
                 .iter()
@@ -612,7 +709,7 @@ pub fn handle(method: &str, params: &Value, host: &Host) -> Result<Value, RpcErr
                 "protocolVersion": version,
                 "capabilities": { "tools": {} },
                 "serverInfo": { "name": "fractique", "title": "Fractique", "version": env!("CARGO_PKG_VERSION") },
-                "instructions": "Fractique renders fractal flames and wallpapers from scenes (JSON). A usual loop: get_preset, randomize_scene or randomize_wallpaper, render_scene to look at it, change the scene (describe_scene_format explains the fields), render again. The same scene always renders to the same pixels.",
+                "instructions": "Fractique renders fractal flames, other fractals (list_fractals) and wallpapers from scenes (JSON). A usual loop: get_preset, randomize_scene or randomize_wallpaper, render_scene to look at it, change the scene (describe_scene_format explains the fields), render again. The same scene always renders to the same pixels.",
             }))
         }
         "ping" => Ok(json!({})),
@@ -693,6 +790,47 @@ mod tests {
             assert!(alone.contains("refused"), "{alone}");
         }
         assert!(matches!(prepare("render_scene", &small, &REMOTE), Ok(Step::Render(_))));
+    }
+
+    #[test]
+    fn the_tools_know_the_fractals() {
+        let said = |name: &str, arguments: Value| match prepare(name, &arguments, &Host::LOCAL) {
+            Ok(Step::Done(content)) => content[0]["text"].as_str().unwrap_or_default().to_owned(),
+            Ok(Step::Render(_)) => panic!("{name} renders"),
+            Err(message) => panic!("{name}: {message}"),
+        };
+        let listed = said("list_fractals", json!({}));
+        for spec in fractal::all() {
+            assert!(listed.lines().any(|line| line.starts_with(spec.name)), "{}", spec.name);
+            let random = said("randomize_scene", json!({ "seed": 9, "fractal": spec.name }));
+            assert_eq!(random, fractal::random_scene(spec.name, 9).unwrap().to_json());
+            let scene: Value = serde_json::from_str(&random).unwrap();
+            assert_eq!(said("fit_camera", json!({ "scene": scene })), random);
+            assert_ne!(said("mutate_scene", json!({ "scene": scene, "seed": 2 })), random);
+            let preset = fractal::preset_names()
+                .into_iter()
+                .find(|name| name.starts_with(spec.name))
+                .unwrap();
+            assert_eq!(
+                said("get_preset", json!({ "name": preset })),
+                fractal::preset(&preset).unwrap().to_json()
+            );
+            let small = json!({ "preset": preset, "width": 64, "height": 36, "quality": "draft" });
+            assert!(matches!(
+                prepare("render_scene", &small, &Host::LOCAL),
+                Ok(Step::Render(_))
+            ));
+        }
+        assert!(
+            prepare(
+                "randomize_scene",
+                &json!({ "seed": 9, "fractal": "nothing" }),
+                &Host::LOCAL
+            )
+            .is_err()
+        );
+        let kinds = &tools(&Host::LOCAL)[2]["inputSchema"]["properties"]["fractal"]["enum"];
+        assert_eq!(kinds.as_array().map(Vec::len), Some(fractal::all().count()));
     }
 
     #[test]

@@ -343,7 +343,7 @@ async fn the_tools_are_those_of_the_command_line_server_without_files() {
         .post(json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" }))
         .await;
     let tools = listed.json()["result"]["tools"].as_array().expect("tools").clone();
-    assert_eq!(tools.len(), 12);
+    assert_eq!(tools.len(), 13);
     let described = tools
         .iter()
         .find(|tool| tool["name"] == "render_scene")
@@ -387,6 +387,14 @@ async fn the_tools_are_those_of_the_command_line_server_without_files() {
             presets::get("aurora-spiral").expect("a preset"),
         ),
         (with("random_seed", 42.into()), random_scene(42)),
+        (
+            {
+                let mut arguments = with("random_seed", 42.into());
+                arguments["fractal"] = "julia".into();
+                arguments
+            },
+            fractique_core::fractal::random_scene("julia", 42).expect("a kind"),
+        ),
         (with("scene", scene.clone()), sent),
     ];
     for (arguments, scene) in cases {

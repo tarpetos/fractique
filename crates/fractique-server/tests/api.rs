@@ -175,6 +175,32 @@ async fn random_scenes_and_wallpapers_are_the_core_ones() {
         serde_json::to_vec(&random_wallpaper(7, &request)).expect("a scene is JSON")
     );
 
+    let julia = server.post("/random", json!({ "seed": 42, "fractal": "julia" })).await;
+    assert_eq!(julia.status, 200);
+    let expected = fractique_core::fractal::random_scene("julia", 42).expect("a kind");
+    assert_eq!(julia.body, serde_json::to_vec(&expected).expect("a scene is JSON"));
+    assert_eq!(
+        server
+            .post("/random", json!({ "seed": 1, "fractal": "nothing" }))
+            .await
+            .status,
+        400
+    );
+    let kinds = server.get("/fractals").await;
+    assert_eq!(kinds.status, 200);
+    let names: Vec<String> = kinds.json()["fractals"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|kind| kind["name"].as_str().expect("a name").to_owned())
+        .collect();
+    assert_eq!(
+        names,
+        fractique_core::fractal::all().map(|spec| spec.name).collect::<Vec<_>>()
+    );
+    let preset = server.get("/presets/mandelbrot-whole").await;
+    assert_eq!(preset.status, 200);
+
     assert_eq!(server.post("/random", json!({})).await.status, 400);
     assert_eq!(server.post("/random", json!({ "seed": -1 })).await.status, 400);
     let unknown = server
@@ -210,6 +236,14 @@ async fn a_render_is_the_png_of_the_core_render() {
     let cases = [
         (with(json!({ "preset": "aurora-spiral" })), preset.clone()),
         (with(json!({ "random": 42 })), random_scene(42)),
+        (
+            with(json!({ "random": 42, "fractal": "mandelbrot" })),
+            fractique_core::fractal::random_scene("mandelbrot", 42).expect("a kind"),
+        ),
+        (
+            with(json!({ "preset": "clifford-classic" })),
+            fractique_core::fractal::preset("clifford-classic").expect("a preset"),
+        ),
         (with(json!({ "scene": sent })), sent.clone()),
         (
             with(json!({ "wallpaper": { "seed": 3, "layout": "discs" } })),

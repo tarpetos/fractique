@@ -2,10 +2,11 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 
 use crate::chaos::{Compiled, Walker};
 use crate::deep;
+use crate::fractal::{self, Draw, Orbit};
 use crate::math::{cos, sin};
-use crate::palette;
+use crate::palette::{self, Lut};
 use crate::rng::Rng;
-use crate::scene::{Blend, Scene, SceneError};
+use crate::scene::{Blend, Camera, Content, Fractal, Scene, SceneError};
 use crate::sheets;
 use crate::tone;
 
@@ -15,6 +16,7 @@ const CHUNK: u64 = 1 << 16;
 const STREAM_DOMAIN: u64 = 0x1000;
 const PLAN_DOMAIN: u64 = 0x2000;
 const DEEP_DOMAIN: u64 = 0x3000;
+const ORBIT_DOMAIN: u64 = 0x6000;
 
 pub const MAX_SIDE: u32 = 16_384;
 pub const MAX_SUPERSAMPLE: u32 = 4;
@@ -311,12 +313,12 @@ pub fn develop(scene: &Scene, index: usize, density: &Density) -> Result<Develop
     let Some(layer) = scene.layers.get(index) else {
         return Err(RenderError::Options("the scene has no such layer".into()));
     };
-    if layer.flame.tone.smoothing != density.smoothing {
+    if layer.tone().smoothing != density.smoothing {
         return Err(RenderError::Options(
             "the density was made with another smoothing".into(),
         ));
     }
-    Ok(developed(density, &layer.flame.tone))
+    Ok(developed(density, layer.tone()))
 }
 
 fn developed(density: &Density, tone: &crate::scene::Tone) -> Developed {
@@ -350,8 +352,20 @@ fn develop_layer(
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
 ) -> Result<Developed, RenderError> {
+    let layer = &scene.layers[index];
+    if let Content::Fractal(fractal) = &layer.content
+        && let Some((spec, Draw::Pixel(field))) = fractal::spec(&fractal.kind).map(|spec| (spec, &spec.draw))
+    {
+        let field = field(&spec.values(fractal), &fractal.camera);
+        let pixels = fractal::pixel::draw(&*field, fractal, options, cancel, report).ok_or(RenderError::Cancelled)?;
+        return Ok(Developed {
+            width: options.width,
+            height: options.height,
+            pixels,
+        });
+    }
     let density = density(scene, index, options, cancel, report)?;
-    Ok(developed(&density, &scene.layers[index].flame.tone))
+    Ok(developed(&density, layer.tone()))
 }
 
 fn density(
@@ -361,8 +375,20 @@ fn density(
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
 ) -> Result<Density, RenderError> {
-    let (histogram, normalize) = gather(scene, index, options, cancel, report, false)?;
-    let smoothing = scene.layers[index].flame.tone.smoothing;
+    let (histogram, normalize) = match &scene.layers[index].content {
+        Content::Flame(_) => gather(scene, index, options, cancel, report, false)?,
+        Content::Fractal(fractal) => {
+            let Some((spec, Draw::Density(orbit))) = fractal::spec(&fractal.kind).map(|spec| (spec, &spec.draw)) else {
+                return Err(RenderError::Options(format!(
+                    "a layer of {} is drawn pixel by pixel: it has no density",
+                    fractal.kind
+                )));
+            };
+            let orbit = orbit(&spec.values(fractal), &fractal.camera);
+            gather_orbit(scene.seed, index, fractal, &*orbit, options, cancel, report)?
+        }
+    };
+    let smoothing = scene.layers[index].tone().smoothing;
     Ok(Density {
         width: options.width,
         height: options.height,
@@ -388,27 +414,14 @@ fn gather(
     let done = AtomicU64::new(0);
     let cancelled = || cancel.is_some_and(|flag| flag.load(Ordering::Relaxed));
 
-    let flame = &scene.layers[index].flame;
+    let Content::Flame(flame) = &scene.layers[index].content else {
+        return Err(RenderError::Options("the layer is not a flame".into()));
+    };
     let histogram = Histogram::new(width * supersample, height * supersample);
     let compiled = Compiled::new(flame);
-    let lut = palette::lut(&flame.palette);
-
-    let (wide, high) = (histogram.width as f64, histogram.height as f64);
-    let per_unit = flame.camera.zoom * wide.min(high) / 4.0;
-    let angle = flame.camera.rotation.to_radians();
-    let (rot_cos, rot_sin) = (cos(angle), sin(angle));
-    let [center_x, center_y] = flame.camera.center;
-    let up = if flame.camera.flip_y { -per_unit } else { per_unit };
-
-    let plot = |x: f64, y: f64, color: f64| {
-        let (dx, dy) = (x - center_x, y - center_y);
-        let px = wide * 0.5 + (dx * rot_cos + dy * rot_sin) * per_unit;
-        let py = high * 0.5 - (dy * rot_cos - dx * rot_sin) * up;
-        if px >= 0.0 && px < wide && py >= 0.0 && py < high {
-            let shade = ((color * 255.0 + 0.5) as usize).min(255);
-            histogram.add(py as usize * histogram.width + px as usize, lut[shade]);
-        }
-    };
+    let plotter = Plotter::new(&histogram, &flame.camera, palette::lut(&flame.palette));
+    let (wide, high) = (plotter.wide, plotter.high);
+    let plot = |x: f64, y: f64, color: f64| plotter.plot(x, y, color);
     let count_up = |count: u64| {
         let so_far = done.fetch_add(count, Ordering::Relaxed) + count;
         report(so_far as f64 / per_layer as f64);
@@ -474,6 +487,85 @@ fn gather(
         return Err(RenderError::Cancelled);
     }
     Ok((histogram, normalize))
+}
+
+struct Plotter<'a> {
+    histogram: &'a Histogram,
+    lut: Lut,
+    wide: f64,
+    high: f64,
+    per_unit: f64,
+    up: f64,
+    rot_cos: f64,
+    rot_sin: f64,
+    center: [f64; 2],
+}
+
+impl<'a> Plotter<'a> {
+    fn new(histogram: &'a Histogram, camera: &Camera, lut: Lut) -> Self {
+        let (wide, high) = (histogram.width as f64, histogram.height as f64);
+        let per_unit = camera.zoom * wide.min(high) / 4.0;
+        let angle = camera.rotation.to_radians();
+        Self {
+            histogram,
+            lut,
+            wide,
+            high,
+            per_unit,
+            up: if camera.flip_y { -per_unit } else { per_unit },
+            rot_cos: cos(angle),
+            rot_sin: sin(angle),
+            center: camera.center,
+        }
+    }
+
+    #[inline]
+    fn plot(&self, x: f64, y: f64, color: f64) {
+        let (dx, dy) = (x - self.center[0], y - self.center[1]);
+        let px = self.wide * 0.5 + (dx * self.rot_cos + dy * self.rot_sin) * self.per_unit;
+        let py = self.high * 0.5 - (dy * self.rot_cos - dx * self.rot_sin) * self.up;
+        if px >= 0.0 && px < self.wide && py >= 0.0 && py < self.high {
+            let shade = ((color * 255.0 + 0.5) as usize).min(255);
+            self.histogram
+                .add(py as usize * self.histogram.width + px as usize, self.lut[shade]);
+        }
+    }
+}
+
+fn gather_orbit(
+    seed: u64,
+    index: usize,
+    fractal: &Fractal,
+    orbit: &dyn Orbit,
+    options: &RenderOptions,
+    cancel: Option<&AtomicBool>,
+    report: &(dyn Fn(f64) + Sync),
+) -> Result<(Histogram, f64), RenderError> {
+    let (width, height) = (options.width as usize, options.height as usize);
+    let supersample = options.supersample as usize;
+    let per_layer = u64::from(options.samples_per_pixel) * width as u64 * height as u64;
+    let done = AtomicU64::new(0);
+    let cancelled = || cancel.is_some_and(|flag| flag.load(Ordering::Relaxed));
+    let histogram = Histogram::new(width * supersample, height * supersample);
+    let plotter = Plotter::new(&histogram, &fractal.camera, palette::lut(&fractal.palette));
+
+    for_each_stream(|stream| {
+        let mut rng = Rng::derive(seed, ORBIT_DOMAIN + index as u64, stream);
+        let mut walk = orbit.walk(&mut rng);
+        let mut left = per_layer / STREAMS + u64::from(stream < per_layer % STREAMS);
+        while left > 0 && !cancelled() {
+            let count = left.min(CHUNK);
+            walk.run(&mut rng, count, &mut |x, y, color| plotter.plot(x, y, color));
+            left -= count;
+            let so_far = done.fetch_add(count, Ordering::Relaxed) + count;
+            report(so_far as f64 / per_layer as f64);
+        }
+    });
+    if cancelled() {
+        return Err(RenderError::Cancelled);
+    }
+    let per_cell = f64::from(options.samples_per_pixel) / (supersample * supersample) as f64;
+    Ok((histogram, fractal.camera.zoom * fractal.camera.zoom / per_cell))
 }
 
 fn composed(scene: &Scene, layers: &[&Developed], options: &RenderOptions) -> Image {
@@ -546,7 +638,7 @@ mod tests {
     #[test]
     fn a_deep_view_matches_the_plain_chaos_game() {
         let mut scene = crate::presets::get("aurora-spiral").unwrap();
-        let camera = &mut scene.layers[0].flame.camera;
+        let camera = scene.layers[0].camera_mut();
         (camera.center, camera.zoom) = ([-0.9, 0.56], 24.0);
         let side = 48;
         let counts = |samples: u32, plain: bool| {

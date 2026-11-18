@@ -36,7 +36,9 @@ def main():
         if not full.exists():
             urllib.request.urlretrieve(f"{SOURCE}/{path}", full)
         texts = json.loads((LOCALES / f"{code}.json").read_text(encoding="utf-8"))
-        characters = sorted(set("".join(texts.values()) + own_name) - set(" "))
+        families = [json.loads(path.read_text(encoding="utf-8")) for path in sorted((LOCALES / "fractals").glob("*.json"))]
+        fractals = "".join(names[code] for family in families for names in family.values())
+        characters = sorted(set("".join(texts.values()) + fractals + own_name) - set(" "))
 
         font = TTFont(full)
         axes = {axis.axisTag: axis.defaultValue for axis in font["fvar"].axes}

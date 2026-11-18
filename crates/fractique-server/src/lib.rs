@@ -14,7 +14,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use fractique_core::random::random_scene;
 use fractique_core::wallpaper::{Layout, Material, Request, random_wallpaper};
-use fractique_core::{Control, Quality, RenderError, RenderOptions, Scene, presets, render};
+use fractique_core::{Control, Quality, RenderError, RenderOptions, Scene, fractal, presets, render};
 pub use fractique_mcp::encode_png;
 use fractique_mcp::{Host, Limits};
 use serde::Deserialize;
@@ -134,13 +134,26 @@ fn parse<T: DeserializeOwned>(body: &Bytes) -> Result<T, Failure> {
 }
 
 fn preset(name: &str) -> Result<Scene, Failure> {
-    presets::get(name).ok_or_else(|| Failure(StatusCode::NOT_FOUND, format!("no preset is called '{name}'")))
+    fractique_mcp::preset(name).map_err(|message| Failure(StatusCode::NOT_FOUND, message))
+}
+
+fn kind(name: Option<String>) -> Result<Option<String>, Failure> {
+    match name {
+        Some(name) if fractal::spec(&name).is_none() => Err(Failure::bad(format!("no fractal is called '{name}'"))),
+        name => Ok(name),
+    }
+}
+
+fn random_of(kind: Option<&str>, seed: u64) -> Scene {
+    kind.and_then(|kind| fractal::random_scene(kind, seed))
+        .unwrap_or_else(|| random_scene(seed))
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RandomBody {
     seed: u64,
+    fractal: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -186,6 +199,7 @@ struct RenderBody {
     scene: Option<Value>,
     preset: Option<String>,
     random: Option<u64>,
+    fractal: Option<String>,
     wallpaper: Option<WallpaperBody>,
     width: u32,
     height: u32,
@@ -197,7 +211,7 @@ struct RenderBody {
 
 enum Source {
     Scene(Box<Scene>),
-    Random(u64),
+    Random(u64, Option<String>),
     Wallpaper(u64, Request),
 }
 
@@ -230,8 +244,11 @@ impl RenderBody {
                 wallpaper.request(self.width, self.height)?,
             ));
         }
+        if self.fractal.is_some() && self.random.is_none() {
+            return Err(Failure::bad("fractal goes with random: the seed of the random fractal"));
+        }
         if let Some(seed) = self.random {
-            return Ok(Source::Random(seed));
+            return Ok(Source::Random(seed, kind(self.fractal)?));
         }
         let scene = match (self.preset, self.scene) {
             (Some(name), _) => preset(&name)?,
@@ -255,9 +272,14 @@ async fn get_preset(Path(name): Path<String>) -> Result<Json<Scene>, Failure> {
     preset(&name).map(Json)
 }
 
+async fn list_fractals() -> Json<Value> {
+    Json(json!({ "fractals": fractique_mcp::fractals() }))
+}
+
 async fn random(body: Bytes) -> Result<Json<Scene>, Failure> {
-    let RandomBody { seed } = parse(&body)?;
-    let scene = tokio::task::spawn_blocking(move || random_scene(seed)).await;
+    let RandomBody { seed, fractal } = parse(&body)?;
+    let fractal = kind(fractal)?;
+    let scene = tokio::task::spawn_blocking(move || random_of(fractal.as_deref(), seed)).await;
     scene.map(Json).map_err(Failure::internal)
 }
 
@@ -277,7 +299,7 @@ fn develop(
 ) -> Result<Response, Failure> {
     let mut scene = match source {
         Source::Scene(scene) => *scene,
-        Source::Random(seed) => random_scene(seed),
+        Source::Random(seed, kind) => random_of(kind.as_deref(), seed),
         Source::Wallpaper(seed, request) => random_wallpaper(seed, &request),
     };
     if let Some(seed) = seed {
@@ -377,6 +399,7 @@ pub fn app(config: Config) -> App {
         .route("/presets", get(list_presets))
         .route("/presets/{name}", get(get_preset))
         .route("/random", post(random))
+        .route("/fractals", get(list_fractals))
         .route("/wallpaper", post(wallpaper))
         .route("/render", post(render_png))
         .route("/limits", get(limits))

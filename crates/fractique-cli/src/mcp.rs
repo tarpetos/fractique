@@ -201,7 +201,7 @@ mod tests {
     fn every_listed_tool_has_a_schema() {
         let listed = ask(json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" }));
         let tools = listed["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 12);
+        assert_eq!(tools.len(), 13);
         for tool in tools {
             assert_eq!(tool["inputSchema"]["type"], "object", "{}", tool["name"]);
             let unknown = call_tool(tool["name"].as_str().unwrap(), json!({ "scene": 5 }));

@@ -2,7 +2,7 @@ use std::sync::atomic::AtomicBool;
 
 use fractique_core::random::{Generator, random_scene, random_scene_of};
 use fractique_core::wallpaper::{Layout, Material, Request, random_wallpaper};
-use fractique_core::{Control, RenderError, RenderOptions, presets, render};
+use fractique_core::{Control, RenderError, RenderOptions, fractal, presets, render};
 
 fn small(supersample: u32) -> RenderOptions {
     RenderOptions {
@@ -83,7 +83,7 @@ fn the_thread_count_does_not_change_the_image() {
 
 fn deep() -> fractique_core::Scene {
     let mut scene = presets::get("aurora-spiral").unwrap();
-    let camera = &mut scene.layers[0].flame.camera;
+    let camera = scene.layers[0].camera_mut();
     *camera = camera.looking_at(-0.1, -0.31, 40_000.0);
     scene
 }
@@ -120,7 +120,7 @@ fn a_camera_looks_at_a_point_of_its_picture() {
     };
     let whole = render(&scene, &options, &Control::default()).unwrap();
     for layer in &mut scene.layers {
-        layer.flame.camera = layer.flame.camera.looking_at(0.25, -0.125, 1.0);
+        *layer.camera_mut() = layer.camera().looking_at(0.25, -0.125, 1.0);
     }
     let moved = render(&scene, &options, &Control::default()).unwrap();
     let lit = |image: &fractique_core::Image, x: u32, y: u32| {
@@ -265,6 +265,134 @@ fn random_scenes_render_to_their_golden_hashes() {
     assert!(wrong.is_empty(), "got {}", wrong.join(", "));
 }
 
+#[cfg(feature = "parallel")]
+#[test]
+fn the_thread_count_does_not_change_a_fractal() {
+    for spec in fractal::all() {
+        let scene = fractal::random_scene(spec.name, 3).unwrap();
+        let all_cores = render(&scene, &small(2), &Control::default()).unwrap();
+        assert!(
+            all_cores
+                .rgba
+                .chunks_exact(4)
+                .any(|p| p[0] > 40 || p[1] > 40 || p[2] > 40),
+            "{} is black",
+            spec.name
+        );
+        for threads in [1, 3] {
+            let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+            let image = pool.install(|| render(&scene, &small(2), &Control::default()).unwrap());
+            assert_eq!(image.hash(), all_cores.hash(), "{} with {threads} threads", spec.name);
+        }
+    }
+}
+
+#[test]
+fn every_fractal_preset_renders() {
+    for name in fractal::preset_names() {
+        let scene = fractal::preset(&name).expect("the preset exists");
+        let image = render(&scene, &small(1), &Control::default()).unwrap();
+        assert!(
+            image.rgba.chunks_exact(4).any(|p| p[0] > 40 || p[1] > 40 || p[2] > 40),
+            "{name} is black"
+        );
+    }
+}
+
+#[test]
+fn a_fractal_reports_its_progress_and_stops_when_cancelled() {
+    use std::sync::Mutex;
+
+    for spec in fractal::all() {
+        let scene = fractal::random_scene(spec.name, 3).unwrap();
+        let cancel = AtomicBool::new(true);
+        let stopped = Control {
+            cancel: Some(&cancel),
+            progress: None,
+        };
+        assert_eq!(
+            render(&scene, &small(2), &stopped),
+            Err(RenderError::Cancelled),
+            "{}",
+            spec.name
+        );
+
+        let seen = Mutex::new((0usize, 0.0f64, true));
+        let progress = |share: f64| {
+            let mut seen = seen.lock().unwrap();
+            *seen = (seen.0 + 1, seen.1.max(share), seen.2 && (0.0..=1.0).contains(&share));
+        };
+        let watched = Control {
+            cancel: None,
+            progress: Some(&progress),
+        };
+        render(&scene, &small(2), &watched).unwrap();
+        let (calls, most, in_range) = *seen.lock().unwrap();
+        assert!(
+            calls > 4 && most == 1.0 && in_range,
+            "{}: {calls} calls up to {most}",
+            spec.name
+        );
+    }
+}
+
+#[test]
+fn fractals_and_flames_blend_as_layers() {
+    use fractique_core::{Blend, compose, render_layer};
+
+    let options = small(1);
+    let flame = presets::get("aurora-spiral").unwrap();
+    let alone = render(&flame, &options, &Control::default()).unwrap();
+    for spec in fractal::all() {
+        let under = fractal::random_scene(spec.name, 3).unwrap();
+        for blend in [Blend::Add, Blend::Screen, Blend::Over] {
+            let mut scene = flame.clone();
+            scene.layers.insert(0, under.layers[0].clone());
+            scene.layers[1].blend = blend;
+            scene.layers[1].opacity = 0.8;
+            let both = render(&scene, &options, &Control::default()).unwrap();
+            assert_ne!(both.hash(), alone.hash(), "{} under {blend:?}", spec.name);
+            assert_ne!(
+                both.hash(),
+                render(&under, &options, &Control::default()).unwrap().hash(),
+                "{} under {blend:?}",
+                spec.name
+            );
+            let layers: Vec<_> = (0..scene.layers.len())
+                .map(|index| render_layer(&scene, index, &options, &Control::default()).unwrap())
+                .collect();
+            assert_eq!(
+                compose(&scene, &layers.iter().collect::<Vec<_>>(), &options).unwrap(),
+                both
+            );
+        }
+    }
+}
+
+#[test]
+fn a_fractal_of_orbits_has_a_density_and_one_of_pixels_has_none() {
+    use fractique_core::{compose, develop, render_density};
+
+    let options = small(2);
+    for spec in fractal::all() {
+        let mut scene = fractal::random_scene(spec.name, 3).unwrap();
+        let density = render_density(&scene, 0, &options, &Control::default());
+        if !spec.is_density() {
+            assert!(matches!(density, Err(RenderError::Options(_))), "{}", spec.name);
+            continue;
+        }
+        let density = density.unwrap();
+        scene.layers[0].tone_mut().brightness = 1.7;
+        let layer = develop(&scene, 0, &density).unwrap();
+        assert_eq!(
+            compose(&scene, &[&layer], &options).unwrap(),
+            render(&scene, &options, &Control::default()).unwrap(),
+            "{}",
+            spec.name
+        );
+    }
+}
+
 fn showing(variation: &str) -> fractique_core::Scene {
     let json = format!(
         r#"{{"version": 1, "name": "{variation}", "seed": 17, "layers": [{{"flame": {{
@@ -356,7 +484,7 @@ fn a_density_develops_to_the_rendered_layer() {
         );
 
         for layer in &mut scene.layers {
-            let tone = &mut layer.flame.tone;
+            let tone = layer.tone_mut();
             (tone.brightness, tone.gamma, tone.vibrancy, tone.highlight) = (1.8, 1.9, 0.4, 0.5);
             (tone.glow_radius, tone.glow_strength) = (0.03, 0.7);
         }
@@ -365,7 +493,7 @@ fn a_density_develops_to_the_rendered_layer() {
             render(&scene, &options, &Control::default()).unwrap()
         );
 
-        scene.layers[0].flame.tone.smoothing = 2.0;
+        scene.layers[0].tone_mut().smoothing = 2.0;
         assert!(develop(&scene, 0, &densities[0]).is_err());
         let levels = densities[0].levels();
         assert_eq!(levels.len(), (options.width * options.height * 4) as usize);

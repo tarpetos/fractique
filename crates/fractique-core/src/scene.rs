@@ -1,5 +1,8 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
+use crate::fractal;
 use crate::palette;
 use crate::variation::{Kind, Variation};
 
@@ -169,16 +172,164 @@ pub enum Blend {
     Over,
 }
 
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(try_from = "LayerFile")]
+pub struct Layer {
+    pub name: String,
+    pub blend: Blend,
+    pub opacity: f64,
+    pub content: Content,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Content {
+    Flame(Flame),
+    Fractal(Fractal),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LayerFile {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    blend: Blend,
+    #[serde(default = "one")]
+    opacity: f64,
+    #[serde(default)]
+    flame: Option<Flame>,
+    #[serde(default)]
+    fractal: Option<Fractal>,
+}
+
+#[derive(Serialize)]
+struct LayerRef<'a> {
+    #[serde(skip_serializing_if = "str::is_empty")]
+    name: &'a str,
+    blend: Blend,
+    #[serde(skip_serializing_if = "is_one")]
+    opacity: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    flame: Option<&'a Flame>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fractal: Option<&'a Fractal>,
+}
+
+impl TryFrom<LayerFile> for Layer {
+    type Error = &'static str;
+
+    fn try_from(file: LayerFile) -> Result<Self, Self::Error> {
+        let content = match (file.flame, file.fractal) {
+            (Some(flame), None) => Content::Flame(flame),
+            (None, Some(fractal)) => Content::Fractal(fractal),
+            (None, None) => return Err("a layer needs `flame` or `fractal`"),
+            (Some(_), Some(_)) => return Err("a layer holds `flame` or `fractal`, not both"),
+        };
+        Ok(Layer {
+            name: file.name,
+            blend: file.blend,
+            opacity: file.opacity,
+            content,
+        })
+    }
+}
+
+impl Serialize for Layer {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        LayerRef {
+            name: &self.name,
+            blend: self.blend,
+            opacity: self.opacity,
+            flame: self.flame(),
+            fractal: self.fractal(),
+        }
+        .serialize(serializer)
+    }
+}
+
+impl Layer {
+    pub fn flame(&self) -> Option<&Flame> {
+        match &self.content {
+            Content::Flame(flame) => Some(flame),
+            Content::Fractal(_) => None,
+        }
+    }
+
+    pub fn flame_mut(&mut self) -> Option<&mut Flame> {
+        match &mut self.content {
+            Content::Flame(flame) => Some(flame),
+            Content::Fractal(_) => None,
+        }
+    }
+
+    pub fn fractal(&self) -> Option<&Fractal> {
+        match &self.content {
+            Content::Fractal(fractal) => Some(fractal),
+            Content::Flame(_) => None,
+        }
+    }
+
+    pub fn fractal_mut(&mut self) -> Option<&mut Fractal> {
+        match &mut self.content {
+            Content::Fractal(fractal) => Some(fractal),
+            Content::Flame(_) => None,
+        }
+    }
+
+    pub fn camera(&self) -> &Camera {
+        match &self.content {
+            Content::Flame(flame) => &flame.camera,
+            Content::Fractal(fractal) => &fractal.camera,
+        }
+    }
+
+    pub fn camera_mut(&mut self) -> &mut Camera {
+        match &mut self.content {
+            Content::Flame(flame) => &mut flame.camera,
+            Content::Fractal(fractal) => &mut fractal.camera,
+        }
+    }
+
+    pub fn tone(&self) -> &Tone {
+        match &self.content {
+            Content::Flame(flame) => &flame.tone,
+            Content::Fractal(fractal) => &fractal.tone,
+        }
+    }
+
+    pub fn tone_mut(&mut self) -> &mut Tone {
+        match &mut self.content {
+            Content::Flame(flame) => &mut flame.tone,
+            Content::Fractal(fractal) => &mut fractal.tone,
+        }
+    }
+
+    pub fn palette(&self) -> &Palette {
+        match &self.content {
+            Content::Flame(flame) => &flame.palette,
+            Content::Fractal(fractal) => &fractal.palette,
+        }
+    }
+
+    pub fn palette_mut(&mut self) -> &mut Palette {
+        match &mut self.content {
+            Content::Flame(flame) => &mut flame.palette,
+            Content::Fractal(fractal) => &mut fractal.palette,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct Layer {
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub name: String,
+pub struct Fractal {
+    pub kind: String,
     #[serde(default)]
-    pub blend: Blend,
-    #[serde(default = "one", skip_serializing_if = "is_one")]
-    pub opacity: f64,
-    pub flame: Flame,
+    pub camera: Camera,
+    #[serde(default)]
+    pub tone: Tone,
+    pub palette: Palette,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub params: BTreeMap<String, f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -374,42 +525,67 @@ impl Transform {
     }
 }
 
+fn validate_look(camera: &Camera, t: &Tone, colors: &Palette, what: &str) -> Result<(), SceneError> {
+    finite(&camera.center, what)?;
+    finite(&[camera.zoom, camera.rotation], what)?;
+    if camera.zoom <= 0.0 {
+        return fail(format!("{what}: camera zoom must be above 0"));
+    }
+    finite(
+        &[
+            t.brightness,
+            t.gamma,
+            t.vibrancy,
+            t.highlight,
+            t.glow_radius,
+            t.glow_strength,
+            t.smoothing,
+        ],
+        what,
+    )?;
+    if t.gamma <= 0.0 {
+        return fail(format!("{what}: gamma must be above 0"));
+    }
+    if t.brightness < 0.0 || t.highlight < 0.0 || t.glow_strength < 0.0 {
+        return fail(format!(
+            "{what}: brightness, highlight and glow_strength must not be negative"
+        ));
+    }
+    unit(t.vibrancy, &format!("{what}: vibrancy"))?;
+    if !(0.0..=4.0).contains(&t.smoothing) {
+        return fail(format!("{what}: smoothing must be between 0 and 4"));
+    }
+    if !(0.0..=0.25).contains(&t.glow_radius) {
+        return fail(format!("{what}: glow_radius must be between 0 and 0.25"));
+    }
+    palette::validate(colors).map_err(|e| SceneError(format!("{what}: {e}")))?;
+    Ok(())
+}
+
+impl Fractal {
+    fn validate(&self, what: &str) -> Result<(), SceneError> {
+        validate_look(&self.camera, &self.tone, &self.palette, what)?;
+        let Some(spec) = fractal::spec(&self.kind) else {
+            return fail(format!("{what}: there is no fractal `{}`", self.kind));
+        };
+        for (name, value) in &self.params {
+            let Some(param) = spec.params.iter().find(|param| param.name == name) else {
+                return fail(format!("{what}: {} has no parameter `{name}`", self.kind));
+            };
+            if !(param.min..=param.max).contains(value) {
+                return fail(format!(
+                    "{what}: {name} must be between {} and {}",
+                    param.min, param.max
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 impl Flame {
     fn validate(&self, what: &str) -> Result<(), SceneError> {
-        finite(&self.camera.center, what)?;
-        finite(&[self.camera.zoom, self.camera.rotation], what)?;
-        if self.camera.zoom <= 0.0 {
-            return fail(format!("{what}: camera zoom must be above 0"));
-        }
-        let t = &self.tone;
-        finite(
-            &[
-                t.brightness,
-                t.gamma,
-                t.vibrancy,
-                t.highlight,
-                t.glow_radius,
-                t.glow_strength,
-                t.smoothing,
-            ],
-            what,
-        )?;
-        if t.gamma <= 0.0 {
-            return fail(format!("{what}: gamma must be above 0"));
-        }
-        if t.brightness < 0.0 || t.highlight < 0.0 || t.glow_strength < 0.0 {
-            return fail(format!(
-                "{what}: brightness, highlight and glow_strength must not be negative"
-            ));
-        }
-        unit(t.vibrancy, &format!("{what}: vibrancy"))?;
-        if !(0.0..=4.0).contains(&t.smoothing) {
-            return fail(format!("{what}: smoothing must be between 0 and 4"));
-        }
-        if !(0.0..=0.25).contains(&t.glow_radius) {
-            return fail(format!("{what}: glow_radius must be between 0 and 0.25"));
-        }
-        palette::validate(&self.palette).map_err(|e| SceneError(format!("{what}: {e}")))?;
+        validate_look(&self.camera, &self.tone, &self.palette, what)?;
         if self.symmetry == 0 || self.symmetry.unsigned_abs() > 64 {
             return fail(format!("{what}: symmetry must be between 1 and 64, or -1 and -64"));
         }
@@ -582,7 +758,10 @@ impl Scene {
         for (i, layer) in self.layers.iter().enumerate() {
             finite(&[layer.opacity], &format!("layer {i}"))?;
             unit(layer.opacity, &format!("layer {i}: opacity"))?;
-            layer.flame.validate(&format!("layer {i}"))?;
+            match &layer.content {
+                Content::Flame(flame) => flame.validate(&format!("layer {i}"))?,
+                Content::Fractal(fractal) => fractal.validate(&format!("layer {i}"))?,
+            }
         }
         Ok(())
     }

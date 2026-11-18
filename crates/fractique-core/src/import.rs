@@ -4,7 +4,7 @@ use roxmltree::{Document, Node};
 
 use crate::math::pow;
 use crate::palette;
-use crate::scene::{Blend, Camera, Flame, Layer, Palette, SCENE_VERSION, Scene, Stop, Tone, Transform};
+use crate::scene::{Blend, Camera, Content, Flame, Layer, Palette, SCENE_VERSION, Scene, Stop, Tone, Transform};
 use crate::variation::{Kind, Variation};
 
 pub struct Imported {
@@ -250,7 +250,7 @@ fn import_one(node: Node, index: usize) -> Result<Imported, ImportError> {
             name: String::new(),
             blend: Blend::Add,
             opacity: 1.0,
-            flame,
+            content: Content::Flame(flame),
         }],
     };
     scene.validate().map_err(|e| ImportError(format!("{name}: {e}")))?;
@@ -304,7 +304,7 @@ mod tests {
         let flames = import_flames(FILE).unwrap();
         assert_eq!(flames.len(), 2);
         let scene = &flames[0].scene;
-        let flame = &scene.layers[0].flame;
+        let flame = scene.layers[0].flame().unwrap();
         assert_eq!(scene.name, "one");
         assert_eq!(scene.background, [0.0, 0.0, 0.1]);
         assert_eq!(flame.camera.center, [0.5, -0.25]);
@@ -334,7 +334,7 @@ mod tests {
         let warnings = flames[0].warnings.join("\n");
         assert!(warnings.contains("waves2"), "{warnings}");
         assert!(warnings.contains("left out"), "{warnings}");
-        assert_eq!(flames[1].scene.layers[0].flame.palette.stops[1].color, [0.0, 1.0, 0.0]);
+        assert_eq!(flames[1].scene.layers[0].palette().stops[1].color, [0.0, 1.0, 0.0]);
     }
 
     #[test]
@@ -352,7 +352,7 @@ mod tests {
             "{:?}",
             flames[0].warnings
         );
-        let variations = &flames[0].scene.layers[0].flame.transforms[0].variations;
+        let variations = &flames[0].scene.layers[0].flame().unwrap().transforms[0].variations;
         let expected = [
             Variation::new(Kind::Waves, 0.5),
             Variation::new(Kind::Popcorn, 0.25),
