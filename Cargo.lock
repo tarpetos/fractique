@@ -1105,7 +1105,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "fractique-core",
- "png",
+ "fractique-mcp",
  "serde_json",
 ]
 
@@ -1122,12 +1122,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "fractique-mcp"
+version = "0.1.0"
+dependencies = [
+ "fractique-core",
+ "png",
+ "serde_json",
+]
+
+[[package]]
 name = "fractique-server"
 version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
  "fractique-core",
+ "fractique-mcp",
+ "futures-core",
+ "getrandom 0.3.4",
  "png",
  "serde",
  "serde_json",

@@ -8,6 +8,8 @@ the same scene always renders to the same pixels.
 The server speaks MCP over stdin and stdout. It is the same program as the command line tool, so there is nothing
 else to install: build it with `setup.sh` or `setup.cmd` ([usage.md](usage.md#1-install)).
 
+The HTTP server offers the same tools to a client on another machine, at `/mcp`: see [Over HTTP](#over-http).
+
 ## Connect a client
 
 **Claude Code, inside this repository:** nothing to do. `.mcp.json` at the root registers the server; Claude Code
@@ -131,12 +133,87 @@ asks. A request that is still waiting for its turn is dropped the same way. A ca
 finished request is ignored. The flames of a scene stop at once; its sheets (a wallpaper) are drawn in one go, in
 about a second at 4K, report no progress and are not interrupted, but a cancelled wallpaper is not answered either.
 
+## Over HTTP
+
+`fractique-server` ([server.md](server.md)) speaks MCP at `POST /mcp` with the
+[Streamable HTTP transport](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http).
+The tools are the ones above, from the same code (`crates/fractique-mcp`), and a scene renders to the same pixels.
+It is on unless the server is started with `--mcp off` or `FRACTIQUE_MCP=off`.
+
+```sh
+claude mcp add --transport http fractique http://127.0.0.1:8080/mcp
+```
+
+```json
+{ "mcpServers": { "fractique": { "type": "http", "url": "http://127.0.0.1:8080/mcp" } } }
+```
+
+What differs from `fractique mcp`:
+
+- **No files.** A client on the network must not read or write the disk of the server, so `render_scene` has no
+  `file` and no `save_to` there: `tools/list` does not show them, and a call that gives one is refused before
+  anything is opened. A scene goes in `scene`, a `.frcq` file in `frcq` (base64), a `.flame` file as text in `xml`
+  of `import_flame`. No tool takes a path.
+- **The limits of the server.** `width`, `height` and `quality` must fit `FRACTIQUE_MAX_SIDE`,
+  `FRACTIQUE_MAX_PIXELS`, `FRACTIQUE_MAX_SAMPLES` and `FRACTIQUE_MAX_SUPERSAMPLE`
+  ([server.md](server.md#limits)); a request is 1 MiB at most, which bounds a scene and a `.frcq`. An image above
+  about one megapixel is not returned, and with no `save_to` it cannot be rendered there: `POST /render` gives a
+  large PNG.
+- **The queue of the server.** A `render_scene` call takes a place in the same queue as `POST /render` and waits
+  for a free slot. When the queue is full the call fails at once, as a tool error to try again later. A render
+  past `FRACTIQUE_TIMEOUT` is stopped and fails the same way. The other tools do not wait.
+- **Calls run side by side.** Each request is answered on its own connection, so a client may call a tool while
+  a render runs.
+- **The revisions** are `2025-06-18` and `2025-03-26`; `2024-11-05` has another HTTP transport, and a client that
+  asks for it is offered `2025-06-18`.
+
+The transport itself:
+
+| | |
+| --- | --- |
+| `initialize` | Starts a session: the answer carries `Mcp-Session-Id`, and every later request must send it. Without it the answer is 400, with an unknown one 404, and the client starts again |
+| Requests | `Content-Type: application/json`, one JSON-RPC message; a batch is refused. `Accept` lists `application/json` and `text/event-stream` |
+| `tools/call` | Answered as `text/event-stream`: one `message` event for every progress notification, then one for the answer, and the stream ends |
+| Other requests | Answered as `application/json` |
+| Notifications and responses | 202 with no body |
+| `GET /mcp` | 405: the server has nothing to say outside an answer |
+| `DELETE /mcp` | Ends the session and stops its renders: 204 |
+| `MCP-Protocol-Version` | When sent, it must be one of the revisions above, or the answer is 400 |
+| `Origin` | A request that names a web page as its origin is refused with 403 unless the page is of this machine (`localhost`, `127.0.0.1`, `[::1]`) or listed in `--mcp-origin` / `FRACTIQUE_MCP_ORIGINS` (comma separated, `*` for any). Programs that are not browsers send none and pass |
+
+By hand:
+
+```sh
+curl -i http://127.0.0.1:8080/mcp -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}'
+
+curl -N http://127.0.0.1:8080/mcp -H 'Content-Type: application/json' -H 'Mcp-Session-Id: THE-ID-FROM-ABOVE' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"_meta":{"progressToken":"p"},"name":"render_scene","arguments":{"preset":"aurora-spiral"}}}'
+```
+
+```
+event: message
+data: {"jsonrpc":"2.0","method":"notifications/progress","params":{"message":"rendering","progress":1,"progressToken":"p","total":100}}
+
+event: message
+data: {"id":2,"jsonrpc":"2.0","result":{"content":[{"data":"iVBORw0KGgo...","mimeType":"image/png","type":"image"},{"text":"640x360, 30 samples per pixel, 0.1 s, hash ...","type":"text"}],"isError":false}}
+```
+
+Cancelling is `notifications/cancelled` with the id of the request, sent in a request of its own with the same
+session. The render stops, or leaves the queue, and its stream ends without an answer. A cancellation from another
+session does nothing. A client that closes the connection of a call gives it up as well: the server keeps no
+stream to come back to, so the answer could not reach it, and the render would only hold a place in the queue.
+The specification advises against reading a disconnect as a cancellation; here the place in the queue weighs more.
+
+The server keeps up to 1024 sessions. When one more starts, the one unused for the longest time ends, an idle one
+before one with a call in progress.
+
 ## What the server does not do
 
-- It writes only the file named in `save_to` and reads only the file named in `file`.
-- It runs one tool at a time, in the order the calls arrive; `ping`, `tools/list` and cancellations are answered
-  while a tool runs.
+- Over stdio it writes only the file named in `save_to` and reads only the file named in `file`.
+- Over stdio it runs one tool at a time, in the order the calls arrive; `ping`, `tools/list` and cancellations are
+  answered while a tool runs.
 - It speaks the protocol revisions with the `initialize` handshake (`2025-06-18`, `2025-03-26`, `2024-11-05`),
   not the later ones.
-- There is no HTTP transport yet. The HTTP server has an API of its own ([server.md](server.md)); MCP over HTTP
-  is to come with it ([roadmap.md](roadmap.md)).
+- Over HTTP it has no accounts, no stream opened with `GET` and no resuming of a broken stream: a call whose
+  connection broke is made again.

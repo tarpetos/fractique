@@ -6,4 +6,5 @@
 !assets
 !crates
 !vendor
+!docs/scene-format.md
 crates/fractique-app/dist

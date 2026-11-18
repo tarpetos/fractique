@@ -12,6 +12,7 @@ services:
       FRACTIQUE_MAX_SAMPLES: "1000"
       FRACTIQUE_MAX_SUPERSAMPLE: "2"
       FRACTIQUE_TIMEOUT: "120"
+      FRACTIQUE_MCP: "on"
     read_only: true
     cap_drop:
       - ALL

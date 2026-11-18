@@ -74,7 +74,7 @@ type(scope): summary
 - **scope**, optional, one of:
   - `core`: the renderer (`fractique-core`);
   - `cli`: the command line tool;
-  - `mcp`, `server`, `app`: the MCP server, the HTTP server, the apps;
+  - `mcp`, `server`, `app`: the MCP tools and servers, the HTTP server, the apps;
   - `setup`: `setup.sh` / `setup.cmd`;
   - `build`, `ci`, `docs`, `release`, `deps`.
 - **summary**: what changes, as seen by a user where there is one. It starts in lower case, has no full stop at the

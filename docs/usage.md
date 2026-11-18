@@ -3,7 +3,7 @@
 Fractique is three programs over one renderer: the app, `fractique-gui`, the command line tool, `fractique`, and
 the HTTP server, `fractique-server`. This guide covers the first two, with examples. For the fields of a scene
 file see [scene-format.md](scene-format.md); for render times see [performance.md](performance.md); for the HTTP
-server see [server.md](server.md).
+server see [server.md](server.md); for AI agents, over stdio or HTTP, see [mcp.md](mcp.md).
 
 ## Contents
 
@@ -59,7 +59,7 @@ flames and wallpapers; a switch in the controls goes from one to the other.
 | Where | What |
 | --- | --- |
 | Title bar | The app draws its own, as a glass capsule: the name, the version (opens the updates), the language, hide the panels, full screen, minimize, maximize, close. Dragging it moves the window, a double click maximizes it, the window's edges resize it |
-| Inspector (left; **Controls** in the toolbar shows and hides it) | **Flames** or **Wallpapers**, then the preset or the wallpaper's choices, the size, the layers, the tone, the zoom, the glass, the scene |
+| Inspector (left; **Controls** in the toolbar shows and hides it) | **Flames** or **Shapes**, then the preset or the wallpaper's choices, the colors, the size, the layers, the tone, the zoom, the glass, the scene |
 | Toolbar (bottom) | The picture's name, its size, the time it took and the magnification; **Randomize**, **Mutate**, **Export**, **Controls** |
 | **Presets** (inspector) | A list of the 29 built-in flames |
 | **Randomize** | Flames: a new random flame in the chosen layer, made by the second random generator ([Random scenes](#5-random-scenes)). Wallpapers: a new wallpaper |
@@ -108,14 +108,15 @@ On Android and iOS the picture fills the screen and the controls are a few round
 
 | Where | What |
 | --- | --- |
-| **Flames**, **Wallpapers** (top) | What the app makes |
+| **Flames**, **Shapes** (top) | What the app makes: flames, or wallpapers of flat lit shapes. Each keeps its picture while the other is shown |
+| The row of colors under them | A hue for the shapes, a palette for the flames; the crossed circle gives the picture its own colors back |
 | The large round button | A new picture: a random flame, or the next wallpaper |
 | The four small buttons above it | **Keep** puts the picture into the collection, or takes it out (it holds 48). **Similar** makes another wallpaper of the same layout and material; for a flame it is **Mutate**, a variant of it. **Style** opens the styles. **Export** saves the picture. Their names stand beside them when the phone is on its side |
 | The placard (bottom left) | A wallpaper's layout, material and number, or a flame's name; under it the size and the time |
 | Swipe left or right (wallpapers) | The next or the previous wallpaper |
 | Drag and pinch (flames) | Move the view and zoom, as on a computer; **Reset view** appears |
 | Tap | Hides the buttons, and shows them again |
-| Press and hold | Shows the picture as a lock screen, with a clock, for as long as the finger rests |
+| Press and hold | Shows the picture as the lock screen of an iPhone, with the date, the time, the torch and the camera, for as long as the finger rests. On an iPhone the date and the time are the real ones |
 | **Style** | A sheet that slides up, with small live pictures to choose from. First the **collection**, the pictures kept. For wallpapers: every layout, every material, a row of colors (any, or one of eight) and **Light** or **Dark**. For flames: every preset, and a random one. Its handle drags it taller or away |
 | **Fine-tune** (at the end of the styles) | The controls of the computer's inspector, over the whole screen: language, size, layers, tone, glass. The cross closes them |
 | **Export** | The size and the quality, then **Save to Photos** or **Share**. On an iPhone the picture goes to Photos or to the share sheet. On Android it goes to the gallery, into `Pictures/Fractique`, and **Share** then offers it to other apps. Android 9 and older ask for storage access when **Save** is pressed, before the picture is made; once allowed, the export goes on by itself |

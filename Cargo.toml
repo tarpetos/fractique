@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/fractique-core", "crates/fractique-cli", "crates/fractique-server", "crates/fractique-app"]
+members = ["crates/fractique-core", "crates/fractique-mcp", "crates/fractique-cli", "crates/fractique-server", "crates/fractique-app"]
 exclude = ["vendor"]
 
 [workspace.package]

@@ -4,7 +4,7 @@ use std::sync::mpsc;
 use eframe::egui;
 use egui::{Align2, Color32, CornerRadius, Pos2, Rect, Sense, Stroke, vec2};
 use fractique_core::wallpaper::{Layout, Material, Request, chosen, random_wallpaper};
-use fractique_core::{Control, RenderOptions, Scene, presets, render};
+use fractique_core::{Control, RenderOptions, Scene, palette, presets, render};
 use serde_json::{Value, json};
 
 use crate::widgets::{self, MEDIUM, SEMIBOLD, font};
@@ -104,6 +104,7 @@ pub struct Phone {
     drawing: HashSet<String>,
     drawn: (mpsc::Sender<Thumb>, mpsc::Receiver<Thumb>),
     pub pressing: bool,
+    pub share_from: Rect,
 }
 
 type Thumb = (String, [usize; 2], Vec<u8>);
@@ -139,6 +140,7 @@ impl Phone {
             drawing: HashSet::new(),
             drawn: mpsc::channel(),
             pressing: false,
+            share_from: Rect::ZERO,
         }
     }
 }
@@ -230,21 +232,6 @@ impl App {
         }
     }
 
-    fn set_mode(&mut self, walls: bool) {
-        if walls && !self.wall.on {
-            self.wall.on = true;
-            self.new_wallpaper();
-        } else if !walls && self.wall.on {
-            self.wall.on = false;
-            let name = "aurora-spiral";
-            if self.wall.live
-                && let Some(scene) = presets::get(name)
-            {
-                self.pick(named(scene, &shown(name)), name.to_owned(), false);
-            }
-        }
-    }
-
     pub(crate) fn step_wallpaper(&mut self, forward: bool) {
         if forward {
             self.wall.held = None;
@@ -265,7 +252,7 @@ impl App {
         } else {
             Piece {
                 title: shown(&self.title),
-                kind: Kind::Flame(Box::new(self.base.clone())),
+                kind: Kind::Flame(Box::new(self.dressed())),
             }
         }
     }
@@ -284,20 +271,141 @@ impl App {
             }
             Kind::Flame(scene) => {
                 self.wall.on = false;
+                self.palette = None;
                 self.pick((**scene).clone(), piece.title.clone(), false);
             }
         }
     }
 
-    pub(crate) fn clock(&self, ctx: &egui::Context, content: Rect) {
-        ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::unique("phone_clock")))
-            .text(
-                egui::pos2(content.center().x, content.top() + content.height() * 0.17),
+    // The picture as the lock screen of an iPhone shows it: the date, the time, the torch and the camera.
+    pub(crate) fn clock(&self, ctx: &egui::Context, content: Rect, screen: Rect) -> [Rect; 2] {
+        let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::unique("phone_clock")));
+        let ink = self.ink();
+        let (date, time) = crate::lock_screen_texts();
+        let middle = content.center().x;
+        let day = font(21.0, SEMIBOLD);
+        if !date.is_empty() && ctx.fonts_mut(|fonts| fonts.has_glyphs(&day, &date)) {
+            painter.text(
+                egui::pos2(middle, content.top() + 40.0),
                 Align2::CENTER_CENTER,
-                "9:41",
-                font(92.0, SEMIBOLD),
-                self.ink(),
+                date,
+                day,
+                ink,
             );
+        }
+        painter.text(
+            egui::pos2(middle, content.top() + 112.0),
+            Align2::CENTER_CENTER,
+            time,
+            font(104.0, SEMIBOLD),
+            ink,
+        );
+
+        let stroke = Stroke::new(1.7, ink);
+        let low = screen.bottom() - 84.0;
+        let torch = egui::pos2(screen.left() + 70.0, low);
+        painter.add(egui::Shape::closed_line(
+            [
+                (-6.0, -11.0),
+                (6.0, -11.0),
+                (6.0, -6.5),
+                (3.2, -3.0),
+                (3.2, 11.0),
+                (-3.2, 11.0),
+                (-3.2, -3.0),
+                (-6.0, -6.5),
+            ]
+            .map(|(x, y)| torch + vec2(x, y))
+            .to_vec(),
+            stroke,
+        ));
+        painter.line_segment([torch + vec2(-6.0, -7.5), torch + vec2(6.0, -7.5)], stroke);
+        painter.circle_filled(torch + vec2(0.0, 2.5), 1.4, ink);
+        let camera = egui::pos2(screen.right() - 70.0, low);
+        painter.rect_stroke(
+            Rect::from_center_size(camera + vec2(0.0, 1.0), vec2(24.0, 16.0)),
+            CornerRadius::same(4),
+            stroke,
+            egui::StrokeKind::Middle,
+        );
+        painter.line_segment([camera + vec2(-4.5, -7.0), camera + vec2(-2.5, -10.0)], stroke);
+        painter.line_segment([camera + vec2(-2.5, -10.0), camera + vec2(2.5, -10.0)], stroke);
+        painter.line_segment([camera + vec2(2.5, -10.0), camera + vec2(4.5, -7.0)], stroke);
+        painter.circle_stroke(camera + vec2(0.0, 1.0), 4.4, stroke);
+        [torch, camera].map(|at| Rect::from_center_size(at, vec2(52.0, 52.0)))
+    }
+
+    // The colors to choose from: a hue for the shapes, a palette for the flames, or the picture's own.
+    pub(crate) fn colors(&mut self, ui: &mut egui::Ui, dot: f32) {
+        let walls = self.wall.on;
+        let before = (self.wall.hue, self.palette);
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(3.0, 6.0);
+            let cell = |ui: &mut egui::Ui, chosen: bool, paint: &dyn Fn(&egui::Painter, Pos2, f32)| {
+                let (rect, response) = ui.allocate_exact_size(vec2(dot + 8.0, dot + 8.0), Sense::click());
+                paint(ui.painter(), rect.center(), dot * 0.5);
+                if chosen {
+                    ui.painter()
+                        .circle_stroke(rect.center(), dot * 0.5 + 3.0, Stroke::new(1.8, Color32::WHITE));
+                }
+                response.clicked()
+            };
+            let none = |painter: &egui::Painter, at: Pos2, reach: f32| {
+                let faint = Stroke::new(1.4, Color32::from_white_alpha(190));
+                painter.circle_stroke(at, reach - 1.0, faint);
+                let slant = (reach - 1.0) * 0.7;
+                painter.line_segment([at + vec2(-slant, slant), at + vec2(slant, -slant)], faint);
+            };
+            if walls {
+                if cell(ui, self.wall.hue.is_none(), &none) {
+                    self.wall.hue = None;
+                }
+                for (degrees, [r, g, b]) in TINTS {
+                    let fill = move |painter: &egui::Painter, at: Pos2, reach: f32| {
+                        painter.circle_filled(at, reach, Color32::from_rgb(r, g, b));
+                    };
+                    if cell(ui, self.wall.hue == Some(degrees), &fill) {
+                        self.wall.hue = Some(degrees);
+                    }
+                }
+            } else {
+                if cell(ui, self.palette.is_none(), &none) {
+                    self.palette = None;
+                }
+                for (index, name) in palette::NAMES.iter().enumerate() {
+                    let Some(shades) = palette::named(name).map(|named| palette::lut(&named)) else {
+                        continue;
+                    };
+                    let fill = move |painter: &egui::Painter, at: Pos2, reach: f32| {
+                        let mut mesh = egui::Mesh::default();
+                        let turn = 24u32;
+                        let shade = |step: u32| {
+                            let [r, g, b] = shades[(step * 255 / turn) as usize];
+                            Color32::from_rgb(r, g, b)
+                        };
+                        mesh.colored_vertex(at, shade(turn / 2));
+                        for step in 0..=turn {
+                            let angle = step as f32 / turn as f32 * std::f32::consts::TAU;
+                            mesh.colored_vertex(at + vec2(angle.sin(), -angle.cos()) * reach, shade(step));
+                        }
+                        for step in 0..turn {
+                            mesh.add_triangle(0, 1 + step, 2 + step);
+                        }
+                        painter.add(egui::Shape::mesh(mesh));
+                    };
+                    if cell(ui, self.palette == Some(index), &fill) {
+                        self.palette = Some(index);
+                    }
+                }
+            }
+        });
+        if before != (self.wall.hue, self.palette) {
+            if walls && !self.wall.live {
+                self.new_wallpaper();
+            } else {
+                self.requested = None;
+            }
+        }
     }
 
     fn current(&self, size: [u32; 2]) -> (Layout, Material) {
@@ -328,7 +436,7 @@ impl App {
         self.phone.clear.clear();
         let (on_picture, ink) = (ink, Color32::WHITE);
         let reverse = Color32::from_rgb(14, 18, 34);
-        let labels = [self.t("flames"), self.t("wallpapers")];
+        let labels = [self.t("flames"), self.t("shapes")];
         let walls = self.wall.on;
         let mut mode = None;
         let pill = egui::Area::new(egui::Id::unique("phone_mode"))
@@ -362,6 +470,18 @@ impl App {
             self.set_mode(walls);
         }
 
+        let strip = egui::Area::new(egui::Id::unique("phone_colors"))
+            .fixed_pos(egui::pos2(content.center().x, pill.response.rect.bottom() + 8.0))
+            .pivot(Align2::CENTER_TOP)
+            .show(ctx, |ui| {
+                egui::Frame::NONE
+                    .inner_margin(egui::Margin::symmetric(8, 3))
+                    .show(ui, |ui| self.colors(ui, 20.0));
+            });
+        panes.push((strip.response.rect, strip.response.rect.height() * 0.5, false));
+        self.phone.clear.push(strip.response.rect);
+        let below = strip.response.rect.bottom() + 12.0;
+
         let shutter = egui::pos2(content.right() - 52.0, content.bottom() - 54.0);
         let similar = if self.wall.live { "similar" } else { "mutate" };
         let piece = self.piece(size);
@@ -388,6 +508,9 @@ impl App {
                     }
                 });
             let rect = button.response.rect;
+            if key == "export" {
+                self.phone.share_from = rect;
+            }
             panes.push((rect, rect.height() * 0.5, false));
             self.phone.clear.push(rect);
             if hinted {
@@ -430,6 +553,8 @@ impl App {
                 self.phone.sheet = true;
                 self.phone.lift = SHEET_TOP;
                 self.phone.pull = 0.0;
+                // The sheet has to be laid out before a finger can land on it, or the picture under it takes the touch.
+                ctx.request_repaint();
             }
             Some("similar") => self.act("mutate"),
             Some("keep") => {
@@ -452,10 +577,10 @@ impl App {
             None => {}
         }
 
-        if self.view != WHOLE && !self.wall.live {
+        if self.view.zoom != 1.0 && !self.wall.live {
             ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::unique("phone_zoom")))
                 .text(
-                    egui::pos2(content.left() + 22.0, content.top() + 62.0),
+                    egui::pos2(content.left() + 22.0, below),
                     Align2::LEFT_TOP,
                     format!("{}×", self.view.label()),
                     font(30.0, SEMIBOLD),
@@ -466,7 +591,7 @@ impl App {
         self.placard(ctx, content, size, on_picture);
 
         if self.view != WHOLE {
-            let rect = self.reset_button(ctx, egui::pos2(content.center().x, content.top() + 112.0));
+            let rect = self.reset_button(ctx, egui::pos2(content.center().x, below + 44.0));
             panes.push((rect, rect.height() * 0.5, false));
         }
     }
@@ -739,6 +864,9 @@ impl App {
                                     })
                                     .show(ui, |ui| {
                                         close |= self.sheet_kept(ui, scale);
+                                        widgets::section(ui, &self.t("color"));
+                                        ui.add_space(6.0);
+                                        self.colors(ui, 26.0);
                                         if self.wall.on {
                                             self.sheet_walls(ui, size, scale);
                                         } else {
@@ -811,7 +939,7 @@ impl App {
 
     fn sheet_walls(&mut self, ui: &mut egui::Ui, size: [u32; 2], scale: f32) {
         let ctx = ui.ctx().clone();
-        let before = (self.wall.layout, self.wall.material, self.wall.dark, self.wall.hue);
+        let before = (self.wall.layout, self.wall.material, self.wall.dark);
         let (now_layout, now_material) = self.current(size);
         let (seed, dark, hue) = (self.seed, self.wall.dark, self.wall.hue);
         let any = self.t("any");
@@ -899,43 +1027,6 @@ impl App {
         });
         self.wall.material = material;
 
-        widgets::section(ui, &self.t("color"));
-        ui.add_space(6.0);
-        let mut tint = self.wall.hue;
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = vec2(7.0, 8.0);
-            let dot = |ui: &mut egui::Ui, fill: Option<Color32>, chosen: bool| {
-                let (rect, response) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::click());
-                match fill {
-                    Some(color) => {
-                        ui.painter().circle_filled(rect.center(), 13.0, color);
-                    }
-                    None => {
-                        let faint = Stroke::new(1.4, Color32::from_white_alpha(170));
-                        ui.painter().circle_stroke(rect.center(), 12.0, faint);
-                        ui.painter().line_segment(
-                            [rect.center() + vec2(-8.5, 8.5), rect.center() + vec2(8.5, -8.5)],
-                            faint,
-                        );
-                    }
-                }
-                if chosen {
-                    ui.painter()
-                        .circle_stroke(rect.center(), 16.0, Stroke::new(2.0, Color32::WHITE));
-                }
-                response.clicked()
-            };
-            if dot(ui, None, tint.is_none()) {
-                tint = None;
-            }
-            for (degrees, [r, g, b]) in TINTS {
-                if dot(ui, Some(Color32::from_rgb(r, g, b)), tint == Some(degrees)) {
-                    tint = Some(degrees);
-                }
-            }
-        });
-        self.wall.hue = tint;
-
         ui.add_space(16.0);
         let (light, shade) = (self.t("light"), self.t("dark"));
         let half = (ui.available_width() - 8.0) * 0.5;
@@ -950,8 +1041,8 @@ impl App {
         });
         self.wall.dark = is_dark;
 
-        if before != (self.wall.layout, self.wall.material, self.wall.dark, self.wall.hue) {
-            if before.2 == self.wall.dark && before.3 == self.wall.hue {
+        if before != (self.wall.layout, self.wall.material, self.wall.dark) {
+            if before.2 == self.wall.dark {
                 self.wall.held = None;
             }
             if self.wall.live {
@@ -979,8 +1070,16 @@ impl App {
             ui.spacing_mut().item_spacing = vec2(gap, 10.0);
             random = Self::tile(ui, side, None, &random_label, self.is_random && !self.wall.live);
             for name in presets::names() {
-                let picture = self.thumb(&ctx, format!("p {name}"), pixels, 10, &mut budget, || {
-                    presets::get(name)
+                let colors = self.palette.and_then(|at| palette::named(palette::NAMES[at]));
+                let key = format!("p {name} {:?}", self.palette);
+                let picture = self.thumb(&ctx, key, pixels, 10, &mut budget, || {
+                    let mut scene = presets::get(name)?;
+                    if let Some(colors) = colors {
+                        for layer in &mut scene.layers {
+                            layer.flame.palette = colors.clone();
+                        }
+                    }
+                    Some(scene)
                 });
                 let current = !self.is_random && self.title == name;
                 if Self::tile(ui, side, picture, &shown(name), current) {

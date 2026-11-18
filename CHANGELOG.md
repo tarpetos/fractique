@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+* **MCP over HTTP:** `fractique-server` speaks MCP at `POST /mcp` (Streamable HTTP, revisions `2025-06-18` and
+  `2025-03-26`) with the tools of `fractique mcp`, from the same code ([docs/mcp.md](docs/mcp.md#over-http)). A
+  tool call is answered as an event stream with its progress; `notifications/cancelled`, the end of the session
+  and a closed connection stop a render. Renders obey the limits of the server and wait in its queue. `file` and
+  `save_to` do not exist there: a client on the network cannot read or write the disk of the server. On by
+  default; `--mcp off` or `FRACTIQUE_MCP=off` turns it off, `--mcp-origin` names the web pages that may call it.
+  `GET /limits` says whether it is on.
 * **Export:** a fourth quality, **Instant**, now the first choice: it saves the picture that is on the screen at
   once instead of rendering it anew. Standard, High and Ultra render as before.
 * **Android 9 and older:** storage access is asked for when Save is pressed, before the picture is made, and the

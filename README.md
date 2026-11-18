@@ -30,7 +30,7 @@ Fractique makes two kinds of pictures. Fractal flames: the glowing, wispy kind o
 - **Exact repeatability:** the same scene gives the same pixels on every machine, checked by tests on Linux, Windows and macOS ([docs/determinism.md](docs/determinism.md)).
 - **The command line tool** (`fractique`): renders flames and wallpapers to PNG, makes random scenes and variants, converts `.flame` files.
 - **MCP server** (`fractique mcp`): an AI agent makes, changes and renders scenes ([docs/mcp.md](docs/mcp.md)).
-- **HTTP server** (`fractique-server`): an HTTP API with a render queue and limits, serves the web app, ships as a Docker image ([docs/server.md](docs/server.md)).
+- **HTTP server** (`fractique-server`): an HTTP API with a render queue and limits, MCP for AI agents at `/mcp`, serves the web app, ships as a Docker image ([docs/server.md](docs/server.md)).
 
 | | |
 | --- | --- |

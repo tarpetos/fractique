@@ -29,6 +29,7 @@ use web_time::Instant;
 
 use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
+use fractique_core::palette;
 use fractique_core::random::{Generator, mutate, random_scene, random_scene_of};
 use fractique_core::scene::{Blend, MAX_LAYERS};
 use fractique_core::wallpaper::{Layout, Material, Request, chosen as wallpaper_choice, random_wallpaper};
@@ -283,6 +284,21 @@ pub fn first_instance(open: Option<&std::path::Path>) -> bool {
     instance::first(open)
 }
 
+// The date and the time as the lock screen shows them; where the system is not asked, the time of Apple's pictures.
+fn lock_screen_texts() -> (String, String) {
+    #[cfg(target_os = "ios")]
+    {
+        let (date, time) = ios::clock();
+        let digits: String = time
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || matches!(c, ':' | '.'))
+            .collect();
+        (date, if digits.is_empty() { time } else { digits })
+    }
+    #[cfg(not(target_os = "ios"))]
+    (String::new(), "9:41".to_owned())
+}
+
 const GLASS: (f32, f32) = (0.4, 0.7);
 const MAX_MAGNIFICATION: f64 = 1e10;
 const MIN_MAGNIFICATION: f64 = 1e-4;
@@ -370,10 +386,25 @@ impl Wall {
     }
 }
 
+// What a tab showed when the other one was chosen, to come back to as it was.
+struct Rest {
+    base: Scene,
+    title: String,
+    is_random: bool,
+    seed: u64,
+    view: View,
+    layer: usize,
+    held: Option<(Layout, Material)>,
+    picture: Option<(Rendered, [u32; 2])>,
+}
+
 struct App {
     texts: Texts,
     base: Scene,
     wall: Wall,
+    rest: [Option<Rest>; 2],
+    latest: Option<Rendered>,
+    palette: Option<usize>,
     phone: phone::Phone,
     title: String,
     is_random: bool,
@@ -575,6 +606,9 @@ impl App {
                 live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall") || what == "layouts"),
                 ..Default::default()
             },
+            rest: [None, None],
+            latest: None,
+            palette: None,
             phone: phone::Phone::new(stored("kept")),
             title,
             is_random: false,
@@ -661,8 +695,71 @@ impl App {
         app
     }
 
-    fn scene(&self) -> Scene {
+    // The scene in the colors chosen for flames, if any were.
+    fn dressed(&self) -> Scene {
         let mut scene = self.base.clone();
+        if let Some(palette) = self.palette.and_then(|at| palette::named(palette::NAMES[at])) {
+            for layer in &mut scene.layers {
+                layer.flame.palette = palette.clone();
+            }
+        }
+        scene
+    }
+
+    // The tab that is left keeps what it showed, picture and all, and the one that is chosen shows what it had.
+    fn set_mode(&mut self, walls: bool) {
+        if walls == self.wall.on {
+            return;
+        }
+        if self.wall.live == self.wall.on {
+            let size = self.requested;
+            let settled = !self.rendering && self.drawn == Some(self.view);
+            let held = size
+                .filter(|_| self.wall.live)
+                .map(|size| wallpaper_choice(self.seed, &self.wall.request(size)));
+            self.rest[usize::from(self.wall.on)] = Some(Rest {
+                base: self.base.clone(),
+                title: self.title.clone(),
+                is_random: self.is_random,
+                seed: self.seed,
+                view: self.view,
+                layer: self.layer,
+                held,
+                picture: self.latest.take().filter(|_| settled).zip(size),
+            });
+        }
+        self.wall.on = walls;
+        let Some(rest) = self.rest[usize::from(walls)].take() else {
+            if walls {
+                self.new_wallpaper();
+            } else if let Some(scene) = presets::get("aurora-spiral") {
+                self.pick(named(scene, &shown("aurora-spiral")), "aurora-spiral".to_owned(), false);
+            }
+            return;
+        };
+        if !walls {
+            self.base = rest.base;
+        }
+        self.wall.live = walls;
+        self.wall.held = rest.held.or(self.wall.held);
+        (self.title, self.is_random, self.seed) = (rest.title, rest.is_random, rest.seed);
+        (self.view, self.layer) = (rest.view, rest.layer);
+        self.cancel.store(true, Ordering::Relaxed);
+        self.cancel = Arc::new(AtomicBool::new(false));
+        self.generation += 1;
+        match rest.picture {
+            Some((mut picture, size)) if Some(size) == self.requested => {
+                picture.generation = self.generation;
+                self.drawn = Some(rest.view);
+                self.rendering = false;
+                let _ = self.results.0.send(picture);
+            }
+            _ => self.requested = None,
+        }
+    }
+
+    fn scene(&self) -> Scene {
+        let mut scene = self.dressed();
         for layer in &mut scene.layers {
             let tone = &mut layer.flame.tone;
             tone.brightness *= self.adjust.brightness;
@@ -788,6 +885,7 @@ impl App {
                 if done.view.zoom != 1.0 {
                     self.status += &format!("  ·  {}×", done.view.label());
                 }
+                self.latest = Some(done);
             }
         }
     }
@@ -815,6 +913,7 @@ impl App {
             "adjust": [self.adjust.brightness, self.adjust.gamma, self.adjust.glow, self.adjust.zoom],
             "view": [self.view.right, self.view.down, self.view.zoom],
             "layer": self.layer,
+            "palette": self.palette.map(|at| palette::NAMES[at]),
             "inspector": self.inspector_open,
             "optics": optics,
             "wall": {
@@ -861,6 +960,10 @@ impl App {
             self.view = View { right, down, zoom };
         }
         self.layer = session.get("layer").and_then(serde_json::Value::as_u64).unwrap_or(0) as usize;
+        self.palette = session
+            .get("palette")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|name| palette::NAMES.iter().position(|each| *each == name));
         self.inspector_open = session.get("inspector").and_then(serde_json::Value::as_bool);
         if let Some(&[refraction, rim, bezel]) = numbers("optics").as_deref() {
             self.optics.refraction = refraction as f32;
@@ -1437,23 +1540,10 @@ impl App {
         }
 
         ui.add_space(12.0);
-        let (flames, wallpapers) = (self.t("flames"), self.t("wallpapers"));
-        let mode = widgets::segments(ui, &[flames, wallpapers], usize::from(self.wall.on)).map(|index| index == 1);
-        match mode {
-            Some(true) if !self.wall.on => {
-                self.wall.on = true;
-                self.new_wallpaper();
-            }
-            Some(false) if self.wall.on => {
-                self.wall.on = false;
-                if self.wall.live {
-                    let name = "aurora-spiral";
-                    if let Some(scene) = presets::get(name) {
-                        self.pick(named(scene, &shown(name)), name.to_owned(), false);
-                    }
-                }
-            }
-            _ => {}
+        let (flames, shapes) = (self.t("flames"), self.t("shapes"));
+        let mode = widgets::segments(ui, &[flames, shapes], usize::from(self.wall.on)).map(|index| index == 1);
+        if let Some(walls) = mode {
+            self.set_mode(walls);
         }
 
         if self.wall.on {
@@ -1464,6 +1554,9 @@ impl App {
                 self.open_sheet(Sheet::Presets);
             }
         }
+        widgets::section(ui, &self.t("color"));
+        ui.add_space(6.0);
+        self.colors(ui, 16.0);
 
         widgets::section(ui, &self.t("size"));
         let label = match self.picture {
@@ -2173,7 +2266,8 @@ impl App {
                 {
                     tick(true);
                     if self.export.share {
-                        ios::share(&path);
+                        let from = self.phone.share_from;
+                        ios::share(&path, [from.left(), from.top(), from.width(), from.height()]);
                     } else if ios::save_to_photos(&path) {
                         self.export.note = self.t("saved");
                     }
@@ -2366,11 +2460,13 @@ impl eframe::App for App {
         }
 
         if self.bare || self.phone.preview {
-            if self.phone.preview {
-                self.clock(&ctx, content);
-            }
             let mut panes = Vec::new();
-            if self.view != WHOLE {
+            if self.phone.preview {
+                for rect in self.clock(&ctx, content, screen) {
+                    panes.push((rect, rect.height() * 0.5, false));
+                }
+            }
+            if self.view != WHOLE && !self.phone.preview {
                 let rect = self.reset_button(&ctx, egui::pos2(content.center().x, content.bottom() - 20.0));
                 panes.push((rect, rect.height() * 0.5, false));
             }
@@ -2824,6 +2920,15 @@ fn join_scene(cc: &eframe::CreationContext<'_>) {
             return;
         }
         let _: () = msg_send![window, setWindowScene: scene];
+        // A window that joins its scene late does not learn which way up the screen is, and the share sheet then
+        // lays itself out for a screen on its side. Giving the window its view controller again tells it.
+        let root: *mut AnyObject = msg_send![window, rootViewController];
+        if !root.is_null() {
+            let root: *mut AnyObject = msg_send![root, retain];
+            let _: () = msg_send![window, setRootViewController: std::ptr::null_mut::<AnyObject>()];
+            let _: () = msg_send![window, setRootViewController: root];
+            let _: () = msg_send![root, release];
+        }
         let _: () = msg_send![window, makeKeyAndVisible];
     }
 }

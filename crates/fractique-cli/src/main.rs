@@ -10,8 +10,9 @@ use std::time::Instant;
 use clap::{Parser, Subcommand};
 use fractique_core::import::import_flames;
 use fractique_core::random::{Generator, fit_camera, mutate, random_scene_of};
-use fractique_core::wallpaper::{Layout, Material, Request, random_wallpaper};
+use fractique_core::wallpaper::random_wallpaper;
 use fractique_core::{Control, Image, Kind, Quality, RenderOptions, Scene, file, presets, render};
+use fractique_mcp::{encode_png, load, scene_from_bytes, shown, wallpaper_request};
 use serde_json::{Value, json};
 
 #[derive(Parser)]
@@ -144,34 +145,6 @@ fn parse_size(text: &str) -> Result<(u32, u32), String> {
     parsed.ok_or_else(|| format!("'{text}' is not a size; write it as 1920x1080"))
 }
 
-// A .frcq file of the app holds its session; the scene as it was on the screen is under "shown".
-pub(crate) fn shown(mut document: Value) -> Value {
-    match document.get_mut("shown").map(Value::take) {
-        Some(scene) => scene,
-        None => document,
-    }
-}
-
-pub(crate) fn scene_from_bytes(bytes: &[u8]) -> Result<Scene, String> {
-    let document = if file::is_packed(bytes) {
-        Some(file::unpack(bytes)?)
-    } else {
-        serde_json::from_slice::<Value>(bytes)
-            .ok()
-            .filter(|document| document.get("fractique").is_some())
-    };
-    match document {
-        Some(document) => Scene::from_json(&shown(document).to_string()),
-        None => Scene::from_json(&String::from_utf8_lossy(bytes)),
-    }
-    .map_err(|e| e.to_string())
-}
-
-pub(crate) fn load(path: &Path) -> Result<Scene, String> {
-    let fail = |e: String| format!("{}: {e}", path.display());
-    scene_from_bytes(&fs::read(path).map_err(|e| fail(e.to_string()))?).map_err(fail)
-}
-
 // The fields the app needs to open a document: "scene" is what it edits, "shown" what the other tools render.
 fn document_of(scene: &Scene) -> Value {
     let scene_value = serde_json::to_value(scene).unwrap_or_default();
@@ -226,39 +199,8 @@ fn emit(scene: &Scene, output: Option<PathBuf>) -> Result<(), String> {
     }
 }
 
-pub(crate) fn encode_png(image: &Image) -> Result<Vec<u8>, String> {
-    let mut bytes = Vec::new();
-    let mut encoder = png::Encoder::new(&mut bytes, image.width, image.height);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder.write_header().map_err(|e| e.to_string())?;
-    writer.write_image_data(&image.rgba).map_err(|e| e.to_string())?;
-    writer.finish().map_err(|e| e.to_string())?;
-    Ok(bytes)
-}
-
 fn save_png(image: &Image, path: &Path) -> Result<(), String> {
     fs::write(path, encode_png(image)?).map_err(|e| format!("{}: {e}", path.display()))
-}
-
-pub(crate) fn wallpaper_request(
-    layout: Option<String>,
-    material: Option<String>,
-    width: u32,
-    height: u32,
-    dark: bool,
-) -> Result<Request, String> {
-    Ok(Request {
-        layout: layout
-            .map(|name| Layout::parse(&name).ok_or_else(|| format!("no layout is called '{name}'")))
-            .transpose()?,
-        material: material
-            .map(|name| Material::parse(&name).ok_or_else(|| format!("no material is called '{name}'")))
-            .transpose()?,
-        ratio: f64::from(height) / f64::from(width),
-        dark,
-        hue: None,
-    })
 }
 
 fn generator_of(number: u64) -> Result<Generator, String> {

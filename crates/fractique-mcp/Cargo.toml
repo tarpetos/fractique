@@ -1,0 +1,17 @@
+[package]
+name = "fractique-mcp"
+description = "The MCP tools of Fractique, shared by its stdio and HTTP servers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+fractique-core = { path = "../fractique-core" }
+serde_json.workspace = true
+png = "0.18.1"
+
+[lints]
+workspace = true
