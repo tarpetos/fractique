@@ -183,69 +183,137 @@ fn for_each_stream(run: impl Fn(u64) + Sync + Send) {
     (0..STREAMS).for_each(run);
 }
 
+pub struct Developed {
+    width: u32,
+    height: u32,
+    pixels: Vec<f32>,
+}
+
+impl Developed {
+    pub fn bytes(&self) -> usize {
+        self.pixels.len() * size_of::<f32>()
+    }
+}
+
 pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> Result<Image, RenderError> {
     scene.validate().map_err(RenderError::Scene)?;
     options.validate()?;
+    let count = scene.layers.len() as f64;
+    let mut layers = Vec::with_capacity(scene.layers.len());
+    for index in 0..scene.layers.len() {
+        let report = |share: f64| {
+            if let Some(progress) = control.progress {
+                progress((index as f64 + share) / count);
+            }
+        };
+        layers.push(develop_layer(scene, index, options, control.cancel, &report)?);
+    }
+    Ok(composed(scene, &layers.iter().collect::<Vec<_>>(), options))
+}
 
+pub fn render_layer(
+    scene: &Scene,
+    index: usize,
+    options: &RenderOptions,
+    control: &Control<'_>,
+) -> Result<Developed, RenderError> {
+    scene.validate().map_err(RenderError::Scene)?;
+    options.validate()?;
+    let report = |share: f64| {
+        if let Some(progress) = control.progress {
+            progress(share);
+        }
+    };
+    develop_layer(
+        scene,
+        index.min(scene.layers.len() - 1),
+        options,
+        control.cancel,
+        &report,
+    )
+}
+
+pub fn compose(scene: &Scene, layers: &[&Developed], options: &RenderOptions) -> Result<Image, RenderError> {
+    scene.validate().map_err(RenderError::Scene)?;
+    options.validate()?;
+    let fits = |layer: &&Developed| layer.width == options.width && layer.height == options.height;
+    if layers.len() != scene.layers.len() || !layers.iter().all(fits) {
+        return Err(RenderError::Cancelled);
+    }
+    Ok(composed(scene, layers, options))
+}
+
+fn develop_layer(
+    scene: &Scene,
+    index: usize,
+    options: &RenderOptions,
+    cancel: Option<&AtomicBool>,
+    report: &(dyn Fn(f64) + Sync),
+) -> Result<Developed, RenderError> {
     let (width, height) = (options.width as usize, options.height as usize);
     let supersample = options.supersample as usize;
     let per_layer = u64::from(options.samples_per_pixel) * width as u64 * height as u64;
-    let all_samples = (per_layer * scene.layers.len() as u64) as f64;
     let done = AtomicU64::new(0);
-    let cancelled = || control.cancel.is_some_and(|flag| flag.load(Ordering::Relaxed));
+    let cancelled = || cancel.is_some_and(|flag| flag.load(Ordering::Relaxed));
 
+    let flame = &scene.layers[index].flame;
+    let histogram = Histogram::new(width * supersample, height * supersample);
+    let compiled = Compiled::new(flame);
+    let lut = palette::lut(&flame.palette);
+
+    let (wide, high) = (histogram.width as f64, histogram.height as f64);
+    let per_unit = flame.camera.zoom * wide.min(high) / 4.0;
+    let angle = flame.camera.rotation.to_radians();
+    let (rot_cos, rot_sin) = (cos(angle), sin(angle));
+    let [center_x, center_y] = flame.camera.center;
+    let up = if flame.camera.flip_y { -per_unit } else { per_unit };
+
+    for_each_stream(|stream| {
+        let mut rng = Rng::derive(scene.seed, STREAM_DOMAIN + index as u64, stream);
+        let mut walker = Walker::new(&compiled, &mut rng);
+        let mut left = per_layer / STREAMS + u64::from(stream < per_layer % STREAMS);
+        while left > 0 && !cancelled() {
+            let count = left.min(CHUNK);
+            walker.run(&compiled, &mut rng, count, |x, y, color| {
+                let (dx, dy) = (x - center_x, y - center_y);
+                let px = wide * 0.5 + (dx * rot_cos + dy * rot_sin) * per_unit;
+                let py = high * 0.5 - (dy * rot_cos - dx * rot_sin) * up;
+                if px >= 0.0 && px < wide && py >= 0.0 && py < high {
+                    let shade = ((color * 255.0 + 0.5) as usize).min(255);
+                    histogram.add(py as usize * histogram.width + px as usize, lut[shade]);
+                }
+            });
+            left -= count;
+            let so_far = done.fetch_add(count, Ordering::Relaxed) + count;
+            report(so_far as f64 / per_layer as f64);
+        }
+    });
+    if cancelled() {
+        return Err(RenderError::Cancelled);
+    }
+
+    let pixels = tone::develop(
+        &histogram,
+        &flame.tone,
+        supersample,
+        options.samples_per_pixel,
+        flame.camera.zoom,
+    );
+    Ok(Developed {
+        width: options.width,
+        height: options.height,
+        pixels,
+    })
+}
+
+fn composed(scene: &Scene, layers: &[&Developed], options: &RenderOptions) -> Image {
+    let (width, height) = (options.width as usize, options.height as usize);
     let mut canvas: Vec<f32> = Vec::with_capacity(width * height * 3);
     for _ in 0..width * height {
         canvas.extend(scene.background.map(|c| c as f32));
     }
-
-    for (index, layer) in scene.layers.iter().enumerate() {
-        let flame = &layer.flame;
-        let histogram = Histogram::new(width * supersample, height * supersample);
-        let compiled = Compiled::new(flame);
-        let lut = palette::lut(&flame.palette);
-
-        let (wide, high) = (histogram.width as f64, histogram.height as f64);
-        let per_unit = flame.camera.zoom * wide.min(high) / 4.0;
-        let angle = flame.camera.rotation.to_radians();
-        let (rot_cos, rot_sin) = (cos(angle), sin(angle));
-        let [center_x, center_y] = flame.camera.center;
-        let up = if flame.camera.flip_y { -per_unit } else { per_unit };
-
-        for_each_stream(|stream| {
-            let mut rng = Rng::derive(scene.seed, STREAM_DOMAIN + index as u64, stream);
-            let mut walker = Walker::new(&compiled, &mut rng);
-            let mut left = per_layer / STREAMS + u64::from(stream < per_layer % STREAMS);
-            while left > 0 && !cancelled() {
-                let count = left.min(CHUNK);
-                walker.run(&compiled, &mut rng, count, |x, y, color| {
-                    let (dx, dy) = (x - center_x, y - center_y);
-                    let px = wide * 0.5 + (dx * rot_cos + dy * rot_sin) * per_unit;
-                    let py = high * 0.5 - (dy * rot_cos - dx * rot_sin) * up;
-                    if px >= 0.0 && px < wide && py >= 0.0 && py < high {
-                        let shade = ((color * 255.0 + 0.5) as usize).min(255);
-                        histogram.add(py as usize * histogram.width + px as usize, lut[shade]);
-                    }
-                });
-                left -= count;
-                if let Some(progress) = control.progress {
-                    let so_far = done.fetch_add(count, Ordering::Relaxed) + count;
-                    progress(so_far as f64 / all_samples);
-                }
-            }
-        });
-        if cancelled() {
-            return Err(RenderError::Cancelled);
-        }
-
-        let developed = tone::develop(
-            &histogram,
-            &flame.tone,
-            supersample,
-            options.samples_per_pixel,
-            flame.camera.zoom,
-        );
-        composite(&mut canvas, &developed, layer.blend, layer.opacity as f32);
+    for (layer, developed) in scene.layers.iter().zip(layers) {
+        composite(&mut canvas, &developed.pixels, layer.blend, layer.opacity as f32);
     }
 
     let mut rgba = Vec::with_capacity(width * height * 4);
@@ -254,11 +322,11 @@ pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> 
         rgba.extend(pixel.iter().map(|c| (c.clamp(0.0, 1.0) * 255.0 + threshold) as u8));
         rgba.push(255);
     }
-    Ok(Image {
+    Image {
         width: options.width,
         height: options.height,
         rgba,
-    })
+    }
 }
 
 const fn bayer() -> [[f32; 8]; 8] {

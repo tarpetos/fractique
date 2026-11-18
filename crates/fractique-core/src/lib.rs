@@ -11,6 +11,6 @@ pub mod variation;
 mod chaos;
 mod tone;
 
-pub use render::{Control, Image, Quality, RenderError, RenderOptions, render};
+pub use render::{Control, Developed, Image, Quality, RenderError, RenderOptions, compose, render, render_layer};
 pub use scene::{Blend, Camera, Flame, Layer, Palette, SCENE_VERSION, Scene, SceneError, Stop, Tone, Transform};
 pub use variation::{Kind, Variation};
