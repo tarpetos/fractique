@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 
 use web_time::Instant;
@@ -385,7 +385,13 @@ fn render_pool() -> &'static rayon::ThreadPool {
     })
 }
 
-type Layers = Arc<Mutex<HashMap<String, Arc<Developed>>>>;
+struct Kept {
+    layer: Arc<Developed>,
+    used: u64,
+    home: bool,
+}
+
+type Layers = Arc<Mutex<HashMap<String, Kept>>>;
 
 const KEPT_BYTES: usize = if cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
     160 << 20
@@ -394,13 +400,16 @@ const KEPT_BYTES: usize = if cfg!(any(target_os = "android", target_os = "ios", 
 };
 
 // A layer's pixels depend only on its flame, its place in the scene, the seed and the size, so a layer that did
-// not change is taken from the last render.
+// not change is taken from an earlier render. The layers of the whole view are the last to be dropped: Reset view
+// comes back to them.
 fn rendered(
     scene: &Scene,
     options: &RenderOptions,
     control: &Control<'_>,
     kept: &Layers,
+    home: bool,
 ) -> Result<Image, RenderError> {
+    static USES: AtomicU64 = AtomicU64::new(0);
     let size = format!(
         "{} {} {} {} ",
         options.width, options.height, options.samples_per_pixel, options.supersample
@@ -409,15 +418,29 @@ fn rendered(
     for (index, layer) in scene.layers.iter().enumerate() {
         let flame = serde_json::to_string(&layer.flame).unwrap_or_default();
         let key = format!("{size}{} {index} {flame}", scene.seed);
-        let found = kept.lock().unwrap_or_else(|e| e.into_inner()).get(&key).cloned();
+        let used = USES.fetch_add(1, Ordering::Relaxed);
+        let found = kept
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get_mut(&key)
+            .map(|entry| {
+                entry.used = used;
+                entry.home |= home;
+                entry.layer.clone()
+            });
         let developed = match found {
             Some(developed) => developed,
             None => {
-                let developed = Arc::new(render_layer(scene, index, options, control)?);
+                let layer = Arc::new(render_layer(scene, index, options, control)?);
+                let entry = Kept {
+                    layer: layer.clone(),
+                    used,
+                    home,
+                };
                 kept.lock()
                     .unwrap_or_else(|e| e.into_inner())
-                    .insert(key.clone(), developed.clone());
-                developed
+                    .insert(key.clone(), entry);
+                layer
             }
         };
         keys.push(key);
@@ -425,9 +448,20 @@ fn rendered(
     }
     {
         let mut kept = kept.lock().unwrap_or_else(|e| e.into_inner());
-        kept.retain(|key, _| !key.starts_with(&size) || keys.contains(key));
-        if kept.values().map(|layer| layer.bytes()).sum::<usize>() > KEPT_BYTES {
-            kept.retain(|key, _| keys.contains(key));
+        let mut bytes: usize = kept.values().map(|entry| entry.layer.bytes()).sum();
+        let mut spare: Vec<(bool, u64, String)> = kept
+            .iter()
+            .filter(|(key, _)| !keys.contains(key))
+            .map(|(key, entry)| (entry.home, entry.used, key.clone()))
+            .collect();
+        spare.sort();
+        for (_, _, key) in spare {
+            if bytes <= KEPT_BYTES {
+                break;
+            }
+            if let Some(entry) = kept.remove(&key) {
+                bytes -= entry.layer.bytes();
+            }
         }
     }
     compose(scene, &layers.iter().map(|layer| &**layer).collect::<Vec<_>>(), options)
@@ -587,6 +621,7 @@ impl App {
         }
         let (scene, cancel, generation) = (self.scene_at(size), self.cancel.clone(), self.generation);
         let view = self.view;
+        let home = view == WHOLE;
         let (sender, ctx, kept) = (self.results.0.clone(), ctx.clone(), self.kept.clone());
         let work = move || {
             for (draft, options) in passes {
@@ -596,9 +631,9 @@ impl App {
                     progress: None,
                 };
                 #[cfg(not(target_arch = "wasm32"))]
-                let result = render_pool().install(|| rendered(&scene, &options, &control, &kept));
+                let result = render_pool().install(|| rendered(&scene, &options, &control, &kept, home));
                 #[cfg(target_arch = "wasm32")]
-                let result = rendered(&scene, &options, &control, &kept);
+                let result = rendered(&scene, &options, &control, &kept, home);
                 let Ok(image) = result else {
                     return;
                 };
@@ -2306,10 +2341,19 @@ mod tests {
         };
         let kept = Layers::default();
         let whole = fractique_core::render(&scene, &options, &control).expect("it renders");
-        let first = rendered(&scene, &options, &control, &kept).expect("it renders");
-        let again = rendered(&scene, &options, &control, &kept).expect("it renders");
+        let first = rendered(&scene, &options, &control, &kept, true).expect("it renders");
+        let again = rendered(&scene, &options, &control, &kept, true).expect("it renders");
         assert_eq!(first.rgba, whole.rgba);
         assert_eq!(again.rgba, whole.rgba);
         assert_eq!(kept.lock().expect("no thread panicked").len(), scene.layers.len());
+
+        let mut nearer = scene.clone();
+        for layer in &mut nearer.layers {
+            layer.flame.camera.zoom *= 2.0;
+        }
+        rendered(&nearer, &options, &control, &kept, false).expect("it renders");
+        let both = kept.lock().expect("no thread panicked");
+        assert_eq!(both.len(), 2 * scene.layers.len());
+        assert_eq!(both.values().filter(|entry| entry.home).count(), scene.layers.len());
     }
 }
