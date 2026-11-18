@@ -804,7 +804,7 @@ impl App {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
-        ui.set_width(270.0);
+        ui.set_width(300.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         ui.label(
             egui::RichText::new(self.t("export_title"))
@@ -840,7 +840,7 @@ impl App {
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
         egui::ScrollArea::vertical()
-            .max_height((room - 330.0).clamp(96.0, 300.0))
+            .max_height((room - 350.0).clamp(64.0, 300.0))
             .show(ui, |ui| {
                 for (index, (name, [width, height])) in export::SIZES.into_iter().enumerate() {
                     let label = format!("{width} × {height}  ·  {name}");
@@ -880,11 +880,17 @@ impl App {
             });
         }
         widgets::section(ui, &self.t("quality"));
-        for (index, (key, _, _)) in export::QUALITIES.into_iter().enumerate() {
-            if widgets::row(ui, &self.t(key), self.export.quality == index) {
-                self.export.quality = index;
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            let each = (ui.available_width() - 8.0) / 3.0;
+            for (index, (key, _, _)) in export::QUALITIES.into_iter().enumerate() {
+                ui.allocate_ui(egui::vec2(each, 30.0), |ui| {
+                    if widgets::row(ui, &self.t(key), self.export.quality == index) {
+                        self.export.quality = index;
+                    }
+                });
             }
-        }
+        });
         if !self.export.note.is_empty() {
             ui.add_space(8.0);
             ui.label(
@@ -1149,48 +1155,56 @@ impl eframe::App for App {
             panes.push((inspector.response.rect, self.optics.radius, false));
         }
 
-        let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
-            .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
-            .pivot(egui::Align2::CENTER_BOTTOM)
-            .show(&ctx, |ui| {
-                egui::Frame::NONE.inner_margin(egui::Margin::same(9)).show(ui, |ui| {
-                    let detail = if self.rendering {
-                        self.t("rendering")
-                    } else {
-                        self.status.clone()
-                    };
-                    let name =
-                        ui.painter()
-                            .layout_no_wrap(self.title.clone(), font(13.5, MEDIUM), egui::Color32::WHITE);
-                    let detail = ui.painter().layout_no_wrap(
-                        detail,
-                        egui::FontId::proportional(13.0),
-                        egui::Color32::from_white_alpha(170),
-                    );
-                    let width = (self.toolbar_size.x - 18.0).max(name.size().x + 10.0 + detail.size().x);
-                    let (line, _) = ui.allocate_exact_size(egui::vec2(width, 24.0), egui::Sense::hover());
-                    let left = line.center().x - (name.size().x + 10.0 + detail.size().x) * 0.5;
-                    let after = left + name.size().x + 10.0;
-                    ui.painter().galley(
-                        egui::pos2(left, line.center().y - name.size().y * 0.5),
-                        name,
-                        egui::Color32::WHITE,
-                    );
-                    ui.painter().galley(
-                        egui::pos2(after, line.center().y - detail.size().y * 0.5),
-                        detail,
-                        egui::Color32::WHITE,
-                    );
-                    ui.add_space(5.0);
-                    self.toolbar(ui, wide, content.width() - 58.0);
+        #[cfg(not(target_arch = "wasm32"))]
+        let covered = self.export.open;
+        #[cfg(target_arch = "wasm32")]
+        let covered = false;
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        let covered = covered || self.updates.open;
+        if !covered {
+            let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
+                .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
+                .pivot(egui::Align2::CENTER_BOTTOM)
+                .show(&ctx, |ui| {
+                    egui::Frame::NONE.inner_margin(egui::Margin::same(9)).show(ui, |ui| {
+                        let detail = if self.rendering {
+                            self.t("rendering")
+                        } else {
+                            self.status.clone()
+                        };
+                        let name =
+                            ui.painter()
+                                .layout_no_wrap(self.title.clone(), font(13.5, MEDIUM), egui::Color32::WHITE);
+                        let detail = ui.painter().layout_no_wrap(
+                            detail,
+                            egui::FontId::proportional(13.0),
+                            egui::Color32::from_white_alpha(170),
+                        );
+                        let width = (self.toolbar_size.x - 18.0).max(name.size().x + 10.0 + detail.size().x);
+                        let (line, _) = ui.allocate_exact_size(egui::vec2(width, 24.0), egui::Sense::hover());
+                        let left = line.center().x - (name.size().x + 10.0 + detail.size().x) * 0.5;
+                        let after = left + name.size().x + 10.0;
+                        ui.painter().galley(
+                            egui::pos2(left, line.center().y - name.size().y * 0.5),
+                            name,
+                            egui::Color32::WHITE,
+                        );
+                        ui.painter().galley(
+                            egui::pos2(after, line.center().y - detail.size().y * 0.5),
+                            detail,
+                            egui::Color32::WHITE,
+                        );
+                        ui.add_space(5.0);
+                        self.toolbar(ui, wide, content.width() - 58.0);
+                    });
                 });
-            });
-        self.toolbar_size = toolbar.response.rect.size();
-        panes.push((
-            toolbar.response.rect,
-            (toolbar.response.rect.height() * 0.5).min(28.0),
-            false,
-        ));
+            self.toolbar_size = toolbar.response.rect.size();
+            panes.push((
+                toolbar.response.rect,
+                (toolbar.response.rect.height() * 0.5).min(28.0),
+                false,
+            ));
+        }
 
         #[cfg(not(target_arch = "wasm32"))]
         if self.export.open {
