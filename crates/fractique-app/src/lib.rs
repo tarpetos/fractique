@@ -267,6 +267,7 @@ pub fn open_at_start(path: PathBuf) {
     let _ = OPEN_FIRST.set(path);
 }
 
+const GLASS: (f32, f32) = (0.4, 0.7);
 const MAX_MAGNIFICATION: f64 = 1e10;
 const MIN_MAGNIFICATION: f64 = 1e-4;
 // A new picture is drawn once the view has stood still this long.
@@ -524,7 +525,7 @@ impl App {
             .unwrap_or_else(Lang::system);
         let texts = Texts::new(lang);
         let glass = |key: &str, default: f32| stored(key).and_then(|text| text.parse().ok()).unwrap_or(default);
-        let (opacity, blur) = (glass("glass_opacity", 0.4), glass("glass_blur", 0.7));
+        let (opacity, blur) = (glass("glass_opacity", GLASS.0), glass("glass_blur", GLASS.1));
         widgets::install_fonts(&cc.egui_ctx, texts.lang);
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         // The window comes back where and as large as it was, on the same screen, but never in full screen.
@@ -996,7 +997,10 @@ impl App {
                 .is_some_and(|start| input.time - start > phone::HOLD)
         });
         // A finger that moved, or a second finger, is a drag or a pinch for the rest of that press, not a hold.
-        let down = picture.is_pointer_button_down_on();
+        // A finger that rests is a long press to egui, which then stops counting the press as the picture's.
+        let touching = ui.input(|input| input.pointer.any_down());
+        self.phone.pressing = touching && (self.phone.pressing || picture.is_pointer_button_down_on());
+        let down = self.phone.pressing;
         let moved = ui.input(|input| {
             let strayed = input
                 .pointer
@@ -1012,7 +1016,7 @@ impl App {
             self.phone.previewed |= holding;
             ui.ctx().request_repaint();
         }
-        if self.phone.on && picture.is_pointer_button_down_on() && !held {
+        if self.phone.on && down && !held {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(60));
         }
         if picture.clicked() && std::mem::take(&mut self.phone.previewed) {
@@ -1444,6 +1448,10 @@ impl App {
         let mut blur = f64::from(self.optics.blur);
         widgets::slider(ui, &self.t("blur"), &mut blur, (0.0, 1.0), false);
         self.optics.blur = blur as f32;
+        ui.add_space(8.0);
+        if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
+            (self.optics.tint, self.optics.blur) = GLASS;
+        }
         if self.adjust != before {
             self.requested = None;
         }

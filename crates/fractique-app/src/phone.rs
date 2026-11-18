@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::sync::mpsc;
 
 use eframe::egui;
 use egui::{Align2, Color32, CornerRadius, Pos2, Rect, Sense, Stroke, vec2};
@@ -102,7 +103,15 @@ pub struct Phone {
     pub clear: Vec<Rect>,
     pub kept: Vec<Piece>,
     thumbs: HashMap<String, egui::TextureHandle>,
+    drawing: HashSet<String>,
+    drawn: (mpsc::Sender<Thumb>, mpsc::Receiver<Thumb>),
+    pub pressing: bool,
 }
+
+type Thumb = (String, [usize; 2], Vec<u8>);
+
+// More at once would take the cores the picture itself is drawn with.
+const DRAWN_AT_ONCE: usize = 2;
 
 impl Phone {
     pub fn kept_text(&self) -> String {
@@ -130,6 +139,9 @@ impl Phone {
             clear: Vec::new(),
             kept,
             thumbs: HashMap::new(),
+            drawing: HashSet::new(),
+            drawn: mpsc::channel(),
+            pressing: false,
         }
     }
 }
@@ -550,9 +562,15 @@ impl App {
             .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
             .pivot(Align2::CENTER_BOTTOM)
             .show(ctx, |ui| {
-                egui::Frame::NONE.inner_margin(egui::Margin::same(6)).show(ui, |ui| {
-                    done = widgets::pill(ui, &close, true, 132.0);
-                });
+                let galley = ui.painter().layout_no_wrap(close, font(14.0, MEDIUM), Color32::WHITE);
+                let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x + 64.0, 46.0), Sense::click());
+                if response.is_pointer_button_down_on() || response.hovered() {
+                    ui.painter()
+                        .rect_filled(rect, CornerRadius::same(23), Color32::from_white_alpha(22));
+                }
+                ui.painter()
+                    .galley(rect.center() - galley.size() * 0.5, galley, Color32::WHITE);
+                done = response.clicked();
             });
         panes.push((button.response.rect, button.response.rect.height() * 0.5, false));
         if done {
@@ -572,8 +590,19 @@ impl App {
         if let Some(found) = self.phone.thumbs.get(&key) {
             return Some(found.id());
         }
-        if *budget == 0 {
-            ctx.request_repaint();
+        while let Ok((key, pixels, rgba)) = self.phone.drawn.1.try_recv() {
+            self.phone.drawing.remove(&key);
+            if self.phone.thumbs.len() > 120 {
+                self.phone.thumbs.clear();
+            }
+            let picture = egui::ColorImage::from_rgba_unmultiplied(pixels, &rgba);
+            let texture = ctx.load_texture(key.clone(), picture, egui::TextureOptions::LINEAR);
+            self.phone.thumbs.insert(key, texture);
+        }
+        if let Some(found) = self.phone.thumbs.get(&key) {
+            return Some(found.id());
+        }
+        if *budget == 0 || self.phone.drawing.contains(&key) || self.phone.drawing.len() >= DRAWN_AT_ONCE {
             return None;
         }
         *budget -= 1;
@@ -583,16 +612,26 @@ impl App {
             samples_per_pixel: samples,
             supersample: 1,
         };
-        let image = render(&scene()?, &options, &Control::default()).ok()?;
-        let picture = egui::ColorImage::from_rgba_unmultiplied(pixels, &image.rgba);
-        if self.phone.thumbs.len() > 120 {
-            self.phone.thumbs.clear();
-        }
-        let texture = ctx.load_texture(key.clone(), picture, egui::TextureOptions::LINEAR);
-        let id = texture.id();
-        self.phone.thumbs.insert(key, texture);
-        ctx.request_repaint();
-        Some(id)
+        let scene = scene()?;
+        self.phone.drawing.insert(key.clone());
+        let (sender, ctx) = (self.phone.drawn.0.clone(), ctx.clone());
+        // A small picture drawn on the window's thread holds every frame up for as long as it takes.
+        let work = move || {
+            #[cfg(not(target_arch = "wasm32"))]
+            let image = crate::render_pool().install(|| render(&scene, &options, &Control::default()));
+            #[cfg(target_arch = "wasm32")]
+            let image = render(&scene, &options, &Control::default());
+            let rgba = image
+                .map(|image| image.rgba)
+                .unwrap_or_else(|_| vec![0; pixels[0] * pixels[1] * 4]);
+            let _ = sender.send((key, pixels, rgba));
+            ctx.request_repaint();
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        std::thread::spawn(work);
+        #[cfg(target_arch = "wasm32")]
+        work();
+        None
     }
 
     fn tile(ui: &mut egui::Ui, side: [f32; 2], picture: Option<egui::TextureId>, label: &str, chosen: bool) -> bool {
