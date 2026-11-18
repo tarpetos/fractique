@@ -26,6 +26,7 @@
   "size": "SIZE",
   "quality": "QUALITY",
   "size_window": "Auto",
+  "size_screens": "Screens",
   "size_custom": "Custom",
   "apply": "Apply",
   "reset_view": "Reset view",

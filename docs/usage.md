@@ -66,7 +66,7 @@ flames and wallpapers; a switch in the controls goes from one to the other.
 | **Randomize** | Flames: a new random flame in the chosen layer, made by the second random generator ([Random scenes](#5-random-scenes)). Wallpapers: a new wallpaper |
 | **Mutate** | Flames: a variant of the chosen layer's flame. Wallpapers: another wallpaper of the same layout and material |
 | **Layout**, **Material**, **Light** and **Dark** (inspector, wallpapers) | One of the 14 layouts and 6 materials of [Wallpapers](#6-wallpapers), or **Any**, which leaves the choice to each new wallpaper; and its light or dark version |
-| **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 21 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone, 900 in a browser); a larger one is shown scaled down and exported in full. It is shown whole in the window. The App Store builds list computer screens and Apple devices, and a size typed in needs Fractique Pro there ([Free and Fractique Pro](#free-and-fractique-pro)) |
+| **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 59 screens, or any width and height from 16 to 16384 pixels. The list is in groups, chosen by the tabs over it: **Screens** (computers up to 4K), **iPhone**, **iPad**, **Mac**, **Watch** and **Android**. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone, 900 in a browser); a larger one is shown scaled down and exported in full. It is shown whole in the window. The App Store builds list computer screens and Apple devices, and a size typed in needs Fractique Pro there ([Free and Fractique Pro](#free-and-fractique-pro)) |
 | **Layers** (inspector, flames) | The scene's flames, one over another, up to 16: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity. Only the layer that changed is rendered again |
 | **Tone**, **View** (inspector, flames) | Brightness, gamma and glow of the whole picture, and a zoom; **Reset** brings them back |
 | **Graphics: GPU acceleration** (inspector; on at first) | A flame that is new on the screen (**Randomize**, **Mutate**, a preset, a moved view, another size) is first drawn by the graphics card, at the full size and in a fraction of a second; it grows finer over the next frames, and the processor's picture replaces it when it is rendered. The toolbar shows the time the first picture took. While a tone slider, the zoom, a layer's opacity or its blend moves, the graphics card draws the picture from the layers already rendered, so it answers at once; when the control rests the processor renders the picture and replaces the preview. The preview is close to the rendered picture, not equal to it: it has no dithering and its glow is blurred at a lower resolution. The graphics card's own picture has another grain than the processor's and can differ slightly from one device to the next. An export never uses either. Off, every change is rendered by the processor straight away, drafts first. The switch is not shown where the graphics card cannot draw a preview; in a browser, and where the graphics card has no compute shaders (older phones), it previews but leaves every flame to the processor |
@@ -147,7 +147,7 @@ or pressing **Apply** under **Custom** opens the **Fractique Pro** sheet: the pr
 on: the export starts, or the size is set. The purchase is remembered on the device, so the app is unlocked
 without a network.
 
-The sizes the App Store builds list, besides HD, Full HD, QHD, Ultrawide and 4K. They are the native pixels of
+The Apple sizes of the list, in every build. They are the native pixels of
 the screens, read from Apple's Tech Specs pages (`support.apple.com/en-us/<number>`) in November 2026; iPhones
 and iPads upright, as Apple gives them:
 
@@ -188,9 +188,11 @@ and iPads upright, as Apple gives them:
 | Studio Display, 5K | 5120 × 2880 | Studio Display, Studio Display XDR, iMac 27-inch 5K | 111890, 126324, 126323, 111913 |
 | Pro Display XDR | 6016 × 3384 | Pro Display XDR | 111892 |
 
-The 10.5-inch iPads no longer get the current iPadOS and are listed because they are still in use. Apple Watch
-faces are not in the list: a watch crops any photo to its face. The Android sizes are left out of the App Store
-builds; every other build keeps its list of 21 screens.
+The 10.5-inch iPads no longer get the current iPadOS and are listed because they are still in use. The Apple
+Watch sizes are the screens of the 40 to 46 mm cases and of the Ultra (324 × 394 to 422 × 514): a picture saved at
+one goes to Photos and becomes a face in the Watch app. Those of the 41 and 45 mm cases (Series 7 to 9) are the
+widely published figures, not read from a current Apple page. The Android group is left out of the App Store
+builds.
 
 ### What the app keeps
 
