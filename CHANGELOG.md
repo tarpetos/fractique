@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* **Scenes:** a number in a scene file is read as exactly the value written. Before, one could come out a last
+  digit away, so a scene saved and read again could render differently from the one it was saved from. The two
+  presets this touched, `ice-crystal` and `violet-whirl`, now carry the numbers they were always read as, so every
+  preset renders the same pixels as before.
 * **HTTP server:** `fractique-server` offers presets, random scenes, wallpapers and renders as PNG over HTTP
   ([docs/server.md](docs/server.md)). Renders wait in a bounded queue and a full one answers 429; the size, the
   samples and the time of a render are limited by settings; a client that disconnects cancels its render. It can
