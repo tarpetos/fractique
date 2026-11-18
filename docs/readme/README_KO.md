@@ -25,6 +25,7 @@ Fractique는 프랙탈 플레임을 렌더링합니다. 가는 곡선과 부드�
 - **가져오기:** flam3와 Apophysis의 `.flame` 파일을 장면으로 변환합니다.
 - **명령줄 도구**(`fractique`): 장면을 PNG로 렌더링합니다.
 - **MCP 서버**(`fractique mcp`): AI 에이전트가 장면을 만들고, 바꾸고, 렌더링합니다([docs/mcp.md](../mcp.md)).
+- **HTTP 서버**(`fractique-server`): 렌더링 대기열과 제한을 갖춘 HTTP API이며, 웹 앱을 제공하고 Docker 이미지로 배포됩니다([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ Windows에서는 도구가 `target\release\fractique.exe`에 있습니다. 모�
 | [docs/usage.md](../usage.md) | 명령, 품질 수준, 장면 편집 방법 |
 | [docs/scene-format.md](../scene-format.md) | 장면 파일의 모든 필드, 모든 변형 |
 | [docs/mcp.md](../mcp.md) | MCP 서버: AI 에이전트 연결, 도구 |
+| [docs/server.md](../server.md) | HTTP 서버: 엔드포인트, 제한, Docker |
 | [docs/ios.md](../ios.md) | iPhone 또는 iOS 시뮬레이터에서 빌드하고 실행하기 |
 | [docs/architecture.md](../architecture.md) | 각 부분이 어떻게 맞물리는지, 렌더링이 어떻게 동작하는지 |
 | [docs/determinism.md](../determinism.md) | 렌더링이 정확히 재현되는 이유, 보장되는 것과 보장되지 않는 것 |

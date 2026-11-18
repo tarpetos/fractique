@@ -25,6 +25,7 @@ Fractique फ्रैक्टल फ्लेम बनाता है: प�
 - **आयात:** flam3 और Apophysis की `.flame` फ़ाइलें दृश्यों में बदल जाती हैं।
 - **कमांड लाइन टूल** (`fractique`): दृश्यों को PNG में रेंडर करता है।
 - **MCP सर्वर** (`fractique mcp`): एक AI एजेंट दृश्य बनाता, बदलता और रेंडर करता है ([docs/mcp.md](../mcp.md))।
+- **HTTP सर्वर** (`fractique-server`): रेंडर कतार और सीमाओं वाला HTTP API, वेब ऐप भी परोसता है, Docker इमेज के रूप में उपलब्ध ([docs/server.md](../server.md))।
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ Windows पर टूल `target\release\fractique.exe` में है। स�
 | [docs/usage.md](../usage.md) | कमांड, गुणवत्ता स्तर, दृश्य को कैसे संपादित करें |
 | [docs/scene-format.md](../scene-format.md) | दृश्य फ़ाइल का हर फ़ील्ड, हर वेरिएशन |
 | [docs/mcp.md](../mcp.md) | MCP सर्वर: AI एजेंट जोड़ना, टूल |
+| [docs/server.md](../server.md) | HTTP सर्वर: एंडपॉइंट, सीमाएँ, Docker |
 | [docs/ios.md](../ios.md) | iPhone या iOS सिम्युलेटर पर बिल्ड करना और चलाना |
 | [docs/architecture.md](../architecture.md) | हिस्से आपस में कैसे जुड़ते हैं, रेंडर कैसे काम करता है |
 | [docs/determinism.md](../determinism.md) | रेंडर बिल्कुल वैसा ही क्यों दोहराता है, किस बात का वादा है और किसका नहीं |

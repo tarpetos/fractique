@@ -25,6 +25,7 @@ Fractique dessine des flammes fractales : des fractales lumineuses et vaporeuses
 - **Import :** les fichiers `.flame` de flam3 et d’Apophysis sont convertis en scènes.
 - **L’outil en ligne de commande** (`fractique`) : rend les scènes en PNG.
 - **Serveur MCP** (`fractique mcp`) : un agent IA crée, modifie et rend des scènes ([docs/mcp.md](../mcp.md)).
+- **Serveur HTTP** (`fractique-server`) : une API HTTP avec une file d’attente de rendus et des limites, sert l’application web, livré comme image Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ La documentation est en anglais.
 | [docs/usage.md](../usage.md) | Les commandes, les niveaux de qualité, comment modifier une scène |
 | [docs/scene-format.md](../scene-format.md) | Chaque champ d’un fichier de scène, chaque variation |
 | [docs/mcp.md](../mcp.md) | Le serveur MCP : connecter un agent IA, les outils |
+| [docs/server.md](../server.md) | Le serveur HTTP : points d’accès, limites, Docker |
 | [docs/ios.md](../ios.md) | Compiler et lancer sur un iPhone ou dans le simulateur iOS |
 | [docs/architecture.md](../architecture.md) | Comment les parties s’articulent, comment se déroule un rendu |
 | [docs/determinism.md](../determinism.md) | Pourquoi un rendu se répète exactement, ce qui est promis et ce qui ne l’est pas |

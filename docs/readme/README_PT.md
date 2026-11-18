@@ -25,6 +25,7 @@ O Fractique desenha chamas fractais: fractais luminosos e etéreos feitos de cur
 - **Importação:** arquivos `.flame` do flam3 e do Apophysis são convertidos em cenas.
 - **A ferramenta de linha de comando** (`fractique`): renderiza cenas em PNG.
 - **Servidor MCP** (`fractique mcp`): um agente de IA cria, altera e renderiza cenas ([docs/mcp.md](../mcp.md)).
+- **Servidor HTTP** (`fractique-server`): uma API HTTP com fila de renderização e limites, serve o aplicativo web, distribuído como imagem Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ A documentação está em inglês.
 | [docs/usage.md](../usage.md) | Os comandos, os níveis de qualidade, como editar uma cena |
 | [docs/scene-format.md](../scene-format.md) | Cada campo de um arquivo de cena, cada variação |
 | [docs/mcp.md](../mcp.md) | O servidor MCP: conectar um agente de IA, as ferramentas |
+| [docs/server.md](../server.md) | O servidor HTTP: endpoints, limites, Docker |
 | [docs/ios.md](../ios.md) | Compilar e executar em um iPhone ou no simulador do iOS |
 | [docs/architecture.md](../architecture.md) | Como as partes se encaixam, como funciona uma renderização |
 | [docs/determinism.md](../determinism.md) | Por que uma renderização se repete exatamente, o que é garantido e o que não é |

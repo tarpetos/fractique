@@ -25,6 +25,7 @@ Fractique rendert Fraktalflammen: leuchtende, hauchzarte Fraktale aus feinen Kur
 - **Import:** `.flame`-Dateien von flam3 und Apophysis werden in Szenen umgewandelt.
 - **Das Kommandozeilenwerkzeug** (`fractique`): rendert Szenen als PNG.
 - **MCP-Server** (`fractique mcp`): ein KI-Agent erstellt, ändert und rendert Szenen ([docs/mcp.md](../mcp.md)).
+- **HTTP-Server** (`fractique-server`): eine HTTP-API mit Render-Warteschlange und Grenzen, liefert die Web-App aus, gibt es als Docker-Image ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ Die Dokumentation ist auf Englisch.
 | [docs/usage.md](../usage.md) | Die Befehle, die Qualitätsstufen, wie man eine Szene bearbeitet |
 | [docs/scene-format.md](../scene-format.md) | Jedes Feld einer Szenendatei, jede Variation |
 | [docs/mcp.md](../mcp.md) | Der MCP-Server: einen KI-Agenten verbinden, die Werkzeuge |
+| [docs/server.md](../server.md) | Der HTTP-Server: Endpunkte, Grenzen, Docker |
 | [docs/ios.md](../ios.md) | Bauen und Ausführen auf einem iPhone oder im iOS-Simulator |
 | [docs/architecture.md](../architecture.md) | Wie die Teile zusammenspielen, wie ein Rendervorgang abläuft |
 | [docs/determinism.md](../determinism.md) | Warum sich ein Rendering exakt wiederholt und was zugesagt ist und was nicht |

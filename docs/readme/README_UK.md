@@ -25,6 +25,7 @@ Fractique малює фрактальне полум’я: сяйливі, ле�
 - **Імпорт:** файли `.flame` з flam3 та Apophysis перетворюються на сцени.
 - **Інструмент командного рядка** (`fractique`): рендерить сцени у PNG.
 - **Сервер MCP** (`fractique mcp`): ШІ-агент створює, змінює й рендерить сцени ([docs/mcp.md](../mcp.md)).
+- **HTTP-сервер** (`fractique-server`): HTTP API з чергою рендерів і лімітами, роздає вебзастосунок, постачається як образ Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ Fractique малює фрактальне полум’я: сяйливі, ле�
 | [docs/usage.md](../usage.md) | Команди, рівні якості, як редагувати сцену |
 | [docs/scene-format.md](../scene-format.md) | Кожне поле файлу сцени, кожна варіація |
 | [docs/mcp.md](../mcp.md) | Сервер MCP: підключення ШІ-агента, інструменти |
+| [docs/server.md](../server.md) | HTTP-сервер: ендпоінти, ліміти, Docker |
 | [docs/ios.md](../ios.md) | Збирання й запуск на iPhone або в симуляторі iOS |
 | [docs/architecture.md](../architecture.md) | Як частини поєднані між собою, як працює рендер |
 | [docs/determinism.md](../determinism.md) | Чому рендер повторюється точно, що гарантовано, а що ні |

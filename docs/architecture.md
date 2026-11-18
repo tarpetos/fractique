@@ -25,13 +25,13 @@ flowchart LR
 
     CLI["fractique-cli<br/>the fractique command"]
     MCP["fractique mcp<br/>MCP server over stdio"]
-    SRV["fractique-server<br/>HTTP API, web UI, Docker (planned)"]
+    SRV["fractique-server<br/>HTTP API, web UI, Docker"]
     APP["fractique-app<br/>Windows, macOS, Linux, Android, iOS (planned)"]
 
     SCENE --> VAL
     TON -- "RGBA pixels" --> CLI
     TON -- "PNG, inline" --> MCP
-    TON -.-> SRV
+    TON -- "PNG over HTTP" --> SRV
     TON -.-> APP
     CLI -- "PNG" --> OUT[("image file")]
 ```
@@ -40,7 +40,7 @@ flowchart LR
 | --- | --- | --- |
 | `fractique-core` | works | The renderer, the scene format, presets, the randomizer |
 | `fractique-cli` | works | The `fractique` command: renders scenes to PNG, converts `.flame` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts |
-| `fractique-server` | planned | HTTP API with a job queue, the web UI, the Docker image |
+| `fractique-server` | works | The `fractique-server` command: an HTTP API with a render queue and limits, which also serves the web build of the app; the Docker image ([server.md](server.md)) |
 | `fractique-app` | planned | The app for desktop and phones |
 
 ### Why this shape

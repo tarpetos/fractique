@@ -25,6 +25,7 @@ Fractique rysuje płomienie fraktalne: świetliste, zwiewne fraktale z cienkich 
 - **Import:** pliki `.flame` z flam3 i Apophysis są zamieniane na sceny.
 - **Narzędzie wiersza poleceń** (`fractique`): renderuje sceny do PNG.
 - **Serwer MCP** (`fractique mcp`): agent AI tworzy, zmienia i renderuje sceny ([docs/mcp.md](../mcp.md)).
+- **Serwer HTTP** (`fractique-server`): API HTTP z kolejką renderowania i limitami, udostępnia aplikację webową, dostępny jako obraz Dockera ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ Dokumentacja jest po angielsku.
 | [docs/usage.md](../usage.md) | Polecenia, poziomy jakości, jak edytować scenę |
 | [docs/scene-format.md](../scene-format.md) | Każde pole pliku sceny, każda wariacja |
 | [docs/mcp.md](../mcp.md) | Serwer MCP: podłączanie agenta AI, narzędzia |
+| [docs/server.md](../server.md) | Serwer HTTP: punkty końcowe, limity, Docker |
 | [docs/ios.md](../ios.md) | Budowanie i uruchamianie na iPhonie lub w symulatorze iOS |
 | [docs/architecture.md](../architecture.md) | Jak części do siebie pasują, jak przebiega renderowanie |
 | [docs/determinism.md](../determinism.md) | Dlaczego render powtarza się dokładnie, co jest gwarantowane, a co nie |

@@ -25,6 +25,7 @@ Fractique menggambar api fraktal: fraktal yang berpendar dan halus, terbuat dari
 - **Impor:** berkas `.flame` dari flam3 dan Apophysis diubah menjadi adegan.
 - **Alat baris perintah** (`fractique`): merender adegan menjadi PNG.
 - **Server MCP** (`fractique mcp`): agen AI membuat, mengubah, dan merender adegan ([docs/mcp.md](../mcp.md)).
+- **Server HTTP** (`fractique-server`): API HTTP dengan antrean render dan batasan, menyajikan aplikasi web, tersedia sebagai image Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -65,6 +66,7 @@ Dokumentasi ditulis dalam bahasa Inggris.
 | [docs/usage.md](../usage.md) | Perintah, tingkat kualitas, cara menyunting adegan |
 | [docs/scene-format.md](../scene-format.md) | Setiap kolom berkas adegan, setiap variasi |
 | [docs/mcp.md](../mcp.md) | Server MCP: menghubungkan agen AI, alat-alatnya |
+| [docs/server.md](../server.md) | Server HTTP: endpoint, batasan, Docker |
 | [docs/ios.md](../ios.md) | Membangun dan menjalankan di iPhone atau di Simulator iOS |
 | [docs/architecture.md](../architecture.md) | Bagaimana bagian-bagiannya saling terhubung, bagaimana render bekerja |
 | [docs/determinism.md](../determinism.md) | Mengapa render berulang persis sama, apa yang dijanjikan dan apa yang tidak |

@@ -72,4 +72,5 @@ is stable, not that it is good.
 | `scripts/build/`, `.github/workflows/release.yml`, `docs/releasing.md` | Installers and the release workflow |
 | `vendor/` | `eframe` and `egui-wgpu` with the iOS surface fix |
 | `crates/fractique-cli/src/mcp.rs` | The MCP server (`fractique mcp`); its tools are listed in `docs/mcp.md` |
+| `crates/fractique-server/` | The HTTP server (`fractique-server`): `lib.rs` API, queue and limits; `tests/api.rs`; described in `docs/server.md`. `Dockerfile`, `docker-compose.yml` at the root |
 | `docs/roadmap.md` | What is done and what comes next |

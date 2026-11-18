@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* **HTTP server:** `fractique-server` offers presets, random scenes, wallpapers and renders as PNG over HTTP
+  ([docs/server.md](docs/server.md)). Renders wait in a bounded queue and a full one answers 429; the size, the
+  samples and the time of a render are limited by settings; a client that disconnects cancels its render. It can
+  serve the web build of the app beside the API.
+* **Docker:** a `Dockerfile` and a `docker-compose.yml` build one small image with the server and the web app,
+  run as a user without rights.
 * **MCP server:** `list_wallpaper_styles` and `randomize_wallpaper` make wallpapers; `render_scene` also takes
   `wallpaper_seed` (with `layout`, `material`, `dark`), `file` (the path of a `.frcq` or JSON scene) and `frcq`
   (the bytes of a `.frcq` in base64). A call with a progress token gets `notifications/progress` while it renders,
