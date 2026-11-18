@@ -193,6 +193,7 @@ the processor still renders.
 | `widgets.rs` | The controls: rows, pills, sliders, switches; the fonts |
 | `i18n.rs`, `locales/` | The texts, in 15 languages |
 | `android.rs`, `ios.rs` | The gallery, Photos and sharing |
+| `store.rs`, `storekit.rs` | The App Store builds only (the `store` feature): which sizes need the purchase, its states, StoreKit ([The purchase](#the-purchase-in-the-app-store-builds)) |
 | `main.rs` | The start on a computer and in a browser; a file given at start |
 | `instance.rs` | One window at a time on a computer: a second start gives its file to the window that is open and ends |
 | `association.rs` | Windows: the program registers itself as the one that opens `.frcq` files ([releasing.md](releasing.md#files-of-the-app-frcq)) |
@@ -210,6 +211,31 @@ How the picture reaches the screen:
 
 An export is a separate render at the size and quality chosen, with the scene as it is on the screen. The session
 is written whenever it changes, not at exit: a phone ends an app without telling it.
+
+### The purchase in the App Store builds
+
+The `store` feature of `fractique-app` is off by default and on in `ios/build-rust.sh`, the build that goes to
+the App Store. Without it `store.rs` and `storekit.rs` are not compiled, the lists hold no lock and no size is
+refused: the Windows, Linux, Android and web builds carry nothing of it. With it, an export of 3 686 400 pixels
+(2560 × 1440) or more, choosing such a size for the picture and a size typed in need the non-consumable product
+`app.fractique.pro`; the picture on the screen is never limited ([usage.md](usage.md#free-and-fractique-pro)).
+
+| Part | What it does |
+| --- | --- |
+| The rule (`store.rs`) | `is_large` counts pixels; `needs_pro` adds that a size outside the list needs the purchase. The size presets are tagged by family (screens, Android, Apple), and a build with the feature offers screens and Apple devices |
+| The states (`store.rs`) | `Store` is loading, ready, buying, owned or failed with a reason. It owns a backend (`load`, `buy`, `restore`) and a channel of events: the product with its price, owned, cancelled, restore finished, failed |
+| StoreKit (`storekit.rs`, iOS and macOS) | Xcode compiles only `ios/stub.c`, so there is no Swift target: the backend talks to the original StoreKit API through `objc2`. A class made at run time is the delegate of the `SKProductsRequest` and the observer of the `SKPaymentQueue`; it is added when the app starts, so a purchase paid for while the app was closed arrives too. Every transaction is finished. The price is formatted with the product's own locale; when the app's fonts lack a character of it, the amount with the currency code is shown |
+| Events | A StoreKit callback sends an event over the channel and asks for a repaint; the next frame takes it in. Nothing polls |
+| Remembered | A purchase or a restore sets a flag in `NSUserDefaults`; with it the app starts owned and asks the App Store nothing |
+| The sheet (`lib.rs`) | A locked size, **Save** or **Share** with one, or **Apply** under **Custom** opens the Fractique Pro sheet and remembers what was asked for; when the purchase arrives, the export starts or the size is set |
+
+For a test, `FRACTIQUE_STORE=locked|owned|failed|loading|buying` puts a fake backend in place of StoreKit on a
+build with the feature: `locked` offers the product at $4.99 and `buy` succeeds at once. `FRACTIQUE_SHOW=pro`
+opens the sheet, `FRACTIQUE_SHOW=export` and `FRACTIQUE_SHOW=sizes` the lists, and `phone` in the value
+(`pro-phone`, `export-phone`) gives the phone's screen, so a `--screenshot` shows each state. Without the
+variable a Linux, Windows or Android build with the feature has no store and no limit. On iOS and macOS the
+variable is read in a debug build only: a release build cannot be unlocked from a terminal. The tests of
+`store.rs` run in every build and cover the rule and the states with the fake backend.
 
 ### The preview on the graphics card
 

@@ -108,5 +108,18 @@
   "color": "COULEUR",
   "graphics": "GRAPHISMES",
   "gpu_note": "Avec l’accélération, l’image peut varier légèrement d’un appareil à l’autre. L’export n’est pas concerné.",
-  "gpu": "Accélération GPU"
+  "gpu": "Accélération GPU",
+  "pro_title": "Fractique Pro",
+  "pro_about": "Exportez des images en 2560 × 1440 et plus, ou dans la taille de votre choix. Un seul achat, pour toujours. Tout le reste est gratuit.",
+  "pro_buy": "Acheter pour {price}",
+  "pro_retry": "Réessayer",
+  "pro_restore": "Restaurer les achats",
+  "pro_loading": "Connexion à l’App Store…",
+  "pro_waiting": "En attente de l’App Store…",
+  "pro_owned": "Fractique Pro est à vous. Merci !",
+  "pro_failed": "L’achat n’a pas abouti.",
+  "pro_no_product": "L’App Store ne répond pas. Réessayez dans un instant.",
+  "pro_nothing": "Aucun achat trouvé pour ce compte Apple.",
+  "pro_not_allowed": "Les achats sont désactivés sur cet appareil.",
+  "pro_deferred": "L’achat attend une approbation."
 }

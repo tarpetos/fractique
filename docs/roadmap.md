@@ -14,7 +14,7 @@ built on it.
 | 7 | **Phones:** a screen of its own on Android and iOS, a collection of kept pictures, saving to Photos or the gallery, sharing | Done |
 | 8 | **Scene files and session:** the packed `.frcq` file, read by the app, the command line tool and the MCP server, turned into JSON and back by `fractique convert`, opened by a double click in the file manager; one window at a time on a computer; the session kept between launches | Done |
 | 9 | **Installers and updates:** one program file for Windows, an AppImage, a `.deb`, a macOS app and an Android APK built by the release workflow; the updates window ([releasing.md](releasing.md)) | Built; no version has been released |
-| 10 | **iOS distribution:** runs in the Simulator and on an iPhone from a Mac, uploads to TestFlight ([ios.md](ios.md)); the App Store | In progress |
+| 10 | **iOS distribution:** runs in the Simulator and on an iPhone from a Mac, uploads to TestFlight ([ios.md](ios.md)); the App Store, where large and custom export sizes need the one-time purchase Fractique Pro ([ios.md](ios.md#fractique-pro-the-purchase)) | In progress: the purchase is written and compiles for iOS, and has not been run against the App Store |
 | 11 | **Server:** HTTP API with a job queue and limits, the web UI (the app compiled to WebAssembly) served beside it, Docker image ([server.md](server.md)) | Done |
 | 12 | **MCP over HTTP:** the tools of the MCP server at `/mcp` of the HTTP server (Streamable HTTP), from one implementation, under the limits and the queue of the server and without access to its disk ([mcp.md](mcp.md#over-http)) | Done |
 | 13 | **GPU preview:** while a tone slider, the zoom, an opacity or a blend moves, the graphics card draws the picture from the rendered layers; the processor's picture replaces it when the control rests ([architecture.md](architecture.md#the-preview-on-the-graphics-card)) | Done; seen running on Linux with a software graphics card only |
@@ -28,6 +28,8 @@ What the app does not do yet:
 - The chaos game on the graphics card in a browser: the page renders on its one thread, so the exact render would
   have to wait for the graphics card's picture first.
 - Choosing a wallpaper's color on a computer (a phone has it in its styles).
+- A build for the Mac App Store: the purchase code is shared with iOS, and no script signs, sandboxes and packs
+  the app for it ([ios.md](ios.md#a-mac-app-store-build)).
 - Opening a `.frcq` file by a double click on macOS: the files are shown as Fractique's, and no more.
 
 ## Renderer, next

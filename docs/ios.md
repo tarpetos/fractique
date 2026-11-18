@@ -111,6 +111,86 @@ owns the app `app.fractique` in App Store Connect. `FRACTIQUE_TEAM_ID` picks ano
 `ios/` holds the Xcode project that wraps the Rust binary: Xcode compiles an empty `stub.c`, then
 `ios/build-rust.sh` puts the Rust binary in its place before Xcode signs the app.
 
+## Fractique Pro, the purchase
+
+The build that goes to the App Store (`ios/build-rust.sh`, so `scripts/ios/testflight.sh`) is compiled with the
+`store` feature: an export of 3 686 400 pixels (2560 × 1440) or more and a size typed in need the purchase
+**Fractique Pro** ([usage.md](usage.md#free-and-fractique-pro)). The scripts for the Simulator and for a
+connected iPhone build without it, so there everything is free; `FRACTIQUE_FEATURES=store` in front of them
+builds the App Store's variant.
+
+The app asks the App Store for one product and sells nothing else:
+
+| | |
+| --- | --- |
+| Product ID | `app.fractique.pro` |
+| Type | Non-Consumable |
+| Reference name | Fractique Pro |
+| Price | 4.99 USD (the tier the owner chose); the app shows whatever the App Store returns, in the buyer's currency |
+
+### Once, in App Store Connect (the account holder)
+
+1. **Business, Agreements:** accept the **Paid Apps** agreement and fill in the bank account and the tax forms.
+   Until it is active the App Store returns no product, and the sheet says that the App Store did not answer.
+2. **Apps, Fractique, Monetization, In-App Purchases, +:** type **Non-Consumable**, reference name
+   `Fractique Pro`, product ID `app.fractique.pro` exactly. A product ID cannot be changed or used again later.
+3. In the product: **Availability** (all countries), **Price** (4.99 USD), and under **App Store Localization** a
+   display name and a description for each language of the listing, for example "Fractique Pro" and "Export
+   pictures at 2560 × 1440 and larger, and at any custom size."
+4. **Review Information:** a screenshot of the Fractique Pro sheet and a note where to find it ("Export, choose
+   3840 × 2160, Save"). The state must read **Ready to Submit**.
+5. The first purchase of an app is reviewed together with a version of the app: on the version's page, under
+   **In-App Purchases and Subscriptions**, add Fractique Pro before **Add for Review**.
+6. **Users and Access, Sandbox, Test Accounts:** create a sandbox tester (an email address that is not an Apple
+   Account yet).
+
+Nothing is set in Xcode: an iOS app may sell purchases without an entitlement, and the binary links StoreKit by
+itself.
+
+### Testing it
+
+On a device, with a build from `scripts/ios/testflight.sh` installed through TestFlight, or with
+`FRACTIQUE_FEATURES=store ./scripts/ios/run-iphone.sh`. A TestFlight build buys in the sandbox by itself and
+charges nothing; for a build installed by cable, sign in with the sandbox tester under **Settings, Developer,
+Sandbox Apple Account**.
+
+| Step | Expected |
+| --- | --- |
+| Open **Export** | 2560 × 1440, 3840 × 2160 and the other large sizes have a lock, 1920 × 1080 and 1290 × 2796 have none; **Custom** has a lock; no Android size is listed |
+| Choose 1920 × 1080, **Save to Photos** | The picture is saved, no sheet |
+| Choose 3840 × 2160, **Save to Photos** | The Fractique Pro sheet with the price in the tester's currency |
+| **Cancel** | Back in the export sheet, nothing saved |
+| **Save** again, **Buy**, confirm | The system's purchase dialog; then the sheet closes, the export starts by itself and the picture is in Photos; the locks are gone |
+| Close the app, turn on Airplane Mode, open it | Still no locks |
+| Delete the app, install it again, open **Export**, press a locked size, **Restore purchases** | The locks go without paying again |
+| The same with a sandbox tester who never bought | "No earlier purchase was found for this Apple Account." |
+| Start a purchase and cancel the system's dialog | The sheet is back at **Buy**, no message |
+| Airplane Mode on a device that never bought, open the sheet | The App Store's own words or "The App Store did not answer", and **Try again** |
+| **Fine-tune, Size**: press a locked size or **Apply** under **Custom** | The sheet; after a purchase the size is set |
+| **Share** with a locked size on an iPad | The sheet, and after the purchase the share popover |
+| Ask to Buy (a child's sandbox account), if available | "The purchase is waiting for approval."; the locks go when it is approved |
+
+A sandbox purchase is cleared under **Settings, Developer, Sandbox Apple Account, Manage, Reset Eligibility** or
+by a new sandbox tester. The purchase is kept on the device in the app's preferences (`NSUserDefaults`, the key
+`app.fractique.pro`); deleting the app removes it, **Restore purchases** brings it back. A refund does not lock
+the app again.
+
+### A Mac App Store build
+
+No script builds one yet: `scripts/build/build-mac.sh` makes the app that is downloaded from the releases, which
+has no purchase. A build for the Mac App Store has to:
+
+- compile with `cargo build --release -p fractique-app --features store` and without `FRACTIQUE_RELEASE`, so
+  that the app does not install updates by itself;
+- have its own app record in App Store Connect (or the iOS one made universal), where `app.fractique.pro` is
+  offered too;
+- be signed with an Apple Distribution certificate, the App Sandbox entitlement
+  (`com.apple.security.app-sandbox`, and `com.apple.security.files.user-selected.read-write` for Open, Save and
+  Export, `com.apple.security.network.client` for the App Store) and a provisioning profile, and be packed as a
+  `.pkg`.
+
+The purchase code is the same as on iOS (StoreKit's `SKPaymentQueue`), and no step of it has been run on a Mac.
+
 ## What the app needs from iOS
 
 | | |
@@ -119,3 +199,4 @@ owns the app `app.fractique` in App Store Connect. `FRACTIQUE_TEAM_ID` picks ano
 | Devices | iPhone and iPad, upright and on either side |
 | Photos | Permission to add pictures (`NSPhotoLibraryAddUsageDescription`), asked at the first **Save to Photos** |
 | Files | The app's `Documents` folder: the settings (`settings.ron`) and the exported pictures (`exports`) |
+| StoreKit | In the App Store build: the product `app.fractique.pro`, the payment queue and the restore |

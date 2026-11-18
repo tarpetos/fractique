@@ -66,6 +66,23 @@ pub fn section(ui: &mut Ui, title: &str) {
 }
 
 pub fn row(ui: &mut Ui, text: &str, selected: bool) -> bool {
+    locked_row(ui, text, selected, false)
+}
+
+fn lock(painter: &egui::Painter, at: egui::Pos2, color: Color32) {
+    let shackle = egui::Rect::from_center_size(at - vec2(0.0, 3.0), vec2(6.0, 8.0));
+    let round = CornerRadius {
+        nw: 3,
+        ne: 3,
+        sw: 0,
+        se: 0,
+    };
+    painter.rect_stroke(shackle, round, egui::Stroke::new(1.4, color), egui::StrokeKind::Middle);
+    let body = egui::Rect::from_center_size(at + vec2(0.0, 2.5), vec2(11.0, 8.0));
+    painter.rect_filled(body, CornerRadius::same(2), color);
+}
+
+pub fn locked_row(ui: &mut Ui, text: &str, selected: bool, locked: bool) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
     let fill = if selected {
         40
@@ -94,6 +111,9 @@ pub fn row(ui: &mut Ui, text: &str, selected: bool) -> bool {
         font,
         color,
     );
+    if locked {
+        lock(ui.painter(), rect.right_center() - vec2(16.0, 0.0), white(150));
+    }
     response.clicked()
 }
 

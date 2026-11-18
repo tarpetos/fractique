@@ -108,5 +108,18 @@
   "color": "カラー",
   "graphics": "グラフィック",
   "gpu_note": "有効にすると、デバイスによって見た目がわずかに変わることがあります。書き出しには影響しません。",
-  "gpu": "GPU アクセラレーション"
+  "gpu": "GPU アクセラレーション",
+  "pro_title": "Fractique Pro",
+  "pro_about": "2560 × 1440 以上の画像や、好きなカスタムサイズの画像を書き出せます。一度の購入でずっと使えます。そのほかの機能はすべて無料です。",
+  "pro_buy": "{price}で購入",
+  "pro_retry": "もう一度試す",
+  "pro_restore": "購入を復元",
+  "pro_loading": "App Store に問い合わせ中…",
+  "pro_waiting": "App Store の応答を待っています…",
+  "pro_owned": "Fractique Pro をご購入いただきありがとうございます。",
+  "pro_failed": "購入を完了できませんでした。",
+  "pro_no_product": "App Store から応答がありません。しばらくしてからもう一度お試しください。",
+  "pro_nothing": "この Apple Account には購入履歴がありません。",
+  "pro_not_allowed": "このデバイスでは購入が制限されています。",
+  "pro_deferred": "購入は承認待ちです。"
 }

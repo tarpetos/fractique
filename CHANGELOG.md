@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+* **App Store builds (iPhone, iPad, Mac):** one purchase, **Fractique Pro**, paid once. Without it an export of
+  2560 × 1440 pixels or more by pixel count (width × height of 3 686 400 or more) and a size typed into
+  **Custom** are locked; smaller listed sizes, the picture on the screen at any size and every other feature stay
+  free. Locked sizes show a small lock; choosing one, or **Save** or **Share** with one, opens a sheet with the
+  App Store's price, **Buy**, **Restore purchases** and **Cancel**, and after the purchase the export goes on by
+  itself. The size lists of these builds hold computer screens and 34 Apple screens (iPhone, iPad, MacBook, iMac,
+  Studio Display, Pro Display XDR) instead of the Android ones. Windows, Linux, Android and the web are not
+  changed: everything is free there and the builds hold no purchase code (the `store` feature,
+  [docs/usage.md](docs/usage.md#free-and-fractique-pro), [docs/ios.md](docs/ios.md#fractique-pro-the-purchase)).
+
 * **App:** with GPU acceleration on, the graphics card plays the chaos game itself, so a new flame is on the screen
   in a fraction of a second: at 3840×2160 the first picture comes after about 0.03 s and all of its samples after
   0.2 to 0.4 s on an NVIDIA RTX 4070, where the processor takes 4 to 12 s. The picture is at the full size from the

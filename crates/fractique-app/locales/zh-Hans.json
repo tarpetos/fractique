@@ -108,5 +108,18 @@
   "color": "颜色",
   "graphics": "图形",
   "gpu_note": "开启后，画面在不同设备上可能略有差异，导出不受影响。",
-  "gpu": "GPU 加速"
+  "gpu": "GPU 加速",
+  "pro_title": "Fractique Pro",
+  "pro_about": "导出 2560 × 1440 及以上尺寸的图像，以及任意自定义尺寸。一次购买，永久使用。其他功能全部免费。",
+  "pro_buy": "以 {price} 购买",
+  "pro_retry": "重试",
+  "pro_restore": "恢复购买",
+  "pro_loading": "正在连接 App Store…",
+  "pro_waiting": "正在等待 App Store…",
+  "pro_owned": "Fractique Pro 已解锁，谢谢支持！",
+  "pro_failed": "购买未能完成。",
+  "pro_no_product": "App Store 没有响应，请稍后再试。",
+  "pro_nothing": "此 Apple 账户下没有找到购买记录。",
+  "pro_not_allowed": "此设备已停用购买功能。",
+  "pro_deferred": "购买正在等待批准。"
 }

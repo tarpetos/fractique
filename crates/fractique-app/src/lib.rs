@@ -14,6 +14,10 @@ mod instance;
 mod ios;
 mod phone;
 mod preview;
+#[cfg(any(feature = "store", test))]
+mod store;
+#[cfg(all(feature = "store", any(target_os = "ios", target_os = "macos")))]
+mod storekit;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 mod update;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -92,29 +96,87 @@ struct Adjust {
     zoom: f64,
 }
 
-const SIZES: [(&str, [u32; 2]); 21] = [
-    ("HD", [1280, 720]),
-    ("Full HD", [1920, 1080]),
-    ("QHD", [2560, 1440]),
-    ("Ultrawide", [3440, 1440]),
-    ("4K", [3840, 2160]),
-    ("Android HD+", [720, 1600]),
-    ("Android HD+ 19.5:9", [720, 1560]),
-    ("Android Full HD", [1080, 1920]),
-    ("Android Full HD+", [1080, 2400]),
-    ("Galaxy S", [1080, 2340]),
-    ("Pixel", [1080, 2424]),
-    ("Xiaomi 1.5K", [1220, 2712]),
-    ("Pixel Pro", [1280, 2856]),
-    ("Pixel Pro XL", [1344, 2992]),
-    ("Galaxy S Ultra", [1440, 3120]),
-    ("Android QHD+", [1440, 3200]),
-    ("iPhone", [1179, 2556]),
-    ("iPhone Pro Max", [1290, 2796]),
-    ("iPad", [1640, 2360]),
-    ("iPad Pro", [2048, 2732]),
-    ("Android tablet", [1600, 2560]),
+const SIZES: &[(&str, [u32; 2], Family)] = &[
+    ("HD", [1280, 720], Family::Screen),
+    ("Full HD", [1920, 1080], Family::Screen),
+    ("QHD", [2560, 1440], Family::Screen),
+    ("Ultrawide", [3440, 1440], Family::Screen),
+    ("4K", [3840, 2160], Family::Screen),
+    ("Android HD+", [720, 1600], Family::Android),
+    ("Android HD+ 19.5:9", [720, 1560], Family::Android),
+    ("Android Full HD", [1080, 1920], Family::Android),
+    ("Android Full HD+", [1080, 2400], Family::Android),
+    ("Galaxy S", [1080, 2340], Family::Android),
+    ("Pixel", [1080, 2424], Family::Android),
+    ("Xiaomi 1.5K", [1220, 2712], Family::Android),
+    ("Pixel Pro", [1280, 2856], Family::Android),
+    ("Pixel Pro XL", [1344, 2992], Family::Android),
+    ("Galaxy S Ultra", [1440, 3120], Family::Android),
+    ("Android QHD+", [1440, 3200], Family::Android),
+    ("iPhone", [1179, 2556], Family::AppleFew),
+    ("iPhone Pro Max", [1290, 2796], Family::AppleFew),
+    ("iPad", [1640, 2360], Family::AppleFew),
+    ("iPad Pro", [2048, 2732], Family::AppleFew),
+    ("Android tablet", [1600, 2560], Family::Android),
+    // Native pixels from Apple's Tech Specs pages (support.apple.com), read in November 2026: docs/usage.md.
+    ("iPhone SE", [750, 1334], Family::Apple),
+    ("iPhone 11", [828, 1792], Family::Apple),
+    ("iPhone mini", [1080, 2340], Family::Apple),
+    ("iPhone 11 Pro", [1125, 2436], Family::Apple),
+    ("iPhone 11 Pro Max", [1242, 2688], Family::Apple),
+    ("iPhone 12–14, 17e", [1170, 2532], Family::Apple),
+    ("iPhone 14 Plus", [1284, 2778], Family::Apple),
+    ("iPhone 15, 16", [1179, 2556], Family::Apple),
+    ("iPhone 15–16 Plus", [1290, 2796], Family::Apple),
+    ("iPhone 17, 18 Pro", [1206, 2622], Family::Apple),
+    ("iPhone Air", [1260, 2736], Family::Apple),
+    ("iPhone 18 Pro Max", [1320, 2868], Family::Apple),
+    ("iPhone Duo 5.4″", [1398, 2034], Family::Apple),
+    ("iPhone Duo 7.6″", [1878, 2670], Family::Apple),
+    ("iPad mini", [1488, 2266], Family::Apple),
+    ("iPad mini (A20 Pro)", [1512, 2316], Family::Apple),
+    ("iPad 10.2″", [1620, 2160], Family::Apple),
+    ("iPad, iPad Air 11″", [1640, 2360], Family::Apple),
+    ("iPad Pro 10.5″", [1668, 2224], Family::Apple),
+    ("iPad Pro 11″ 2018–22", [1668, 2388], Family::Apple),
+    ("iPad Pro 11″", [1668, 2420], Family::Apple),
+    ("iPad Air 13″", [2048, 2732], Family::Apple),
+    ("iPad Pro 13″", [2064, 2752], Family::Apple),
+    ("MacBook Neo", [2408, 1506], Family::Apple),
+    ("MacBook Air 13″ M1", [2560, 1600], Family::Apple),
+    ("MacBook Air 13″", [2560, 1664], Family::Apple),
+    ("MacBook Air 15″", [2880, 1864], Family::Apple),
+    ("MacBook Pro 14″", [3024, 1964], Family::Apple),
+    ("MacBook 14″ OLED", [3024, 1986], Family::Apple),
+    ("MacBook Pro 16″", [3456, 2234], Family::Apple),
+    ("MacBook 16″ OLED", [3472, 2266], Family::Apple),
+    ("iMac 24″", [4480, 2520], Family::Apple),
+    ("Studio Display, 5K", [5120, 2880], Family::Apple),
+    ("Pro Display XDR", [6016, 3384], Family::Apple),
 ];
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Family {
+    Screen,
+    Android,
+    AppleFew,
+    Apple,
+}
+
+fn offered(family: Family, store: bool) -> bool {
+    match family {
+        Family::Screen => true,
+        Family::Android | Family::AppleFew => !store,
+        Family::Apple => store,
+    }
+}
+
+fn sizes() -> impl Iterator<Item = (&'static str, [u32; 2])> {
+    SIZES
+        .iter()
+        .filter(|(_, _, family)| offered(*family, cfg!(feature = "store")))
+        .map(|(name, size, _)| (*name, *size))
+}
 const LARGEST_SIDE: u32 = 16384;
 
 fn size_list(
@@ -124,23 +186,24 @@ fn size_list(
     base: [u32; 2],
     chosen: &mut Option<[u32; 2]>,
     custom: &mut [String; 2],
-    height: f32,
-) -> bool {
-    let mut picked = false;
-    if widgets::row(ui, own, chosen.is_none()) {
+    list: List<'_>,
+) -> Pick {
+    let (height, locks, locked) = (list.height, list, list.locked);
+    let mut picked = Pick::None;
+    if widgets::locked_row(ui, own, chosen.is_none(), locked(None)) {
         *chosen = None;
-        picked = true;
+        picked = Pick::Chosen;
     }
-    let listed = SIZES.iter().any(|(_, size)| Some(*size) == *chosen);
+    let listed = chosen.is_some_and(is_listed);
     let mut bar = egui::style::ScrollStyle::floating();
     bar.bar_width = 5.0;
     ui.spacing_mut().scroll = bar;
     egui::ScrollArea::vertical().max_height(height).show(ui, |ui| {
-        for (name, size) in SIZES {
+        for (name, size) in sizes() {
             let label = format!("{} × {}  ·  {name}", size[0], size[1]);
-            if widgets::row(ui, &label, *chosen == Some(size)) {
+            if widgets::locked_row(ui, &label, *chosen == Some(size), locked(Some(size))) {
                 *chosen = Some(size);
-                picked = true;
+                picked = Pick::Chosen;
             }
         }
     });
@@ -149,9 +212,14 @@ fn size_list(
         *custom = [width.to_string(), height.to_string()];
     }
     ui.add_space(6.0);
-    widgets::row(ui, &texts.get("size_custom"), chosen.is_some() && !listed);
+    let entry = parsed_size(&format!("{}x{}", custom[0], custom[1]));
+    let mut entered = widgets::locked_row(
+        ui,
+        &texts.get("size_custom"),
+        chosen.is_some() && !listed,
+        locks.custom || entry.is_some_and(|size| locked(Some(size))),
+    ) && locks.custom;
     ui.add_space(4.0);
-    let mut entered = false;
     let (line, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 36.0), egui::Sense::hover());
     let mut left = line.left();
     for (side, text) in custom.iter_mut().enumerate() {
@@ -186,9 +254,10 @@ fn size_list(
     });
     if entered {
         match parsed_size(&format!("{}x{}", custom[0], custom[1])) {
+            size if locks.custom => picked = Pick::Custom(size),
             Some(size) => {
                 *chosen = Some(size);
-                picked = true;
+                picked = Pick::Chosen;
             }
             None => *custom = Default::default(),
         }
@@ -196,10 +265,38 @@ fn size_list(
     picked
 }
 
+fn is_listed(size: [u32; 2]) -> bool {
+    sizes().any(|(_, listed)| listed == size)
+}
+
+#[derive(Clone, Copy)]
+struct List<'a> {
+    height: f32,
+    locked: &'a dyn Fn(Option<[u32; 2]>) -> bool,
+    custom: bool,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Pick {
+    None,
+    Chosen,
+    // A custom size was asked for where it needs the purchase.
+    Custom(Option<[u32; 2]>),
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Sheet {
     Presets,
     Sizes,
+}
+
+#[cfg(feature = "store")]
+#[derive(Clone, Copy, PartialEq)]
+enum Wanted {
+    Nothing,
+    Export { size: [u32; 2], share: bool },
+    ExportSize(Option<[u32; 2]>),
+    Picture([u32; 2]),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -534,6 +631,10 @@ struct App {
     last_frame: Instant,
     #[cfg(not(target_arch = "wasm32"))]
     export: export::Sheet,
+    #[cfg(feature = "store")]
+    store: Option<store::Store>,
+    #[cfg(feature = "store")]
+    pro: Option<Wanted>,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     updates: updates::Updates,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -883,6 +984,12 @@ impl App {
                 open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.starts_with("export")),
                 ..Default::default()
             },
+            #[cfg(feature = "store")]
+            store: store::open(&cc.egui_ctx),
+            #[cfg(feature = "store")]
+            pro: std::env::var("FRACTIQUE_SHOW")
+                .is_ok_and(|what| what.starts_with("pro"))
+                .then_some(Wanted::Nothing),
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             updates: updates::Updates::new(),
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -1443,6 +1550,10 @@ impl App {
         self.adding_layer = false;
         self.sizes_open = which == Sheet::Sizes && !sizes;
         self.languages_open = false;
+        #[cfg(feature = "store")]
+        {
+            self.pro = None;
+        }
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.export.open = false;
@@ -1534,16 +1645,187 @@ impl App {
         widgets::section(ui, &self.t("size"));
         let own = format!("{} · {} × {}", self.t("size_window"), window[0], window[1]);
         let height = (room - 230.0).clamp(34.0, 420.0);
-        if size_list(
+        let locked = self.lock();
+        #[cfg(feature = "store")]
+        let before = self.picture;
+        let custom = self.pro_missing();
+        let locks = |size: Option<[u32; 2]>| size.is_some_and(&locked);
+        let list = |height: f32| List {
+            height,
+            locked: &locks,
+            custom,
+        };
+        let picked = size_list(
             ui,
             &self.texts,
             &own,
             window,
             &mut self.picture,
             &mut self.custom,
-            height,
-        ) {
+            list(height),
+        );
+        if picked == Pick::Chosen {
             self.sizes_open = false;
+            #[cfg(feature = "store")]
+            if let Some(size) = self.picture
+                && Some(size) != before
+                && locked(size)
+            {
+                self.picture = before;
+                self.want(Wanted::Picture(size));
+            }
+        }
+        #[cfg(feature = "store")]
+        if let Pick::Custom(size) = picked {
+            self.want(size.map_or(Wanted::Nothing, Wanted::Picture));
+        }
+    }
+
+    fn pro_missing(&self) -> bool {
+        #[cfg(feature = "store")]
+        return self.store.as_ref().is_some_and(|store| !store.owned());
+        #[cfg(not(feature = "store"))]
+        false
+    }
+
+    fn lock(&self) -> impl Fn([u32; 2]) -> bool + use<> {
+        #[cfg(feature = "store")]
+        let locks = self.pro_missing();
+        #[cfg(feature = "store")]
+        return move |size| locks && store::is_large(size);
+        #[cfg(not(feature = "store"))]
+        |_| false
+    }
+
+    fn pro_open(&self) -> bool {
+        #[cfg(feature = "store")]
+        return self.pro.is_some();
+        #[cfg(not(feature = "store"))]
+        false
+    }
+
+    #[cfg(feature = "store")]
+    fn want(&mut self, wanted: Wanted) {
+        self.open_sheet(Sheet::Sizes);
+        self.sizes_open = false;
+        self.pro = Some(wanted);
+        if let Some(store) = &mut self.store {
+            store.wake();
+        }
+    }
+
+    #[cfg(feature = "store")]
+    fn settle_store(&mut self, ctx: &egui::Context) {
+        let Some(store) = &mut self.store else {
+            return;
+        };
+        if !store.settle() {
+            return;
+        }
+        tick(true);
+        match self.pro.take() {
+            Some(Wanted::Export { size, share }) => {
+                self.export.open = true;
+                self.export.note.clear();
+                self.export.share = share;
+                self.start_export(ctx, size);
+            }
+            Some(Wanted::ExportSize(size)) => {
+                self.export.open = true;
+                if size.is_some() {
+                    self.export.size = size;
+                }
+            }
+            Some(Wanted::Picture(size)) => self.picture = Some(size),
+            Some(Wanted::Nothing) => self.pro = Some(Wanted::Nothing),
+            None => {}
+        }
+    }
+
+    #[cfg(feature = "store")]
+    fn pro_sheet(&mut self, ui: &mut egui::Ui, width: f32) {
+        use store::{Problem, State};
+
+        ui.set_width(width);
+        ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+        ui.label(
+            egui::RichText::new(self.t("pro_title"))
+                .font(font(17.0, SEMIBOLD))
+                .color(egui::Color32::WHITE),
+        );
+        let Some(store) = &self.store else {
+            return;
+        };
+        let state = store.state().clone();
+        let price = store.price().map(|price| {
+            let known = ui.fonts_mut(|fonts| fonts.has_glyphs(&font(14.0, MEDIUM), &price.shown));
+            if known && !price.shown.is_empty() {
+                price.shown.clone()
+            } else {
+                price.plain.clone()
+            }
+        });
+        let soft = egui::Color32::from_white_alpha(200);
+        ui.add_space(8.0);
+        ui.label(
+            egui::RichText::new(self.t(if state == State::Owned {
+                "pro_owned"
+            } else {
+                "pro_about"
+            }))
+            .size(13.5)
+            .color(soft),
+        );
+        ui.add_space(14.0);
+        let full = ui.available_width();
+        if state == State::Owned {
+            if widgets::pill(ui, &self.t("close"), true, full) {
+                self.pro = None;
+            }
+            return;
+        }
+        let words = match &state {
+            State::Loading => self.t("pro_loading"),
+            State::Buying => self.t("pro_waiting"),
+            State::Failed(Problem::Told(words)) if !words.is_empty() => words.clone(),
+            State::Failed(Problem::Told(_)) => self.t("pro_failed"),
+            State::Failed(Problem::NoProduct) => self.t("pro_no_product"),
+            State::Failed(Problem::NothingToRestore) => self.t("pro_nothing"),
+            State::Failed(Problem::NotAllowed) => self.t("pro_not_allowed"),
+            State::Failed(Problem::Deferred) => self.t("pro_deferred"),
+            State::Ready | State::Owned => String::new(),
+        };
+        if !words.is_empty() {
+            ui.label(egui::RichText::new(words).size(12.5).color(egui::Color32::WHITE));
+            ui.add_space(12.0);
+        }
+        let (mut buy, mut restore) = (false, false);
+        if matches!(state, State::Ready | State::Failed(_)) {
+            let label = match &price {
+                Some(price) => self.t("pro_buy").replace("{price}", price),
+                None => self.t("pro_retry"),
+            };
+            buy = widgets::pill(ui, &label, true, full);
+            ui.add_space(8.0);
+        }
+        if state != State::Buying {
+            restore = widgets::pill(ui, &self.t("pro_restore"), false, full);
+            ui.add_space(8.0);
+        }
+        if widgets::pill(ui, &self.t("cancel"), false, full)
+            && let Some(Wanted::Export { .. } | Wanted::ExportSize(_)) = self.pro.take()
+        {
+            self.export.open = true;
+        }
+        if let Some(store) = &mut self.store
+            && (buy || restore)
+        {
+            if buy {
+                store.buy();
+            } else {
+                store.restore();
+            }
+            ui.ctx().request_repaint();
         }
     }
 
@@ -1580,7 +1862,7 @@ impl App {
     }
 
     fn sheet_open(&self) -> bool {
-        let lists = self.sizes_open || self.presets_open || self.languages_open;
+        let lists = self.sizes_open || self.presets_open || self.languages_open || self.pro_open();
         #[cfg(not(target_arch = "wasm32"))]
         let lists = lists || self.export.open;
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -2439,6 +2721,10 @@ impl App {
             }
             #[cfg(not(target_arch = "wasm32"))]
             Some("export") => {
+                #[cfg(feature = "store")]
+                {
+                    self.pro = None;
+                }
                 self.presets_open = false;
                 self.sizes_open = false;
                 self.languages_open = false;
@@ -2611,6 +2897,15 @@ impl App {
         let shown = self.picture.unwrap_or(window);
         let own = format!("{} × {}", shown[0], shown[1]);
         let size = self.t("size");
+        let locked = self.lock();
+        let custom = self.pro_missing();
+        let locks = |size: Option<[u32; 2]>| locked(size.unwrap_or(shown));
+        let list = |height: f32| List {
+            height,
+            locked: &locks,
+            custom,
+        };
+        let mut picked = Pick::None;
         let clicked = if wide.is_some() {
             // A low, wide screen: the sizes at the left, the rest at the right.
             ui.spacing_mut().item_spacing.x = 24.0;
@@ -2620,14 +2915,14 @@ impl App {
                 ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
                 widgets::section(ui, &size);
                 let height = (room - 250.0).clamp(34.0, 230.0);
-                size_list(
+                picked = size_list(
                     ui,
                     &self.texts,
                     &own,
                     shown,
                     &mut self.export.size,
                     &mut self.export.custom,
-                    height,
+                    list(height),
                 );
                 columns[1].spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
                 clicked = self.export_choices(&mut columns[1]);
@@ -2636,22 +2931,37 @@ impl App {
         } else {
             widgets::section(ui, &size);
             let height = (room - 400.0).clamp(34.0, 230.0);
-            size_list(
+            picked = size_list(
                 ui,
                 &self.texts,
                 &own,
                 shown,
                 &mut self.export.size,
                 &mut self.export.custom,
-                height,
+                list(height),
             );
             self.export_choices(ui)
         };
         let [width, height] = self.export.size.unwrap_or(shown);
+        #[cfg(feature = "store")]
+        if let Pick::Custom(size) = picked {
+            self.want(Wanted::ExportSize(size));
+            return;
+        }
+        #[cfg(not(feature = "store"))]
+        let _ = picked;
         if clicked.0 {
             self.export.open = false;
         }
         if clicked.1 {
+            #[cfg(feature = "store")]
+            if self.pro_missing() && store::needs_pro([width, height], self.export.size.is_none_or(is_listed)) {
+                self.want(Wanted::Export {
+                    size: [width, height],
+                    share: self.export.share,
+                });
+                return;
+            }
             // The owner is asked before the picture is made, not after the wait for it.
             #[cfg(target_os = "android")]
             if !android::granted() {
@@ -2896,6 +3206,8 @@ impl eframe::App for App {
         self.receive(&ctx, frame);
         #[cfg(not(target_arch = "wasm32"))]
         self.finish_export();
+        #[cfg(feature = "store")]
+        self.settle_store(&ctx);
         #[cfg(target_os = "android")]
         self.keep_on_android(&ctx);
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -3045,9 +3357,10 @@ impl eframe::App for App {
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         let sheet = sheet || self.updates.open;
         let sheet = sheet
+            || self.pro_open()
             || (self.languages_open && cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")));
         #[cfg(not(target_arch = "wasm32"))]
-        let open = open && !self.export.open;
+        let open = open && !self.export.open && !self.pro_open();
         let open = open && !(sheet && content.width() < 1320.0);
         let column = (content.width() - 84.0).min(248.0);
         let beside = content.left() + 20.0 + column + 44.0 + 16.0;
@@ -3177,6 +3490,21 @@ impl eframe::App for App {
                     egui::Frame::NONE
                         .inner_margin(egui::Margin::same(22))
                         .show(ui, |ui| self.updates.ui(ui, &self.texts, width));
+                });
+            panes.push((sheet.response.rect, self.optics.radius, true));
+        }
+
+        #[cfg(feature = "store")]
+        if self.pro.is_some() {
+            let width = (content.width() - 84.0).min(300.0);
+            let sheet = egui::Area::new(egui::Id::unique("pro"))
+                .fixed_pos(content.center())
+                .pivot(egui::Align2::CENTER_CENTER)
+                .order(egui::Order::Foreground)
+                .show(&ctx, |ui| {
+                    egui::Frame::NONE
+                        .inner_margin(egui::Margin::same(22))
+                        .show(ui, |ui| self.pro_sheet(ui, width));
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }
@@ -3559,6 +3887,23 @@ mod tests {
         assert_eq!(of(r#"{"generator": 2}"#), Generator::Second);
         assert_eq!(of(r#"{"generator": 9}"#), Generator::First);
         assert_eq!(Generator::LATEST, Generator::Second);
+    }
+
+    #[test]
+    fn the_store_builds_offer_screens_and_apple_devices() {
+        let of = |store: bool| SIZES.iter().filter(move |(_, _, family)| offered(*family, store));
+        assert!(of(true).all(|(_, _, family)| matches!(family, Family::Screen | Family::Apple)));
+        assert!(of(true).any(|(_, size, _)| store::is_large(*size)));
+        assert!(of(true).any(|(_, size, _)| !store::is_large(*size)));
+        assert!(of(false).any(|(_, _, family)| *family == Family::Android));
+        assert_eq!(of(false).count(), 21);
+        for store in [true, false] {
+            let listed: Vec<[u32; 2]> = of(store).map(|(_, size, _)| *size).collect();
+            for (at, size) in listed.iter().enumerate() {
+                assert!(!listed[..at].contains(size), "{size:?} is listed twice");
+                assert!(parsed_size(&format!("{}x{}", size[0], size[1])).is_some());
+            }
+        }
     }
 
     #[test]

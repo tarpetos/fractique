@@ -15,6 +15,10 @@ crate-type = ["cdylib", "rlib"]
 name = "fractique-gui"
 path = "src/main.rs"
 
+[features]
+# The App Store builds: an export of 2560 × 1440 pixels or more needs the purchase "Fractique Pro".
+store = []
+
 [dependencies]
 bytemuck = { version = "1.25.2", features = ["derive"] }
 eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "persistence", "links", "x11", "wayland"] }
@@ -54,8 +58,10 @@ interprocess = "2.4"
 rfd = "0.18.0"
 
 [target.'cfg(target_os = "ios")'.dependencies]
-objc2 = "0.6"
 raw-window-handle = "0.6"
+
+[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
+objc2 = "0.6"
 
 [package.metadata.android]
 package = "app.fractique"
