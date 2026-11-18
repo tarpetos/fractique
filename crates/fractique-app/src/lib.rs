@@ -228,7 +228,12 @@ impl App {
             last_frame: Instant::now(),
             #[cfg(not(target_arch = "wasm32"))]
             export: export::Sheet {
-                open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "export"),
+                open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.starts_with("export")),
+                size: if std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "export-custom") {
+                    export::SIZES.len() + 1
+                } else {
+                    0
+                },
                 ..Default::default()
             },
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -798,8 +803,8 @@ impl App {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2]) {
-        ui.set_width(250.0);
+    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
+        ui.set_width(270.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         ui.label(
             egui::RichText::new(self.t("export_title"))
@@ -830,10 +835,49 @@ impl App {
         if widgets::row(ui, &own, self.export.size == 0) {
             self.export.size = 0;
         }
-        for (index, [width, height]) in export::SIZES.into_iter().enumerate() {
-            if widgets::row(ui, &format!("{width} × {height}"), self.export.size == index + 1) {
-                self.export.size = index + 1;
+        let custom = export::SIZES.len() + 1;
+        let mut bar = egui::style::ScrollStyle::floating();
+        bar.bar_width = 5.0;
+        ui.spacing_mut().scroll = bar;
+        egui::ScrollArea::vertical()
+            .max_height((room - 330.0).clamp(96.0, 300.0))
+            .show(ui, |ui| {
+                for (index, (name, [width, height])) in export::SIZES.into_iter().enumerate() {
+                    let label = format!("{width} × {height}  ·  {name}");
+                    if widgets::row(ui, &label, self.export.size == index + 1) {
+                        self.export.size = index + 1;
+                    }
+                }
+            });
+        if widgets::row(ui, &self.t("size_custom"), self.export.size == custom) {
+            self.export.size = custom;
+        }
+        if self.export.size == custom {
+            if self.export.custom[0].is_empty() {
+                self.export.custom = [window[0].to_string(), window[1].to_string()];
             }
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                for side in 0..2 {
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(108.0, 34.0), egui::Sense::hover());
+                    ui.painter()
+                        .rect_filled(rect, egui::CornerRadius::same(10), egui::Color32::from_white_alpha(30));
+                    let field = egui::TextEdit::singleline(&mut self.export.custom[side])
+                        .frame(egui::Frame::NONE)
+                        .font(font(14.0, MEDIUM))
+                        .text_color(egui::Color32::WHITE)
+                        .char_limit(5);
+                    ui.put(rect.shrink2(egui::vec2(12.0, 5.0)), field);
+                    self.export.custom[side].retain(|c| c.is_ascii_digit());
+                    if side == 0 {
+                        ui.label(
+                            egui::RichText::new("×")
+                                .size(14.0)
+                                .color(egui::Color32::from_white_alpha(170)),
+                        );
+                    }
+                }
+            });
         }
         widgets::section(ui, &self.t("quality"));
         for (index, (key, _, _)) in export::QUALITIES.into_iter().enumerate() {
@@ -862,10 +906,14 @@ impl App {
             self.export.open = false;
         }
         if clicked.1 {
-            let [width, height] = if self.export.size == 0 {
-                window
-            } else {
-                export::SIZES[self.export.size - 1]
+            let chosen = match self.export.size {
+                0 => Some(window),
+                index if index <= export::SIZES.len() => Some(export::SIZES[index - 1].1),
+                _ => self.export.custom_size(),
+            };
+            let Some([width, height]) = chosen else {
+                self.export.note = format!("16 – {}", export::LARGEST_SIDE);
+                return;
             };
             let (_, samples_per_pixel, supersample) = export::QUALITIES[self.export.quality];
             let options = RenderOptions {
@@ -1153,7 +1201,7 @@ impl eframe::App for App {
                 .show(&ctx, |ui| {
                     egui::Frame::NONE
                         .inner_margin(egui::Margin::same(22))
-                        .show(ui, |ui| self.export_sheet(ui, size));
+                        .show(ui, |ui| self.export_sheet(ui, size, content.height()));
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }

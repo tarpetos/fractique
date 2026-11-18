@@ -26,6 +26,7 @@
   "size": "TAILLE",
   "quality": "QUALITÉ",
   "size_window": "Cette fenêtre",
+  "size_custom": "Personnalisée",
   "q_standard": "Standard",
   "q_high": "Haute",
   "q_ultra": "Ultra",

@@ -26,6 +26,7 @@
   "size": "TAMANHO",
   "quality": "QUALIDADE",
   "size_window": "Esta janela",
+  "size_custom": "Personalizado",
   "q_standard": "Padrão",
   "q_high": "Alta",
   "q_ultra": "Ultra",

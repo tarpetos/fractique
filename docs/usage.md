@@ -145,7 +145,7 @@ view: lower `camera.zoom` then.
 | Title bar (desktop) | The version (opens the updates), the language, hide panels, minimize, maximize, close |
 | **Randomize** | The next random scene |
 | **Mutate** | A variant of the current scene |
-| **Export** | A PNG at the size and quality you choose, rendered in the background with a progress bar |
+| **Export** | A PNG at the size and quality you choose, rendered in the background with a progress bar. Sizes: this window, 13 screens from phones to 4K, or any width and height from 16 to 16384 pixels |
 | **Scene: Open, Save** | Scenes as `.json`; **Open** also reads `.flame` files |
 | Drag, wheel or pinch on the picture | Moves and magnifies the picture as it is, up to 12 times, without a new render; a double click shows all of it again |
 | **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back. On a phone a tap hides and shows them |
