@@ -1371,8 +1371,18 @@ impl App {
         self.touched = Instant::now();
     }
 
+    fn sheet_open(&self) -> bool {
+        let lists = self.sizes_open || self.presets_open || self.languages_open;
+        #[cfg(not(target_arch = "wasm32"))]
+        let lists = lists || self.export.open;
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        let lists = lists || self.updates.open;
+        lists
+    }
+
     fn explore(&mut self, ui: &mut egui::Ui, screen: egui::Rect) {
         let picture = ui.interact(screen, egui::Id::unique("picture"), egui::Sense::click_and_drag());
+        let blocked = self.sheet_open();
         let scale = ui.ctx().pixels_per_point();
         let window = [
             (screen.width() * scale).round() as u32,
@@ -1385,7 +1395,7 @@ impl App {
         let stretch = (size[0] as f32 / size[1] as f32) / (screen.width() / screen.height()).max(0.001);
         let before = self.view;
         let swiping = self.phone.on && self.wall.live;
-        if picture.dragged() {
+        if picture.dragged() && !blocked {
             if swiping {
                 self.phone.swipe += picture.drag_delta();
             } else {
@@ -1395,7 +1405,7 @@ impl App {
         }
         if picture.drag_stopped() {
             let by = std::mem::take(&mut self.phone.swipe);
-            if swiping && by.x.abs() > phone::SWIPE && by.x.abs() > by.y.abs() * 1.4 {
+            if swiping && !blocked && by.x.abs() > phone::SWIPE && by.x.abs() > by.y.abs() * 1.4 {
                 self.step_wallpaper(by.x < 0.0);
             }
         }
@@ -1419,7 +1429,7 @@ impl App {
             strayed || input.multi_touch().is_some()
         });
         self.phone.strayed = down && (self.phone.strayed || moved);
-        let holding = self.phone.on && down && held && !self.phone.strayed;
+        let holding = self.phone.on && down && held && !self.phone.strayed && !blocked;
         if holding != self.phone.preview {
             self.phone.preview = holding;
             self.phone.previewed |= holding;
@@ -1436,12 +1446,13 @@ impl App {
             self.languages_open = false;
             self.sizes_open = false;
             self.presets_open = false;
+        } else if blocked {
         } else if picture.double_clicked() {
             self.view = WHOLE;
         } else if picture.clicked() && (self.bare || self.phone.on) {
             self.bare = !self.bare;
         }
-        if picture.contains_pointer() {
+        if picture.contains_pointer() && !blocked {
             let (wheel, pinch, pointer) = ui.input(|input| {
                 (
                     input.smooth_scroll_delta.y,
@@ -2814,6 +2825,8 @@ impl eframe::App for App {
         let sheet = sheet || self.updates.open;
         let sheet = sheet
             || (self.languages_open && cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")));
+        #[cfg(not(target_arch = "wasm32"))]
+        let open = open && !self.export.open;
         let open = open && !(sheet && content.width() < 1320.0);
         let column = (content.width() - 84.0).min(248.0);
         let beside = content.left() + 20.0 + column + 44.0 + 16.0;

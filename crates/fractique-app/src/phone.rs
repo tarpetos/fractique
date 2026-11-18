@@ -304,7 +304,7 @@ impl App {
         if self.wall.live {
             let (layout, material) = self.current(size);
             Piece {
-                title: self.title.clone(),
+                title: shown(&self.title),
                 kind: Kind::Wall(self.seed, layout, material, self.wall.dark, self.wall.hue),
             }
         } else {

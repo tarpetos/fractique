@@ -107,6 +107,6 @@
   "allow_storage": "Görüntüyü kaydetmek için depolama erişimine izin verin.",
   "color": "RENK",
   "graphics": "GRAFİK",
-  "gpu_note": "Hızlı görüntü cihazdan cihaza biraz farklı olabilir. Dışa aktarımlar her zaman kesindir.",
+  "gpu_note": "Açıkken görüntü cihazdan cihaza biraz farklı görünebilir. Dışa aktarma bundan etkilenmez.",
   "gpu": "GPU hızlandırma"
 }

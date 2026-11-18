@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* **App:** while Export is open the controls are hidden, and while any sheet or list is open (export, presets,
+  adding a layer, sizes, layouts, recent, languages, updates) the picture under it does not move, zoom or reset.
 * **App:** under **GPU acceleration**, while it is on, a line says that the quick picture can differ slightly
   between devices and that exports are always exact.
 * **Phones:** a finger that lands on a slider while it scrolls a panel no longer moves the slider: the slider
