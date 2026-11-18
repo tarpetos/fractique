@@ -37,11 +37,11 @@ use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
 use fractique_core::palette;
 use fractique_core::random::{Generator, mutate, random_scene, random_scene_of};
-use fractique_core::scene::{Blend, MAX_LAYERS};
+use fractique_core::scene::{Blend, Layer, MAX_LAYERS};
 use fractique_core::wallpaper::{Layout, Material, Request, chosen as wallpaper_choice, random_wallpaper};
 use fractique_core::{
-    Control, Developed, Image, RenderError, RenderOptions, Scene, Tone, compose, develop, presets, render_density,
-    render_layer,
+    Control, Developed, Image, RenderError, RenderOptions, Scene, Tone, compose, develop, fractal, presets,
+    render_density, render_layer,
 };
 
 use chaos::{Chaos, Step};
@@ -361,6 +361,7 @@ enum Wanted {
 #[derive(Clone, Copy, PartialEq)]
 enum Listing {
     Presets,
+    Kinds,
     Layouts,
     Materials,
     Recent,
@@ -485,9 +486,9 @@ impl View {
         self.down = (self.down - by[1] / self.zoom).clamp(-1e6, 1e6);
     }
 
-    fn magnified(&mut self, factor: f64, around: [f64; 2]) {
+    fn magnified(&mut self, factor: f64, around: [f64; 2], most: f64) {
         let held = [self.right + around[0] / self.zoom, self.down + around[1] / self.zoom];
-        self.zoom = (self.zoom * factor).clamp(MIN_MAGNIFICATION, MAX_MAGNIFICATION);
+        self.zoom = (self.zoom * factor).clamp(MIN_MAGNIFICATION, most);
         self.right = held[0] - around[0] / self.zoom;
         self.down = held[1] - around[1] / self.zoom;
         self.moved([0.0; 2]);
@@ -667,7 +668,9 @@ struct App {
     texts: Texts,
     base: Scene,
     wall: Wall,
-    rest: [Option<Rest>; 2],
+    rest: [Option<Rest>; 3],
+    fractals: bool,
+    kind: String,
     latest: Option<Rendered>,
     palette: Option<usize>,
     phone: phone::Phone,
@@ -805,15 +808,30 @@ fn size_key(options: &RenderOptions) -> String {
     )
 }
 
+// What a layer draws, without its name, its blend and its opacity.
+fn content_key(layer: &Layer) -> String {
+    let bare = Layer {
+        name: String::new(),
+        blend: Blend::Add,
+        opacity: 1.0,
+        content: layer.content.clone(),
+    };
+    serde_json::to_string(&bare).unwrap_or_default()
+}
+
 // What a layer's density depends on: its flame without the tone, but with the smoothing.
 fn source_key(scene: &Scene, index: usize, size: &str) -> String {
-    let mut flame = scene.layers[index].flame.clone();
-    flame.tone = Tone {
-        smoothing: flame.tone.smoothing,
+    let mut layer = scene.layers[index].clone();
+    *layer.tone_mut() = Tone {
+        smoothing: layer.tone().smoothing,
         ..Tone::default()
     };
-    let flame = serde_json::to_string(&flame).unwrap_or_default();
-    format!("{size}{} {index} {flame}", scene.seed)
+    format!("{size}{} {index} {}", scene.seed, content_key(&layer))
+}
+
+// The graphics card previews and plays the chaos game for flames; a fractal of another kind is the processor's.
+fn all_flames(scene: &Scene) -> bool {
+    scene.sheets.is_none() && scene.layers.iter().all(|layer| layer.flame().is_some())
 }
 
 // A layer's pixels depend only on its flame, its place in the scene, the seed and the size, so a layer that did
@@ -833,8 +851,7 @@ fn rendered(
     let (mut keys, mut layers) = (Vec::new(), Vec::new());
     let (mut source_keys, mut held) = (Vec::new(), Vec::new());
     for (index, layer) in scene.layers.iter().enumerate() {
-        let flame = serde_json::to_string(&layer.flame).unwrap_or_default();
-        let key = format!("{size}{} {index} {flame}", scene.seed);
+        let key = format!("{size}{} {index} {}", scene.seed, content_key(layer));
         let used = USES.fetch_add(1, Ordering::Relaxed);
         let found = kept
             .lock()
@@ -951,7 +968,7 @@ fn look_key(scene: &Scene) -> String {
     let layers: Vec<_> = scene
         .layers
         .iter()
-        .map(|layer| (layer.blend, layer.opacity, &layer.flame.tone))
+        .map(|layer| (layer.blend, layer.opacity, layer.tone()))
         .collect();
     format!("{:?} {layers:?}", scene.background)
 }
@@ -1086,7 +1103,9 @@ impl App {
                 live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall") || what == "layouts"),
                 ..Default::default()
             },
-            rest: [None, None],
+            rest: [None, None, None],
+            fractals: false,
+            kind: "mandelbrot".to_owned(),
             latest: None,
             palette: None,
             phone: phone::Phone::new(stored("kept"), stored("recent")),
@@ -1143,9 +1162,11 @@ impl App {
             picture: stored("picture").and_then(|text| parsed_size(&text)),
             custom: Default::default(),
             sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
-            presets_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "presets" || what == "layouts"),
-            listing: if std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "layouts") {
+            presets_open: ["presets", "layouts", "kinds"].into_iter().any(shows),
+            listing: if shows("layouts") {
                 Listing::Layouts
+            } else if shows("kinds") {
+                Listing::Kinds
             } else {
                 Listing::Presets
             },
@@ -1200,6 +1221,14 @@ impl App {
         if let Some(session) = session {
             let _ = app.restore(&session);
         }
+        // A test run in the Fractals tab: FRACTIQUE_SHOW=fractals (also kinds, fractals-phone, fractals-phone-sheet),
+        // with FRACTIQUE_FRACTAL=julia for a kind other than the first.
+        if std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("fractals") || what == "kinds") {
+            app.wall.on = false;
+            app.fractals = true;
+            let kind = std::env::var("FRACTIQUE_FRACTAL").unwrap_or_else(|_| app.kind.clone());
+            app.show_kind(&kind);
+        }
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         if let Some(path) = OPEN_FIRST.get() {
             app.load_scene(path);
@@ -1217,15 +1246,69 @@ impl App {
         let mut scene = self.base.clone();
         if let Some(palette) = self.palette.and_then(|at| palette::named(palette::NAMES[at])) {
             for layer in &mut scene.layers {
-                layer.flame.palette = palette.clone();
+                *layer.palette_mut() = palette.clone();
             }
         }
         scene
     }
 
+    fn tab(&self) -> usize {
+        match (self.wall.on, self.fractals) {
+            (true, _) => 2,
+            (false, true) => 1,
+            (false, false) => 0,
+        }
+    }
+
+    // A fractal drawn pixel by pixel runs out of digits where its own zoom times the view's passes the limit.
+    fn deepest(&self) -> f64 {
+        let own = self
+            .base
+            .layers
+            .iter()
+            .filter(|layer| layer.fractal().is_some() && !self.wall.live)
+            .map(|layer| layer.camera().zoom)
+            .fold(1.0, f64::max);
+        MAX_MAGNIFICATION / own
+    }
+
+    fn kind_name(&self, kind: &str) -> String {
+        self.t(&format!("f_{kind}"))
+    }
+
+    fn show_kind(&mut self, kind: &str) {
+        let Some(spec) = fractal::spec(kind) else {
+            return;
+        };
+        self.kind = kind.to_owned();
+        if let Some(preset) = spec.presets.first() {
+            self.show_preset(&format!("{kind}-{}", preset.name));
+        }
+    }
+
+    fn show_preset(&mut self, name: &str) {
+        if let Some(scene) = presets::get(name).or_else(|| fractal::preset(name)) {
+            self.pick(named(scene, &shown(name)), name.to_owned(), false);
+        }
+    }
+
+    // The tab a scene belongs to, and the kind of its first fractal.
+    fn follow(&mut self, scene: &Scene) {
+        let kind = scene
+            .layers
+            .first()
+            .and_then(|layer| layer.fractal())
+            .map(|shown| &shown.kind);
+        self.fractals = kind.is_some();
+        if let Some(kind) = kind {
+            self.kind = kind.clone();
+        }
+    }
+
     // The tab that is left keeps what it showed, picture and all, and the one that is chosen shows what it had.
-    fn set_mode(&mut self, walls: bool) {
-        if walls == self.wall.on {
+    fn set_mode(&mut self, tab: usize) {
+        let (from, walls) = (self.tab(), tab == 2);
+        if tab == from {
             return;
         }
         if self.wall.live == self.wall.on {
@@ -1234,7 +1317,7 @@ impl App {
             let held = size
                 .filter(|_| self.wall.live)
                 .map(|size| wallpaper_choice(self.seed, &self.wall.request(size)));
-            self.rest[usize::from(self.wall.on)] = Some(Rest {
+            self.rest[from] = Some(Rest {
                 base: self.base.clone(),
                 title: self.title.clone(),
                 is_random: self.is_random,
@@ -1246,11 +1329,12 @@ impl App {
             });
         }
         self.wall.on = walls;
-        let Some(rest) = self.rest[usize::from(walls)].take() else {
-            if walls {
-                self.new_wallpaper();
-            } else if let Some(scene) = presets::get("aurora-spiral") {
-                self.pick(named(scene, &shown("aurora-spiral")), "aurora-spiral".to_owned(), false);
+        self.fractals = tab == 1;
+        let Some(rest) = self.rest[tab].take() else {
+            match tab {
+                2 => self.new_wallpaper(),
+                1 => self.show_kind(&self.kind.clone()),
+                _ => self.show_preset("aurora-spiral"),
             }
             return;
         };
@@ -1282,12 +1366,12 @@ impl App {
     fn scene_in(&self, view: View, zoom: f64) -> Scene {
         let mut scene = self.dressed();
         for layer in &mut scene.layers {
-            let tone = &mut layer.flame.tone;
+            let tone = layer.tone_mut();
             tone.brightness *= self.adjust.brightness;
             tone.gamma *= self.adjust.gamma;
             tone.glow_strength *= self.adjust.glow;
-            layer.flame.camera.zoom *= zoom;
-            layer.flame.camera = layer.flame.camera.looking_at(view.right, view.down, view.zoom);
+            layer.camera_mut().zoom *= zoom;
+            *layer.camera_mut() = layer.camera().looking_at(view.right, view.down, view.zoom);
         }
         scene
     }
@@ -1316,7 +1400,7 @@ impl App {
             return false;
         }
         let scene = self.scene_in(self.shown, self.shown_zoom);
-        if scene.sheets.is_some() || scene.validate().is_err() {
+        if !all_flames(&scene) || scene.validate().is_err() {
             return false;
         }
         let (Some(preview), Some(held)) = (&mut self.preview, &self.held) else {
@@ -1405,7 +1489,7 @@ impl App {
             return;
         }
         // The shaders are not compiled yet: a draft stands in, and the render begins again when they are.
-        let soon = self.gpu_on() && scene.sheets.is_none() && self.chaos.as_ref().is_some_and(Chaos::pending);
+        let soon = self.gpu_on() && all_flames(&scene) && self.chaos.as_ref().is_some_and(Chaos::pending);
         if soon && chaos_only() {
             return;
         }
@@ -1416,7 +1500,7 @@ impl App {
             eprintln!("times: the processor renders {} passes", passes.len());
         }
         let (view, zoom) = (self.view, self.adjust.zoom);
-        let sources = self.gpu_on() && scene.sheets.is_none();
+        let sources = self.gpu_on() && all_flames(&scene);
         let home = view == WHOLE;
         let (sender, ctx, kept) = (self.results.0.clone(), ctx.clone(), self.kept.clone());
         let work = move || {
@@ -1532,7 +1616,7 @@ impl App {
     }
 
     fn begin_chaos(&mut self, ctx: &egui::Context, scene: &Scene, full: &RenderOptions) -> bool {
-        let drawn = self.gpu_on() && !self.wall.live && scene.sheets.is_none();
+        let drawn = self.gpu_on() && !self.wall.live && all_flames(scene);
         let Some(chaos) = &mut self.chaos else {
             return false;
         };
@@ -1736,7 +1820,8 @@ impl App {
         };
         let pending = chaos.pending();
         // The shaders are compiled, or refused: a render that began without them begins again.
-        if self.compiling && !pending && self.rendering && !self.chaotic && self.gpu_on() {
+        let flames = self.wall.live || all_flames(&self.base);
+        if self.compiling && !pending && self.rendering && !self.chaotic && self.gpu_on() && flames {
             self.requested = None;
         }
         self.compiling = pending;
@@ -1915,6 +2000,8 @@ impl App {
             "random": self.is_random,
             "seed": self.seed,
             "generator": self.generator.number(),
+            "fractals": self.fractals,
+            "kind": self.kind,
             "adjust": [self.adjust.brightness, self.adjust.gamma, self.adjust.glow, self.adjust.zoom],
             "view": [self.view.right, self.view.down, self.view.zoom],
             "layer": self.layer,
@@ -1951,6 +2038,15 @@ impl App {
         self.is_random = session.get("random")?.as_bool()?;
         self.seed = session.get("seed")?.as_u64()?;
         self.generator = generator_of(&session);
+        self.follow(&self.base.clone());
+        if let Some(fractals) = session.get("fractals").and_then(serde_json::Value::as_bool) {
+            self.fractals = fractals;
+        }
+        if let Some(kind) = session.get("kind").and_then(serde_json::Value::as_str)
+            && fractal::spec(kind).is_some()
+        {
+            self.kind = kind.to_owned();
+        }
         if let Some(&[brightness, gamma, glow, zoom]) = numbers("adjust").as_deref() {
             self.adjust = Adjust {
                 brightness,
@@ -2023,6 +2119,10 @@ impl App {
             self.recent_sheet(ui, room);
             return;
         }
+        if self.listing == Listing::Kinds {
+            self.kind_sheet(ui, room);
+            return;
+        }
         if self.listing != Listing::Presets {
             self.wall_sheet(ui, room);
             return;
@@ -2033,21 +2133,25 @@ impl App {
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
         let mut chosen = None;
-        let tall = list_height(presets::names().len() + usize::from(adding), room);
+        // A flame can lie over a fractal: the list of layers to add holds the presets of both.
+        let mut names = if self.fractals { self.kind_presets() } else { Vec::new() };
+        if !self.fractals || adding {
+            names.extend(presets::names().into_iter().map(str::to_owned));
+        }
+        let tall = list_height(names.len() + usize::from(adding), room);
         egui::ScrollArea::vertical()
             .max_height(tall)
             .min_scrolled_height(tall)
             .show(ui, |ui| {
                 if adding && widgets::row(ui, &shown(&self.t("random")), false) {
-                    let title = self.next_random();
-                    chosen = Some((random_scene_of(self.generator, self.seed), title));
+                    chosen = Some(self.fresh());
                 }
-                for name in presets::names() {
-                    let current = !adding && !self.is_random && self.title == name;
+                for name in &names {
+                    let current = !adding && !self.is_random && self.title == *name;
                     if widgets::row(ui, &shown(name), current)
-                        && let Some(scene) = presets::get(name)
+                        && let Some(scene) = presets::get(name).or_else(|| fractal::preset(name))
                     {
-                        chosen = Some((named(scene, &shown(name)), name.to_owned()));
+                        chosen = Some((named(scene, &shown(name)), name.clone()));
                     }
                 }
             });
@@ -2065,6 +2169,89 @@ impl App {
             }
         } else {
             self.pick(scene, title, false);
+        }
+    }
+
+    fn kind_presets(&self) -> Vec<String> {
+        fractal::spec(&self.kind)
+            .map(|spec| {
+                spec.presets
+                    .iter()
+                    .map(|preset| format!("{}-{}", spec.name, preset.name))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    // The random scene of the next seed, of the kind the tab makes, and its title.
+    fn fresh(&mut self) -> (Scene, String) {
+        if self.fractals {
+            self.seed += 1;
+            let title = format!("{} {}", self.kind_name(&self.kind), self.seed);
+            if let Some(scene) = fractal::random_scene(&self.kind, self.seed) {
+                return (named(scene, &title), title);
+            }
+        }
+        let title = self.next_random();
+        (named(random_scene_of(self.generator, self.seed), &title), title)
+    }
+
+    fn kind_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
+        widgets::section(ui, &self.t("fractal_kind"));
+        let mut bar = egui::style::ScrollStyle::floating();
+        bar.bar_width = 5.0;
+        ui.spacing_mut().scroll = bar;
+        let mut chosen = None;
+        let tall = list_height(fractal::all().count(), room);
+        egui::ScrollArea::vertical()
+            .max_height(tall)
+            .min_scrolled_height(tall)
+            .show(ui, |ui| {
+                for spec in fractal::all() {
+                    if widgets::row(ui, &self.kind_name(spec.name), self.kind == spec.name) {
+                        chosen = Some(spec.name);
+                    }
+                }
+            });
+        if let Some(kind) = chosen {
+            self.presets_open = false;
+            self.show_kind(kind);
+        }
+    }
+
+    // The sliders of the chosen layer's fractal: one for each parameter of its kind.
+    fn fractal_controls(&mut self, ui: &mut egui::Ui) {
+        let at = self.layer.min(self.base.layers.len().saturating_sub(1));
+        let Some((spec, values)) = self
+            .base
+            .layers
+            .get(at)
+            .and_then(|layer| layer.fractal())
+            .and_then(|shown| fractal::spec(&shown.kind).map(|spec| (spec, spec.values(shown))))
+        else {
+            return;
+        };
+        widgets::section(ui, &self.t("parameters"));
+        let mut changed = Vec::new();
+        for (param, before) in spec.params.iter().zip(values) {
+            let mut value = before;
+            let label = self.t(&format!("p_{}", param.name));
+            let digits = if param.whole { 0 } else { 3 };
+            widgets::slider_to(ui, &label, &mut value, (param.min, param.max), param.log, digits);
+            if param.whole {
+                value = value.round();
+            }
+            if value != before {
+                changed.push((param.name, value.clamp(param.min, param.max)));
+            }
+        }
+        if !changed.is_empty()
+            && let Some(shown) = self.base.layers[at].fractal_mut()
+        {
+            shown
+                .params
+                .extend(changed.into_iter().map(|(name, value)| (name.to_owned(), value)));
+            self.requested = None;
         }
     }
 
@@ -2405,7 +2592,9 @@ impl App {
             let factor = pinch * (1.0 + wheel * 0.004).clamp(0.5, 2.0);
             if factor != 1.0 {
                 let around = pointer.map_or(egui::Vec2::ZERO, |at| (at - screen.center()) / screen.size());
-                self.view.magnified(f64::from(factor), sides(around, size, stretch));
+                let most = self.deepest();
+                self.view
+                    .magnified(f64::from(factor), sides(around, size, stretch), most);
             }
         }
         if self.view != before {
@@ -2760,15 +2949,20 @@ impl App {
         }
 
         ui.add_space(12.0);
-        let (flames, shapes) = (self.t("flames"), self.t("shapes"));
-        let mode = widgets::segments(ui, &[flames, shapes], usize::from(self.wall.on)).map(|index| index == 1);
-        if let Some(walls) = mode {
-            self.set_mode(walls);
+        let tabs = ["flames", "fractals", "shapes"].map(|key| self.t(key));
+        if let Some(tab) = widgets::segments(ui, &tabs, self.tab()) {
+            self.set_mode(tab);
         }
 
         if self.wall.on {
             self.wallpaper_controls(ui);
         } else {
+            if self.fractals {
+                widgets::section(ui, &self.t("fractal_kind"));
+                if widgets::dropdown(ui, &self.kind_name(&self.kind)) {
+                    self.open_listing(Listing::Kinds);
+                }
+            }
             widgets::section(ui, &self.t("presets"));
             if widgets::dropdown(ui, &shown(&self.title)) {
                 self.open_sheet(Sheet::Presets);
@@ -2802,6 +2996,7 @@ impl App {
         let flames = !self.wall.live && !self.base.layers.is_empty();
         let before = self.adjust;
         if flames {
+            self.fractal_controls(ui);
             widgets::section(ui, &self.t("tone"));
             widgets::slider(ui, &self.t("brightness"), &mut self.adjust.brightness, (0.3, 2.5), true);
             widgets::slider(ui, &self.t("gamma"), &mut self.adjust.gamma, (0.5, 1.8), false);
@@ -3145,19 +3340,15 @@ impl App {
                 self.new_wallpaper();
             }
             Some("randomize") if self.base.layers.is_empty() => {
-                let title = self.next_random();
-                self.pick(
-                    named(random_scene_of(self.generator, self.seed), &title),
-                    title.clone(),
-                    true,
-                );
+                let (scene, title) = self.fresh();
+                self.pick(scene, title, true);
             }
             Some("mutate") if self.base.layers.is_empty() => {}
             Some("randomize") => {
-                let title = self.next_random();
+                let (mut scene, title) = self.fresh();
                 let at = self.layer.min(self.base.layers.len() - 1);
-                let fresh = random_scene_of(self.generator, self.seed).layers.swap_remove(0);
-                self.base.layers[at].flame = fresh.flame;
+                let fresh = scene.layers.swap_remove(0);
+                self.base.layers[at].content = fresh.content;
                 self.base.layers[at].name = title.clone();
                 if self.base.layers.len() == 1 {
                     self.title = title;
@@ -3172,7 +3363,7 @@ impl App {
                 let mut alone = self.base.clone();
                 alone.layers = vec![self.base.layers[at].clone()];
                 if let Some(changed) = mutate(&alone, self.seed, 0.25).layers.pop() {
-                    self.base.layers[at].flame = changed.flame;
+                    self.base.layers[at].content = changed.content;
                 }
                 self.requested = None;
             }
@@ -3275,6 +3466,8 @@ impl App {
         match loaded {
             Ok(scene) => {
                 self.adjust = NEUTRAL;
+                self.wall.on = false;
+                self.follow(&scene);
                 self.pick(scene, name, false);
             }
             Err(error) => self.status = error,
@@ -4475,7 +4668,7 @@ mod tests {
 
         let mut nearer = scene.clone();
         for layer in &mut nearer.layers {
-            layer.flame.camera.zoom *= 2.0;
+            layer.camera_mut().zoom *= 2.0;
         }
         rendered(&nearer, &options, &control, &kept, false, false).expect("it renders");
         let both = kept.lock().expect("no thread panicked");
@@ -4488,10 +4681,47 @@ mod tests {
     }
 
     #[test]
+    fn a_fractal_is_kept_as_a_layer_and_left_to_the_processor() {
+        let options = RenderOptions {
+            width: 96,
+            height: 64,
+            samples_per_pixel: 8,
+            supersample: 1,
+        };
+        let control = Control {
+            cancel: None,
+            progress: None,
+        };
+        let flame = presets::get("aurora-spiral").expect("the preset exists");
+        assert!(all_flames(&flame));
+        for spec in fractal::all() {
+            let mut scene = fractal::random_scene(spec.name, 4).expect("the kind is listed");
+            assert!(!all_flames(&scene), "{}", spec.name);
+            scene.layers.extend(flame.layers.clone());
+            assert!(!all_flames(&scene), "{}", spec.name);
+            let kept = Layers::default();
+            let whole = fractique_core::render(&scene, &options, &control).expect("it renders");
+            let (first, held) = rendered(&scene, &options, &control, &kept, true, false).expect("it renders");
+            assert_eq!(first.rgba, whole.rgba, "{}", spec.name);
+            assert!(held.is_none());
+
+            let stop = AtomicBool::new(true);
+            let stopped = Control {
+                cancel: Some(&stop),
+                progress: None,
+            };
+            let mut dimmer = scene.clone();
+            dimmer.layers[1].opacity = 0.5;
+            let (again, _) = rendered(&dimmer, &options, &stopped, &kept, true, false).expect("nothing is rendered");
+            let expected = fractique_core::render(&dimmer, &options, &control).expect("it renders");
+            assert_eq!(again.rgba, expected.rgba, "{}", spec.name);
+        }
+    }
+
+    #[test]
     fn a_zoom_is_a_scaled_view() {
         let camera = presets::get("aurora-spiral").expect("the preset exists").layers[0]
-            .flame
-            .camera
+            .camera()
             .clone();
         let size = [300, 200];
         let (shown, shown_zoom) = (
@@ -4551,7 +4781,7 @@ mod tests {
         assert_eq!(sources.len(), scene.layers.len());
 
         for layer in &mut scene.layers {
-            let tone = &mut layer.flame.tone;
+            let tone = layer.tone_mut();
             (tone.brightness, tone.gamma, tone.glow_strength) = (tone.brightness * 1.7, tone.gamma * 0.8, 0.6);
             tone.glow_radius = 0.02;
             layer.opacity *= 0.5;

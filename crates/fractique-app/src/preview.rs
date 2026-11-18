@@ -500,7 +500,7 @@ impl Preview {
             .layers
             .iter()
             .map(|layer| {
-                let tone = &layer.flame.tone;
+                let tone = layer.tone();
                 let sigma = (tone.glow_radius * f64::from(size[0].min(size[1]))) as f32;
                 (tone.glow_strength > 0.0 && sigma >= 0.5).then(|| {
                     let shrink = (sigma / (WIDEST_SIGMA * 0.5)).floor().max(1.0);
@@ -520,7 +520,7 @@ impl Preview {
         let soft = self.soft.as_ref()?;
         let mut passes = Vec::new();
         for (index, ((layer, levels), glow)) in scene.layers.iter().zip(sources).zip(&glowing).enumerate() {
-            let tone = &layer.flame.tone;
+            let tone = layer.tone();
             let levels = *levels;
             let mut uniforms = Uniforms {
                 tone: [

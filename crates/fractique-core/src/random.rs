@@ -1,16 +1,17 @@
 use crate::chaos::{Compiled, Walker};
+use crate::fractal;
 use crate::math::{TAU, cos, sin};
 use crate::palette;
 use crate::rng::Rng;
-use crate::scene::{Blend, Camera, Flame, Layer, SCENE_VERSION, Scene, Tone, Transform};
+use crate::scene::{Blend, Camera, Content, Flame, Layer, SCENE_VERSION, Scene, Tone, Transform};
 use crate::variation::{Kind, Variation};
 
 const RANDOM_DOMAIN: u64 = 0x2000;
 const SECOND_DOMAIN: u64 = 0x5000;
 const MUTATE_DOMAIN: u64 = 0x3000;
 const PROBE_DOMAIN: u64 = 0x4000;
-const PROBE_POINTS: u64 = 30_000;
-const GRID: usize = 48;
+pub(crate) const PROBE_POINTS: u64 = 30_000;
+pub(crate) const GRID: usize = 48;
 const ATTEMPTS: u64 = 40;
 
 const CHOICES: [(Kind, u32); 27] = [
@@ -287,20 +288,20 @@ fn finished(rng: &mut Rng, transforms: Vec<Transform>) -> Flame {
     }
 }
 
-struct Probe {
-    camera: Camera,
-    cells: Vec<u32>,
-    inside: usize,
-    points: usize,
+pub(crate) struct Probe {
+    pub(crate) camera: Camera,
+    pub(crate) cells: Vec<u32>,
+    pub(crate) inside: usize,
+    pub(crate) points: usize,
 }
 
 impl Probe {
-    fn framed(&self) -> bool {
+    pub(crate) fn framed(&self) -> bool {
         let covered = self.cells.iter().filter(|hits| **hits > 0).count() as f64 / (GRID * GRID) as f64;
         (0.12..=0.8).contains(&covered) && self.inside * 10 >= self.points * 7
     }
 
-    fn contrast(&self) -> usize {
+    pub(crate) fn contrast(&self) -> usize {
         let step = |a: usize, b: usize| self.cells[a].abs_diff(self.cells[b]) as usize;
         let mut sum = 0;
         for y in 0..GRID {
@@ -365,6 +366,10 @@ fn probe(flame: &Flame) -> Option<Probe> {
     let mut walker = Walker::new(&compiled, &mut rng);
     let mut points = Vec::with_capacity(PROBE_POINTS as usize);
     walker.run(&compiled, &mut rng, PROBE_POINTS, |x, y, _| points.push((x, y)));
+    probe_of(points, flame.camera.flip_y)
+}
+
+pub(crate) fn probe_of(points: Vec<(f64, f64)>, flip_y: bool) -> Option<Probe> {
     if points.len() < 1000 {
         return None;
     }
@@ -397,7 +402,7 @@ fn probe(flame: &Flame) -> Option<Probe> {
             center,
             zoom: 2.0 / half,
             rotation: 0.0,
-            flip_y: flame.camera.flip_y,
+            flip_y,
         },
         cells,
         inside,
@@ -463,14 +468,14 @@ pub fn random_scene_of(generator: Generator, seed: u64) -> Scene {
         name: "base".into(),
         blend: Blend::Add,
         opacity: 1.0,
-        flame: framed_flame(seed, domain, make, verdict),
+        content: Content::Flame(framed_flame(seed, domain, make, verdict)),
     }];
     if rng.next_f64() < 0.35 {
         layers.push(Layer {
             name: "veil".into(),
             blend: Blend::Add,
             opacity: rng.range(0.4, 0.75),
-            flame: framed_flame(seed, domain + 1, make, verdict),
+            content: Content::Flame(framed_flame(seed, domain + 1, make, verdict)),
         });
     }
     Scene {
@@ -488,7 +493,16 @@ pub fn mutate(scene: &Scene, seed: u64, strength: f64) -> Scene {
     let mut out = scene.clone();
     for (index, layer) in out.layers.iter_mut().enumerate() {
         let mut rng = Rng::derive(seed, MUTATE_DOMAIN, index as u64);
-        for transform in &mut layer.flame.transforms {
+        let flame = match &mut layer.content {
+            Content::Flame(flame) => flame,
+            Content::Fractal(shown) => {
+                if let Some(spec) = fractal::spec(&shown.kind) {
+                    *shown = (spec.mutate)(shown, &mut rng, strength);
+                }
+                continue;
+            }
+        };
+        for transform in &mut flame.transforms {
             for value in &mut transform.affine {
                 *value += rng.range(-0.35, 0.35) * strength;
             }
@@ -574,7 +588,12 @@ mod tests {
             let scene = random_scene_of(generator, seed);
             scene.validate().unwrap();
             for layer in &scene.layers {
-                for variation in layer.flame.transforms.iter().flat_map(|t| &t.variations) {
+                for variation in layer
+                    .flame()
+                    .into_iter()
+                    .flat_map(|flame| &flame.transforms)
+                    .flat_map(|t| &t.variations)
+                {
                     if !kinds.contains(&variation.kind) {
                         kinds.push(variation.kind);
                     }

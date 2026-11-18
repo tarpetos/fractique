@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique iki tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumuşak ışıktan oluşan, parlayan, tül gibi fraktallar. Ve duvar kâğıtları: kenarları aydınlatılmış, yumuşak gölgeli düz levhalar; her birinin açık ve koyu sürümü vardır. Bir hazır ayar seçer, rastgele bir görüntü üretir ya da birkaç alevi üst üste bindirirsiniz ve sonucu telefon ekranından 4K monitöre kadar istediğiniz boyutta dışa aktarırsınız. Bir sahne tek bir küçük dosyadır ve aynı dosya Windows, macOS, Linux, Android ve iOS’ta her zaman tam olarak aynı pikselleri verir.
+Fractique üç tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumuşak ışıktan oluşan, parlayan, tül gibi fraktallar. Klasik fraktallar: yumuşak renk geçişleri ve derin yakınlaştırmayla Mandelbrot kümesi, Julia kümeleri ve garip çekiciler. Ve duvar kâğıtları: kenarları aydınlatılmış, yumuşak gölgeli düz levhalar; her birinin açık ve koyu sürümü vardır. Bir hazır ayar seçer, rastgele bir görüntü üretir ya da birkaç alevi üst üste bindirirsiniz ve sonucu telefon ekranından 4K monitöre kadar istediğiniz boyutta dışa aktarırsınız. Bir sahne tek bir küçük dosyadır ve aynı dosya Windows, macOS, Linux, Android ve iOS’ta her zaman tam olarak aynı pikselleri verir.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="aurora-spiral hazır ayarı: koyu bir arka planda turkuaz ve yeşil sarmal tüller" width="880">
@@ -17,6 +17,7 @@ Fractique iki tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumu
 ## Fractique neler yapar
 
 - **Alevler:** 49 varyasyon, karıştırma modlu katmanlar, dönme ve ayna simetrisi, yoğunluk kestirimi, ışıltı ve 29 yerleşik hazır ayar.
+- **Fraktallar:** Mandelbrot kümesi, Julia kümeleri ve Clifford çekicisi; her birinin hazır ayarları ve her tohum için bir görüntüsü vardır. Paletleri, katmanları ve derin yakınlaştırmayı alevlerle paylaşırlar.
 - **Duvar kâğıtları:** her tohum için bir tane; 14 düzen ve 6 malzemeden, her biri açık ve koyu sürümüyle, ekranın boyutuna göre yerleştirilir.
 - **Uygulama:** Windows, macOS, Linux, Android, iOS ve web için tek kod tabanı. Görüntü pencereyi doldurur, üzerinde cam paneller süzülür; masaüstünde uygulamanın kendi cam başlık çubuğu vardır. 15 dilde.
 - **“Rastgele” ve “Mutasyon”:** her tohum bir görüntüdür; bir nokta ya da dolu bir kare olacak alevler atlanır. “Mutasyon”, beğendiğinizin bir varyantını üretir.
@@ -38,6 +39,13 @@ Fractique iki tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumu
 | `emerald-star` (iki katman) | `ember-vortex` |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+Başka türden fraktallar: Mandelbrot kümesi, bir Julia kümesi ve Clifford çekicisi:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 Açık ve koyu duvar kâğıtları, her biri kendi düzeni ve malzemesiyle:
 
@@ -71,6 +79,9 @@ Ya da komut satırından işleyin:
 
 # telefon ekranı için 42 tohumunun rastgele alevi
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# 7 tohumunun rastgele Mandelbrot görünümü
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # telefon için 7 tohumunun duvar kâğıdı, açık ve koyu
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png

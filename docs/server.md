@@ -51,8 +51,9 @@ refused, so a misspelt name is an error and not a silent default.
 | Method and path | Body | Returns |
 | --- | --- | --- |
 | `GET /presets` | | `{"presets": ["aurora-spiral", ...]}` |
-| `GET /presets/{name}` | | The preset as a scene |
-| `POST /random` | `{"seed"}` | The random scene of the seed |
+| `GET /presets/{name}` | | The preset as a scene; a preset of a fractal (`mandelbrot-whole`) by the name `GET /fractals` gives |
+| `POST /random` | `{"seed", "fractal"?}` | The random scene of the seed: a flame, or a fractal of the kind named |
+| `GET /fractals` | | `{"fractals": [...]}`: the kinds of fractal besides flames, each with its `name`, `family`, how it is `drawn`, its `params` (`name`, `default`, `min`, `max`, `whole`) and its `presets` |
 | `POST /wallpaper` | `{"seed", "layout"?, "material"?, "dark"?, "hue"?, "width"?, "height"?}` | The wallpaper of the seed as a scene |
 | `POST /render` | One source, a size and a quality, see below | `image/png` |
 | `GET /limits` | | The limits of this instance, whether MCP is on (`"mcp"`) and the names of the qualities, layouts and materials |
@@ -73,6 +74,8 @@ curl http://127.0.0.1:8080/presets/aurora-spiral -o aurora-spiral.json
 
 ```sh
 curl -X POST http://127.0.0.1:8080/random -d '{"seed": 42}' -o scene.json
+curl -X POST http://127.0.0.1:8080/random -d '{"seed": 42, "fractal": "julia"}' -o julia.json
+curl http://127.0.0.1:8080/fractals
 ```
 
 ### A wallpaper
@@ -105,6 +108,7 @@ curl -X POST http://127.0.0.1:8080/render \
 | Field | | |
 | --- | --- | --- |
 | `scene`, `preset`, `random` or `wallpaper` | exactly one | A scene document, a preset's name, the seed of a random scene, or a wallpaper: the body of `/wallpaper`, laid out for the size of the render |
+| `fractal` | optional, with `random` | The kind of the random scene: `mandelbrot`, `julia`, `clifford`; a flame when left out |
 | `width`, `height` | required | The size of the image in pixels |
 | `quality` | optional | `draft`, `mobile`, `standard`, `high` or `ultra` ([usage.md](usage.md#4-size-and-quality)); `standard` when left out |
 | `samples` | optional | Samples per pixel, instead of the quality's |

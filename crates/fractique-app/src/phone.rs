@@ -4,7 +4,7 @@ use std::sync::mpsc;
 use eframe::egui;
 use egui::{Align2, Color32, CornerRadius, Pos2, Rect, Sense, Stroke, vec2};
 use fractique_core::wallpaper::{Layout, Material, Request, chosen, random_wallpaper};
-use fractique_core::{Control, RenderOptions, Scene, palette, presets, render};
+use fractique_core::{Control, RenderOptions, Scene, fractal, palette, presets, render};
 use serde_json::{Value, json};
 
 use crate::widgets::{self, MEDIUM, SEMIBOLD, font};
@@ -374,6 +374,7 @@ impl App {
             }
             Kind::Flame(scene) => {
                 self.wall.on = false;
+                self.follow(scene);
                 self.palette = None;
                 self.pick((**scene).clone(), piece.title.clone(), false);
             }
@@ -528,8 +529,8 @@ impl App {
         self.phone.clear.clear();
         let (on_picture, ink) = (ink, Color32::WHITE);
         let reverse = Color32::from_rgb(14, 18, 34);
-        let labels = [self.t("flames"), self.t("shapes")];
-        let walls = self.wall.on;
+        let labels = ["flames", "fractals", "shapes"].map(|key| self.t(key));
+        let tab = self.tab();
         let mut mode = None;
         let pill = egui::Area::new(egui::Id::unique("phone_mode"))
             .fixed_pos(egui::pos2(content.center().x, content.top() + 10.0))
@@ -539,18 +540,18 @@ impl App {
                     ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
                     ui.horizontal(|ui| {
                         for (index, label) in labels.iter().enumerate() {
-                            let chosen = (index == 1) == walls;
+                            let chosen = index == tab;
                             let color = if chosen { reverse } else { ink };
                             let galley = ui.painter().layout_no_wrap(label.clone(), font(13.5, MEDIUM), color);
                             let (rect, response) =
-                                ui.allocate_exact_size(vec2(galley.size().x + 30.0, 36.0), Sense::click());
+                                ui.allocate_exact_size(vec2(galley.size().x + 26.0, 36.0), Sense::click());
                             if chosen {
                                 ui.painter()
                                     .rect_filled(rect, CornerRadius::same(18), ink.gamma_multiply(0.92));
                             }
                             ui.painter().galley(rect.center() - galley.size() * 0.5, galley, color);
                             if response.clicked() {
-                                mode = Some(index == 1);
+                                mode = Some(index);
                             }
                         }
                     });
@@ -558,8 +559,8 @@ impl App {
             });
         panes.push((pill.response.rect, pill.response.rect.height() * 0.5, false));
         self.phone.clear.push(pill.response.rect);
-        if let Some(walls) = mode {
-            self.set_mode(walls);
+        if let Some(tab) = mode {
+            self.set_mode(tab);
         }
 
         let strip = egui::Area::new(egui::Id::unique("phone_colors"))
@@ -975,6 +976,8 @@ impl App {
                                         self.colors(ui, 26.0);
                                         if self.wall.on {
                                             self.sheet_walls(ui, size, scale);
+                                        } else if self.fractals {
+                                            close |= self.sheet_fractals(ui, scale);
                                         } else {
                                             close |= self.sheet_flames(ui, scale);
                                         }
@@ -1158,6 +1161,74 @@ impl App {
         }
     }
 
+    // The kinds of fractal, each with a small picture of its first preset, and the presets of the chosen one.
+    fn sheet_fractals(&mut self, ui: &mut egui::Ui, scale: f32) -> bool {
+        let ctx = ui.ctx().clone();
+        let gap = 8.0;
+        let wide = tile_width(ui.available_width(), gap);
+        let side = [wide, (wide * TILE_RATIO).round()];
+        let pixels = [(side[0] * scale) as usize, (side[1] * scale) as usize];
+        let mut budget = 2;
+        let colors = self.palette.and_then(|at| palette::named(palette::NAMES[at]));
+        let pictured = |name: &str| {
+            let mut scene = fractal::preset(name)?;
+            if let Some(colors) = &colors {
+                for layer in &mut scene.layers {
+                    *layer.palette_mut() = colors.clone();
+                }
+            }
+            Some(scene)
+        };
+
+        widgets::section(ui, &self.t("fractal_kind"));
+        ui.add_space(4.0);
+        let mut kind = None;
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(gap, 10.0);
+            for spec in fractal::all() {
+                let first = spec
+                    .presets
+                    .first()
+                    .map(|preset| format!("{}-{}", spec.name, preset.name));
+                let key = format!("p {first:?} {:?}", self.palette);
+                let picture = self.thumb(&ctx, key, pixels, 10, &mut budget, || pictured(&first?));
+                if Self::tile(ui, side, picture, &self.kind_name(spec.name), self.kind == spec.name) {
+                    kind = Some(spec.name);
+                }
+            }
+        });
+        if let Some(kind) = kind {
+            self.show_kind(kind);
+        }
+
+        widgets::section(ui, &self.t("presets"));
+        ui.add_space(4.0);
+        let random_label = shown(&self.t("random"));
+        let (mut random, mut picked) = (false, None);
+        let prefix = self.kind.len() + 1;
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(gap, 10.0);
+            random = Self::tile(ui, side, None, &random_label, self.is_random && !self.wall.live);
+            for name in self.kind_presets() {
+                let key = format!("p {:?} {:?}", Some(&name), self.palette);
+                let picture = self.thumb(&ctx, key, pixels, 10, &mut budget, || pictured(&name));
+                let current = !self.is_random && self.title == name;
+                if Self::tile(ui, side, picture, &shown(&name[prefix..]), current) {
+                    picked = Some(name);
+                }
+            }
+        });
+        if random {
+            self.act("randomize");
+            return true;
+        }
+        if let Some(name) = picked {
+            self.show_preset(&name);
+            return true;
+        }
+        false
+    }
+
     fn sheet_flames(&mut self, ui: &mut egui::Ui, scale: f32) -> bool {
         let ctx = ui.ctx().clone();
         let gap = 8.0;
@@ -1181,7 +1252,7 @@ impl App {
                     let mut scene = presets::get(name)?;
                     if let Some(colors) = colors {
                         for layer in &mut scene.layers {
-                            layer.flame.palette = colors.clone();
+                            *layer.palette_mut() = colors.clone();
                         }
                     }
                     Some(scene)
@@ -1219,7 +1290,7 @@ mod tests {
 
     fn flame(title: &str, brightness: f64) -> Piece {
         let mut scene = fractique_core::presets::get("aurora-spiral").unwrap();
-        scene.layers[0].flame.tone.brightness = brightness;
+        scene.layers[0].tone_mut().brightness = brightness;
         Piece {
             title: title.into(),
             kind: Kind::Flame(Box::new(scene)),

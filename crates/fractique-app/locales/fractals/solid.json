@@ -1,0 +1,53 @@
+{
+  "f_mandelbox": {
+    "en": "Mandelbox",
+    "uk": "Мандельбокс",
+    "ru": "Мандельбокс",
+    "de": "Mandelbox",
+    "fr": "Mandelbox",
+    "es": "Mandelbox",
+    "it": "Mandelbox",
+    "ja": "マンデルボックス",
+    "zh-Hans": "曼德盒",
+    "pt-BR": "Mandelbox",
+    "ko": "만델박스",
+    "hi": "मैंडलबॉक्स",
+    "tr": "Mandelbox",
+    "pl": "Mandelbox",
+    "id": "Mandelbox"
+  },
+  "f_mandelbulb": {
+    "en": "Mandelbulb",
+    "uk": "Мандельбалб",
+    "ru": "Мандельбалб",
+    "de": "Mandelbulb",
+    "fr": "Mandelbulb",
+    "es": "Mandelbulb",
+    "it": "Mandelbulb",
+    "ja": "マンデルバルブ",
+    "zh-Hans": "曼德球",
+    "pt-BR": "Mandelbulb",
+    "ko": "만델벌브",
+    "hi": "मैंडलबल्ब",
+    "tr": "Mandelbulb",
+    "pl": "Mandelbulb",
+    "id": "Mandelbulb"
+  },
+  "f_menger_sponge": {
+    "en": "Menger sponge",
+    "uk": "Губка Менгера",
+    "ru": "Губка Менгера",
+    "de": "Menger-Schwamm",
+    "fr": "Éponge de Menger",
+    "es": "Esponja de Menger",
+    "it": "Spugna di Menger",
+    "ja": "メンガーのスポンジ",
+    "zh-Hans": "门格海绵",
+    "pt-BR": "Esponja de Menger",
+    "ko": "멩거 스펀지",
+    "hi": "मेंगर स्पंज",
+    "tr": "Menger süngeri",
+    "pl": "Gąbka Mengera",
+    "id": "Spons Menger"
+  }
+}

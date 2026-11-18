@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique makes two kinds of pictures. Fractal flames: the glowing, wispy kind of fractal made of thin curves and soft light. And wallpapers: flat sheets with lit edges and soft shadows, each in a light and a dark version. You pick a preset, roll a random picture or layer several flames over each other, and export it at any size, from a phone screen to a 4K monitor. A scene is one small file, and the same file always renders to exactly the same pixels, on Windows, macOS, Linux, Android and iOS alike.
+Fractique makes three kinds of pictures. Fractal flames: the glowing, wispy kind of fractal made of thin curves and soft light. Classic fractals: the Mandelbrot set, Julia sets and strange attractors, in smooth color and down to a deep zoom. And wallpapers: flat sheets with lit edges and soft shadows, each in a light and a dark version. You pick a preset, roll a random picture or layer several flames over each other, and export it at any size, from a phone screen to a 4K monitor. A scene is one small file, and the same file always renders to exactly the same pixels, on Windows, macOS, Linux, Android and iOS alike.
 
 <p align="center">
   <img src="docs/samples/aurora-spiral.png" alt="The aurora-spiral preset: teal and green spiral wisps on a dark background" width="880">
@@ -17,6 +17,7 @@ Fractique makes two kinds of pictures. Fractal flames: the glowing, wispy kind o
 ## What it does
 
 - **Flames:** 49 variations, layers with blend modes, rotational and mirror symmetry, density estimation, glow, and 29 built-in presets.
+- **Fractals:** the Mandelbrot set, Julia sets and the Clifford attractor, each with presets and a picture for every seed; they share the palettes, the layers and the deep zoom of the flames.
 - **Wallpapers:** one for every seed, out of 14 layouts and 6 materials, each in a light and a dark version, laid out for the size of the screen.
 - **The app:** one codebase for Windows, macOS, Linux, Android, iOS and the web. The picture fills the window and glass panels float over it; on the desktop the app has a glass title bar of its own. In 15 languages.
 - **Randomize and Mutate:** every seed is a picture; flames that would be a dot or a filled square are skipped. Mutate makes a variant of the one you like.
@@ -38,6 +39,13 @@ Fractique makes two kinds of pictures. Fractal flames: the glowing, wispy kind o
 | `emerald-star` (two layers) | `ember-vortex` |
 | ![golden-bloom](docs/samples/golden-bloom.png) | ![solar-mandala](docs/samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+Fractals of other kinds: the Mandelbrot set, a Julia set and the Clifford attractor:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](docs/samples/fractal-mandelbrot.png) | ![julia](docs/samples/fractal-julia.png) | ![clifford](docs/samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 Wallpapers, light and dark, each with its layout and material:
 
@@ -71,6 +79,9 @@ Or render from the command line:
 
 # the random flame of seed 42, for a phone screen
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# the random view of the Mandelbrot set of seed 7
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # the wallpaper of seed 7 for a phone, light and dark
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png

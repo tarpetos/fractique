@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique는 두 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입니다. 가는 곡선과 부드러운 빛으로 이루어진, 빛나는 안개 같은 프랙탈입니다. 다른 하나는 배경화면입니다. 가장자리에 빛이 들고 부드러운 그림자가 지는 평평한 시트를 겹친 것으로, 각각 라이트 버전과 다크 버전이 있습니다. 프리셋을 고르거나, 무작위 이미지를 만들거나, 여러 불꽃을 겹친 다음 휴대폰 화면부터 4K 모니터까지 원하는 크기로 내보낼 수 있습니다. 장면은 작은 파일 하나이며, 같은 파일은 Windows, macOS, Linux, Android, iOS 어디서나 항상 정확히 같은 픽셀로 렌더링됩니다.
+Fractique는 세 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입니다. 가는 곡선과 부드러운 빛으로 이루어진, 빛나는 안개 같은 프랙탈입니다. 또 하나는 고전적인 프랙탈입니다. 만델브로 집합, 줄리아 집합, 기묘한 끌개를 부드러운 색과 깊은 확대로 그립니다. 다른 하나는 배경화면입니다. 가장자리에 빛이 들고 부드러운 그림자가 지는 평평한 시트를 겹친 것으로, 각각 라이트 버전과 다크 버전이 있습니다. 프리셋을 고르거나, 무작위 이미지를 만들거나, 여러 불꽃을 겹친 다음 휴대폰 화면부터 4K 모니터까지 원하는 크기로 내보낼 수 있습니다. 장면은 작은 파일 하나이며, 같은 파일은 Windows, macOS, Linux, Android, iOS 어디서나 항상 정확히 같은 픽셀로 렌더링됩니다.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="aurora-spiral 프리셋: 어두운 배경 위의 청록색과 초록색 나선형 빛줄기" width="880">
@@ -17,6 +17,7 @@ Fractique는 두 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입
 ## 기능
 
 - **불꽃:** 49가지 배리에이션, 블렌드 모드가 있는 레이어, 회전 대칭과 거울 대칭, 밀도 추정, 글로우, 그리고 29개의 내장 프리셋.
+- **프랙탈:** 만델브로 집합, 줄리아 집합, 클리퍼드 끌개. 각각 프리셋이 있고 시드마다 이미지가 하나씩 나옵니다. 팔레트, 레이어, 깊은 확대는 불꽃과 함께 씁니다.
 - **배경화면:** 시드마다 하나씩, 14가지 레이아웃과 6가지 소재로 만들어지며, 각각 라이트 버전과 다크 버전이 있고 화면 크기에 맞게 배치됩니다.
 - **앱:** Windows, macOS, Linux, Android, iOS, 웹을 하나의 코드베이스로 지원합니다. 이미지가 창을 가득 채우고 그 위에 유리 패널이 떠 있으며, 데스크톱에서는 앱 고유의 유리 제목 표시줄이 있습니다. 15개 언어 지원.
 - **‘무작위’와 ‘변이’:** 모든 시드가 하나의 이미지입니다. 점이나 꽉 찬 사각형이 될 불꽃은 건너뜁니다. ‘변이’는 마음에 드는 이미지의 변형을 만듭니다.
@@ -38,6 +39,13 @@ Fractique는 두 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입
 | `emerald-star` (레이어 2개) | `ember-vortex` |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+다른 종류의 프랙탈: 만델브로 집합, 줄리아 집합, 클리퍼드 끌개:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 라이트 배경화면과 다크 배경화면, 각각의 레이아웃과 소재:
 
@@ -71,6 +79,9 @@ Fractique는 두 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입
 
 # 시드 42의 무작위 불꽃을 휴대폰 화면용으로
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# 시드 7의 무작위 만델브로 집합 화면
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # 시드 7의 휴대폰용 배경화면, 라이트 버전과 다크 버전
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png

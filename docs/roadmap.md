@@ -20,6 +20,8 @@ built on it.
 | 13 | **GPU preview:** while a tone slider, the zoom, an opacity or a blend moves, the graphics card draws the picture from the rendered layers; the processor's picture replaces it when the control rests ([architecture.md](architecture.md#the-preview-on-the-graphics-card)) | Done; seen running on Linux with a software graphics card only |
 | 14 | **The chaos game on the graphics card:** with GPU acceleration on, a flame is drawn by the graphics card alone, at full size in a fraction of a second, and the processor renders only exact exports; the switch exists only where a trial shows the card clearly faster than the processor ([architecture.md](architecture.md#the-chaos-game-on-the-graphics-card)) | Done; measured on Windows with an NVIDIA RTX 4070 and run on Linux with a software graphics card. Not run on macOS, on a phone or on an integrated graphics card |
 
+| 15 | **Fractals of other kinds:** a layer is a flame or a fractal of a kind from a registry, drawn per pixel or as a density; the Mandelbrot set, Julia sets and the Clifford attractor, with presets, a random picture for every seed and mutation; a third tab in the app, `fractique fractals` and `--fractal`, the MCP tools and the HTTP server ([architecture.md](architecture.md#fractals-of-other-kinds)) | The foundation and three kinds are done. Next, on the same registry: Burning Ship, Tricorn, Multibrot, Phoenix, Magnet; Newton, Nova; Buddhabrot, De Jong, Lorenz, Gumowski-Mira, Hopalong; Apollonian gasket, Kleinian groups, L-systems, Lyapunov; Mandelbulb, Mandelbox, Menger sponge |
+
 ## App, next
 
 What the app does not do yet:
@@ -28,6 +30,9 @@ What the app does not do yet:
 - The chaos game on the graphics card in a browser: the page renders on its one thread, so the exact render would
   have to wait for the graphics card's picture first.
 - Choosing a wallpaper's color on a computer (a phone has it in its styles).
+- Fractals of other kinds on the graphics card: the preview and the first picture are for flames, and a scene
+  with another kind in it is rendered by the processor alone.
+- Editing the colors of a fractal beyond the eight palettes, and typing a parameter in as a number.
 - A build for the Mac App Store: the purchase code is shared with iOS, and no script signs, sandboxes and packs
   the app for it ([ios.md](ios.md#a-mac-app-store-build)).
 - Opening a `.frcq` file by a double click on macOS: the files are shown as Fractique's, and no more.
@@ -36,6 +41,8 @@ What the app does not do yet:
 
 - The second random generator in the MCP server and the HTTP server: both still make random scenes with the first.
 - More presets, and named palettes in scene files.
+- Views of a Mandelbrot or a Julia set past the digits of 64-bit numbers (perturbation), and deep views of the
+  orbit kinds.
 - Rendering in tiles, to lower the memory of large supersampled images.
 - Animation: interpolating between two scenes.
 

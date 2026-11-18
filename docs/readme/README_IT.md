@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique crea due tipi di immagini. Fiamme frattali: frattali luminosi ed eterei fatti di curve sottili e luce morbida. E sfondi: fogli piatti con bordi illuminati e ombre morbide, ciascuno in versione chiara e scura. Scegli un preset, generi un’immagine casuale o sovrapponi più fiamme, ed esporti il risultato a qualsiasi dimensione, dallo schermo di un telefono a un monitor 4K. Una scena è un unico piccolo file, e lo stesso file dà sempre esattamente gli stessi pixel, su Windows, macOS, Linux, Android e iOS.
+Fractique crea tre tipi di immagini. Fiamme frattali: frattali luminosi ed eterei fatti di curve sottili e luce morbida. Frattali classici: l’insieme di Mandelbrot, gli insiemi di Julia e attrattori strani, con colori sfumati e zoom profondo. E sfondi: fogli piatti con bordi illuminati e ombre morbide, ciascuno in versione chiara e scura. Scegli un preset, generi un’immagine casuale o sovrapponi più fiamme, ed esporti il risultato a qualsiasi dimensione, dallo schermo di un telefono a un monitor 4K. Una scena è un unico piccolo file, e lo stesso file dà sempre esattamente gli stessi pixel, su Windows, macOS, Linux, Android e iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Il preset aurora-spiral: volute a spirale turchesi e verdi su sfondo scuro" width="880">
@@ -17,6 +17,7 @@ Fractique crea due tipi di immagini. Fiamme frattali: frattali luminosi ed etere
 ## Che cosa fa Fractique
 
 - **Fiamme:** 49 variazioni, livelli con metodi di fusione, simmetria rotazionale e speculare, stima della densità, bagliore e 29 preset integrati.
+- **Frattali:** l’insieme di Mandelbrot, gli insiemi di Julia e l’attrattore di Clifford, ciascuno con i suoi preset e un’immagine per ogni seme; condividono le palette, i livelli e lo zoom profondo delle fiamme.
 - **Sfondi:** uno per ogni seme, da 14 disposizioni e 6 materiali, ciascuno in versione chiara e scura, disposto per la dimensione dello schermo.
 - **L’app:** un’unica base di codice per Windows, macOS, Linux, Android, iOS e il web. L’immagine riempie la finestra e sopra fluttuano pannelli di vetro; sul desktop l’app ha una propria barra del titolo di vetro. In 15 lingue.
 - **«Casuale» e «Muta»:** ogni seme è un’immagine; le fiamme che sarebbero un punto o un quadrato pieno vengono scartate. «Muta» crea una variante di quella che ti piace.
@@ -38,6 +39,13 @@ Fractique crea due tipi di immagini. Fiamme frattali: frattali luminosi ed etere
 | `emerald-star` (due livelli) | `ember-vortex` |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+Frattali di altri tipi: l’insieme di Mandelbrot, un insieme di Julia e l’attrattore di Clifford:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 Sfondi, chiari e scuri, ciascuno con la sua disposizione e il suo materiale:
 
@@ -71,6 +79,9 @@ Oppure renderizza dalla riga di comando:
 
 # la fiamma casuale del seme 42, per lo schermo di un telefono
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# la vista casuale dell’insieme di Mandelbrot del seme 7
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # lo sfondo del seme 7 per un telefono, chiaro e scuro
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png

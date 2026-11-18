@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique erzeugt zwei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fraktale aus feinen Kurven und weichem Licht. Und Hintergrundbilder: flache Blätter mit beleuchteten Kanten und weichen Schatten, jedes in einer hellen und einer dunklen Fassung. Du wählst eine Vorlage, würfelst ein zufälliges Bild oder legst mehrere Flammen übereinander und exportierst das Ergebnis in jeder Größe, vom Handybildschirm bis zum 4K-Monitor. Eine Szene ist eine kleine Datei, und dieselbe Datei ergibt immer exakt dieselben Pixel, unter Windows, macOS, Linux, Android und iOS.
+Fractique erzeugt drei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fraktale aus feinen Kurven und weichem Licht. Klassische Fraktale: die Mandelbrot-Menge, Julia-Mengen und seltsame Attraktoren, mit weichen Farbverläufen und tiefem Zoom. Und Hintergrundbilder: flache Blätter mit beleuchteten Kanten und weichen Schatten, jedes in einer hellen und einer dunklen Fassung. Du wählst eine Vorlage, würfelst ein zufälliges Bild oder legst mehrere Flammen übereinander und exportierst das Ergebnis in jeder Größe, vom Handybildschirm bis zum 4K-Monitor. Eine Szene ist eine kleine Datei, und dieselbe Datei ergibt immer exakt dieselben Pixel, unter Windows, macOS, Linux, Android und iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Die Vorlage aurora-spiral: türkise und grüne Spiralschleier auf dunklem Hintergrund" width="880">
@@ -17,6 +17,7 @@ Fractique erzeugt zwei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fr
 ## Was Fractique kann
 
 - **Flammen:** 49 Variationen, Ebenen mit Mischmodi, Dreh- und Spiegelsymmetrie, Dichteschätzung, Leuchten und 29 eingebaute Vorlagen.
+- **Fraktale:** die Mandelbrot-Menge, Julia-Mengen und der Clifford-Attraktor, jeweils mit Vorlagen und einem Bild für jeden Seed; sie teilen Paletten, Ebenen und den tiefen Zoom mit den Flammen.
 - **Hintergrundbilder:** eines für jeden Seed, aus 14 Layouts und 6 Materialien, jedes in einer hellen und einer dunklen Fassung, passend zur Größe des Bildschirms angeordnet.
 - **Die App:** eine Codebasis für Windows, macOS, Linux, Android, iOS und das Web. Das Bild füllt das Fenster, darüber schweben Glasflächen; auf dem Desktop hat die App eine eigene gläserne Titelleiste. In 15 Sprachen.
 - **„Zufall“ und „Mutieren“:** jeder Seed ist ein Bild; Flammen, die nur ein Punkt oder ein gefülltes Quadrat wären, werden übersprungen. „Mutieren“ erzeugt eine Variante des Bildes, das dir gefällt.
@@ -38,6 +39,13 @@ Fractique erzeugt zwei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fr
 | `emerald-star` (zwei Ebenen) | `ember-vortex` |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+Fraktale anderer Art: die Mandelbrot-Menge, eine Julia-Menge und der Clifford-Attraktor:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 Hintergrundbilder, hell und dunkel, jedes mit seinem Layout und Material:
 
@@ -71,6 +79,9 @@ Oder von der Kommandozeile rendern:
 
 # die zufällige Flamme mit Seed 42 für einen Handybildschirm
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# die zufällige Mandelbrot-Ansicht mit Seed 7
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # das Hintergrundbild mit Seed 7 für ein Handy, hell und dunkel
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png

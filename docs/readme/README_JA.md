@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique は 2 種類の画像を作ります。ひとつはフラクタルの炎。細い曲線と柔らかな光でできた、輝く霞のようなフラクタルです。もうひとつは壁紙。縁が光り、柔らかな影を落とす平らなシートを重ねたもので、それぞれにライト版とダーク版があります。プリセットを選ぶ、ランダムな画像を生成する、複数の炎を重ねるなどして、スマートフォンの画面から 4K モニターまで、好きなサイズで書き出せます。シーンは小さなファイル 1 つで、同じファイルは Windows、macOS、Linux、Android、iOS のどれでも常にまったく同じピクセルになります。
+Fractique は 3 種類の画像を作ります。ひとつはフラクタルの炎。細い曲線と柔らかな光でできた、輝く霞のようなフラクタルです。ひとつは古典的なフラクタル。マンデルブロ集合、ジュリア集合、ストレンジアトラクターを、なめらかな色と深いズームで描きます。もうひとつは壁紙。縁が光り、柔らかな影を落とす平らなシートを重ねたもので、それぞれにライト版とダーク版があります。プリセットを選ぶ、ランダムな画像を生成する、複数の炎を重ねるなどして、スマートフォンの画面から 4K モニターまで、好きなサイズで書き出せます。シーンは小さなファイル 1 つで、同じファイルは Windows、macOS、Linux、Android、iOS のどれでも常にまったく同じピクセルになります。
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="aurora-spiral プリセット：暗い背景に青緑と緑の渦巻く光の筋" width="880">
@@ -17,6 +17,7 @@ Fractique は 2 種類の画像を作ります。ひとつはフラクタルの�
 ## できること
 
 - **炎：** 49 種類のバリエーション、ブレンドモード付きレイヤー、回転対称と鏡像対称、密度推定、グロー、そして 29 種類の組み込みプリセット。
+- **フラクタル：** マンデルブロ集合、ジュリア集合、クリフォードアトラクター。それぞれにプリセットがあり、シードごとに 1 枚の画像ができます。パレット、レイヤー、深いズームは炎と共通です。
 - **壁紙：** シードごとに 1 枚。14 種類のレイアウトと 6 種類の素材から作られ、それぞれにライト版とダーク版があり、画面のサイズに合わせて配置されます。
 - **アプリ：** Windows、macOS、Linux、Android、iOS、Web を 1 つのコードベースで。画像がウィンドウいっぱいに広がり、その上にガラスのパネルが浮かびます。デスクトップでは独自のガラスのタイトルバーを備えます。15 言語に対応。
 - **「ランダム」と「変異」：** すべてのシードが 1 枚の画像になります。点や塗りつぶされた四角形になる炎は除外されます。「変異」は気に入った画像の変種を作ります。
@@ -38,6 +39,13 @@ Fractique は 2 種類の画像を作ります。ひとつはフラクタルの�
 | `emerald-star`（2 レイヤー） | `ember-vortex` |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+ほかの種類のフラクタル。マンデルブロ集合、ジュリア集合、クリフォードアトラクター：
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 ライトとダークの壁紙。それぞれのレイアウトと素材：
 
@@ -71,6 +79,9 @@ Fractique は 2 種類の画像を作ります。ひとつはフラクタルの�
 
 # シード 42 のランダムな炎をスマートフォン画面用に
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# シード 7 のランダムなマンデルブロ集合の眺め
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # シード 7 の壁紙をスマートフォン用に、ライトとダークで
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png

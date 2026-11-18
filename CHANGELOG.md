@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+* **Fractals of other kinds:** a layer of a scene is now a flame or a fractal of another kind, and three kinds are
+  here: the **Mandelbrot set** and **Julia sets**, drawn pixel by pixel with smooth colors, a thin dark rim along
+  the set, colors that fade to dark away from it and anti-aliasing where the picture has edges, and the
+  **Clifford attractor**, drawn as a density through the flame's histogram, tone mapping and glow. They use the
+  palettes, the camera, the layers and the blend modes of flames, so a Mandelbrot set can lie under a flame, and a
+  view goes as deep as 64-bit numbers reach (a zoom of about 10¹³ at 1080 pixels; the app stops at 10¹⁰). Each
+  kind has six presets, a random picture for every seed that is checked to be worth looking at, and a mutation.
+  * **App:** a third tab, **Fractals**, between **Flames** and **Shapes**: the type (a list on a computer, tiles
+    with small pictures on a phone), the presets of the type, **Randomize** and **Mutate**, a slider for every
+    parameter, and the palettes, layers, tone, view, recent pictures, collection, export, session and `.frcq`
+    files as for flames. These kinds are rendered by the processor; GPU acceleration is for flames.
+  * **Command line:** `fractique fractals` lists the kinds with their parameters and presets; `--fractal KIND`
+    with `render --random SEED` and `randomize SEED` makes the random fractal of a seed; `--preset` and
+    `preset` take the fractal presets (`mandelbrot-seahorse-valley`, `julia-dragon`, `clifford-wings`, ...).
+  * **MCP and HTTP:** the tool `list_fractals`, `fractal` in `randomize_scene` and in `render_scene` with
+    `random_seed`; `GET /fractals`, and `fractal` in `POST /random` and in `POST /render` with `random`.
+  * **Scene format:** a layer holds `fractal` in place of `flame`
+    ([docs/scene-format.md](docs/scene-format.md#fractal)). The version stays 1: every scene and `.frcq` file
+    written before loads and renders to the same pixels, and the golden hashes of flames, wallpapers and random
+    scenes are untouched. In `fractique-core`, `Layer::flame` became `Layer::content`, with `flame()`,
+    `fractal()`, `camera()`, `tone()` and `palette()` to reach into either.
+  * The kinds live in a registry, one file each ([docs/architecture.md](docs/architecture.md#how-to-add-a-fractal-type)).
+    The golden hashes of the three kinds were produced on Linux.
+
 * **GPU acceleration:** the trial of a built-in graphics chip gives way when a picture is asked for and begins
   again when the app rests; its verdict is kept again, so a slow phone is tried once, not at every start. The
   first picture after a start is no longer handed to the processor because the shaders took time to load.

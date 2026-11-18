@@ -1,4 +1,5 @@
 pub mod file;
+pub mod fractal;
 pub mod import;
 pub mod math;
 pub mod palette;
@@ -20,7 +21,7 @@ pub use render::{
     render_layer,
 };
 pub use scene::{
-    Blend, Camera, Flame, Layer, Palette, SCENE_VERSION, Scene, SceneError, Shape, Sheet, Sheets, Stop, Swell, Tone,
-    Transform,
+    Blend, Camera, Content, Flame, Fractal, Layer, Palette, SCENE_VERSION, Scene, SceneError, Shape, Sheet, Sheets,
+    Stop, Swell, Tone, Transform,
 };
 pub use variation::{Kind, Variation};

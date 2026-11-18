@@ -9,10 +9,13 @@ use std::time::Instant;
 
 use clap::{Parser, Subcommand};
 use fractique_core::import::import_flames;
-use fractique_core::random::{Generator, fit_camera, mutate, random_scene_of};
+use fractique_core::random::mutate;
 use fractique_core::wallpaper::random_wallpaper;
 use fractique_core::{Control, Image, Kind, Quality, RenderOptions, Scene, file, presets, render};
-use fractique_mcp::{encode_png, load, scene_from_bytes, shown, wallpaper_request};
+use fractique_mcp::{
+    encode_png, fit, fractal_list, load, preset as preset_of, random as random_of, scene_from_bytes, shown,
+    wallpaper_request,
+};
 use serde_json::{Value, json};
 
 #[derive(Parser)]
@@ -36,6 +39,9 @@ enum Command {
         /// Which random generator makes the scene of --random: 1 (the first 27 variations, the default) or 2 (all 49)
         #[arg(long)]
         generator: Option<u64>,
+        /// With --random: the random fractal of this kind instead of a flame (see `fractique fractals`)
+        #[arg(long)]
+        fractal: Option<String>,
         /// Render the wallpaper of this seed: stacked sheets instead of a flame
         #[arg(long, conflicts_with_all = ["scene", "preset", "random"])]
         wallpaper: Option<u64>,
@@ -74,8 +80,11 @@ enum Command {
     Randomize {
         seed: u64,
         /// 1 (the first 27 variations) or 2 (all 49); the same seed is a different scene in each
-        #[arg(long, default_value_t = 1)]
-        generator: u64,
+        #[arg(long)]
+        generator: Option<u64>,
+        /// The random fractal of this kind instead of a flame (see `fractique fractals`)
+        #[arg(long)]
+        fractal: Option<String>,
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
@@ -134,6 +143,8 @@ enum Command {
     },
     /// List the variations and their parameters
     Variations,
+    /// List the kinds of fractal, their parameters and presets
+    Fractals,
     /// Run as an MCP server on stdin and stdout, for AI agents
     Mcp,
 }
@@ -203,10 +214,6 @@ fn save_png(image: &Image, path: &Path) -> Result<(), String> {
     fs::write(path, encode_png(image)?).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-fn generator_of(number: u64) -> Result<Generator, String> {
-    Generator::from_number(number).ok_or_else(|| format!("no generator has the number {number}; there are 1 and 2"))
-}
-
 fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
         Command::Render {
@@ -214,6 +221,7 @@ fn run(cli: Cli) -> Result<(), String> {
             preset,
             random,
             generator,
+            fractal,
             wallpaper,
             layout,
             material,
@@ -229,10 +237,13 @@ fn run(cli: Cli) -> Result<(), String> {
             if generator.is_some() && random.is_none() {
                 return Err("--generator goes with --random SEED".into());
             }
+            if fractal.is_some() && random.is_none() {
+                return Err("--fractal goes with --random SEED".into());
+            }
             let mut scene = match (scene, preset, random, wallpaper) {
                 (Some(path), _, _, _) => load(&path)?,
-                (_, Some(name), _, _) => presets::get(&name).ok_or_else(|| format!("no preset is called '{name}'"))?,
-                (_, _, Some(seed), _) => random_scene_of(generator_of(generator.unwrap_or(1))?, seed),
+                (_, Some(name), _, _) => preset_of(&name)?,
+                (_, _, Some(seed), _) => random_of(fractal.as_deref(), generator, seed)?,
                 (_, _, _, Some(seed)) => {
                     random_wallpaper(seed, &wallpaper_request(layout, material, width, height, dark)?)
                 }
@@ -278,15 +289,13 @@ fn run(cli: Cli) -> Result<(), String> {
             presets::names().iter().for_each(|name| println!("{name}"));
             Ok(())
         }
-        Command::Preset { name } => {
-            let scene = presets::get(&name).ok_or_else(|| format!("no preset is called '{name}'"))?;
-            emit(&scene, None)
-        }
+        Command::Preset { name } => emit(&preset_of(&name)?, None),
         Command::Randomize {
             seed,
             generator,
+            fractal,
             output,
-        } => emit(&random_scene_of(generator_of(generator)?, seed), output),
+        } => emit(&random_of(fractal.as_deref(), generator, seed)?, output),
         Command::Wallpaper {
             seed,
             layout,
@@ -307,15 +316,7 @@ fn run(cli: Cli) -> Result<(), String> {
             strength,
             output,
         } => emit(&mutate(&load(&scene)?, seed, strength), output),
-        Command::Fit { scene, output } => {
-            let mut scene = load(&scene)?;
-            for (index, layer) in scene.layers.iter_mut().enumerate() {
-                let (camera, _) = fit_camera(&layer.flame)
-                    .ok_or_else(|| format!("layer {index}: the flame draws nothing to frame"))?;
-                layer.flame.camera = camera;
-            }
-            emit(&scene, output)
-        }
+        Command::Fit { scene, output } => emit(&fit(load(&scene)?)?, output),
         Command::Import { file, index, output } => {
             let text = fs::read_to_string(&file).map_err(|e| format!("{}: {e}", file.display()))?;
             let mut flames = import_flames(&text).map_err(|e| format!("{}: {e}", file.display()))?;
@@ -342,6 +343,10 @@ fn run(cli: Cli) -> Result<(), String> {
             output,
         } => convert(&input, document, output),
         Command::Mcp => mcp::serve(),
+        Command::Fractals => {
+            println!("{}", fractal_list());
+            Ok(())
+        }
         Command::Variations => {
             for kind in Kind::ALL {
                 let params: Vec<String> = kind

@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique tworzy obrazy dwóch rodzajów. Fraktalne płomienie: świetliste, zwiewne fraktale z cienkich krzywych i miękkiego światła. Oraz tapety: płaskie arkusze z podświetlonymi krawędziami i miękkimi cieniami, każda w wersji jasnej i ciemnej. Wybierasz preset, losujesz obraz albo nakładasz na siebie kilka płomieni i eksportujesz wynik w dowolnym rozmiarze, od ekranu telefonu po monitor 4K. Scena to jeden mały plik, a ten sam plik zawsze daje dokładnie te same piksele w systemach Windows, macOS, Linux, Android i iOS.
+Fractique tworzy obrazy trzech rodzajów. Fraktalne płomienie: świetliste, zwiewne fraktale z cienkich krzywych i miękkiego światła. Klasyczne fraktale: zbiór Mandelbrota, zbiory Julii i dziwne atraktory, z płynnymi kolorami i głębokim powiększeniem. Oraz tapety: płaskie arkusze z podświetlonymi krawędziami i miękkimi cieniami, każda w wersji jasnej i ciemnej. Wybierasz preset, losujesz obraz albo nakładasz na siebie kilka płomieni i eksportujesz wynik w dowolnym rozmiarze, od ekranu telefonu po monitor 4K. Scena to jeden mały plik, a ten sam plik zawsze daje dokładnie te same piksele w systemach Windows, macOS, Linux, Android i iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Preset aurora-spiral: turkusowe i zielone spiralne smugi na ciemnym tle" width="880">
@@ -17,6 +17,7 @@ Fractique tworzy obrazy dwóch rodzajów. Fraktalne płomienie: świetliste, zwi
 ## Co potrafi Fractique
 
 - **Płomienie:** 49 wariacji, warstwy z trybami mieszania, symetria obrotowa i lustrzana, estymacja gęstości, poświata oraz 29 wbudowanych presetów.
+- **Fraktale:** zbiór Mandelbrota, zbiory Julii i atraktor Clifforda, każdy z presetami i obrazem dla każdego ziarna; mają te same palety, warstwy i głębokie powiększenie co płomienie.
 - **Tapety:** osobna dla każdego ziarna, z 14 układów i 6 materiałów, każda w wersji jasnej i ciemnej, rozłożona pod rozmiar ekranu.
 - **Aplikacja:** jedna baza kodu dla systemów Windows, macOS, Linux, Android, iOS i dla przeglądarki. Obraz wypełnia okno, a nad nim unoszą się szklane panele; na komputerze aplikacja ma własny szklany pasek tytułu. W 15 językach.
 - **„Losuj” i „Mutuj”:** każde ziarno to obraz; płomienie, które byłyby kropką albo wypełnionym kwadratem, są pomijane. „Mutuj” tworzy wariant tego, który ci się podoba.
@@ -38,6 +39,13 @@ Fractique tworzy obrazy dwóch rodzajów. Fraktalne płomienie: świetliste, zwi
 | `emerald-star` (dwie warstwy) | `ember-vortex` |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+Fraktale innych rodzajów: zbiór Mandelbrota, zbiór Julii i atraktor Clifforda:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 Tapety, jasne i ciemne, każda ze swoim układem i materiałem:
 
@@ -71,6 +79,9 @@ Albo renderuj z wiersza poleceń:
 
 # losowy płomień z ziarna 42 na ekran telefonu
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# losowy widok zbioru Mandelbrota z ziarna 7
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # tapeta z ziarna 7 na telefon, jasna i ciemna
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png

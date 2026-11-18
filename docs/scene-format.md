@@ -7,8 +7,8 @@ same image (see [determinism.md](determinism.md)). This file is the contract: it
 Unknown fields are refused, so a typo in a field name is an error and not a silently ignored setting. Fields with
 a default may be left out. Colors are sRGB with each channel from 0 to 1.
 
-A scene is a flame (one or more [layers](#layer)), a wallpaper ([sheets](#sheets)), or both. The app saves scenes
-in a packed file of its own, [`.frcq`](#the-frcq-file), which every command reads as well.
+A scene is one or more [layers](#layer), each a [flame](#flame) or a [fractal](#fractal) of another kind, a
+wallpaper ([sheets](#sheets)), or both. The app saves scenes in a packed file of its own, [`.frcq`](#the-frcq-file), which every command reads as well.
 
 ## Example
 
@@ -169,7 +169,8 @@ The `azure-rings` preset:
 | `name` | string | empty | A label. |
 | `blend` | `add`, `screen`, `over` | `add` | How the layer meets what is under it. `add` sums light (bright overlaps burn out), `screen` sums light without burning out, `over` covers what is under it where the layer is dense. |
 | `opacity` | 0 to 1 | 1 | Strength of the layer. |
-| `flame` | flame | required | What the layer shows. |
+| `flame` | flame | one of the two | What the layer shows: a [flame](#flame). |
+| `fractal` | fractal | one of the two | What the layer shows: a [fractal](#fractal) of another kind. A layer holds `flame` or `fractal`, never both and never neither. |
 
 ## Flame
 
@@ -207,6 +208,122 @@ The `azure-rings` preset:
 
 `stops` is a list of 1 to 256 `{ "pos": 0 to 1, "color": [r, g, b] }` entries in ascending `pos` order. Colors
 between two stops are interpolated.
+
+## Fractal
+
+A layer with `fractal` in place of `flame` shows a fractal of another kind: the Mandelbrot set, a Julia set, a
+strange attractor. It blends with the layers around it as a flame does.
+
+```json
+{
+  "version": 1,
+  "seed": 1,
+  "layers": [
+    {
+      "fractal": {
+        "kind": "julia",
+        "camera": { "zoom": 1.5 },
+        "palette": { "stops": [{ "pos": 0, "color": [0.25, 0.13, 0.54] }, { "pos": 1, "color": [1, 0.82, 0.5] }] },
+        "params": { "real": -0.8, "imaginary": 0.156, "iterations": 400 }
+      }
+    }
+  ]
+}
+```
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `kind` | a name | required | Which fractal: one of the kinds below. `fractique fractals` lists those of the build you run. |
+| `camera` | [camera](#camera) | centered, zoom 1 | The part of the plane the image shows, as for a flame. |
+| `tone` | [tone](#tone) | see below | How the layer is lit. A kind uses the fields its way of drawing has a use for. |
+| `palette` | [palette](#palette) | required | The colors of the layer. |
+| `params` | object of numbers | empty | The parameters of the kind, by name. One that is left out has its default; an unknown name or a value outside the parameter's range is refused. |
+
+A kind is drawn in one of two ways:
+
+| Way | What happens | Tone fields used |
+| --- | --- | --- |
+| Per pixel | Every pixel asks the kind for a place on the palette and a light from 0 to 1, or for nothing: such a point stays clear and shows the background and the layers under it. The place runs along the palette and back: 0 is the first stop, 1 the last, 2 the first again. The layer's color is the palette's color times the light, and where a layer is blended `over` it covers what is under it by its light. | `brightness` scales the layer, `gamma` raises the light to the power 2.5 / gamma (2.5 leaves it), `glow_radius` and `glow_strength` add the glow. `vibrancy`, `highlight` and `smoothing` are not used. |
+| Density | The kind plots the points of orbits into the histogram a flame uses, and the layer is developed like a flame: density estimation, log tone mapping, glow. The scene's `seed` picks the starting points. | All of them, as for a flame. |
+
+A per-pixel kind takes one sample at the middle of every pixel. Where a pixel differs from one of its eight
+neighbours by 0.02 or more in a channel, it is drawn again from a grid of samples and averaged:
+
+| Samples per pixel of the render | Grid, times `supersample`, at most 8 × 8 |
+| --- | --- |
+| under 16 | 1 × 1 |
+| 16 to 63 | 2 × 2 |
+| 64 to 599 | 3 × 3 |
+| 600 and more | 4 × 4 |
+
+The kinds, by family:
+
+| Family | Drawn | Kinds |
+| --- | --- | --- |
+| Escape-time | per pixel | `julia`, `mandelbrot` |
+| Root-finding | per pixel | |
+| Orbit | density | `clifford` |
+| Geometric | either | |
+| Solid | per pixel | |
+
+### Escape-time kinds
+
+A point is iterated until it leaves the circle |z| = 256 or the steps run out. The steps allowed are
+`iterations`, times 1 + log₁₀(zoom) / 2 where the camera's zoom is above 1: a deeper view gets more. A point that
+never leaves, or whose orbit comes back to a value it had, belongs to the set and stays clear.
+
+A point that leaves after n steps at z has the smooth count ν = n + 1 − log₂ ln |z| and the distance to the set
+d = |z| ln |z| / |z′|, measured in shorter sides of the picture (z′ is the derivative of z by the point for
+`mandelbrot`, by the starting point for `julia`). Its place on the palette is
+`color_shift` + `color_density` × ln(1 + ν). Its light is 1, darkened twice: by (d / r)^0.4 where d is under
+r = 0.012 × `edge`², which draws the thin dark rim along the set, and by 1 / (1 + (d / R)^1.2) with
+R = 0.02 / `fade`², which lets the colors fade to dark away from the set. `edge` 0 and `fade` 0 switch each off.
+
+| Parameter | Range | Default | Meaning |
+| --- | --- | --- | --- |
+| `iterations` | 16 to 100 000, whole | 300 | The steps a point is given at zoom 1. |
+| `color_density` | 0.01 to 100 | 1 | How fast the colors run along the palette. |
+| `color_shift` | 0 to 2 | 0 | Where on the palette the colors start. |
+| `edge` | 0 to 1 | 0.35 | The width of the dark rim along the set. |
+| `fade` | 0 to 1 | 0.6 | How soon the colors fade to dark away from the set. |
+
+| Kind | Iteration | Own parameters |
+| --- | --- | --- |
+| `mandelbrot` | z → z² + c from z = 0, with c the point | none |
+| `julia` | z → z² + c from z the point, with c = `real` + i × `imaginary` | `real` (−2 to 2, default −0.8), `imaginary` (−2 to 2, default 0.156) |
+
+The default tone of both is `brightness` 0.92, `glow_radius` 0.006 and `glow_strength` 0.12.
+
+### Root-finding kinds
+
+The family has no kind yet.
+
+### Orbit kinds
+
+Each of the 64 streams of a render follows one orbit from a random starting point and plots every point of it.
+
+| Kind | Map | Parameters | Place on the palette |
+| --- | --- | --- | --- |
+| `clifford` | x′ = sin(a y) + c cos(a x), y′ = sin(b x) + d cos(b y); the start is within ±0.5 and the first 32 steps are not plotted | `a` (−1.4), `b` (1.6), `c` (1), `d` (0.7), each from −3 to 3 | (1 + sin(a y)) / 2 |
+
+The default tone of `clifford` is `brightness` 1.1, `gamma` 2.8, `highlight` 0.2, `glow_radius` 0.006 and
+`glow_strength` 0.5. An orbit kind has no deep views as a flame has: a view that holds little of the attractor is
+drawn from the few points that land in it.
+
+### Geometric kinds
+
+The family has no kind yet.
+
+### Solid kinds
+
+The family has no kind yet.
+
+### How far a view goes
+
+A per-pixel kind computes every point with 64-bit numbers. Two neighbouring pixels stay different points while
+the zoom times the picture's shorter side in pixels is under about 10¹⁶ near the origin: a zoom of 10¹³ at 1080
+pixels. Past that neighbouring pixels get the same point and the picture turns into blocks; nothing is refused.
+The app stops where a fractal's own zoom times the view's reaches 10¹⁰.
 
 ## Sheets
 
@@ -382,6 +499,8 @@ The document is the app's session, so a file opens as it was saved:
 | `random` | `true`, `false` | Whether the picture came from Randomize. |
 | `seed` | integer | The number of the last random flame or wallpaper. |
 | `generator` | `1`, `2` | The random generator that made the last random flame. A file without it was written before the second generator: `1`. |
+| `fractals` | `true`, `false` | Whether the **Fractals** tab was chosen. A file without it opens in the tab of its scene's first layer. |
+| `kind` | a name | The kind of fractal chosen in that tab. |
 | `adjust` | `[brightness, gamma, glow, zoom]` | The tone and zoom sliders, as factors: 1 changes nothing. |
 | `view` | `[right, down, zoom]` | Where the picture was moved to, in shorter sides of the picture from its middle, and the magnification. |
 | `picture` | `[width, height]` or `null` | The picture's size; `null` is the window's own. |
@@ -397,3 +516,7 @@ JSON and back ([usage.md](usage.md#11-files-of-the-app)).
 
 A scene that loads in one version of Fractique loads in every later one. When a change to the renderer would alter
 what existing scenes look like, `version` is how old scenes keep their look; see [determinism.md](determinism.md).
+
+Fractal layers came without a new version: `fractal` is a field a layer may hold in place of `flame`, so every
+scene written before reads and renders as it did. A build from before them refuses a scene that has one, as it
+refuses any field it does not know.

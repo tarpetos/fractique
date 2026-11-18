@@ -5,7 +5,7 @@ use crate::scene::Tone;
 // A cell with about 3000 times the average density reaches full brightness at brightness 1.
 const LOG_SCALE: f64 = 1.0 / 8.0;
 
-fn for_each_row(buffer: &mut [f32], row_len: usize, fill: impl Fn(usize, &mut [f32]) + Sync) {
+pub(crate) fn for_each_row(buffer: &mut [f32], row_len: usize, fill: impl Fn(usize, &mut [f32]) + Sync) {
     #[cfg(feature = "parallel")]
     {
         use rayon::prelude::*;
@@ -202,7 +202,7 @@ pub(crate) fn develop(cells: &[f32], across: usize, tone: &Tone, supersample: us
     out
 }
 
-fn glow(image: &mut [f32], width: usize, height: usize, sigma: f64, strength: f32) {
+pub(crate) fn glow(image: &mut [f32], width: usize, height: usize, sigma: f64, strength: f32) {
     let reach = (sigma * 3.0).ceil() as usize;
     let mut kernel: Vec<f32> = (0..=reach)
         .map(|i| exp(-((i * i) as f64) / (2.0 * sigma * sigma)) as f32)

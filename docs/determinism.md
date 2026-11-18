@@ -5,7 +5,7 @@ same pixels, bit for bit, on every platform, every processor and every number of
 
 It matters because a scene is then a complete description of a picture. You can share a 2 kB JSON file instead of
 an image, render a preview on a phone and the final image on a server, or let an AI agent work on a scene and know
-that what it saw is what you get. It holds for wallpapers as it does for flames.
+that what it saw is what you get. It holds for wallpapers and for fractals of other kinds as it does for flames.
 
 ## What makes it hold
 
@@ -18,15 +18,19 @@ that what it saw is what you get. It holds for wallpapers as it does for flames.
 | Floating-point rounding | Only IEEE 754 operations that are exactly defined (`+ - * /`, `sqrt`), in a fixed order. No fused multiply-add, no fast-math. Rust does not reorder or fuse them on its own. |
 | Graphics cards | Never used by the renderer: drivers and vendors round differently. The app alone uses one, for its screen, where the card is clearly faster and GPU acceleration is on: what that makes is listed under [Which outputs are exact](#which-outputs-are-exact). |
 | Wallpapers | The sheets are drawn pixel by pixel, each pixel from the scene alone, with the same `math.rs` functions; rows run on several threads, and no value crosses from one pixel to another. The generator that makes a wallpaper for a seed uses `rng.rs` and `math.rs` only. |
+| Fractals drawn per pixel (`mandelbrot`, `julia`) | Every sample is computed from its point alone, with exact arithmetic and the `math.rs` functions, in a fixed order; rows run on several threads and no value crosses from one sample to another. Which pixels get more samples is decided from the finished first pass, which is the same on every machine. |
+| Fractals drawn as a density (`clifford`) | The points of the orbits go through the same 64 streams and the same integer histogram as a flame's. |
 | Deep views | The particles a magnified view is drawn from are moved in fixed groups of 128, each with its own generator, so the threads cannot change the result. |
 | Hash map order, the clock, the locale | None of them is used on the way to a pixel. |
 
 ## How it is checked
 
 `crates/fractique-core/tests/determinism.rs` holds golden hashes: the hash of four presets, of one deep view and
-of seven wallpapers, rendered at a small size. CI runs them on Linux x64, Linux ARM64, Windows x64 and macOS on
+of seven wallpapers, rendered at a small size. Every kind of fractal has the golden hash of one of its presets in
+its own file under `src/fractal/`; those were produced on Linux x64 and have not yet been compared on another
+system. CI runs them on Linux x64, Linux ARM64, Windows x64 and macOS on
 Apple Silicon. The same file checks that the number of threads does not change the image, for a flame
-(1, 3 and all threads), a deep view and a wallpaper, and the test suite also runs with threads compiled out
+(1, 3 and all threads), a deep view, a wallpaper and a random scene of every kind of fractal, and the test suite also runs with threads compiled out
 (`--no-default-features`).
 
 The command line tool prints the hash of every image it renders, so you can compare two machines yourself:
@@ -62,7 +66,8 @@ image everywhere, whatever drew it on the screen.
   with GPU acceleration on it is the graphics card's. An export at Standard, High or Ultra, and a render of the
   saved scene by the command line tool, are exact.
 - **A wallpaper's seed across versions.** The wallpaper of a seed may change when its generator improves. A saved
-  scene does not: it holds the shapes, not the seed that made them. The random flame of a seed does not change
+  scene does not: it holds the shapes, not the seed that made them. The same goes for the random fractal of a
+  seed (`--fractal`): its scene holds the view and the parameters. The random flame of a seed does not change
   either: the random generators are numbered, tests pin scenes of each, and a better one is added as a new number.
 
 ## Rules for changes

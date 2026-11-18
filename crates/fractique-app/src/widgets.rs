@@ -299,6 +299,17 @@ pub fn toggle(ui: &mut Ui, label: &str, on: &mut bool) -> bool {
 }
 
 pub fn slider(ui: &mut Ui, label: &str, value: &mut f64, range: (f64, f64), logarithmic: bool) -> bool {
+    slider_to(ui, label, value, range, logarithmic, 2)
+}
+
+pub fn slider_to(
+    ui: &mut Ui,
+    label: &str,
+    value: &mut f64,
+    range: (f64, f64),
+    logarithmic: bool,
+    digits: usize,
+) -> bool {
     let (low, high) = range;
     let to_share = |v: f64| {
         if logarithmic {
@@ -324,7 +335,7 @@ pub fn slider(ui: &mut Ui, label: &str, value: &mut f64, range: (f64, f64), loga
         FontId::proportional(13.0),
         white(190),
     );
-    let shown = format!("{value:.2}");
+    let shown = format!("{value:.digits$}");
     ui.painter().text(
         header.right_center(),
         Align2::RIGHT_CENTER,

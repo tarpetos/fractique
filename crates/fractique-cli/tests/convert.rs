@@ -126,6 +126,43 @@ fn what_cannot_be_converted_is_refused() {
 }
 
 #[test]
+fn fractals_are_listed_and_random_by_seed() {
+    let listed = String::from_utf8(done(&["fractals"])).unwrap();
+    for kind in ["mandelbrot", "julia", "clifford"] {
+        assert!(listed.lines().any(|line| line.starts_with(kind)), "{kind}");
+    }
+    assert!(listed.contains("iterations=300") && listed.contains("mandelbrot-seahorse-valley"));
+
+    let first = done(&["randomize", "7", "--fractal", "julia"]);
+    assert_eq!(done(&["randomize", "7", "--fractal", "julia"]), first);
+    assert_ne!(done(&["randomize", "8", "--fractal", "julia"]), first);
+    let scene: Value = serde_json::from_slice(&first).unwrap();
+    assert_eq!(scene["layers"][0]["fractal"]["kind"], "julia");
+    let preset: Value = serde_json::from_slice(&done(&["preset", "clifford-classic"])).unwrap();
+    assert_eq!(preset["layers"][0]["fractal"]["kind"], "clifford");
+
+    let folder = folder("fractals");
+    let at = |name: &str| folder.join(name).to_string_lossy().into_owned();
+    let (json, frcq, picture) = (at("scene.json"), at("scene.frcq"), at("picture.png"));
+    fs::write(&json, &first).unwrap();
+    done(&["convert", &json, "-o", &frcq]);
+    let random = ["render", "--random", "7", "--fractal", "julia"];
+    let small = ["--size", "64x36", "--quality", "draft", "-o", &picture];
+    let (ok, _, stderr) = fractique(&[&random[..], &small[..]].concat());
+    assert!(ok, "{stderr}");
+    let hash = stderr.split("hash ").nth(1).expect("a hash")[..16].to_owned();
+    assert_eq!(hash_of(&json, &picture), hash);
+    assert_eq!(hash_of(&frcq, &picture), hash);
+    fs::write(&json, done(&["mutate", &json, "3"])).unwrap();
+    assert_ne!(hash_of(&json, &picture), hash);
+
+    let (ok, _, stderr) = fractique(&["randomize", "7", "--fractal", "nothing"]);
+    assert!(!ok && stderr.contains("no fractal is called 'nothing'"), "{stderr}");
+    assert!(!fractique(&["randomize", "7", "--fractal", "julia", "--generator", "2"]).0);
+    assert!(!fractique(&["render", "--preset", "aurora-spiral", "--fractal", "julia"]).0);
+}
+
+#[test]
 fn the_generator_is_chosen_by_its_number_and_the_first_is_the_default() {
     let first = done(&["randomize", "42"]);
     assert_eq!(done(&["randomize", "42", "--generator", "1"]), first);

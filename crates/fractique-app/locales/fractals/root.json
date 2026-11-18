@@ -1,0 +1,36 @@
+{
+  "f_newton": {
+    "en": "Newton",
+    "uk": "Ньютон",
+    "ru": "Ньютон",
+    "de": "Newton",
+    "fr": "Newton",
+    "es": "Newton",
+    "it": "Newton",
+    "ja": "ニュートン",
+    "zh-Hans": "牛顿",
+    "pt-BR": "Newton",
+    "ko": "뉴턴",
+    "hi": "न्यूटन",
+    "tr": "Newton",
+    "pl": "Newton",
+    "id": "Newton"
+  },
+  "f_nova": {
+    "en": "Nova",
+    "uk": "Нова",
+    "ru": "Нова",
+    "de": "Nova",
+    "fr": "Nova",
+    "es": "Nova",
+    "it": "Nova",
+    "ja": "ノヴァ",
+    "zh-Hans": "新星",
+    "pt-BR": "Nova",
+    "ko": "노바",
+    "hi": "नोवा",
+    "tr": "Nova",
+    "pl": "Nova",
+    "id": "Nova"
+  }
+}

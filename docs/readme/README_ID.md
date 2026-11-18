@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique membuat dua jenis gambar. Api fraktal: fraktal bercahaya dan halus yang terbentuk dari kurva tipis dan cahaya lembut. Dan wallpaper: lembaran datar dengan tepi bercahaya dan bayangan lembut, masing-masing dalam versi terang dan gelap. Anda memilih preset, membuat gambar acak, atau menumpuk beberapa api, lalu mengekspornya dalam ukuran apa pun, dari layar ponsel hingga monitor 4K. Sebuah adegan adalah satu berkas kecil, dan berkas yang sama selalu menghasilkan piksel yang persis sama, di Windows, macOS, Linux, Android, dan iOS.
+Fractique membuat tiga jenis gambar. Api fraktal: fraktal bercahaya dan halus yang terbentuk dari kurva tipis dan cahaya lembut. Fraktal klasik: himpunan Mandelbrot, himpunan Julia, dan penarik aneh, dengan warna halus dan zoom yang dalam. Dan wallpaper: lembaran datar dengan tepi bercahaya dan bayangan lembut, masing-masing dalam versi terang dan gelap. Anda memilih preset, membuat gambar acak, atau menumpuk beberapa api, lalu mengekspornya dalam ukuran apa pun, dari layar ponsel hingga monitor 4K. Sebuah adegan adalah satu berkas kecil, dan berkas yang sama selalu menghasilkan piksel yang persis sama, di Windows, macOS, Linux, Android, dan iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Preset aurora-spiral: untaian spiral toska dan hijau di atas latar gelap" width="880">
@@ -17,6 +17,7 @@ Fractique membuat dua jenis gambar. Api fraktal: fraktal bercahaya dan halus yan
 ## Yang dilakukan Fractique
 
 - **Api:** 49 variasi, lapisan dengan mode blend, simetri putar dan cermin, estimasi kerapatan, pendar, dan 29 preset bawaan.
+- **Fraktal:** himpunan Mandelbrot, himpunan Julia, dan penarik Clifford, masing-masing dengan preset dan satu gambar untuk setiap seed; palet, lapisan, dan zoom dalamnya sama dengan milik api.
 - **Wallpaper:** satu untuk setiap seed, dari 14 tata letak dan 6 bahan, masing-masing dalam versi terang dan gelap, ditata sesuai ukuran layar.
 - **Aplikasi:** satu basis kode untuk Windows, macOS, Linux, Android, iOS, dan web. Gambar memenuhi jendela dan panel kaca melayang di atasnya; di desktop aplikasi memiliki bilah judul kaca sendiri. Dalam 15 bahasa.
 - **“Acak” dan “Mutasi”:** setiap seed adalah sebuah gambar; api yang hanya akan menjadi titik atau kotak penuh dilewati. “Mutasi” membuat varian dari gambar yang Anda sukai.
@@ -38,6 +39,13 @@ Fractique membuat dua jenis gambar. Api fraktal: fraktal bercahaya dan halus yan
 | `emerald-star` (dua lapisan) | `ember-vortex` |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+Fraktal jenis lain: himpunan Mandelbrot, himpunan Julia, dan penarik Clifford:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 Wallpaper, terang dan gelap, masing-masing dengan tata letak dan bahannya:
 
@@ -71,6 +79,9 @@ Atau render dari baris perintah:
 
 # api acak dari seed 42, untuk layar ponsel
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# tampilan Mandelbrot acak dari seed 7
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # wallpaper dari seed 7 untuk ponsel, terang dan gelap
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png

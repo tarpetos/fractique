@@ -117,6 +117,25 @@ impl Lang {
     }
 }
 
+// The names of the kinds of fractal and of their parameters: one file a family, every text in every language.
+const FRACTALS: [&str; 5] = [
+    include_str!("../locales/fractals/escape.json"),
+    include_str!("../locales/fractals/root.json"),
+    include_str!("../locales/fractals/orbit.json"),
+    include_str!("../locales/fractals/geometric.json"),
+    include_str!("../locales/fractals/solid.json"),
+];
+
+type Family = HashMap<String, HashMap<String, String>>;
+
+fn fractal_texts(lang: Lang) -> impl Iterator<Item = (String, String)> {
+    FRACTALS
+        .into_iter()
+        .filter_map(|source| serde_json::from_str::<Family>(source).ok())
+        .flatten()
+        .filter_map(move |(key, mut texts)| Some((key, texts.remove(lang.code())?)))
+}
+
 pub struct Texts {
     pub lang: Lang,
     own: HashMap<String, String>,
@@ -125,7 +144,11 @@ pub struct Texts {
 
 impl Texts {
     pub fn new(lang: Lang) -> Self {
-        let read = |lang: Lang| serde_json::from_str(lang.source()).unwrap_or_default();
+        let read = |lang: Lang| {
+            let mut texts: HashMap<String, String> = serde_json::from_str(lang.source()).unwrap_or_default();
+            texts.extend(fractal_texts(lang));
+            texts
+        };
         Self {
             lang,
             own: read(lang),
@@ -156,6 +179,35 @@ mod tests {
             missing.extend(own.keys().filter(|key| !english.contains_key(*key)));
             assert!(missing.is_empty(), "{}: {missing:?}", lang.code());
             assert!(own.values().all(|text| !text.trim().is_empty()), "{}", lang.code());
+        }
+    }
+
+    #[test]
+    fn every_fractal_text_is_in_every_language() {
+        let mut keys = Vec::new();
+        for source in FRACTALS {
+            let family: Family = serde_json::from_str(source).expect("the file is JSON");
+            for (key, texts) in family {
+                for lang in Lang::ALL {
+                    let text = texts.get(lang.code());
+                    assert!(
+                        text.is_some_and(|text| !text.trim().is_empty()),
+                        "{key} in {}",
+                        lang.code()
+                    );
+                }
+                assert_eq!(texts.len(), Lang::ALL.len(), "{key}");
+                assert!(!keys.contains(&key), "{key} is in two families");
+                keys.push(key);
+            }
+        }
+        let main: HashMap<String, String> = serde_json::from_str(Lang::En.source()).unwrap();
+        for spec in fractique_core::fractal::all() {
+            let names = spec.params.iter().map(|param| format!("p_{}", param.name));
+            for key in names.chain([format!("f_{}", spec.name)]) {
+                assert!(keys.contains(&key), "{key} has no text");
+                assert!(!main.contains_key(&key), "{key} is in en.json too");
+            }
         }
     }
 

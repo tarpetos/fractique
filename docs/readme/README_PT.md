@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-O Fractique cria dois tipos de imagem. Chamas fractais: fractais luminosos e etéreos feitos de curvas finas e luz suave. E papéis de parede: folhas planas com bordas iluminadas e sombras suaves, cada um em versão clara e escura. Você escolhe uma predefinição, gera uma imagem aleatória ou sobrepõe várias chamas e exporta o resultado em qualquer tamanho, da tela de um celular a um monitor 4K. Uma cena é um único arquivo pequeno, e o mesmo arquivo sempre gera exatamente os mesmos pixels, no Windows, macOS, Linux, Android e iOS.
+O Fractique cria três tipos de imagem. Chamas fractais: fractais luminosos e etéreos feitos de curvas finas e luz suave. Fractais clássicos: o conjunto de Mandelbrot, os conjuntos de Julia e atratores estranhos, com cores suaves e zoom profundo. E papéis de parede: folhas planas com bordas iluminadas e sombras suaves, cada um em versão clara e escura. Você escolhe uma predefinição, gera uma imagem aleatória ou sobrepõe várias chamas e exporta o resultado em qualquer tamanho, da tela de um celular a um monitor 4K. Uma cena é um único arquivo pequeno, e o mesmo arquivo sempre gera exatamente os mesmos pixels, no Windows, macOS, Linux, Android e iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="A predefinição aurora-spiral: fios em espiral turquesa e verdes sobre um fundo escuro" width="880">
@@ -17,6 +17,7 @@ O Fractique cria dois tipos de imagem. Chamas fractais: fractais luminosos e et�
 ## O que o Fractique faz
 
 - **Chamas:** 49 variações, camadas com modos de mesclagem, simetria rotacional e espelhada, estimativa de densidade, luminescência e 29 predefinições embutidas.
+- **Fractais:** o conjunto de Mandelbrot, os conjuntos de Julia e o atrator de Clifford, cada um com predefinições e uma imagem para cada semente; compartilham as paletas, as camadas e o zoom profundo das chamas.
 - **Papéis de parede:** um para cada semente, a partir de 14 layouts e 6 materiais, cada um em versão clara e escura, disposto para o tamanho da tela.
 - **O aplicativo:** uma única base de código para Windows, macOS, Linux, Android, iOS e a web. A imagem preenche a janela e painéis de vidro flutuam sobre ela; no desktop o aplicativo tem sua própria barra de título de vidro. Em 15 idiomas.
 - **“Aleatório” e “Mutar”:** cada semente é uma imagem; chamas que seriam um ponto ou um quadrado preenchido são descartadas. “Mutar” cria uma variante daquela de que você gostou.
@@ -38,6 +39,13 @@ O Fractique cria dois tipos de imagem. Chamas fractais: fractais luminosos e et�
 | `emerald-star` (duas camadas) | `ember-vortex` |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | `golden-bloom` | `solar-mandala` |
+
+Fractais de outros tipos: o conjunto de Mandelbrot, um conjunto de Julia e o atrator de Clifford:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
+| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
 Papéis de parede, claros e escuros, cada um com seu layout e material:
 
@@ -71,6 +79,9 @@ Ou renderize pela linha de comando:
 
 # a chama aleatória da semente 42, para a tela de um celular
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
+
+# a vista aleatória do conjunto de Mandelbrot da semente 7
+./target/release/fractique render --random 7 --fractal mandelbrot --size 1920x1080 -o mandelbrot.png
 
 # o papel de parede da semente 7 para um celular, claro e escuro
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png

@@ -47,7 +47,7 @@ your `PATH`.
 ## 2. The app
 
 `fractique-gui` is the same renderer with a window: the picture fills it and glass panels float over it. It makes
-flames and wallpapers; a switch in the controls goes from one to the other.
+flames, fractals of other kinds and wallpapers; three tabs in the controls go from one to the other.
 
 ```sh
 ./target/release/fractique-gui
@@ -59,19 +59,20 @@ flames and wallpapers; a switch in the controls goes from one to the other.
 | Where | What |
 | --- | --- |
 | Title bar | The app draws its own, as a glass capsule: the name, the version (opens the updates), the language, hide the panels, full screen, minimize, maximize, close. Dragging it moves the window, a double click maximizes it, the window's edges resize it |
-| Inspector (left; **Controls** in the toolbar shows and hides it) | **Flames** or **Shapes**, then the preset or the wallpaper's choices, the colors, the size, the layers, the tone, the zoom, the glass, the scene |
+| Inspector (left; **Controls** in the toolbar shows and hides it) | **Flames**, **Fractals** or **Shapes**, then the preset, the fractal's type or the wallpaper's choices, the colors, the size, the layers, the fractal's parameters, the tone, the zoom, the glass, the scene |
+| **Fractals** (inspector) | **Type** lists the kinds of fractal: the Mandelbrot set, Julia sets, the Clifford attractor. Choosing one shows its first preset; **Presets** lists the presets of that kind. **Parameters** has a slider for every parameter of the chosen layer's fractal: the iterations, the color density and shift, the dark edge and the fade of an escape-time fractal, the constant of a Julia set, the four numbers of an attractor ([scene-format.md](scene-format.md#fractal)). The colors, the size, the layers, the tone, the view, **Recent**, **Export** and **Scene** work as for flames. Each tab keeps its picture while another is shown |
 | Toolbar (bottom) | The picture's name, its size, the time it took and the magnification; **Randomize**, **Mutate**, **Export**, **Controls** |
-| **Presets** (inspector) | A list of the 29 built-in flames |
+| **Presets** (inspector) | A list of the 29 built-in flames; in **Fractals**, the presets of the chosen type |
 | **Recent** (inspector; in the styles on a phone) | The last 24 pictures that were on the screen, newest first: presets, random flames, opened files and wallpapers. A click brings one back. A flame that is being adjusted counts once. The list is kept between launches |
-| **Randomize** | Flames: a new random flame in the chosen layer, made by the second random generator ([Random scenes](#5-random-scenes)). Wallpapers: a new wallpaper |
-| **Mutate** | Flames: a variant of the chosen layer's flame. Wallpapers: another wallpaper of the same layout and material |
+| **Randomize** | Flames: a new random flame in the chosen layer, made by the second random generator ([Random scenes](#5-random-scenes)). Fractals: a new random picture of the chosen type in the chosen layer. Wallpapers: a new wallpaper |
+| **Mutate** | Flames: a variant of the chosen layer's flame. Fractals: a nearby view of the Mandelbrot set, a Julia set of a nearby constant, an attractor of nearby numbers. Wallpapers: another wallpaper of the same layout and material |
 | **Layout**, **Material**, **Light** and **Dark** (inspector, wallpapers) | One of the 14 layouts and 6 materials of [Wallpapers](#6-wallpapers), or **Any**, which leaves the choice to each new wallpaper; and its light or dark version |
 | **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 59 screens, or any width and height from 16 to 16384 pixels. The list is in groups, chosen by the tabs over it: **Screens** (computers up to 4K), **iPhone**, **iPad**, **Mac**, **Watch** and **Android**. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone, 900 in a browser); a larger one is shown scaled down and exported in full. It is shown whole in the window. The App Store builds list computer screens and Apple devices, and a size typed in needs Fractique Pro there ([Free and Fractique Pro](#free-and-fractique-pro)) |
-| **Layers** (inspector, flames) | The scene's flames, one over another, up to 16: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity. Only the layer that changed is rendered again |
+| **Layers** (inspector, flames and fractals) | The scene's flames and fractals, one over another, up to 16: **+** adds one from the presets or a random one (in **Fractals** the list holds the presets of the chosen type and the flames, so a flame can lie over a Mandelbrot set), **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity. Only the layer that changed is rendered again |
 | **Tone**, **View** (inspector, flames) | Brightness, gamma and glow of the whole picture, and a zoom; **Reset** brings them back |
-| **Graphics: GPU acceleration** (inspector; on at first; only on some devices) | The section exists where the graphics card draws a flame clearly faster than the processor: the app tries both once, after its first picture, and remembers the answer for that card. On a device without such a card (many phones, a computer without a graphics card of its own, a browser) there is no switch and the processor renders everything. On, the graphics card draws every flame itself, at the full size and in a fraction of a second, growing finer over a few frames; the processor does not render for the screen, so its cores stay free. Tone, opacity and blend follow at once. Under the switch are the card's name and a note: the picture on the screen and an **Instant** export come from the card, have another grain than the processor's render and can differ slightly from one device to the next, while an export at Standard, High or Ultra is always rendered exactly. Wallpapers, deep views and whatever else the card does not draw are rendered by the processor as before. Off, every change is rendered by the processor straight away, drafts first |
+| **Graphics: GPU acceleration** (inspector; on at first; only on some devices) | The section exists where the graphics card draws a flame clearly faster than the processor: the app tries both once, after its first picture, and remembers the answer for that card. On a device without such a card (many phones, a computer without a graphics card of its own, a browser) there is no switch and the processor renders everything. On, the graphics card draws every flame itself, at the full size and in a fraction of a second, growing finer over a few frames; the processor does not render for the screen, so its cores stay free. Tone, opacity and blend follow at once. Under the switch are the card's name and a note: the picture on the screen and an **Instant** export come from the card, have another grain than the processor's render and can differ slightly from one device to the next, while an export at Standard, High or Ultra is always rendered exactly. Wallpapers, deep views, a scene with a fractal of another kind in any layer and whatever else the card does not draw are rendered by the processor as before. Off, every change is rendered by the processor straight away, drafts first |
 | **Glass** (inspector) | Opacity and blur of the panels. **F2** opens the fine tuning of the glass: refraction, depth, bezel |
-| Drag, wheel or pinch on the picture | Moves the view and zooms in and out, from 10,000 times smaller to 10,000,000,000 times larger. The picture follows at once and is drawn anew, sharp, when the view rests; the toolbar shows the magnification. **Export** and **Save** take the view as it is. A double click shows the whole scene again |
+| Drag, wheel or pinch on the picture | Moves the view and zooms in and out, from 10,000 times smaller to 10,000,000,000 times larger (for a fractal, counted together with the zoom its scene already has). The picture follows at once and is drawn anew, sharp, when the view rests; the toolbar shows the magnification. **Export** and **Save** take the view as it is. A double click shows the whole scene again |
 | **Reset view** (appears once the picture is moved or zoomed) | Shows the whole scene again, as a double click does |
 | **Export** | A PNG at the picture's size, or at another size chosen in the same list there, in one of four qualities. **Instant** saves the picture that is on the screen, at once: with GPU acceleration on that is the graphics card's picture, which is not exact to the pixel; the others render it anew on the processor, exactly, in the background with a progress bar and **Cancel**. In the App Store builds a size with a lock needs Fractique Pro ([Free and Fractique Pro](#free-and-fractique-pro)) |
 | **Scene: Open, Save** | **Save** writes a `.frcq` file, the app's own: the scene together with the tone, the view, the size and the flames or wallpapers choices, so it opens as it was saved, in a compact form that is not text. It can also write a plain `.json` scene, which is. **Open** reads `.frcq`, `.json` and `.flame`. A file given to the app when it starts (dropped on its icon, or "Open with") opens in it |
@@ -110,17 +111,17 @@ On Android and iOS the picture fills the screen and the controls are a few round
 
 | Where | What |
 | --- | --- |
-| **Flames**, **Shapes** (top) | What the app makes: flames, or wallpapers of flat lit shapes. Each keeps its picture while the other is shown |
-| The row of colors under them | A hue for the shapes, a palette for the flames; the crossed circle gives the picture its own colors back |
-| The large round button | A new picture: a random flame, or the next wallpaper |
+| **Flames**, **Fractals**, **Shapes** (top) | What the app makes: flames, fractals of other kinds, or wallpapers of flat lit shapes. Each keeps its picture while another is shown |
+| The row of colors under them | A hue for the shapes, a palette for the flames and the fractals; the crossed circle gives the picture its own colors back |
+| The large round button | A new picture: a random flame, a random fractal of the chosen type, or the next wallpaper |
 | The four small buttons above it | **Keep** puts the picture into the collection, or takes it out (it holds 48). **Similar** makes another wallpaper of the same layout and material; for a flame it is **Mutate**, a variant of it. **Style** opens the styles. **Export** saves the picture. Their names stand beside them when the phone is on its side |
 | The placard (bottom left) | A wallpaper's layout, material and number, or a flame's name; under it the size and the time |
 | Swipe left or right (wallpapers) | The next or the previous wallpaper |
 | Drag and pinch (flames) | Move the view and zoom, as on a computer; **Reset view** appears |
 | Tap | Hides the buttons, and shows them again |
 | Press and hold | Shows the picture as the lock screen of an iPhone, with the date, the time, the torch and the camera, for as long as the finger rests. On an iPhone the date and the time are the real ones |
-| **Style** | A sheet that slides up, with small live pictures to choose from. First the **collection**, the pictures kept. For wallpapers: every layout, every material, a row of colors (any, or one of eight) and **Light** or **Dark**. For flames: every preset, and a random one. Its handle drags it taller or away |
-| **Fine-tune** (at the end of the styles) | The controls of the computer's inspector, over the whole screen: language, size, layers, tone, glass, GPU acceleration. The cross closes them |
+| **Style** | A sheet that slides up, with small live pictures to choose from. First the **collection**, the pictures kept. For wallpapers: every layout, every material, a row of colors (any, or one of eight) and **Light** or **Dark**. For flames: every preset, and a random one. For fractals: every type, each with a small picture, then the presets of the chosen type and a random one. Its handle drags it taller or away |
+| **Fine-tune** (at the end of the styles) | The controls of the computer's inspector, over the whole screen: language, size, layers, a fractal's parameters, tone, glass, GPU acceleration. The cross closes them |
 | **Export** | The size and the quality, then **Save to Photos** or **Share**. On an iPhone the picture goes to Photos or to the share sheet. On Android it goes to the gallery, into `Pictures/Fractique`, and **Share** then offers it to other apps. Android 9 and older ask for storage access when **Save** is pressed, before the picture is made; once allowed, the export goes on by itself |
 
 A phone has no **Scene: Open, Save** and no updates window: [releasing.md](releasing.md) says what updates itself
@@ -269,6 +270,38 @@ fractique randomize 42 --generator 2 -o scene.json
 The app's **Randomize** uses generator 2. A seed keeps its scene in each generator from one version of Fractique
 to the next: a better randomizer comes as a new generator with a number of its own.
 
+### Fractals of other kinds
+
+`fractique fractals` lists the kinds of fractal besides flames, with the parameters of each, their defaults and
+ranges, and their presets:
+
+```sh
+fractique fractals
+fractique render --preset mandelbrot-seahorse-valley -o seahorses.png
+fractique preset julia-dragon > dragon.json
+```
+
+`--fractal KIND` makes the random scene of a seed a fractal of that kind:
+
+```sh
+fractique render --random 7 --fractal mandelbrot -o m7.png
+fractique render --random 7 --fractal julia --size 1080x2400 --quality mobile -o j7.png
+fractique randomize 7 --fractal clifford -o attractor.json
+```
+
+| Kind | The random scene of a seed |
+| --- | --- |
+| `mandelbrot` | A view along the edge of the set, magnified from a few times to about a million: a walk of one to nine steps from the whole set, each into one of the busiest parts of the view before it. Views that are more than 28 % set, flat or noise are skipped; the colors are spread over what the view shows and the iterations set for its depth |
+| `julia` | The Julia set of a point on the edge of the Mandelbrot set, whole or a part of it, judged the same way |
+| `clifford` | An attractor of four random numbers. Those that settle on a few points or a curve, a dot in a dust or an even fog are skipped, and the camera frames the rest |
+
+The random fractal of a seed may change from one version of Fractique to the next, as a wallpaper's does; a scene
+kept in a file does not. `--generator` is for flames and is refused with `--fractal`.
+
+A fractal is drawn at the samples and the supersample of the quality level, in its own way
+([scene-format.md](scene-format.md#fractal)): `--quality high` draws the edges of a Mandelbrot set from 36 samples
+a pixel, `standard` from 9, `draft` from one.
+
 ## 6. Wallpapers
 
 A wallpaper is a scene made of flat sheets with lit edges and soft shadows instead of a flame. Every number is one:
@@ -333,7 +366,8 @@ fractique render AuroraSpiral.frcq --size 3840x2160 --quality high -o aurora.png
 
 ## 8. Layers
 
-A scene can hold up to 16 layers, each a flame of its own with its own camera, palette and tone, blended in order.
+A scene can hold up to 16 layers, each a flame or a fractal of another kind with its own camera, palette and tone,
+blended in order.
 The `emerald-star` preset is two: a violet veil of rings under a green four-pointed star.
 
 ```sh
@@ -353,8 +387,10 @@ fractique mutate scene.json 2 --strength 0.2 -o variant2.json
 
 The number picks the variant; the same number always gives the same one. `--strength` goes from 0 (no change) to 1
 (barely related); the default is 0.3. The camera is kept, so a strong mutation can move the flame partly out of
-view: lower `camera.zoom` then, or run `fractique fit`. Only flames change: the sheets of a wallpaper stay as they
-are.
+view: lower `camera.zoom` then, or run `fractique fit`. A fractal of another kind changes its own way: a
+`mandelbrot` moves, turns and zooms its view a little and shifts its colors, a `julia` gets a nearby constant, a
+`clifford` nearby numbers and a camera that frames it again. `fractique fit` leaves a fractal's view as it is. The
+sheets of a wallpaper stay as they are.
 
 ## 10. Flames from other programs
 
@@ -421,6 +457,9 @@ fractique render --preset emerald-star --size 640x360 --quality high -o docs/sam
 fractique render --preset ember-vortex --size 640x360 --quality high -o docs/samples/ember-vortex.png
 fractique render --preset golden-bloom --size 640x360 --quality high -o docs/samples/golden-bloom.png
 fractique render --preset solar-mandala --size 640x360 --quality high -o docs/samples/solar-mandala.png
+fractique render --preset mandelbrot-spiral --size 640x360 --quality high -o docs/samples/fractal-mandelbrot.png
+fractique render --preset julia-spirals --size 640x360 --quality high -o docs/samples/fractal-julia.png
+fractique render --preset clifford-wings --size 640x360 --quality high -o docs/samples/fractal-clifford.png
 fractique render --wallpaper 3 --layout waves --material glass --size 360x780 -o docs/samples/wallpaper-waves-light.png
 fractique render --wallpaper 5 --layout burst --material glow --size 360x780 -o docs/samples/wallpaper-burst-light.png
 fractique render --wallpaper 7 --layout tiles --material relief --size 360x780 -o docs/samples/wallpaper-tiles-light.png
