@@ -17,6 +17,8 @@ fn main() -> eframe::Result {
             && let (Ok(width), Ok(height)) = (width.parse::<f32>(), height.parse::<f32>())
         {
             size = [width, height];
+        } else if !arg.starts_with("--") {
+            fractique_app::open_at_start(PathBuf::from(arg));
         }
     }
     let mut viewport = egui::ViewportBuilder::default()
