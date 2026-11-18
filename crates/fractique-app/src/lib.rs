@@ -111,28 +111,37 @@ fn size_list(
     widgets::row(ui, &texts.get("size_custom"), chosen.is_some() && !listed);
     ui.add_space(4.0);
     let mut entered = false;
-    ui.horizontal(|ui| {
-        for (side, text) in custom.iter_mut().enumerate() {
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(82.0, 34.0), egui::Sense::hover());
-            ui.painter()
-                .rect_filled(rect, egui::CornerRadius::same(10), egui::Color32::from_white_alpha(30));
-            let field = egui::TextEdit::singleline(text)
-                .frame(egui::Frame::NONE)
-                .font(font(14.0, MEDIUM))
-                .text_color(egui::Color32::WHITE)
-                .char_limit(5);
-            let typed = ui.put(rect.shrink2(egui::vec2(12.0, 5.0)), field);
-            entered |= typed.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
-            text.retain(|c| c.is_ascii_digit());
-            if side == 0 {
-                ui.label(
-                    egui::RichText::new("×")
-                        .size(14.0)
-                        .color(egui::Color32::from_white_alpha(170)),
-                );
-            }
+    let (line, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 36.0), egui::Sense::hover());
+    let mut left = line.left();
+    for (side, text) in custom.iter_mut().enumerate() {
+        let rect = egui::Rect::from_min_size(egui::pos2(left, line.top()), egui::vec2(84.0, line.height()));
+        ui.painter()
+            .rect_filled(rect, egui::CornerRadius::same(10), egui::Color32::from_white_alpha(30));
+        let field = egui::TextEdit::singleline(text)
+            .frame(egui::Frame::NONE)
+            .font(font(14.0, MEDIUM))
+            .text_color(egui::Color32::WHITE)
+            .align(egui::Align2::LEFT_CENTER)
+            .desired_width(60.0)
+            .char_limit(5);
+        let typed = ui.put(rect.shrink2(egui::vec2(12.0, 4.0)), field);
+        entered |= typed.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
+        text.retain(|c| c.is_ascii_digit());
+        left = rect.right();
+        if side == 0 {
+            ui.painter().text(
+                egui::pos2(left + 9.0, line.center().y),
+                egui::Align2::CENTER_CENTER,
+                "×",
+                egui::FontId::proportional(14.0),
+                egui::Color32::from_white_alpha(170),
+            );
+            left += 18.0;
         }
-        entered |= widgets::pill(ui, &texts.get("apply"), false, ui.available_width());
+    }
+    let button = egui::Rect::from_min_max(egui::pos2(left + 8.0, line.top()), line.right_bottom());
+    ui.scope_builder(egui::UiBuilder::new().max_rect(button), |ui| {
+        entered |= widgets::pill(ui, &texts.get("apply"), false, button.width());
     });
     if entered {
         match parsed_size(&format!("{}x{}", custom[0], custom[1])) {
