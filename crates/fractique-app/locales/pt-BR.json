@@ -107,6 +107,6 @@
   "allow_storage": "Permita o acesso ao armazenamento para salvar a imagem.",
   "color": "COR",
   "graphics": "GRÁFICOS",
-  "gpu_note": "A imagem rápida pode variar um pouco entre dispositivos. As exportações são sempre exatas.",
+  "gpu_note": "Com a aceleração, a imagem pode ficar um pouco diferente de um dispositivo para outro. A exportação não muda.",
   "gpu": "Aceleração por GPU"
 }

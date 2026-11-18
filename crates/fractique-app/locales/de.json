@@ -107,6 +107,6 @@
   "allow_storage": "Speicherzugriff erlauben, um das Bild zu speichern.",
   "color": "FARBE",
   "graphics": "GRAFIK",
-  "gpu_note": "Das schnelle Bild kann je nach Gerät leicht abweichen. Exporte sind immer exakt.",
+  "gpu_note": "Mit Beschleunigung kann das Bild je nach Gerät leicht anders aussehen. Der Export ist davon nicht betroffen.",
   "gpu": "GPU-Beschleunigung"
 }

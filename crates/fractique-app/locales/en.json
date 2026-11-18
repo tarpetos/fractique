@@ -107,6 +107,6 @@
   "allow_storage": "Allow storage access to save the picture.",
   "color": "COLOR",
   "graphics": "GRAPHICS",
-  "gpu_note": "The quick picture can differ slightly between devices. Exports are always exact.",
+  "gpu_note": "With acceleration on, the picture can look slightly different from device to device. Exports are not affected.",
   "gpu": "GPU acceleration"
 }

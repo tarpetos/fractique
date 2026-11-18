@@ -107,6 +107,6 @@
   "allow_storage": "Izinkan akses penyimpanan untuk menyimpan gambar.",
   "color": "WARNA",
   "graphics": "GRAFIS",
-  "gpu_note": "Gambar cepat bisa sedikit berbeda antarperangkat. Ekspor selalu persis.",
+  "gpu_note": "Saat aktif, gambar bisa tampak sedikit berbeda di tiap perangkat. Ekspor tidak terpengaruh.",
   "gpu": "Akselerasi GPU"
 }
