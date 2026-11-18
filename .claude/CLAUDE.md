@@ -35,6 +35,8 @@ and the commands. The short mark `frcq.` was tried and is on hold: do not use it
   and in each of the other 14 locale files; a test fails when one lacks a key. After adding texts in Japanese,
   Chinese, Korean or Hindi, run `tools/i18n/make_fonts.py`: the fonts for those hold only the characters in use.
 - **README:** `README.md` has 14 translations in `docs/readme/`. A change to one goes into all of them.
+- **Dependencies:** after a change to `Cargo.lock`, run `python3 tools/notices/make_notices.py`: it rewrites the table of
+  `THIRD_PARTY_NOTICES.md` from what the lock file resolves to.
 - **Layers:** `fractique-core` knows nothing about files, terminals, networks or UI. Everything else wraps it.
 - **Event-driven:** no polling loops in the app, server or MCP crates; background work posts events.
 - Commit and pull request titles: Conventional Commits, see "Commit messages" in CONTRIBUTING.md.
