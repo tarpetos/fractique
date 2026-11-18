@@ -172,6 +172,10 @@ impl Gfx {
             texture.create_view(&wgpu::TextureViewDescriptor::default())
         };
         let (flame, soft) = (upload(flame), upload(soft));
+        self.show(device, &flame, &soft);
+    }
+
+    pub fn show(&mut self, device: &wgpu::Device, flame: &wgpu::TextureView, soft: &wgpu::TextureView) {
         for slot in &mut self.slots {
             slot.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("fractique glass"),
@@ -183,11 +187,11 @@ impl Gfx {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::TextureView(&flame),
+                        resource: wgpu::BindingResource::TextureView(flame),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: wgpu::BindingResource::TextureView(&soft),
+                        resource: wgpu::BindingResource::TextureView(soft),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,

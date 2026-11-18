@@ -248,6 +248,36 @@ pub fn pill(ui: &mut Ui, text: &str, primary: bool, min_width: f32) -> bool {
     response.clicked()
 }
 
+pub fn toggle(ui: &mut Ui, label: &str, on: &mut bool) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+    if response.clicked() {
+        *on = !*on;
+    }
+    let track = egui::Rect::from_center_size(egui::pos2(rect.right() - 19.0, rect.center().y), vec2(38.0, 22.0));
+    let ink = white(if response.hovered() { 230 } else { 190 });
+    let galley = fitted(
+        ui,
+        label,
+        FontId::proportional(13.0),
+        ink,
+        track.left() - rect.left() - 10.0,
+    );
+    let painter = ui.painter();
+    painter.galley(
+        egui::pos2(rect.left(), rect.center().y - galley.size().y * 0.5),
+        galley,
+        ink,
+    );
+    painter.rect_filled(track, CornerRadius::same(11), white(if *on { 215 } else { 45 }));
+    let (at, knob) = if *on {
+        (track.right() - 11.0, Color32::from_rgb(14, 18, 34))
+    } else {
+        (track.left() + 11.0, Color32::WHITE)
+    };
+    painter.circle_filled(egui::pos2(at, track.center().y), 8.0, knob);
+    response.clicked()
+}
+
 pub fn slider(ui: &mut Ui, label: &str, value: &mut f64, range: (f64, f64), logarithmic: bool) -> bool {
     let (low, high) = range;
     let to_share = |v: f64| {

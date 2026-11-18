@@ -206,6 +206,38 @@ impl Developed {
     }
 }
 
+// A layer before its tone: the density of every histogram cell. A change to the layer's brightness, gamma,
+// vibrancy, highlight or glow develops it again without the chaos game.
+pub struct Density {
+    width: u32,
+    height: u32,
+    supersample: u32,
+    smoothing: f64,
+    normalize: f64,
+    cells: Vec<f32>,
+}
+
+impl Density {
+    pub fn bytes(&self) -> usize {
+        self.cells.len() * size_of::<f32>()
+    }
+
+    pub fn size(&self) -> [u32; 2] {
+        [self.width, self.height]
+    }
+
+    /// Four numbers a pixel: its average color and its brightness before the tone settings shape it. The
+    /// brightness times `Tone::brightness` is the level that `gamma`, `vibrancy` and `highlight` work on.
+    pub fn levels(&self) -> Vec<f32> {
+        tone::levels(
+            &self.cells,
+            (self.width * self.supersample) as usize,
+            self.supersample as usize,
+            self.normalize,
+        )
+    }
+}
+
 pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> Result<Image, RenderError> {
     scene.validate().map_err(RenderError::Scene)?;
     options.validate()?;
@@ -247,6 +279,60 @@ pub fn render_layer(
     )
 }
 
+pub fn render_density(
+    scene: &Scene,
+    index: usize,
+    options: &RenderOptions,
+    control: &Control<'_>,
+) -> Result<Density, RenderError> {
+    scene.validate().map_err(RenderError::Scene)?;
+    options.validate()?;
+    if scene.layers.is_empty() {
+        return Err(RenderError::Options("the scene has no layers".into()));
+    }
+    let report = |share: f64| {
+        if let Some(progress) = control.progress {
+            progress(share);
+        }
+    };
+    density(
+        scene,
+        index.min(scene.layers.len() - 1),
+        options,
+        control.cancel,
+        &report,
+    )
+}
+
+/// The layer `render_layer` gives, from a density made for the same flame, seed, place and size. Only the
+/// layer's `smoothing` is already in the density: a density made with another one is refused.
+pub fn develop(scene: &Scene, index: usize, density: &Density) -> Result<Developed, RenderError> {
+    scene.validate().map_err(RenderError::Scene)?;
+    let Some(layer) = scene.layers.get(index) else {
+        return Err(RenderError::Options("the scene has no such layer".into()));
+    };
+    if layer.flame.tone.smoothing != density.smoothing {
+        return Err(RenderError::Options(
+            "the density was made with another smoothing".into(),
+        ));
+    }
+    Ok(developed(density, &layer.flame.tone))
+}
+
+fn developed(density: &Density, tone: &crate::scene::Tone) -> Developed {
+    Developed {
+        width: density.width,
+        height: density.height,
+        pixels: tone::develop(
+            &density.cells,
+            (density.width * density.supersample) as usize,
+            tone,
+            density.supersample as usize,
+            density.normalize,
+        ),
+    }
+}
+
 pub fn compose(scene: &Scene, layers: &[&Developed], options: &RenderOptions) -> Result<Image, RenderError> {
     scene.validate().map_err(RenderError::Scene)?;
     options.validate()?;
@@ -264,17 +350,26 @@ fn develop_layer(
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
 ) -> Result<Developed, RenderError> {
+    let density = density(scene, index, options, cancel, report)?;
+    Ok(developed(&density, &scene.layers[index].flame.tone))
+}
+
+fn density(
+    scene: &Scene,
+    index: usize,
+    options: &RenderOptions,
+    cancel: Option<&AtomicBool>,
+    report: &(dyn Fn(f64) + Sync),
+) -> Result<Density, RenderError> {
     let (histogram, normalize) = gather(scene, index, options, cancel, report, false)?;
-    let pixels = tone::develop(
-        &histogram,
-        &scene.layers[index].flame.tone,
-        options.supersample as usize,
-        normalize,
-    );
-    Ok(Developed {
+    let smoothing = scene.layers[index].flame.tone.smoothing;
+    Ok(Density {
         width: options.width,
         height: options.height,
-        pixels,
+        supersample: options.supersample,
+        smoothing,
+        normalize,
+        cells: tone::estimate(&histogram, smoothing),
     })
 }
 

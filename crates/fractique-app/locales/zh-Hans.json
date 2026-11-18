@@ -105,5 +105,7 @@
   "save_photos": "存储到照片",
   "share": "分享",
   "allow_storage": "请允许访问存储以保存图像。",
-  "color": "颜色"
+  "color": "颜色",
+  "graphics": "图形",
+  "gpu": "GPU 加速"
 }

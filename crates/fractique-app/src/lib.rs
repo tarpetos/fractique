@@ -12,6 +12,7 @@ mod instance;
 #[cfg(target_os = "ios")]
 mod ios;
 mod phone;
+mod preview;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 mod update;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -33,10 +34,14 @@ use fractique_core::palette;
 use fractique_core::random::{Generator, mutate, random_scene, random_scene_of};
 use fractique_core::scene::{Blend, MAX_LAYERS};
 use fractique_core::wallpaper::{Layout, Material, Request, chosen as wallpaper_choice, random_wallpaper};
-use fractique_core::{Control, Developed, Image, RenderError, RenderOptions, Scene, compose, presets, render_layer};
+use fractique_core::{
+    Control, Developed, Image, RenderError, RenderOptions, Scene, Tone, compose, develop, presets, render_density,
+    render_layer,
+};
 
 use glass::{Gfx, Optics};
 use i18n::{Lang, Texts};
+use preview::{Preview, Source};
 use widgets::{MEDIUM, SEMIBOLD, font};
 
 const DRAFT_SIDE: f32 = 480.0;
@@ -58,10 +63,20 @@ const FULL_SAMPLES: u32 = if cfg!(target_arch = "wasm32") {
     32
 };
 
+#[derive(Clone)]
+struct Held {
+    size: [u32; 2],
+    options: RenderOptions,
+    keys: Vec<String>,
+    sources: Vec<Arc<Source>>,
+}
+
 struct Rendered {
     generation: u64,
     draft: bool,
     view: View,
+    zoom: f64,
+    held: Option<Held>,
     image: Image,
     soft: (Vec<u8>, u32, u32),
     seconds: f32,
@@ -333,6 +348,15 @@ impl View {
         ]
     }
 
+    // The same view of a camera that magnifies `by` times more.
+    fn scaled(&self, by: f64) -> View {
+        View {
+            right: self.right / by,
+            down: self.down / by,
+            zoom: self.zoom * by,
+        }
+    }
+
     fn label(&self) -> String {
         match self.zoom {
             zoom if zoom >= 1e6 => format!("{zoom:.1e}"),
@@ -363,6 +387,28 @@ const NEUTRAL: Adjust = Adjust {
     glow: 1.0,
     zoom: 1.0,
 };
+
+fn shows(what: &str) -> bool {
+    std::env::var("FRACTIQUE_SHOW").is_ok_and(|shown| shown == what)
+}
+
+impl Adjust {
+    // A test run's tone: FRACTIQUE_ADJUST=brightness,gamma,glow,zoom. With FRACTIQUE_SHOW=preview it is set once
+    // the picture is rendered and stays the graphics card's.
+    fn asked() -> Option<Adjust> {
+        let text = std::env::var("FRACTIQUE_ADJUST").ok()?;
+        let numbers: Vec<f64> = text.split(',').filter_map(|number| number.parse().ok()).collect();
+        let &[brightness, gamma, glow, zoom] = numbers.as_slice() else {
+            return None;
+        };
+        Some(Adjust {
+            brightness,
+            gamma,
+            glow,
+            zoom,
+        })
+    }
+}
 
 #[derive(Default)]
 struct Wall {
@@ -414,8 +460,14 @@ struct App {
     adjust: Adjust,
     view: View,
     shown: View,
-    drawn: Option<View>,
+    shown_zoom: f64,
+    drawn: Option<(View, f64)>,
     touched: Instant,
+    gpu: bool,
+    preview: Option<Preview>,
+    held: Option<Held>,
+    previewing: bool,
+    frozen: bool,
     bare: bool,
     optics: Optics,
     tuning: bool,
@@ -483,13 +535,20 @@ fn render_pool() -> &'static rayon::ThreadPool {
     })
 }
 
-struct Kept {
-    layer: Arc<Developed>,
+struct Kept<T> {
+    item: Arc<T>,
     used: u64,
     home: bool,
 }
 
-type Layers = Arc<Mutex<HashMap<String, Kept>>>;
+#[derive(Default)]
+struct Store {
+    layers: HashMap<String, Kept<Developed>>,
+    sources: HashMap<String, Kept<Source>>,
+}
+
+type Layers = Arc<Mutex<Store>>;
+type Sources = (Vec<String>, Vec<Arc<Source>>);
 
 const KEPT_BYTES: usize = if cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
     160 << 20
@@ -497,22 +556,40 @@ const KEPT_BYTES: usize = if cfg!(any(target_os = "android", target_os = "ios", 
     1200 << 20
 };
 
+fn size_key(options: &RenderOptions) -> String {
+    format!(
+        "{} {} {} {} ",
+        options.width, options.height, options.samples_per_pixel, options.supersample
+    )
+}
+
+// What a layer's density depends on: its flame without the tone, but with the smoothing.
+fn source_key(scene: &Scene, index: usize, size: &str) -> String {
+    let mut flame = scene.layers[index].flame.clone();
+    flame.tone = Tone {
+        smoothing: flame.tone.smoothing,
+        ..Tone::default()
+    };
+    let flame = serde_json::to_string(&flame).unwrap_or_default();
+    format!("{size}{} {index} {flame}", scene.seed)
+}
+
 // A layer's pixels depend only on its flame, its place in the scene, the seed and the size, so a layer that did
 // not change is taken from an earlier render. The layers of the whole view are the last to be dropped: Reset view
-// comes back to them.
+// comes back to them. With `sources` the densities are kept too: a layer whose tone alone changed is developed
+// from its density, and the graphics card previews from them.
 fn rendered(
     scene: &Scene,
     options: &RenderOptions,
     control: &Control<'_>,
     kept: &Layers,
     home: bool,
-) -> Result<Image, RenderError> {
+    sources: bool,
+) -> Result<(Image, Option<Sources>), RenderError> {
     static USES: AtomicU64 = AtomicU64::new(0);
-    let size = format!(
-        "{} {} {} {} ",
-        options.width, options.height, options.samples_per_pixel, options.supersample
-    );
+    let size = size_key(options);
     let (mut keys, mut layers) = (Vec::new(), Vec::new());
+    let (mut source_keys, mut held) = (Vec::new(), Vec::new());
     for (index, layer) in scene.layers.iter().enumerate() {
         let flame = serde_json::to_string(&layer.flame).unwrap_or_default();
         let key = format!("{size}{} {index} {flame}", scene.seed);
@@ -520,49 +597,99 @@ fn rendered(
         let found = kept
             .lock()
             .unwrap_or_else(|e| e.into_inner())
+            .layers
             .get_mut(&key)
             .map(|entry| {
                 entry.used = used;
                 entry.home |= home;
-                entry.layer.clone()
+                entry.item.clone()
             });
+        let source_key = sources.then(|| source_key(scene, index, &size));
+        let mut source = source_key.as_ref().and_then(|key| {
+            let mut kept = kept.lock().unwrap_or_else(|e| e.into_inner());
+            kept.sources.get_mut(key).map(|entry| {
+                entry.used = used;
+                entry.home |= home;
+                entry.item.clone()
+            })
+        });
         let developed = match found {
             Some(developed) => developed,
             None => {
-                let layer = Arc::new(render_layer(scene, index, options, control)?);
+                let layer = match &source_key {
+                    None => render_layer(scene, index, options, control)?,
+                    Some(source_key) => {
+                        let made = match source.take() {
+                            Some(made) => made,
+                            None => {
+                                let made = Arc::new(Source::new(render_density(scene, index, options, control)?));
+                                let entry = Kept {
+                                    item: made.clone(),
+                                    used,
+                                    home,
+                                };
+                                kept.lock()
+                                    .unwrap_or_else(|e| e.into_inner())
+                                    .sources
+                                    .insert(source_key.clone(), entry);
+                                made
+                            }
+                        };
+                        let layer = develop(scene, index, &made.density)?;
+                        source = Some(made);
+                        layer
+                    }
+                };
+                let layer = Arc::new(layer);
                 let entry = Kept {
-                    layer: layer.clone(),
+                    item: layer.clone(),
                     used,
                     home,
                 };
                 kept.lock()
                     .unwrap_or_else(|e| e.into_inner())
+                    .layers
                     .insert(key.clone(), entry);
                 layer
             }
         };
         keys.push(key);
         layers.push(developed);
+        source_keys.extend(source_key);
+        held.extend(source);
     }
     {
         let mut kept = kept.lock().unwrap_or_else(|e| e.into_inner());
-        let mut bytes: usize = kept.values().map(|entry| entry.layer.bytes()).sum();
-        let mut spare: Vec<(bool, u64, String)> = kept
+        let mut bytes: usize = kept.layers.values().map(|entry| entry.item.bytes()).sum::<usize>()
+            + kept.sources.values().map(|entry| entry.item.bytes()).sum::<usize>();
+        // A density makes its layer again without the chaos game, so of two equally old the layer goes first.
+        let mut spare: Vec<(bool, u64, bool, String)> = kept
+            .layers
             .iter()
             .filter(|(key, _)| !keys.contains(key))
-            .map(|(key, entry)| (entry.home, entry.used, key.clone()))
+            .map(|(key, entry)| (entry.home, entry.used, false, key.clone()))
+            .chain(
+                kept.sources
+                    .iter()
+                    .filter(|(key, _)| !source_keys.contains(key))
+                    .map(|(key, entry)| (entry.home, entry.used, true, key.clone())),
+            )
             .collect();
         spare.sort();
-        for (_, _, key) in spare {
+        for (_, _, is_source, key) in spare {
             if bytes <= KEPT_BYTES {
                 break;
             }
-            if let Some(entry) = kept.remove(&key) {
-                bytes -= entry.layer.bytes();
-            }
+            bytes -= if is_source {
+                kept.sources.remove(&key).map_or(0, |entry| entry.item.bytes())
+            } else {
+                kept.layers.remove(&key).map_or(0, |entry| entry.item.bytes())
+            };
         }
     }
-    compose(scene, &layers.iter().map(|layer| &**layer).collect::<Vec<_>>(), options)
+    let image = compose(scene, &layers.iter().map(|layer| &**layer).collect::<Vec<_>>(), options)?;
+    let held = (sources && held.len() == scene.layers.len() && !held.is_empty()).then_some((source_keys, held));
+    Ok((image, held))
 }
 
 fn fitted(size: [u32; 2], side: f32, samples: u32) -> RenderOptions {
@@ -596,6 +723,14 @@ impl App {
             let gfx = Gfx::new(&state.device, state.target_format);
             state.renderer.write().callback_resources.insert(gfx);
         }
+        let preview = cc
+            .wgpu_render_state
+            .as_ref()
+            .and_then(|state| Preview::new(state, &cc.egui_ctx));
+        let gpu = match std::env::var("FRACTIQUE_GPU") {
+            Ok(choice) => choice != "off",
+            Err(_) => stored("gpu").is_none_or(|choice| choice != "off"),
+        };
         let restore = screenshot.is_none() || std::env::var_os("FRACTIQUE_RESTORE").is_some();
         let session = if restore { stored("session") } else { None };
         let title = "aurora-spiral".to_owned();
@@ -618,8 +753,14 @@ impl App {
             adjust: NEUTRAL,
             view: WHOLE,
             shown: WHOLE,
+            shown_zoom: 1.0,
             drawn: None,
             touched: Instant::now(),
+            gpu,
+            preview,
+            held: None,
+            previewing: false,
+            frozen: false,
             bare: false,
             optics: Optics {
                 refraction: 38.0,
@@ -693,6 +834,11 @@ impl App {
         if let Some(path) = OPEN_FIRST.get() {
             app.load_scene(path);
         }
+        if !shows("preview")
+            && let Some(adjust) = Adjust::asked()
+        {
+            app.adjust = adjust;
+        }
         app
     }
 
@@ -714,7 +860,7 @@ impl App {
         }
         if self.wall.live == self.wall.on {
             let size = self.requested;
-            let settled = !self.rendering && self.drawn == Some(self.view);
+            let settled = !self.rendering && self.drawn == Some((self.view, self.adjust.zoom));
             let held = size
                 .filter(|_| self.wall.live)
                 .map(|size| wallpaper_choice(self.seed, &self.wall.request(size)));
@@ -751,7 +897,7 @@ impl App {
         match rest.picture {
             Some((mut picture, size)) if Some(size) == self.requested => {
                 picture.generation = self.generation;
-                self.drawn = Some(rest.view);
+                self.drawn = Some((rest.view, self.adjust.zoom));
                 self.rendering = false;
                 let _ = self.results.0.send(picture);
             }
@@ -760,19 +906,65 @@ impl App {
     }
 
     fn scene(&self) -> Scene {
+        self.scene_in(self.view, self.adjust.zoom)
+    }
+
+    fn scene_in(&self, view: View, zoom: f64) -> Scene {
         let mut scene = self.dressed();
         for layer in &mut scene.layers {
             let tone = &mut layer.flame.tone;
             tone.brightness *= self.adjust.brightness;
             tone.gamma *= self.adjust.gamma;
             tone.glow_strength *= self.adjust.glow;
-            layer.flame.camera.zoom *= self.adjust.zoom;
-            layer.flame.camera = layer
-                .flame
-                .camera
-                .looking_at(self.view.right, self.view.down, self.view.zoom);
+            layer.flame.camera.zoom *= zoom;
+            layer.flame.camera = layer.flame.camera.looking_at(view.right, view.down, view.zoom);
         }
         scene
+    }
+
+    fn gpu_on(&self) -> bool {
+        self.gpu && self.preview.as_ref().is_some_and(Preview::works)
+    }
+
+    // False when the layers on the graphics card are not this scene's: then the processor has to render.
+    fn preview_now(&mut self, ctx: &egui::Context, frame: &eframe::Frame, size: [u32; 2]) -> bool {
+        if !self.gpu_on() || self.wall.live {
+            return false;
+        }
+        let scene = self.scene_in(self.shown, self.shown_zoom);
+        let (Some(preview), Some(held)) = (&mut self.preview, &self.held) else {
+            return false;
+        };
+        if held.size != size || scene.sheets.is_some() || scene.validate().is_err() {
+            return false;
+        }
+        let prefix = size_key(&held.options);
+        let keys = (0..scene.layers.len()).map(|index| source_key(&scene, index, &prefix));
+        if !keys.eq(held.keys.iter().cloned()) || !preview.draw(&scene, &held.sources, ctx) {
+            return false;
+        }
+        let Some(state) = frame.wgpu_render_state() else {
+            return false;
+        };
+        let mut renderer = state.renderer.write();
+        let (Some(gfx), Some((picture, soft))) = (renderer.callback_resources.get_mut::<Gfx>(), preview.views()) else {
+            return false;
+        };
+        gfx.show(&state.device, picture, soft);
+        self.previewing = true;
+        true
+    }
+
+    // The render waits until the controls rest, as it does for a moved view.
+    fn hold_render(&mut self, ctx: &egui::Context, size: [u32; 2]) {
+        self.cancel.store(true, Ordering::Relaxed);
+        self.cancel = Arc::new(AtomicBool::new(false));
+        self.generation += 1;
+        self.requested = Some(size);
+        self.drawn = None;
+        self.touched = Instant::now();
+        self.rendering = true;
+        ctx.request_repaint_after(std::time::Duration::from_secs_f32(SETTLE));
     }
 
     fn scene_at(&self, size: [u32; 2]) -> Scene {
@@ -797,7 +989,7 @@ impl App {
         self.cancel = Arc::new(AtomicBool::new(false));
         self.generation += 1;
         self.requested = Some(size);
-        self.drawn = Some(self.view);
+        self.drawn = Some((self.view, self.adjust.zoom));
         self.rendering = true;
 
         let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
@@ -811,8 +1003,16 @@ impl App {
         if passes[0].1.width == full.width || cfg!(target_arch = "wasm32") {
             passes.remove(0);
         }
+        // The preview on the screen is already sharper than a draft of the same view.
+        if self.previewing
+            && (self.view, self.adjust.zoom) == (self.shown, self.shown_zoom)
+            && let Some(held) = &self.held
+        {
+            passes.retain(|(draft, options)| !draft || options.width >= held.options.width);
+        }
         let (scene, cancel, generation) = (self.scene_at(size), self.cancel.clone(), self.generation);
-        let view = self.view;
+        let (view, zoom) = (self.view, self.adjust.zoom);
+        let sources = self.gpu_on() && scene.sheets.is_none();
         let home = view == WHOLE;
         let (sender, ctx, kept) = (self.results.0.clone(), ctx.clone(), self.kept.clone());
         let work = move || {
@@ -823,12 +1023,18 @@ impl App {
                     progress: None,
                 };
                 #[cfg(not(target_arch = "wasm32"))]
-                let result = render_pool().install(|| rendered(&scene, &options, &control, &kept, home));
+                let result = render_pool().install(|| rendered(&scene, &options, &control, &kept, home, sources));
                 #[cfg(target_arch = "wasm32")]
-                let result = rendered(&scene, &options, &control, &kept, home);
-                let Ok(image) = result else {
+                let result = rendered(&scene, &options, &control, &kept, home, sources);
+                let Ok((image, held)) = result else {
                     return;
                 };
+                let held = held.map(|(keys, sources)| Held {
+                    size,
+                    options,
+                    keys,
+                    sources,
+                });
                 let radius = image.width.min(image.height) as f32 * 0.03;
                 let soft = blur::soften(&image.rgba, image.width as usize, image.height as usize, radius);
                 let seconds = started.elapsed().as_secs_f32();
@@ -836,6 +1042,8 @@ impl App {
                     generation,
                     draft,
                     view,
+                    zoom,
+                    held,
                     image,
                     soft,
                     seconds,
@@ -852,11 +1060,24 @@ impl App {
         work();
     }
 
-    fn receive(&mut self, frame: &eframe::Frame) {
+    fn receive(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
+        if self.previewing && !self.gpu_on() {
+            self.previewing = false;
+            self.requested = None;
+        }
         while let Ok(done) = self.results.1.try_recv() {
             if done.generation != self.generation {
                 continue;
             }
+            self.previewing = false;
+            self.held = done.held.clone().filter(|held| {
+                self.gpu_on()
+                    && self
+                        .preview
+                        .as_ref()
+                        .is_some_and(|preview| preview.take(&held.sources, ctx))
+            });
+            self.shown_zoom = done.zoom;
             if let Some(state) = frame.wgpu_render_state()
                 && let Some(gfx) = state.renderer.write().callback_resources.get_mut::<Gfx>()
             {
@@ -888,6 +1109,14 @@ impl App {
                 self.status = format!("{} × {}  ·  {:.2} s", done.image.width, done.image.height, done.seconds);
                 if done.view.zoom != 1.0 {
                     self.status += &format!("  ·  {}×", done.view.label());
+                }
+                if shows("preview")
+                    && !self.frozen
+                    && let Some(adjust) = Adjust::asked()
+                {
+                    self.adjust = adjust;
+                    self.requested = None;
+                    self.frozen = true;
                 }
                 self.latest = Some(done);
             }
@@ -1636,7 +1865,29 @@ impl App {
             (self.optics.tint, self.optics.blur) = GLASS;
         }
         if self.adjust != before {
-            self.requested = None;
+            let zoomed = Adjust {
+                zoom: self.adjust.zoom,
+                ..before
+            };
+            if self.adjust == zoomed && self.gpu_on() {
+                self.touched = Instant::now();
+            } else {
+                self.requested = None;
+            }
+        }
+
+        if self.preview.is_some() {
+            widgets::section(ui, &self.t("graphics"));
+            if widgets::toggle(ui, &self.t("gpu"), &mut self.gpu) {
+                self.held = None;
+                self.requested = None;
+                let mut kept = self.kept.lock().unwrap_or_else(|e| e.into_inner());
+                if self.gpu {
+                    kept.layers.clear();
+                } else {
+                    kept.sources.clear();
+                }
+            }
         }
 
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -2173,7 +2424,7 @@ impl App {
         };
         if samples == export::AS_SHOWN
             && !self.rendering
-            && self.shown == self.view
+            && (self.shown, self.shown_zoom) == (self.view, self.adjust.zoom)
             && let Some((generation, image)) = &self.last
             && *generation == self.generation
             && [image.width, image.height] == [width, height]
@@ -2393,7 +2644,7 @@ impl eframe::App for App {
             }
             self.last_frame = Instant::now();
         }
-        self.receive(frame);
+        self.receive(&ctx, frame);
         #[cfg(not(target_arch = "wasm32"))]
         self.finish_export();
         #[cfg(target_os = "android")]
@@ -2433,8 +2684,13 @@ impl eframe::App for App {
         let size = self.picture.unwrap_or(window);
         if window[0] > 0 && window[1] > 0 {
             if self.requested != Some(size) {
-                self.start_render(&ctx, size);
-            } else if self.drawn != Some(self.view) {
+                if self.preview_now(&ctx, frame, size) {
+                    self.hold_render(&ctx, size);
+                } else {
+                    self.previewing = false;
+                    self.start_render(&ctx, size);
+                }
+            } else if self.drawn != Some((self.view, self.adjust.zoom)) && !self.frozen {
                 let still = self.touched.elapsed().as_secs_f32();
                 if still >= SETTLE {
                     self.start_render(&ctx, size);
@@ -2468,7 +2724,13 @@ impl eframe::App for App {
             }
         }
         let mut glass = glass::Frame::new(&painter, screen, {
-            let [across, along, larger] = self.view.within(&self.shown, size);
+            let [across, along, larger] = if self.adjust.zoom == self.shown_zoom || !self.gpu_on() {
+                self.view.within(&self.shown, size)
+            } else {
+                self.view
+                    .scaled(self.adjust.zoom)
+                    .within(&self.shown.scaled(self.shown_zoom), size)
+            };
             [across, along, larger, stretch]
         });
         for (rect, radius, dark) in &self.panes {
@@ -2753,7 +3015,8 @@ impl eframe::App for App {
             && let Some(storage) = frame.storage_mut()
         {
             let settings = format!(
-                "{} {} {} {} {:?} {}",
+                "{} {} {} {} {} {:?} {}",
+                self.gpu,
                 self.phone.kept.len(),
                 self.texts.lang.code(),
                 self.optics.tint,
@@ -2774,6 +3037,9 @@ impl eframe::App for App {
         storage.set_string("language", self.texts.lang.code().to_owned());
         storage.set_string("glass_opacity", self.optics.tint.to_string());
         storage.set_string("glass_blur", self.optics.blur.to_string());
+        if std::env::var_os("FRACTIQUE_GPU").is_none() {
+            storage.set_string("gpu", if self.gpu { "on" } else { "off" }.to_owned());
+        }
         let picture = self
             .picture
             .map_or("auto".to_owned(), |[width, height]| format!("{width}x{height}"));
@@ -3061,19 +3327,110 @@ mod tests {
         };
         let kept = Layers::default();
         let whole = fractique_core::render(&scene, &options, &control).expect("it renders");
-        let first = rendered(&scene, &options, &control, &kept, true).expect("it renders");
-        let again = rendered(&scene, &options, &control, &kept, true).expect("it renders");
+        let (first, _) = rendered(&scene, &options, &control, &kept, true, false).expect("it renders");
+        let (again, _) = rendered(&scene, &options, &control, &kept, true, false).expect("it renders");
         assert_eq!(first.rgba, whole.rgba);
         assert_eq!(again.rgba, whole.rgba);
-        assert_eq!(kept.lock().expect("no thread panicked").len(), scene.layers.len());
+        assert_eq!(
+            kept.lock().expect("no thread panicked").layers.len(),
+            scene.layers.len()
+        );
 
         let mut nearer = scene.clone();
         for layer in &mut nearer.layers {
             layer.flame.camera.zoom *= 2.0;
         }
-        rendered(&nearer, &options, &control, &kept, false).expect("it renders");
+        rendered(&nearer, &options, &control, &kept, false, false).expect("it renders");
         let both = kept.lock().expect("no thread panicked");
-        assert_eq!(both.len(), 2 * scene.layers.len());
-        assert_eq!(both.values().filter(|entry| entry.home).count(), scene.layers.len());
+        assert_eq!(both.layers.len(), 2 * scene.layers.len());
+        assert_eq!(
+            both.layers.values().filter(|entry| entry.home).count(),
+            scene.layers.len()
+        );
+        assert!(both.sources.is_empty());
+    }
+
+    #[test]
+    fn a_zoom_is_a_scaled_view() {
+        let camera = presets::get("aurora-spiral").expect("the preset exists").layers[0]
+            .flame
+            .camera
+            .clone();
+        let size = [300, 200];
+        let (shown, shown_zoom) = (
+            View {
+                right: 0.2,
+                down: -0.1,
+                zoom: 3.0,
+            },
+            0.8,
+        );
+        let (view, zoom) = (
+            View {
+                right: -0.3,
+                down: 0.25,
+                zoom: 5.0,
+            },
+            1.7,
+        );
+        let through = |view: View, zoom: f64| {
+            let mut camera = camera.clone();
+            camera.zoom *= zoom;
+            camera.looking_at(view.right, view.down, view.zoom)
+        };
+        let (drawn, wanted) = (through(shown, shown_zoom), through(view, zoom));
+        let angle = drawn.rotation.to_radians();
+        let (cos, sin) = (fractique_core::math::cos(angle), fractique_core::math::sin(angle));
+        let (dx, dy) = (wanted.center[0] - drawn.center[0], wanted.center[1] - drawn.center[1]);
+        let up = if drawn.flip_y { -1.0 } else { 1.0 };
+        let across = (dx * cos + dy * sin) * drawn.zoom / 4.0 * 200.0 / 300.0;
+        let along = -(dy * cos - dx * sin) * up * drawn.zoom / 4.0;
+        let [x, y, larger] = view.scaled(zoom).within(&shown.scaled(shown_zoom), size);
+        assert!((f64::from(x) - 0.5 - across).abs() < 1e-5, "{x} {across}");
+        assert!((f64::from(y) - 0.5 - along).abs() < 1e-5, "{y} {along}");
+        assert!((f64::from(larger) - wanted.zoom / drawn.zoom).abs() < 1e-5);
+    }
+
+    #[test]
+    fn kept_densities_give_the_same_picture() {
+        let mut scene = presets::get("solar-mandala").expect("the preset exists");
+        let options = RenderOptions {
+            width: 96,
+            height: 64,
+            samples_per_pixel: 8,
+            supersample: 1,
+        };
+        let control = Control {
+            cancel: None,
+            progress: None,
+        };
+        let kept = Layers::default();
+        let (first, held) = rendered(&scene, &options, &control, &kept, true, true).expect("it renders");
+        assert_eq!(
+            first.rgba,
+            fractique_core::render(&scene, &options, &control).unwrap().rgba
+        );
+        let (keys, sources) = held.expect("every layer has its density");
+        assert_eq!(sources.len(), scene.layers.len());
+
+        for layer in &mut scene.layers {
+            let tone = &mut layer.flame.tone;
+            (tone.brightness, tone.gamma, tone.glow_strength) = (tone.brightness * 1.7, tone.gamma * 0.8, 0.6);
+            tone.glow_radius = 0.02;
+            layer.opacity *= 0.5;
+        }
+        let stop = AtomicBool::new(true);
+        let stopped = Control {
+            cancel: Some(&stop),
+            progress: None,
+        };
+        let (toned, held) = rendered(&scene, &options, &stopped, &kept, true, true).expect("nothing is rendered");
+        assert_eq!(
+            toned.rgba,
+            fractique_core::render(&scene, &options, &control).unwrap().rgba
+        );
+        let (again, same) = held.expect("every layer has its density");
+        assert_eq!(again, keys);
+        assert!(sources.iter().zip(&same).all(|(a, b)| Arc::ptr_eq(a, b)));
     }
 }

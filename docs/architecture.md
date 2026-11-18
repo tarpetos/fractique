@@ -101,7 +101,7 @@ flowchart TB
 | Tone mapping | `tone.rs` | Brightness follows the logarithm of the density, relative to the average density, so the same scene has the same brightness at any resolution, quality and zoom. Gamma, vibrancy and highlight shape it. |
 | Glow | `tone.rs` | A Gaussian blur of the layer is added back. Its radius is a share of the image's shorter side. |
 | Sheets | `sheets.rs` | A wallpaper's sheets are drawn onto the background before any layer. For every pixel and every sheet, bottom to top: the distance to the sheet's shapes gives its coverage (one pixel of soft edge), the rim along its edge and, moved toward the light, the shadow it casts on what is under it. Nothing is sampled, so the seed, the samples per pixel and the supersample do not change it. |
-| Layers | `render.rs` | Each layer has its own flame, camera and tone settings and is blended onto the canvas in order. `render_layer` develops one layer and `compose` blends developed layers, so a caller can keep the layers that did not change. |
+| Layers | `render.rs` | Each layer has its own flame, camera and tone settings and is blended onto the canvas in order. `render_layer` develops one layer and `compose` blends developed layers, so a caller can keep the layers that did not change. `render_density` stops before the tone mapping and `develop` finishes it: together they are `render_layer`, bit for bit, so a caller can keep a layer's density and change its brightness, gamma, vibrancy, highlight and glow without the chaos game. The smoothing is already in the density. |
 | Dither | `render.rs` | An 8×8 ordered dither removes the bands that 8 bits would show in faint gradients on a dark background. |
 
 ### Any resolution
@@ -175,8 +175,9 @@ its `Limits`, for `/render` and `/mcp` alike.
 
 ## The app
 
-`fractique-app` is built with `egui` and `eframe` on `wgpu`. The graphics card only shows things: the picture
-itself is always rendered by `fractique-core` on the processor, in a thread of its own.
+`fractique-app` is built with `egui` and `eframe` on `wgpu`. The picture is always rendered by `fractique-core`
+on the processor, in a thread of its own. The graphics card shows it, draws the glass over it and, while a control
+moves, draws a [preview](#the-preview-on-the-graphics-card) of what the processor will render.
 
 | File | What |
 | --- | --- |
@@ -185,6 +186,7 @@ itself is always rendered by `fractique-core` on the processor, in a thread of i
 | `export.rs` | An export: a render in a thread of its own, with progress and cancel |
 | `update.rs`, `updates.rs` | The releases, the download and the install; the updates window ([releasing.md](releasing.md)) |
 | `glass.rs`, `glass.wgsl`, `blur.rs` | The picture on the screen and the glass panes over it: each pane shows a blurred, refracted part of the picture |
+| `preview.rs`, `preview.wgsl` | The preview on the graphics card: the layers' levels as textures, the tone mapping, the glow and the blending in shaders |
 | `widgets.rs` | The controls: rows, pills, sliders, switches; the fonts |
 | `i18n.rs`, `locales/` | The texts, in 15 languages |
 | `android.rs`, `ios.rs` | The gallery, Photos and sharing |
@@ -199,12 +201,41 @@ How the picture reaches the screen:
 | A change | The scene, the size or the view changes. The render in progress is cancelled and a new one starts. A moved or zoomed view waits until it has rested for 0.18 s; until then the picture already on the screen is moved and scaled by the graphics card |
 | Passes | A draft first (480 pixels on its longer side, 12 samples per pixel), then the full picture. A view magnified more than 4 times gets a pass in between (1280 pixels, 16 samples). The picture is shown after each |
 | The full picture | At the chosen size, up to 4096 pixels a side with 32 samples per pixel on a computer, 1600 and 18 on a phone, 900 and 14 in a browser |
-| Kept layers | A layer's pixels depend only on its flame, its place, the seed and the size. Developed layers are kept (up to 1200 MB on a computer, 160 MB on a phone and in a browser), so a change to one layer renders that layer only, and **Reset view** comes back without a render |
+| Kept layers | A layer's pixels depend only on its flame, its place, the seed and the size. Developed layers are kept (up to 1200 MB on a computer, 160 MB on a phone and in a browser), so a change to one layer renders that layer only, and **Reset view** comes back without a render. With GPU acceleration on, the densities are kept in the same room: a change to a layer's tone develops it again without the chaos game |
 | Threads | Renders run on a pool that leaves two cores to the window. A browser page has one thread and renders there, without a draft |
 | Events | A finished pass is sent over a channel and asks for a repaint. Nothing polls |
 
 An export is a separate render at the size and quality chosen, with the scene as it is on the screen. The session
 is written whenever it changes, not at exit: a phone ends an app without telling it.
+
+### The preview on the graphics card
+
+With **GPU acceleration** on, a change to the tone, to a layer's opacity or blend, or to the zoom does not start a
+render at once. The graphics card draws the picture from the layers the processor rendered last, and the render
+starts when the control has rested for 0.18 s, as it does for a moved view. Its picture then replaces the preview.
+
+| Step | What happens |
+| --- | --- |
+| Levels | Each render pass keeps, for every layer, its density (`render_density`). `Density::levels` gives four numbers a pixel: the average color and the brightness before the tone settings. They go to the graphics card as one half-float texture a layer (8 bytes a pixel), read texel by texel, so no float filtering is needed |
+| Tone | A fragment shader repeats `tone.rs` for a pixel: brightness, the cap, gamma, vibrancy, highlight |
+| Glow | The toned layer is drawn into a smaller picture, blurred across and down there, and added back. The smaller picture is chosen so that the blur's sigma stays under 4 of its pixels |
+| Blend | The layers are drawn in order onto the background with the graphics card's own blending: add, screen, over. The canvas has 8 bits a channel, so it is clamped after every layer, not once at the end |
+| Under the glass | The picture is shrunk and blurred the same way for the panes |
+| View | The zoom slider moves and scales the picture on the screen, like a drag or a pinch |
+
+What the preview does not do: density estimation (a change of `smoothing` is rendered), dithering, sheets (a scene
+with sheets is not previewed), and a change to a flame itself, to the order of the layers or to the size. Then, and
+when the layers on the graphics card are not those of the scene, the render starts at once, as it does with GPU
+acceleration off. A draft smaller than the preview on the screen is skipped.
+
+The preview is not offered when the graphics card cannot hold half-float textures or draw into an 8-bit picture.
+An error of the graphics card while the preview is built or drawn (no memory for a texture, a shader it refuses)
+switches the preview off for the session and the processor renders as before. `FRACTIQUE_GPU=off` starts the app
+without it.
+
+For a test, `FRACTIQUE_ADJUST=brightness,gamma,glow,zoom` starts the app with these tone settings, and with
+`FRACTIQUE_SHOW=preview` they are set once the picture is rendered and stay the graphics card's: a
+`--screenshot` of each shows the preview beside what the processor renders.
 
 ## Limits
 

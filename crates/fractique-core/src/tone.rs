@@ -49,7 +49,7 @@ fn kernels(levels: usize) -> Vec<Kernel> {
         .collect()
 }
 
-fn estimate(histogram: &Histogram, smoothing: f64) -> Vec<f32> {
+pub(crate) fn estimate(histogram: &Histogram, smoothing: f64) -> Vec<f32> {
     let (width, height) = (histogram.width, histogram.height);
     let spread = (SPREAD_SHARE * smoothing * width.min(height) as f64).min(MAX_SPREAD);
     let top = (spread * 2.0).round() as usize;
@@ -124,11 +124,45 @@ fn offset(center: usize, at: usize, reach: usize) -> usize {
     at + reach - center
 }
 
-pub(crate) fn develop(histogram: &Histogram, tone: &Tone, supersample: usize, normalize: f64) -> Vec<f32> {
-    let (width, height) = (histogram.width / supersample, histogram.height / supersample);
+// The average color of every pixel and its brightness before `Tone` shapes it: what a preview starts from.
+pub(crate) fn levels(cells: &[f32], across: usize, supersample: usize, normalize: f64) -> Vec<f32> {
+    let width = across / supersample;
+    let height = cells.len() / 4 / across / supersample;
+    let share = 1.0 / (supersample * supersample) as f64;
+    let mut out = vec![0f32; width * height * 4];
+    for_each_row(&mut out, width * 4, |y, row| {
+        for x in 0..width {
+            let mut sum = [0f64; 5];
+            for sy in 0..supersample {
+                for sx in 0..supersample {
+                    let cell = ((y * supersample + sy) * across + x * supersample + sx) * 4;
+                    let count = f64::from(cells[cell]);
+                    if count <= 0.0 {
+                        continue;
+                    }
+                    for ch in 0..3 {
+                        sum[ch] += f64::from(cells[cell + 1 + ch]);
+                    }
+                    sum[3] += ln_1p(count * normalize) * LOG_SCALE;
+                    sum[4] += count;
+                }
+            }
+            if sum[4] > 0.0 {
+                for ch in 0..3 {
+                    row[x * 4 + ch] = (sum[ch] / (sum[4] * 255.0)).min(1.0) as f32;
+                }
+                row[x * 4 + 3] = (sum[3] * share) as f32;
+            }
+        }
+    });
+    out
+}
+
+pub(crate) fn develop(cells: &[f32], across: usize, tone: &Tone, supersample: usize, normalize: f64) -> Vec<f32> {
+    let width = across / supersample;
+    let height = cells.len() / 4 / across / supersample;
     let inverse_gamma = 1.0 / tone.gamma;
     let share = 1.0 / (supersample * supersample) as f64;
-    let cells = estimate(histogram, tone.smoothing);
 
     let mut out = vec![0f32; width * height * 4];
     for_each_row(&mut out, width * 4, |y, row| {
@@ -136,7 +170,7 @@ pub(crate) fn develop(histogram: &Histogram, tone: &Tone, supersample: usize, no
             let mut sum = [0f64; 4];
             for sy in 0..supersample {
                 for sx in 0..supersample {
-                    let cell = ((y * supersample + sy) * histogram.width + x * supersample + sx) * 4;
+                    let cell = ((y * supersample + sy) * across + x * supersample + sx) * 4;
                     let count = f64::from(cells[cell]);
                     if count <= 0.0 {
                         continue;

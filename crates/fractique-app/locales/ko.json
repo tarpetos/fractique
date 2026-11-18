@@ -105,5 +105,7 @@
   "save_photos": "사진에 저장",
   "share": "공유",
   "allow_storage": "이미지를 저장하려면 저장소 접근을 허용하세요.",
-  "color": "색상"
+  "color": "색상",
+  "graphics": "그래픽",
+  "gpu": "GPU 가속"
 }

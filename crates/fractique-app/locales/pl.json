@@ -105,5 +105,7 @@
   "save_photos": "Zapisz w Zdjęciach",
   "share": "Udostępnij",
   "allow_storage": "Zezwól na dostęp do pamięci, aby zapisać obraz.",
-  "color": "KOLOR"
+  "color": "KOLOR",
+  "graphics": "GRAFIKA",
+  "gpu": "Akceleracja GPU"
 }
