@@ -89,3 +89,18 @@ account the app works for 7 days.
 - Does it start? If not, the text the script printed.
 - A screenshot of the app with the inspector open and one with it closed.
 - How long the full picture takes (the status capsule shows it) and whether the sliders feel smooth.
+
+## TestFlight
+
+```sh
+./scripts/ios/testflight.sh
+```
+
+It builds Fractique, signs it for the App Store and uploads it; every run gets a new build number. TestFlight offers
+the build to the testers after Apple processes it (5 to 30 minutes).
+
+Once per Mac: `brew install xcodegen`, and Xcode signed in (Settings, Accounts) to the Apple account of the team that
+owns the app `app.fractique` in App Store Connect. `FRACTIQUE_TEAM_ID` picks another team.
+
+`ios/` holds the Xcode project that wraps the Rust binary: Xcode compiles an empty `stub.c`, then
+`ios/build-rust.sh` puts the Rust binary in its place before Xcode signs the app.

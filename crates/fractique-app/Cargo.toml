@@ -47,6 +47,10 @@ winit = { version = "0.30", default-features = false, features = ["android-nativ
 cargo-packager-updater = "0.2.3"
 rfd = "0.18.0"
 
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+raw-window-handle = "0.6"
+
 [package.metadata.android]
 package = "app.fractique"
 resources = "android/res"
