@@ -8,25 +8,25 @@
   </sub></p>
 </div>
 
-Fractique erzeugt zwei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fraktale aus feinen Kurven und weichem Licht. Und Hintergrundbilder: flache Blätter mit beleuchteten Kanten und weichen Schatten, jedes in einer hellen und einer dunklen Fassung. Du wählst ein Preset, würfelst ein zufälliges Bild oder legst mehrere Flammen übereinander und exportierst das Ergebnis in jeder Größe, vom Handybildschirm bis zum 4K-Monitor. Eine Szene ist eine kleine Datei, und dieselbe Datei ergibt immer exakt dieselben Pixel, unter Windows, macOS, Linux, Android und iOS.
+Fractique erzeugt zwei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fraktale aus feinen Kurven und weichem Licht. Und Hintergrundbilder: flache Blätter mit beleuchteten Kanten und weichen Schatten, jedes in einer hellen und einer dunklen Fassung. Du wählst eine Vorlage, würfelst ein zufälliges Bild oder legst mehrere Flammen übereinander und exportierst das Ergebnis in jeder Größe, vom Handybildschirm bis zum 4K-Monitor. Eine Szene ist eine kleine Datei, und dieselbe Datei ergibt immer exakt dieselben Pixel, unter Windows, macOS, Linux, Android und iOS.
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="Das Preset aurora-spiral: türkise und grüne Spiralschleier auf dunklem Hintergrund" width="880">
+  <img src="../samples/aurora-spiral.png" alt="Die Vorlage aurora-spiral: türkise und grüne Spiralschleier auf dunklem Hintergrund" width="880">
 </p>
 
 ## Was Fractique kann
 
-- **Flammen:** 49 Variationen, Ebenen mit Mischmodi, Dreh- und Spiegelsymmetrie, Dichteschätzung, Leuchten und 29 eingebaute Presets.
+- **Flammen:** 49 Variationen, Ebenen mit Mischmodi, Dreh- und Spiegelsymmetrie, Dichteschätzung, Leuchten und 29 eingebaute Vorlagen.
 - **Hintergrundbilder:** eines für jeden Seed, aus 14 Layouts und 6 Materialien, jedes in einer hellen und einer dunklen Fassung, passend zur Größe des Bildschirms angeordnet.
 - **Die App:** eine Codebasis für Windows, macOS, Linux, Android, iOS und das Web. Das Bild füllt das Fenster, darüber schweben Glasflächen; auf dem Desktop hat die App eine eigene gläserne Titelleiste. In 15 Sprachen.
-- **Randomize und Mutate:** jeder Seed ist ein Bild; Flammen, die nur ein Punkt oder ein gefülltes Quadrat wären, werden übersprungen. Mutate erzeugt eine Variante des Bildes, das dir gefällt.
-- **Ebenen:** eine Flamme aus den Presets oder eine zufällige hinzufügen, entfernen, umsortieren und für jede den Mischmodus (add, screen, over) und die Deckkraft einstellen. Bis zu 16 Ebenen.
+- **„Zufall“ und „Mutieren“:** jeder Seed ist ein Bild; Flammen, die nur ein Punkt oder ein gefülltes Quadrat wären, werden übersprungen. „Mutieren“ erzeugt eine Variante des Bildes, das dir gefällt.
+- **Ebenen:** eine Flamme aus den Vorlagen oder eine zufällige hinzufügen, entfernen, umsortieren und für jede den Mischmodus („Summe“, „Screen“, „Darüber“) und die Deckkraft einstellen. Bis zu 16 Ebenen.
 - **Bildgröße:** die des Fensters, einer von 21 Bildschirmen (Computer bis 4K, Android-Handys und -Tablets, iPhones und iPads) oder jede Breite und Höhe von 16 bis 16384 Pixeln.
 - **Tiefer Zoom:** Ziehen, Mausrad und Zwei-Finger-Geste bewegen die Ansicht und vergrößern sie bis zu zehnmilliardenfach. Das Bild folgt sofort und wird scharf neu gezeichnet, sobald die Ansicht ruht.
 - **Handys:** ein eigener Bildschirm. Ein runder Knopf erzeugt ein neues Bild, ein Wisch führt zum nächsten Hintergrundbild, ein Blatt mit kleinen Live-Bildern wählt den Stil, und die Bilder, die du behältst, bilden eine Sammlung.
 - **Export:** ein PNG in jeder Größe, in drei Qualitätsstufen, im Hintergrund gerendert. Auf dem Handy wird es in Fotos oder der Galerie gespeichert oder geteilt.
 - **Projektdateien:** eine `.frcq`-Datei enthält die Szene samt Ansicht, Ton und Größe und öffnet sich so, wie sie gespeichert wurde ([docs/scene-format.md](../scene-format.md)). Einfache `.json`-Szenen und `.flame`-Dateien von flam3 und Apophysis lassen sich ebenfalls öffnen. Zwischen zwei Starts kehrt die App zu der Sitzung zurück, in der sie verlassen wurde.
-- **Updates:** ein Fenster listet jede veröffentlichte Version mit ihren Hinweisen auf und installiert jede davon. Unter Windows ist die App eine einzige portable `.exe`, die sich selbst ersetzt.
+- **Updates:** ein Fenster listet jede veröffentlichte Version mit ihren Hinweisen auf und installiert jede beliebige davon. Unter Windows ist die App eine einzige portable `.exe`, die sich selbst ersetzt.
 - **Exakte Wiederholbarkeit:** dieselbe Szene ergibt auf jedem Rechner dieselben Pixel, geprüft durch Tests unter Linux, Windows und macOS ([docs/determinism.md](../determinism.md)).
 - **Das Kommandozeilenwerkzeug** (`fractique`): rendert Flammen und Hintergrundbilder als PNG, erzeugt zufällige Szenen und Varianten, konvertiert `.flame`-Dateien.
 - **MCP-Server** (`fractique mcp`): ein KI-Agent erstellt, ändert und rendert Szenen ([docs/mcp.md](../mcp.md)).
@@ -66,7 +66,7 @@ Die App starten:
 Oder von der Kommandozeile rendern:
 
 ```sh
-# ein Preset als 4K-Bild
+# eine Vorlage als 4K-Bild
 ./target/release/fractique render --preset aurora-spiral --size 3840x2160 --quality high -o aurora.png
 
 # die zufällige Flamme mit Seed 42 für einen Handybildschirm

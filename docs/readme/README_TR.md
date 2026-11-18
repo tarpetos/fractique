@@ -8,19 +8,19 @@
   </sub></p>
 </div>
 
-Fractique iki tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumuşak ışıktan oluşan, parlayan, tül gibi fraktallar. Ve duvar kâğıtları: kenarları aydınlatılmış, yumuşak gölgeli düz levhalar; her birinin açık ve koyu sürümü vardır. Bir ön ayar seçer, rastgele bir görüntü üretir ya da birkaç alevi üst üste bindirirsiniz ve sonucu telefon ekranından 4K monitöre kadar istediğiniz boyutta dışa aktarırsınız. Bir sahne tek bir küçük dosyadır ve aynı dosya Windows, macOS, Linux, Android ve iOS’ta her zaman tam olarak aynı pikselleri verir.
+Fractique iki tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumuşak ışıktan oluşan, parlayan, tül gibi fraktallar. Ve duvar kâğıtları: kenarları aydınlatılmış, yumuşak gölgeli düz levhalar; her birinin açık ve koyu sürümü vardır. Bir hazır ayar seçer, rastgele bir görüntü üretir ya da birkaç alevi üst üste bindirirsiniz ve sonucu telefon ekranından 4K monitöre kadar istediğiniz boyutta dışa aktarırsınız. Bir sahne tek bir küçük dosyadır ve aynı dosya Windows, macOS, Linux, Android ve iOS’ta her zaman tam olarak aynı pikselleri verir.
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="aurora-spiral ön ayarı: koyu bir arka planda turkuaz ve yeşil sarmal tüller" width="880">
+  <img src="../samples/aurora-spiral.png" alt="aurora-spiral hazır ayarı: koyu bir arka planda turkuaz ve yeşil sarmal tüller" width="880">
 </p>
 
 ## Fractique neler yapar
 
-- **Alevler:** 49 varyasyon, karıştırma modlu katmanlar, dönme ve ayna simetrisi, yoğunluk kestirimi, parıltı ve 29 yerleşik ön ayar.
+- **Alevler:** 49 varyasyon, karıştırma modlu katmanlar, dönme ve ayna simetrisi, yoğunluk kestirimi, ışıltı ve 29 yerleşik hazır ayar.
 - **Duvar kâğıtları:** her tohum için bir tane; 14 düzen ve 6 malzemeden, her biri açık ve koyu sürümüyle, ekranın boyutuna göre yerleştirilir.
 - **Uygulama:** Windows, macOS, Linux, Android, iOS ve web için tek kod tabanı. Görüntü pencereyi doldurur, üzerinde cam paneller süzülür; masaüstünde uygulamanın kendi cam başlık çubuğu vardır. 15 dilde.
-- **Randomize ve Mutate:** her tohum bir görüntüdür; bir nokta ya da dolu bir kare olacak alevler atlanır. Mutate, beğendiğinizin bir varyantını üretir.
-- **Katmanlar:** ön ayarlardan ya da rastgele bir alev ekleyin, kaldırın, sırasını değiştirin ve her birinin karıştırmasını (add, screen, over) ve opaklığını ayarlayın. En çok 16 katman.
+- **“Rastgele” ve “Mutasyon”:** her tohum bir görüntüdür; bir nokta ya da dolu bir kare olacak alevler atlanır. “Mutasyon”, beğendiğinizin bir varyantını üretir.
+- **Katmanlar:** hazır ayarlardan ya da rastgele bir alev ekleyin, kaldırın, sırasını değiştirin ve her birinin karıştırmasını (“Ekle”, “Ekran”, “Üstüne”) ve opaklığını ayarlayın. En çok 16 katman.
 - **Görüntü boyutu:** pencerenin kendi boyutu, 21 ekrandan biri (4K’ya kadar bilgisayarlar, Android telefon ve tabletler, iPhone ve iPad’ler) ya da 16 ile 16384 piksel arasında herhangi bir genişlik ve yükseklik.
 - **Derin yakınlaştırma:** sürükleme, tekerlek ve kıstırma hareketi görünümü kaydırır ve on milyar kata kadar büyütür. Görüntü hemen izler, görünüm durduğunda da net olarak yeniden çizilir.
 - **Telefonlar:** kendine ait bir ekran. Yuvarlak bir düğme yeni bir görüntü üretir, bir kaydırma sonraki duvar kâğıdına geçer, küçük canlı görüntülerden oluşan bir sayfa stili seçtirir ve sakladığınız görüntüler bir koleksiyon oluşturur.
@@ -66,7 +66,7 @@ Uygulamayı başlatın:
 Ya da komut satırından işleyin:
 
 ```sh
-# 4K görüntü olarak bir ön ayar
+# 4K görüntü olarak bir hazır ayar
 ./target/release/fractique render --preset aurora-spiral --size 3840x2160 --quality high -o aurora.png
 
 # telefon ekranı için 42 tohumunun rastgele alevi

@@ -1,9 +1,9 @@
 # Using Fractique
 
-Fractique is two programs over one renderer: the app, `fractique-gui`, and the command line tool, `fractique`.
-This guide covers both, with examples. For the fields of a scene file see [scene-format.md](scene-format.md); for
-render times see [performance.md](performance.md); for the HTTP server, `fractique-server`, see
-[server.md](server.md).
+Fractique is three programs over one renderer: the app, `fractique-gui`, the command line tool, `fractique`, and
+the HTTP server, `fractique-server`. This guide covers the first two, with examples. For the fields of a scene
+file see [scene-format.md](scene-format.md); for render times see [performance.md](performance.md); for the HTTP
+server see [server.md](server.md).
 
 ## Contents
 
@@ -110,7 +110,7 @@ On Android and iOS the picture fills the screen and the controls are a few round
 | **Flames**, **Shapes** (top) | What the app makes: flames, or wallpapers of flat lit shapes. Each keeps its picture while the other is shown |
 | The row of colors under them | A hue for the shapes, a palette for the flames; the crossed circle gives the picture its own colors back |
 | The large round button | A new picture: a random flame, or the next wallpaper |
-| The four small buttons above it | **Keep** puts the picture into the collection, or takes it out (it holds 48). **Similar** makes another wallpaper of the same layout and material; for a flame it is **Mutate**, a variant of it. **Style** opens the styles. **Export** saves the picture. Their names stand beside them until the round button has been pressed six times |
+| The four small buttons above it | **Keep** puts the picture into the collection, or takes it out (it holds 48). **Similar** makes another wallpaper of the same layout and material; for a flame it is **Mutate**, a variant of it. **Style** opens the styles. **Export** saves the picture. Their names stand beside them when the phone is on its side |
 | The placard (bottom left) | A wallpaper's layout, material and number, or a flame's name; under it the size and the time |
 | Swipe left or right (wallpapers) | The next or the previous wallpaper |
 | Drag and pinch (flames) | Move the view and zoom, as on a computer; **Reset view** appears |
