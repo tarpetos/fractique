@@ -38,6 +38,14 @@
   export. A swipe goes to the next or the previous wallpaper. The styles are a sheet of small live pictures of every
   layout, material and preset, with the kept pictures in a row above them and a row of colors for the wallpapers.
 * **iPhone:** an exported picture goes to Photos or to the share sheet.
+* **Android:** an exported picture goes to the gallery (`Pictures/Fractique`) or to other apps through Share.
+* **Phones:** Fine-tune in the styles opens every control over the whole screen; the panels are laid out for a
+  phone on its side too.
+* **Scene files:** the app saves `.frcq` files, a packed format of its own, about a seventh of the size of the JSON:
+  the scene with the tone, the view, the size and the wallpaper choices, so it opens as it was saved. The command
+  line tool reads them. A file given to the app at start opens in it.
+* **Session:** the app comes back to the scene, the view and the settings it was left with.
+* **App:** a wallpaper's layout and material are chosen from lists, like a preset.
 * **Wallpapers:** a wallpaper can be asked for in one color (`hue` of the request). The bands layout no longer
   makes an invalid shape on screens about 1.6 times as tall as wide.
 * **App:** a double click on a `.frcq` file opens it in Fractique. The Windows program registers the file type for

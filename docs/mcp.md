@@ -53,34 +53,7 @@ On Windows the program is `fractique.exe`.
 
 A `scene` argument is the scene as a JSON object; its JSON text is accepted too, and so is the document of a
 `.frcq` file (what `fractique convert file.frcq --document` prints): the scene under its `shown` is used.
-
-### Wallpapers
-
-A wallpaper is a scene of flat sheets instead of a flame ([usage.md](usage.md#wallpapers)). `randomize_wallpaper`
-makes the one of a seed; `layout` and `material` hold a choice (`list_wallpaper_styles` has the names) and the
-seed picks what is left out. The shapes are laid out for the proportions of `width` and `height`, so render the
-scene with the same proportions:
-
-```json
-{ "name": "randomize_wallpaper", "arguments": { "seed": 7, "layout": "waves", "material": "glass", "dark": true } }
-```
-
-To look at a wallpaper without carrying its scene around, `render_scene` takes the seed itself and lays the
-shapes out for the size it renders:
-
-```json
-{ "name": "render_scene", "arguments": { "wallpaper_seed": 7, "layout": "waves", "width": 430, "height": 932 } }
-```
-
-### Files of the app
-
-`render_scene` reads a scene file with `file`, the path of a `.frcq` file of the app or of a JSON scene, and
-renders what the app showed when the file was saved. A client that holds the file and not a path the server can
-reach gives its bytes in base64 as `frcq`:
-
-```json
-{ "name": "render_scene", "arguments": { "file": "/home/me/Pictures/mine.frcq", "quality": "high", "save_to": "/home/me/Pictures/mine.png", "width": 1920, "height": 1080 } }
-```
+`quality` is one of `draft`, `mobile`, `standard`, `high`, `ultra`; `width` and `height` go up to 16384.
 
 ### Rendering
 
@@ -97,6 +70,38 @@ A usual session:
    or ask `mutate_scene` for a variant.
 4. `render_scene` again, and so on.
 5. `render_scene` with the final size, `quality: "high"` and `save_to`.
+
+### Wallpapers
+
+A wallpaper is a scene of flat sheets instead of a flame ([usage.md](usage.md#6-wallpapers)). `randomize_wallpaper`
+makes the one of a seed; `layout` and `material` hold a choice (`list_wallpaper_styles` has the names) and the
+seed picks what is left out. The shapes are laid out for the proportions of `width` and `height`, so render the
+scene with the same proportions:
+
+```json
+{ "name": "randomize_wallpaper", "arguments": { "seed": 7, "layout": "waves", "material": "glass", "dark": true } }
+```
+
+To look at a wallpaper without carrying its scene around, `render_scene` takes the seed itself and lays the
+shapes out for the size it renders:
+
+```json
+{ "name": "render_scene", "arguments": { "wallpaper_seed": 7, "layout": "waves", "width": 430, "height": 932 } }
+```
+
+A scene with `sheets` is a scene like any other, so `validate_scene` and `render_scene` take one, also one
+written by hand from `describe_scene_format`. `fit_camera` and `mutate_scene` change flames only and leave the
+sheets as they are.
+
+### Files of the app
+
+`render_scene` reads a scene file with `file`, the path of a `.frcq` file of the app or of a JSON scene, and
+renders what the app showed when the file was saved. A client that holds the file and not a path the server can
+reach gives its bytes in base64 as `frcq`:
+
+```json
+{ "name": "render_scene", "arguments": { "file": "/home/me/Pictures/mine.frcq", "quality": "high", "save_to": "/home/me/Pictures/mine.png", "width": 1920, "height": 1080 } }
+```
 
 ### Progress and cancelling
 
@@ -133,4 +138,5 @@ about a second at 4K, report no progress and are not interrupted, but a cancelle
   while a tool runs.
 - It speaks the protocol revisions with the `initialize` handshake (`2025-06-18`, `2025-03-26`, `2024-11-05`),
   not the later ones.
-- There is no HTTP transport yet: it comes with the server ([roadmap.md](roadmap.md)).
+- There is no HTTP transport yet. The HTTP server has an API of its own ([server.md](server.md)); MCP over HTTP
+  is to come with it ([roadmap.md](roadmap.md)).

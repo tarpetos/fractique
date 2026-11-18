@@ -102,7 +102,7 @@ curl -X POST http://127.0.0.1:8080/render \
 | --- | --- | --- |
 | `scene`, `preset`, `random` or `wallpaper` | exactly one | A scene document, a preset's name, the seed of a random scene, or a wallpaper: the body of `/wallpaper`, laid out for the size of the render |
 | `width`, `height` | required | The size of the image in pixels |
-| `quality` | optional | `draft`, `mobile`, `standard`, `high` or `ultra` ([usage.md](usage.md#3-size-and-quality)); `standard` when left out |
+| `quality` | optional | `draft`, `mobile`, `standard`, `high` or `ultra` ([usage.md](usage.md#4-size-and-quality)); `standard` when left out |
 | `samples` | optional | Samples per pixel, instead of the quality's |
 | `supersample` | optional | Supersample, instead of the quality's |
 | `seed` | optional | Replaces the scene's seed |

@@ -1,29 +1,34 @@
 <div align="center">
   <img src="../../assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <h1>Fractique</h1>
-  <p><strong>Ein Generator für Fraktalflammen, der aus derselben Eingabe auf jeder Plattform dasselbe Bild erzeugt.</strong></p>
+  <p><strong>Ein Generator für fraktale Flammen und Hintergrundbilder, der aus derselben Eingabe auf jeder Plattform dasselbe Bild erzeugt.</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <strong>Deutsch</strong> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
     <a href="README_CN.md">简体中文</a> · <a href="README_PT.md">Português</a> · <a href="README_KO.md">한국어</a> · <a href="README_HI.md">हिन्दी</a> · <a href="README_TR.md">Türkçe</a> · <a href="README_PL.md">Polski</a> · <a href="README_ID.md">Bahasa Indonesia</a>
   </sub></p>
 </div>
 
-Fractique rendert Fraktalflammen: leuchtende, hauchzarte Fraktale aus feinen Kurven und weichem Licht. Du wählst eine Vorlage, würfelst eine Zufallsszene oder legst mehrere Flammen übereinander und renderst das Ergebnis in jeder Auflösung, vom Handybildschirm bis zum 4K-Hintergrundbild. Eine Szene ist eine kleine JSON-Datei, und dieselbe Datei ergibt immer exakt dieselben Pixel, unter Windows, macOS, Linux, Android und iOS.
+Fractique erzeugt zwei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fraktale aus feinen Kurven und weichem Licht. Und Hintergrundbilder: flache Blätter mit beleuchteten Kanten und weichen Schatten, jedes in einer hellen und einer dunklen Fassung. Du wählst ein Preset, würfelst ein zufälliges Bild oder legst mehrere Flammen übereinander und exportierst das Ergebnis in jeder Größe, vom Handybildschirm bis zum 4K-Monitor. Eine Szene ist eine kleine Datei, und dieselbe Datei ergibt immer exakt dieselben Pixel, unter Windows, macOS, Linux, Android und iOS.
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="Die Vorlage aurora-spiral: türkisfarbene und grüne Spiralschleier auf dunklem Grund" width="880">
+  <img src="../samples/aurora-spiral.png" alt="Das Preset aurora-spiral: türkise und grüne Spiralschleier auf dunklem Hintergrund" width="880">
 </p>
 
-## Was heute funktioniert
+## Was Fractique kann
 
-- **Der Renderer** (`fractique-core`): Fraktalflammen mit 49 Variationen, Ebenen mit Mischmodi, Dreh- und Spiegelsymmetrie, Dichteschätzung, Leuchten, jede Auflösung.
-- **Die App:** eine Codebasis für Windows, Linux, Android, iOS und das Web, mit Glasflächen über der Flamme, in 15 Sprachen.
-- **Vorlagen:** 9 eingebaute Szenen.
-- **Zufallsgenerator:** jeder Startwert ist eine Szene; Szenen, die nur ein Punkt oder ein gefülltes Quadrat wären, werden übersprungen.
-- **Mutation:** eine Variante einer Szene, die dir gefällt, mit einer Stärke von 0 bis 1.
+- **Flammen:** 49 Variationen, Ebenen mit Mischmodi, Dreh- und Spiegelsymmetrie, Dichteschätzung, Leuchten und 29 eingebaute Presets.
+- **Hintergrundbilder:** eines für jeden Seed, aus 14 Layouts und 6 Materialien, jedes in einer hellen und einer dunklen Fassung, passend zur Größe des Bildschirms angeordnet.
+- **Die App:** eine Codebasis für Windows, macOS, Linux, Android, iOS und das Web. Das Bild füllt das Fenster, darüber schweben Glasflächen; auf dem Desktop hat die App eine eigene gläserne Titelleiste. In 15 Sprachen.
+- **Randomize und Mutate:** jeder Seed ist ein Bild; Flammen, die nur ein Punkt oder ein gefülltes Quadrat wären, werden übersprungen. Mutate erzeugt eine Variante des Bildes, das dir gefällt.
+- **Ebenen:** eine Flamme aus den Presets oder eine zufällige hinzufügen, entfernen, umsortieren und für jede den Mischmodus (add, screen, over) und die Deckkraft einstellen. Bis zu 16 Ebenen.
+- **Bildgröße:** die des Fensters, einer von 21 Bildschirmen (Computer bis 4K, Android-Handys und -Tablets, iPhones und iPads) oder jede Breite und Höhe von 16 bis 16384 Pixeln.
+- **Tiefer Zoom:** Ziehen, Mausrad und Zwei-Finger-Geste bewegen die Ansicht und vergrößern sie bis zu zehnmilliardenfach. Das Bild folgt sofort und wird scharf neu gezeichnet, sobald die Ansicht ruht.
+- **Handys:** ein eigener Bildschirm. Ein runder Knopf erzeugt ein neues Bild, ein Wisch führt zum nächsten Hintergrundbild, ein Blatt mit kleinen Live-Bildern wählt den Stil, und die Bilder, die du behältst, bilden eine Sammlung.
+- **Export:** ein PNG in jeder Größe, in drei Qualitätsstufen, im Hintergrund gerendert. Auf dem Handy wird es in Fotos oder der Galerie gespeichert oder geteilt.
+- **Projektdateien:** eine `.frcq`-Datei enthält die Szene samt Ansicht, Ton und Größe und öffnet sich so, wie sie gespeichert wurde ([docs/scene-format.md](../scene-format.md)). Einfache `.json`-Szenen und `.flame`-Dateien von flam3 und Apophysis lassen sich ebenfalls öffnen. Zwischen zwei Starts kehrt die App zu der Sitzung zurück, in der sie verlassen wurde.
+- **Updates:** ein Fenster listet jede veröffentlichte Version mit ihren Hinweisen auf und installiert jede davon. Unter Windows ist die App eine einzige portable `.exe`, die sich selbst ersetzt.
 - **Exakte Wiederholbarkeit:** dieselbe Szene ergibt auf jedem Rechner dieselben Pixel, geprüft durch Tests unter Linux, Windows und macOS ([docs/determinism.md](../determinism.md)).
-- **Import:** `.flame`-Dateien von flam3 und Apophysis werden in Szenen umgewandelt.
-- **Das Kommandozeilenwerkzeug** (`fractique`): rendert Szenen als PNG.
+- **Das Kommandozeilenwerkzeug** (`fractique`): rendert Flammen und Hintergrundbilder als PNG, erzeugt zufällige Szenen und Varianten, konvertiert `.flame`-Dateien.
 - **MCP-Server** (`fractique mcp`): ein KI-Agent erstellt, ändert und rendert Szenen ([docs/mcp.md](../mcp.md)).
 - **HTTP-Server** (`fractique-server`): eine HTTP-API mit Render-Warteschlange und Grenzen, liefert die Web-App aus, gibt es als Docker-Image ([docs/server.md](../server.md)).
 
@@ -31,31 +36,52 @@ Fractique rendert Fraktalflammen: leuchtende, hauchzarte Fraktale aus feinen Kur
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
 | `emerald-star` (zwei Ebenen) | `ember-vortex` |
+| ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
+| `golden-bloom` | `solar-mandala` |
 
-## Einrichtung
+Hintergrundbilder, hell und dunkel, jedes mit seinem Layout und Material:
 
-Ein Befehl baut alles. Fehlt Rust, wird es installiert.
+| | | | |
+| --- | --- | --- | --- |
+| ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
+| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
+| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+
+## Schnellstart
+
+Ein Befehl baut die App und das Kommandozeilenwerkzeug. Fehlt Rust, wird es installiert.
 
 | System | Befehl |
 | --- | --- |
 | Linux, macOS | `./setup.sh` |
 | Windows | `setup.cmd` |
 
-Danach:
+Die App starten:
 
 ```sh
-# eine Vorlage als 4K-Hintergrundbild
+./target/release/fractique-gui
+```
+
+Oder von der Kommandozeile rendern:
+
+```sh
+# ein Preset als 4K-Bild
 ./target/release/fractique render --preset aurora-spiral --size 3840x2160 --quality high -o aurora.png
 
-# die Zufallsszene zum Startwert 42, für einen Handybildschirm
+# die zufällige Flamme mit Seed 42 für einen Handybildschirm
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
 
-# eine Zufallsszene als Datei behalten, ändern, rendern
+# das Hintergrundbild mit Seed 7 für ein Handy, hell und dunkel
+./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png
+./target/release/fractique render --wallpaper 7 --dark --size 1290x2796 -o wallpaper-dark.png
+
+# eine zufällige Szene als Datei behalten, ändern, rendern
 ./target/release/fractique randomize 42 -o scene.json
 ./target/release/fractique render scene.json -o mine.png
 ```
 
-Unter Windows liegt das Werkzeug in `target\release\fractique.exe`. Alle Befehle und Optionen: [docs/usage.md](../usage.md).
+Unter Windows heißen die Programme `target\release\fractique-gui.exe` und `target\release\fractique.exe`. Alles, was die App und die Befehle können: [docs/usage.md](../usage.md).
 
 ## Dokumentation
 
@@ -63,16 +89,17 @@ Die Dokumentation ist auf Englisch.
 
 | | |
 | --- | --- |
-| [docs/usage.md](../usage.md) | Die Befehle, die Qualitätsstufen, wie man eine Szene bearbeitet |
-| [docs/scene-format.md](../scene-format.md) | Jedes Feld einer Szenendatei, jede Variation |
-| [docs/mcp.md](../mcp.md) | Der MCP-Server: einen KI-Agenten verbinden, die Werkzeuge |
+| [docs/usage.md](../usage.md) | Die App, die Befehle, die Qualitätsstufen, wie man eine Szene bearbeitet |
+| [docs/scene-format.md](../scene-format.md) | Jedes Feld einer Szenendatei, jede Variation, Blätter, die `.frcq`-Datei |
+| [docs/mcp.md](../mcp.md) | Der MCP-Server: einen KI-Agenten anbinden, die Werkzeuge |
 | [docs/server.md](../server.md) | Der HTTP-Server: Endpunkte, Grenzen, Docker |
 | [docs/ios.md](../ios.md) | Bauen und Ausführen auf einem iPhone oder im iOS-Simulator |
-| [docs/architecture.md](../architecture.md) | Wie die Teile zusammenspielen, wie ein Rendervorgang abläuft |
-| [docs/determinism.md](../determinism.md) | Warum sich ein Rendering exakt wiederholt und was zugesagt ist und was nicht |
+| [docs/releasing.md](../releasing.md) | Wie ein Release entsteht und wie sich die App selbst aktualisiert |
+| [docs/architecture.md](../architecture.md) | Wie die Teile zusammenpassen, wie ein Rendering abläuft |
+| [docs/determinism.md](../determinism.md) | Warum sich ein Rendering exakt wiederholt, was zugesagt ist und was nicht |
 | [docs/performance.md](../performance.md) | Gemessene Renderzeiten und Speicherbedarf |
 | [docs/roadmap.md](../roadmap.md) | Was fertig ist und was als Nächstes kommt |
 
 ## Lizenz
 
-[PolyForm Noncommercial License 1.0.0](../../LICENSE.md): kostenlos für jede nichtkommerzielle Nutzung. Für kommerzielle Nutzung bitte beim Autor eine gesonderte Lizenz anfragen. Lizenzen Dritter stehen in [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Beiträge: siehe [CONTRIBUTING.md](../../CONTRIBUTING.md).
+[PolyForm Noncommercial License 1.0.0](../../LICENSE.md): kostenlos für jede nichtkommerzielle Nutzung. Für kommerzielle Nutzung frage den Autor nach einer gesonderten Lizenz. Die Lizenzen Dritter stehen in [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md). Beiträge: siehe [CONTRIBUTING.md](../../CONTRIBUTING.md).

@@ -8,50 +8,61 @@ same image wherever it is rendered from.
 
 ```mermaid
 flowchart LR
-    SCENE[("Scene<br/>one JSON file")]
+    SCENE[("Scene<br/>one JSON file,<br/>or the app's .frcq")]
 
     subgraph CORE["fractique-core (pure Rust, no I/O)"]
         VAL["Scene<br/>format, validation"]
         RND["Randomizer<br/>random scenes, mutation"]
         PRE["Presets<br/>compiled in"]
+        WAL["Wallpapers<br/>sheets for a seed"]
         IMP["Import<br/>.flame files"]
-        REN["Renderer<br/>chaos game, histogram"]
+        REN["Renderer<br/>chaos game, histogram, deep views"]
         TON["Tone<br/>density estimation, log, gamma, glow"]
+        SHE["Sheets<br/>flat shapes, drawn exactly"]
         VAL --> REN --> TON
+        VAL --> SHE
         RND --> VAL
         PRE --> VAL
+        WAL --> VAL
         IMP --> VAL
     end
 
     CLI["fractique-cli<br/>the fractique command"]
     MCP["fractique mcp<br/>MCP server over stdio"]
     SRV["fractique-server<br/>HTTP API, web UI, Docker"]
-    APP["fractique-app<br/>Windows, macOS, Linux, Android, iOS (planned)"]
+    APP["fractique-app<br/>Windows, macOS, Linux, Android, iOS, web"]
 
     SCENE --> VAL
     TON -- "RGBA pixels" --> CLI
+    SHE -- "under the layers" --> TON
     TON -- "PNG, inline" --> MCP
     TON -- "PNG over HTTP" --> SRV
-    TON -.-> APP
+    TON -- "RGBA pixels" --> APP
     CLI -- "PNG" --> OUT[("image file")]
+    APP -- "PNG, .frcq" --> OUT
 ```
 
 | Crate | State | What it is |
 | --- | --- | --- |
-| `fractique-core` | works | The renderer, the scene format, presets, the randomizer |
-| `fractique-cli` | works | The `fractique` command: renders scenes to PNG, converts `.flame` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts |
+| `fractique-core` | works | The renderer, the scene format, presets, the randomizer, the wallpapers, the `.frcq` packing |
+| `fractique-cli` | works | The `fractique` command: renders scenes and wallpapers to PNG, converts `.flame` files and the app's `.frcq` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts |
+| `fractique-app` | works | The app, `fractique-gui`: one codebase for Windows, macOS, Linux, Android, iOS and the web ([The app](#the-app)) |
 | `fractique-server` | works | The `fractique-server` command: an HTTP API with a render queue and limits, which also serves the web build of the app; the Docker image ([server.md](server.md)) |
-| `fractique-app` | planned | The app for desktop and phones |
+
+`vendor/` holds `eframe` and `egui-wgpu` with the fix the iOS drawing surface needs; the workspace patches them
+in.
 
 ### Why this shape
 
 - **One renderer.** The app, the CLI, the MCP server and the HTTP server all call the same `render` function with
   the same scene, so they cannot disagree about what a scene looks like.
 - **A scene is data.** Everything a render depends on is in one JSON document (`Scene`): the flames, the palettes,
-  the camera, the tone settings and the seed. Presets, random scenes, mutations, files and API requests are all the
-  same type. The format is described in [scene-format.md](scene-format.md).
+  the camera, the tone settings, the sheets of a wallpaper and the seed. Presets, random scenes, wallpapers,
+  mutations, files and API requests are all the same type. The format is described in
+  [scene-format.md](scene-format.md).
 - **No I/O in the core.** It compiles for every target unchanged (desktop, Android, iOS, WebAssembly) and is easy
-  to test.
+  to test. `file.rs` turns a document into the bytes of a `.frcq` file and back; reading and writing the file is
+  the caller's.
 - **CPU rendering.** GPUs do not give the same bits from one vendor or driver to the next; the processor does.
   See [determinism.md](determinism.md).
 
@@ -60,6 +71,7 @@ flowchart LR
 ```mermaid
 flowchart TB
     S["Scene + options<br/>(size, samples per pixel, supersample)"] --> V["Validate"]
+    V --> SH["Sheets, when the scene has them<br/>drawn onto the background"]
     V --> L{{"for each layer"}}
     L --> C["Compile the flame<br/>transforms, palette table, camera"]
     C --> W["64 streams, each with its own random generator<br/>and walker, run on all cores"]
@@ -70,6 +82,7 @@ flowchart TB
     D --> G["Glow"]
     G --> B["Blend onto the canvas<br/>add, screen or over"]
     B --> L
+    SH --> B
     B --> Q["Dither to 8 bits"]
     Q --> I["Image (RGBA)"]
 ```
@@ -83,7 +96,8 @@ flowchart TB
 | Density estimation | `tone.rs` | A cell with few hits is noise, so it is spread with a wide kernel; a cell with many hits stays sharp. This is what makes sparse wisps smooth without blurring the dense structure. |
 | Tone mapping | `tone.rs` | Brightness follows the logarithm of the density, relative to the average density, so the same scene has the same brightness at any resolution, quality and zoom. Gamma, vibrancy and highlight shape it. |
 | Glow | `tone.rs` | A Gaussian blur of the layer is added back. Its radius is a share of the image's shorter side. |
-| Layers | `render.rs` | Each layer has its own flame, camera and tone settings and is blended onto the canvas in order. |
+| Sheets | `sheets.rs` | A wallpaper's sheets are drawn onto the background before any layer. For every pixel and every sheet, bottom to top: the distance to the sheet's shapes gives its coverage (one pixel of soft edge), the rim along its edge and, moved toward the light, the shadow it casts on what is under it. Nothing is sampled, so the seed, the samples per pixel and the supersample do not change it. |
+| Layers | `render.rs` | Each layer has its own flame, camera and tone settings and is blended onto the canvas in order. `render_layer` develops one layer and `compose` blends developed layers, so a caller can keep the layers that did not change. |
 | Dither | `render.rs` | An 8×8 ordered dither removes the bands that 8 bits would show in faint gradients on a dark background. |
 
 ### Any resolution
@@ -107,12 +121,55 @@ A phone renders the same scene with the same code at a lower quality level: fewe
 supersampling (`mobile`: 30 samples per pixel). Density estimation is what keeps that from looking noisy. See
 [performance.md](performance.md) for the numbers.
 
+## Wallpapers
+
+`random_wallpaper(seed, request)` in `wallpaper.rs` builds a scene of sheets. The request names the proportion of
+the image, light or dark, and optionally a layout, a material and a hue; the seed decides the rest. One generator
+picks the layout and the material, a second places the shapes of that layout for the proportion, a third chooses
+the colors and the light of the material. Colors are chosen in OKLCH, so equal steps look equal. `chosen` tells
+which layout and material a seed gives, without building the scene.
+
 ## The randomizer
 
 `random_scene(seed)` builds a flame of 2 to 4 transforms from a weighted list of variations, picks a palette and
 sometimes a symmetry and a second layer. It then probes the flame with 30 000 points to place the camera, and
 rejects flames that are a dot, dust or a filled square, trying up to 40 candidates per layer. All of it is driven by
 the seed alone, so a seed is a scene. `mutate(scene, seed, strength)` nudges the transforms of an existing scene.
+The list does not hold the 21 variations added after the first version (`waves` to `twintrian`): a new entry
+would change the scene of every seed.
+
+## The app
+
+`fractique-app` is built with `egui` and `eframe` on `wgpu`. The graphics card only shows things: the picture
+itself is always rendered by `fractique-core` on the processor, in a thread of its own.
+
+| File | What |
+| --- | --- |
+| `lib.rs` | The window: the inspector, the toolbar, the title bar the app draws itself, the sheets with lists, the session, the render passes of the picture |
+| `phone.rs` | The phone's screen: the round buttons, the placard, the styles with their small pictures, the collection |
+| `export.rs` | An export: a render in a thread of its own, with progress and cancel |
+| `update.rs`, `updates.rs` | The releases, the download and the install; the updates window ([releasing.md](releasing.md)) |
+| `glass.rs`, `glass.wgsl`, `blur.rs` | The picture on the screen and the glass panes over it: each pane shows a blurred, refracted part of the picture |
+| `widgets.rs` | The controls: rows, pills, sliders, switches; the fonts |
+| `i18n.rs`, `locales/` | The texts, in 15 languages |
+| `android.rs`, `ios.rs` | The gallery, Photos and sharing |
+| `main.rs` | The start on a computer and in a browser; a file given at start |
+| `instance.rs` | One window at a time on a computer: a second start gives its file to the window that is open and ends |
+| `association.rs` | Windows: the program registers itself as the one that opens `.frcq` files ([releasing.md](releasing.md#files-of-the-app-frcq)) |
+
+How the picture reaches the screen:
+
+| Step | What happens |
+| --- | --- |
+| A change | The scene, the size or the view changes. The render in progress is cancelled and a new one starts. A moved or zoomed view waits until it has rested for 0.18 s; until then the picture already on the screen is moved and scaled by the graphics card |
+| Passes | A draft first (480 pixels on its longer side, 12 samples per pixel), then the full picture. A view magnified more than 4 times gets a pass in between (1280 pixels, 16 samples). The picture is shown after each |
+| The full picture | At the chosen size, up to 4096 pixels a side with 32 samples per pixel on a computer, 1600 and 18 on a phone, 900 and 14 in a browser |
+| Kept layers | A layer's pixels depend only on its flame, its place, the seed and the size. Developed layers are kept (up to 1200 MB on a computer, 160 MB on a phone and in a browser), so a change to one layer renders that layer only, and **Reset view** comes back without a render |
+| Threads | Renders run on a pool that leaves two cores to the window. A browser page has one thread and renders there, without a draft |
+| Events | A finished pass is sent over a channel and asks for a repaint. Nothing polls |
+
+An export is a separate render at the size and quality chosen, with the scene as it is on the screen. The session
+is written whenever it changes, not at exit: a phone ends an app without telling it.
 
 ## Limits
 
@@ -122,5 +179,9 @@ the seed alone, so a seed is a scene. `mutate(scene, seed, strength)` nudges the
 | Supersample | 1 to 4 |
 | Samples per pixel | 1 to 100 000 |
 | Histogram cells (`width × height × supersample²`) | at most 2²⁸ |
-| Layers per scene | 1 to 16 |
+| Layers per scene | 1 to 16, or none when the scene has sheets |
 | Transforms per flame | 1 to 64 |
+| Sheets per scene | 1 to 48 |
+| Shapes per sheet | 1 to 32 |
+| Magnification of a view in the app | 0.0001 to 10 000 000 000 |
+| Unpacked `.frcq` document | at most 64 MB |

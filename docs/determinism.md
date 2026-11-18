@@ -5,7 +5,7 @@ same pixels, bit for bit, on every platform, every processor and every number of
 
 It matters because a scene is then a complete description of a picture. You can share a 2 kB JSON file instead of
 an image, render a preview on a phone and the final image on a server, or let an AI agent work on a scene and know
-that what it saw is what you get.
+that what it saw is what you get. It holds for wallpapers as it does for flames.
 
 ## What makes it hold
 
@@ -16,14 +16,17 @@ that what it saw is what you get.
 | The number of cores | The samples are always split over 64 streams, each with its own generator derived from (seed, layer, stream). A machine with 4 cores runs the same 64 streams as one with 32, only fewer at a time. |
 | The order threads finish in | Threads only add integers to the histogram. Integer addition gives the same total in any order. No floating-point sum ever crosses a thread. |
 | Floating-point rounding | Only IEEE 754 operations that are exactly defined (`+ - * /`, `sqrt`), in a fixed order. No fused multiply-add, no fast-math. Rust does not reorder or fuse them on its own. |
-| Graphics cards | Not used for rendering: drivers and vendors round differently. |
+| Graphics cards | Not used for rendering: drivers and vendors round differently. In the app the graphics card only shows the rendered picture and draws the glass over it. |
+| Wallpapers | The sheets are drawn pixel by pixel, each pixel from the scene alone, with the same `math.rs` functions; rows run on several threads, and no value crosses from one pixel to another. The generator that makes a wallpaper for a seed uses `rng.rs` and `math.rs` only. |
+| Deep views | The particles a magnified view is drawn from are moved in fixed groups of 128, each with its own generator, so the threads cannot change the result. |
 | Hash map order, the clock, the locale | None of them is used on the way to a pixel. |
 
 ## How it is checked
 
-`crates/fractique-core/tests/determinism.rs` holds golden hashes: the hash of a few presets rendered at a small
-size. CI runs them on Linux x64, Linux ARM64, Windows x64 and macOS on Apple Silicon. The same file checks that 1,
-3 and all threads give the same image, and the test suite also runs with threads compiled out
+`crates/fractique-core/tests/determinism.rs` holds golden hashes: the hash of four presets, of one deep view and
+of seven wallpapers, rendered at a small size. CI runs them on Linux x64, Linux ARM64, Windows x64 and macOS on
+Apple Silicon. The same file checks that the number of threads does not change the image, for a flame
+(1, 3 and all threads), a deep view and a wallpaper, and the test suite also runs with threads compiled out
 (`--no-default-features`).
 
 The command line tool prints the hash of every image it renders, so you can compare two machines yourself:
@@ -40,6 +43,10 @@ fractique render --preset aurora-spiral --size 192x108 --samples 20 --supersampl
   is listed in [CHANGELOG.md](../CHANGELOG.md) as a breaking change. The `version` field of a scene exists so that
   old scenes can keep their old look when that matters.
 - **The PNG file's bytes.** The pixels are the same; the compression is the PNG library's business.
+- **The picture on the app's screen.** It is a preview: fewer samples, and at most 4096 pixels a side (1600 on a
+  phone). An export, and a render of the saved scene by the command line tool, are exact.
+- **A seed across versions.** The random flame or the wallpaper of a seed may change when the generators improve.
+  A saved scene does not: it holds the shapes, not the seed that made them.
 
 ## Rules for changes
 

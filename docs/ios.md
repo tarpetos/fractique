@@ -8,8 +8,6 @@ Apple's tools exist only there. Two scripts do the work; both build the app firs
 | `scripts/ios/run-simulator.sh` | The iOS Simulator on the Mac | Xcode |
 | `scripts/ios/run-iphone.sh` | The iPhone connected by cable | Xcode 15 or newer, signing (below) |
 
-> The scripts were written without a Mac at hand and have not run yet. If one stops, send what it printed.
-
 ## Once, on the Mac
 
 1. Install **Xcode** from the App Store and open it once, so it installs the iOS platform.
@@ -26,8 +24,13 @@ Rust is installed by the scripts when it is missing.
 
 The first build takes a few minutes. The Simulator opens with Fractique in it. No Apple account is needed.
 
-What to look at: the flame fills the screen, the toolbar at the bottom and the status capsule at the top stay
-clear of the notch and the home bar, **Controls** opens the inspector, the sliders and **Randomize** work.
+What to look at: the picture fills the screen; the **Flames** and **Wallpapers** switch at the top and the round
+buttons at the bottom right stay clear of the notch and the home bar; the round button makes a new picture, a swipe
+goes to the next wallpaper, **Style** opens the sheet of small pictures and **Fine-tune** in it the sliders.
+[usage.md](usage.md#on-a-phone) describes the screen.
+
+The same run can be started on GitHub, without a Mac: the `iOS simulator` workflow, started by hand, builds the
+app, starts it in a simulator and keeps two screenshots and the logs as an artifact.
 
 ## On an iPhone
 
@@ -87,8 +90,11 @@ account the app works for 7 days.
 ## What to report back
 
 - Does it start? If not, the text the script printed.
-- A screenshot of the app with the inspector open and one with it closed.
-- How long the full picture takes (the status capsule shows it) and whether the sliders feel smooth.
+- A screenshot of the app with the styles open and one with them closed.
+- How long the full picture takes (the line under the picture's name shows it) and whether the sliders in
+  **Fine-tune** feel smooth.
+- Whether **Export** puts the picture into Photos, and whether **Share** opens the share sheet. The first save
+  asks for permission to add to the photo library.
 
 ## TestFlight
 
@@ -104,3 +110,12 @@ owns the app `app.fractique` in App Store Connect. `FRACTIQUE_TEAM_ID` picks ano
 
 `ios/` holds the Xcode project that wraps the Rust binary: Xcode compiles an empty `stub.c`, then
 `ios/build-rust.sh` puts the Rust binary in its place before Xcode signs the app.
+
+## What the app needs from iOS
+
+| | |
+| --- | --- |
+| iOS version | 15.0 or newer |
+| Devices | iPhone and iPad, upright and on either side |
+| Photos | Permission to add pictures (`NSPhotoLibraryAddUsageDescription`), asked at the first **Save to Photos** |
+| Files | The app's `Documents` folder: the settings (`settings.ron`) and the exported pictures (`exports`) |
