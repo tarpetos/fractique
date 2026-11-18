@@ -16,7 +16,7 @@ Fractique dessine des flammes fractales : des fractales lumineuses et vaporeuses
 
 ## Ce qui fonctionne aujourd’hui
 
-- **Le moteur de rendu** (`fractique-core`) : flammes fractales avec 28 variations, calques avec modes de fusion, symétrie de rotation et en miroir, estimation de densité, lueur, toute résolution.
+- **Le moteur de rendu** (`fractique-core`) : flammes fractales avec 49 variations, calques avec modes de fusion, symétrie de rotation et en miroir, estimation de densité, lueur, toute résolution.
 - **L’application :** un seul code pour Windows, Linux, Android, iOS et le web, avec des panneaux de verre par-dessus la flamme, en 15 langues.
 - **Préréglages :** 9 scènes intégrées.
 - **Générateur aléatoire :** chaque graine est une scène ; les scènes qui ne seraient qu’un point ou un carré plein sont écartées.

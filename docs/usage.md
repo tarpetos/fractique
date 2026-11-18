@@ -205,7 +205,7 @@ fractique render scene.json -o imported.png
 
 The transforms, their colors, the palette, the camera, the symmetry and the tone settings are read. What the file
 uses and Fractique does not have is listed while it converts: variations outside the
-[28 built in](scene-format.md#variation), xaos, and flam3's numbered palettes (a file that names one by number gets
+[49 built in](scene-format.md#variation), xaos, and flam3's numbered palettes (a file that names one by number gets
 the `aurora` palette). An imported flame shows the same structure as in its own program; brightness and color are
 close, not identical, because the tone mapping differs.
 

@@ -16,7 +16,7 @@ Fractique fraktal alevler çizer: ince eğrilerden ve yumuşak ışıktan oluşa
 
 ## Bugün çalışanlar
 
-- **Oluşturucu** (`fractique-core`): 28 varyasyonlu fraktal alevler, karışım modlu katmanlar, dönme ve ayna simetrisi, yoğunluk kestirimi, ışıltı, her çözünürlük.
+- **Oluşturucu** (`fractique-core`): 49 varyasyonlu fraktal alevler, karışım modlu katmanlar, dönme ve ayna simetrisi, yoğunluk kestirimi, ışıltı, her çözünürlük.
 - **Uygulama:** Windows, Linux, Android, iOS ve web için tek kod tabanı, alevin üzerinde cam paneller, 15 dilde.
 - **Hazır ayarlar:** 9 yerleşik sahne.
 - **Rastgele üretici:** her tohum bir sahnedir; yalnızca bir nokta ya da dolu bir kare olacak sahneler atlanır.

@@ -16,7 +16,7 @@ Fractique dibuja llamas fractales: fractales luminosos y etéreos hechos de curv
 
 ## Qué funciona hoy
 
-- **El motor de render** (`fractique-core`): llamas fractales con 28 variaciones, capas con modos de fusión, simetría rotacional y de espejo, estimación de densidad, resplandor, cualquier resolución.
+- **El motor de render** (`fractique-core`): llamas fractales con 49 variaciones, capas con modos de fusión, simetría rotacional y de espejo, estimación de densidad, resplandor, cualquier resolución.
 - **La aplicación:** un solo código para Windows, Linux, Android, iOS y la web, con paneles de vidrio sobre la llama, en 15 idiomas.
 - **Preajustes:** 9 escenas integradas.
 - **Generador aleatorio:** cada semilla es una escena; las escenas que serían un punto o un cuadrado relleno se descartan.
