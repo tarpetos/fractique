@@ -16,11 +16,11 @@ O Fractique cria dois tipos de imagem. Chamas fractais: fractais luminosos e et�
 
 ## O que o Fractique faz
 
-- **Chamas:** 49 variações, camadas com modos de mesclagem, simetria rotacional e espelhada, estimativa de densidade, brilho e 29 predefinições embutidas.
+- **Chamas:** 49 variações, camadas com modos de mesclagem, simetria rotacional e espelhada, estimativa de densidade, luminescência e 29 predefinições embutidas.
 - **Papéis de parede:** um para cada semente, a partir de 14 layouts e 6 materiais, cada um em versão clara e escura, disposto para o tamanho da tela.
 - **O aplicativo:** uma única base de código para Windows, macOS, Linux, Android, iOS e a web. A imagem preenche a janela e painéis de vidro flutuam sobre ela; no desktop o aplicativo tem sua própria barra de título de vidro. Em 15 idiomas.
-- **Randomize e Mutate:** cada semente é uma imagem; chamas que seriam um ponto ou um quadrado preenchido são descartadas. Mutate cria uma variante daquela de que você gostou.
-- **Camadas:** adicione uma chama das predefinições ou uma aleatória, remova, reordene e defina a mesclagem (add, screen, over) e a opacidade de cada uma. Até 16 camadas.
+- **“Aleatório” e “Mutar”:** cada semente é uma imagem; chamas que seriam um ponto ou um quadrado preenchido são descartadas. “Mutar” cria uma variante daquela de que você gostou.
+- **Camadas:** adicione uma chama das predefinições ou uma aleatória, remova, reordene e defina a mesclagem (“Soma”, “Tela”, “Sobre”) e a opacidade de cada uma. Até 16 camadas.
 - **Tamanho da imagem:** o da própria janela, uma de 21 telas (computadores até 4K, celulares e tablets Android, iPhones e iPads) ou qualquer largura e altura de 16 a 16384 pixels.
 - **Zoom profundo:** arrastar, a roda do mouse e a pinça movem a vista e a ampliam até dez bilhões de vezes. A imagem acompanha na hora e é redesenhada nítida quando a vista para.
 - **Celulares:** uma tela própria. Um botão redondo cria uma nova imagem, um deslize passa para o próximo papel de parede, uma folha de pequenas imagens ao vivo escolhe o estilo, e as imagens que você guarda formam uma coleção.
