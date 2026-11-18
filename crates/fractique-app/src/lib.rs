@@ -190,6 +190,7 @@ enum Listing {
     Presets,
     Layouts,
     Materials,
+    Recent,
 }
 
 fn shown(name: &str) -> String {
@@ -609,7 +610,7 @@ impl App {
             rest: [None, None],
             latest: None,
             palette: None,
-            phone: phone::Phone::new(stored("kept")),
+            phone: phone::Phone::new(stored("kept"), stored("recent")),
             title,
             is_random: false,
             seed: 0,
@@ -879,6 +880,9 @@ impl App {
             self.light = sum as f32 / (count.max(1) as f32 * 255.0);
             self.last = (!done.draft).then(|| (done.generation, Arc::new(done.image.clone())));
             if !done.draft {
+                self.remember(self.requested.unwrap_or([done.image.width, done.image.height]));
+            }
+            if !done.draft {
                 self.rendering = false;
                 self.shown_frames = self.shown_frames.max(1);
                 self.status = format!("{} × {}  ·  {:.2} s", done.image.width, done.image.height, done.seconds);
@@ -1010,6 +1014,10 @@ impl App {
     fn preset_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
         ui.set_width(260.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+        if self.listing == Listing::Recent {
+            self.recent_sheet(ui, room);
+            return;
+        }
         if self.listing != Listing::Presets {
             self.wall_sheet(ui, room);
             return;
@@ -1050,6 +1058,27 @@ impl App {
             }
         } else {
             self.pick(scene, title, false);
+        }
+    }
+
+    fn recent_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
+        widgets::section(ui, &self.t("recent"));
+        let mut bar = egui::style::ScrollStyle::floating();
+        bar.bar_width = 5.0;
+        ui.spacing_mut().scroll = bar;
+        let mut chosen = None;
+        egui::ScrollArea::vertical()
+            .max_height((room - 110.0).max(90.0))
+            .show(ui, |ui| {
+                for (index, piece) in self.phone.recent.iter().enumerate() {
+                    if widgets::row(ui, &piece.title, index == 0) {
+                        chosen = Some(piece.clone());
+                    }
+                }
+            });
+        if let Some(piece) = chosen {
+            self.presets_open = false;
+            self.show_piece(&piece);
         }
     }
 
@@ -1552,6 +1581,12 @@ impl App {
             widgets::section(ui, &self.t("presets"));
             if widgets::dropdown(ui, &shown(&self.title)) {
                 self.open_sheet(Sheet::Presets);
+            }
+        }
+        if self.phone.recent.len() > 1 {
+            widgets::section(ui, &self.t("recent"));
+            if widgets::dropdown(ui, &self.phone.recent[1].title) {
+                self.open_listing(Listing::Recent);
             }
         }
         widgets::section(ui, &self.t("color"));
@@ -2745,6 +2780,7 @@ impl eframe::App for App {
         storage.set_string("picture", picture);
         storage.set_string("session", self.session());
         storage.set_string("kept", self.phone.kept_text());
+        storage.set_string("recent", self.phone.recent_text());
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         if let Some(path) = std::env::var_os("FRACTIQUE_DOCUMENT") {
             let _ = std::fs::write(path, self.document());

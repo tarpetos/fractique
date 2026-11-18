@@ -13,6 +13,7 @@ use crate::{App, WHOLE, named, shown};
 pub const SWIPE: f32 = 56.0;
 const TILE_RATIO: f32 = 1.6;
 const MOST_KEPT: usize = 48;
+const MOST_RECENT: usize = 24;
 // OKLCH hue in degrees, and the color the dot is drawn in.
 const TINTS: [(f64, [u8; 3]); 8] = [
     (27.0, [216, 69, 47]),
@@ -100,6 +101,7 @@ pub struct Phone {
     pub pull: f32,
     pub clear: Vec<Rect>,
     pub kept: Vec<Piece>,
+    pub recent: Vec<Piece>,
     thumbs: HashMap<String, egui::TextureHandle>,
     drawing: HashSet<String>,
     drawn: (mpsc::Sender<Thumb>, mpsc::Receiver<Thumb>),
@@ -117,12 +119,18 @@ impl Phone {
         Value::Array(self.kept.iter().map(Piece::to_value).collect()).to_string()
     }
 
-    pub fn new(kept: Option<String>) -> Self {
-        let kept = kept
-            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-            .and_then(|value| value.as_array().cloned())
-            .map(|list| list.iter().filter_map(Piece::from_value).collect())
-            .unwrap_or_default();
+    pub fn recent_text(&self) -> String {
+        Value::Array(self.recent.iter().map(Piece::to_value).collect()).to_string()
+    }
+
+    pub fn new(kept: Option<String>, recent: Option<String>) -> Self {
+        let pieces = |text: Option<String>| -> Vec<Piece> {
+            text.and_then(|text| serde_json::from_str::<Value>(&text).ok())
+                .and_then(|value| value.as_array().cloned())
+                .map(|list| list.iter().filter_map(Piece::from_value).collect())
+                .unwrap_or_default()
+        };
+        let (kept, recent) = (pieces(kept), pieces(recent));
         let show = std::env::var("FRACTIQUE_SHOW").unwrap_or_default();
         Self {
             on: cfg!(any(target_os = "android", target_os = "ios")) || show.contains("phone"),
@@ -136,6 +144,7 @@ impl Phone {
             pull: 0.0,
             clear: Vec::new(),
             kept,
+            recent,
             thumbs: HashMap::new(),
             drawing: HashSet::new(),
             drawn: mpsc::channel(),
@@ -219,6 +228,19 @@ fn icon(painter: &egui::Painter, at: Pos2, which: Icon, ink: Color32) {
     }
 }
 
+fn note(recent: &mut Vec<Piece>, piece: Piece) {
+    let same_flame = |other: &Piece| matches!(other.kind, Kind::Flame(_)) && other.title == piece.title;
+    // A flame that is being adjusted is one picture, not one for every move of a slider.
+    if matches!(piece.kind, Kind::Flame(_)) && recent.first().is_some_and(same_flame) {
+        recent[0] = piece;
+        return;
+    }
+    let key = piece.key();
+    recent.retain(|other| other.key() != key);
+    recent.insert(0, piece);
+    recent.truncate(MOST_RECENT);
+}
+
 type Panes = Vec<(Rect, f32, bool)>;
 
 pub(crate) const LIGHT: f32 = 0.55;
@@ -257,7 +279,12 @@ impl App {
         }
     }
 
-    fn show_piece(&mut self, piece: &Piece) {
+    pub(crate) fn remember(&mut self, size: [u32; 2]) {
+        let piece = self.piece(size);
+        note(&mut self.phone.recent, piece);
+    }
+
+    pub(crate) fn show_piece(&mut self, piece: &Piece) {
         match &piece.kind {
             Kind::Wall(seed, layout, material, dark, hue) => {
                 self.wall.hue = *hue;
@@ -863,7 +890,12 @@ impl App {
                                         ..Default::default()
                                     })
                                     .show(ui, |ui| {
-                                        close |= self.sheet_kept(ui, scale);
+                                        let kept = self.phone.kept.clone();
+                                        close |= self.sheet_row(ui, scale, "collection", &kept);
+                                        let recent = self.phone.recent.clone();
+                                        if recent.len() > 1 {
+                                            close |= self.sheet_row(ui, scale, "recent", &recent);
+                                        }
                                         widgets::section(ui, &self.t("color"));
                                         ui.add_space(6.0);
                                         self.colors(ui, 26.0);
@@ -887,8 +919,8 @@ impl App {
         }
     }
 
-    fn sheet_kept(&mut self, ui: &mut egui::Ui, scale: f32) -> bool {
-        if self.phone.kept.is_empty() {
+    fn sheet_row(&mut self, ui: &mut egui::Ui, scale: f32, title: &str, pieces: &[Piece]) -> bool {
+        if pieces.is_empty() {
             return false;
         }
         let ctx = ui.ctx().clone();
@@ -897,16 +929,15 @@ impl App {
         let pixels = [(side[0] * scale) as usize, (side[1] * scale) as usize];
         let mut budget = 1;
         let mut picked = None;
-        widgets::section(ui, &self.t("collection"));
+        widgets::section(ui, &self.t(title));
         ui.add_space(4.0);
-        let kept = self.phone.kept.clone();
         egui::ScrollArea::horizontal()
-            .id_salt("phone_kept")
+            .id_salt(("phone_row", title))
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = vec2(8.0, 0.0);
-                    for piece in &kept {
+                    for piece in pieces {
                         let picture = self.thumb(&ctx, format!("k {}", piece.key()), pixels, 10, &mut budget, || {
                             Some(match &piece.kind {
                                 Kind::Wall(seed, layout, material, dark, hue) => random_wallpaper(
@@ -1098,5 +1129,46 @@ impl App {
             return true;
         }
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn wall(seed: u64) -> Piece {
+        Piece {
+            title: "Waves Steel".into(),
+            kind: Kind::Wall(seed, Layout::ALL[0].1, Material::ALL[0].1, false, None),
+        }
+    }
+
+    fn flame(title: &str, brightness: f64) -> Piece {
+        let mut scene = fractique_core::presets::get("aurora-spiral").unwrap();
+        scene.layers[0].flame.tone.brightness = brightness;
+        Piece {
+            title: title.into(),
+            kind: Kind::Flame(Box::new(scene)),
+        }
+    }
+
+    #[test]
+    fn recent_pictures_are_newest_first_without_repeats() {
+        let mut recent = Vec::new();
+        for piece in [
+            wall(1),
+            wall(2),
+            flame("Aurora Spiral", 1.0),
+            flame("Aurora Spiral", 1.4),
+            wall(1),
+        ] {
+            note(&mut recent, piece);
+        }
+        assert!(recent == [wall(1), flame("Aurora Spiral", 1.4), wall(2)]);
+        for seed in 10..60 {
+            note(&mut recent, wall(seed));
+        }
+        assert_eq!(recent.len(), MOST_RECENT);
+        assert!(recent[0] == wall(59));
     }
 }
