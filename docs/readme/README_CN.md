@@ -18,6 +18,7 @@ Fractique 生成三类图像。一类是分形火焰：由纤细曲线和柔和�
 
 - **火焰：** 49 种变体、带混合模式的图层、旋转对称与镜像对称、密度估计、辉光，以及 29 个内置预设。
 - **分形：** 曼德博集合、朱利亚集合和克利福德吸引子，各有预设，每个种子对应一张图像；与火焰共用调色板、图层和深度缩放。
+- **立体：** 三维的曼德球、曼德盒和门格海绵，带有光照、阴影和雾；可以绕着它们转，也可以进入内部。
 - **壁纸：** 每个种子对应一张，由 14 种布局和 6 种材质组合而成，每张都有浅色和深色版本，并按屏幕尺寸排布。
 - **应用：** 一套代码支持 Windows、macOS、Linux、Android、iOS 和 Web。图像铺满窗口，玻璃面板浮在其上；在桌面端，应用有自己的玻璃标题栏。支持 15 种语言。
 - **“随机”与“变异”：** 每个种子都是一幅图像；会变成一个点或一块实心方形的火焰会被跳过。“变异”为你喜欢的图像生成一个变异版本。
@@ -55,6 +56,13 @@ Fractique 生成三类图像。一类是分形火焰：由纤细曲线和柔和�
 | `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
+
+三维立体：曼德球、曼德盒和门格海绵：
+
+| | | |
+| --- | --- | --- |
+| ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
+| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
 
 浅色和深色壁纸，各自的布局与材质：
 

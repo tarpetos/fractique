@@ -18,6 +18,7 @@ Fractique は 3 種類の画像を作ります。ひとつはフラクタルの�
 
 - **炎：** 49 種類のバリエーション、ブレンドモード付きレイヤー、回転対称と鏡像対称、密度推定、グロー、そして 29 種類の組み込みプリセット。
 - **フラクタル：** マンデルブロ集合、ジュリア集合、クリフォードアトラクター。それぞれにプリセットがあり、シードごとに 1 枚の画像ができます。パレット、レイヤー、深いズームは炎と共通です。
+- **立体：** マンデルバルブ、マンデルボックス、メンガーのスポンジを三次元で。光と影と霧があり、まわりを回ることも中に入ることもできます。
 - **壁紙：** シードごとに 1 枚。14 種類のレイアウトと 6 種類の素材から作られ、それぞれにライト版とダーク版があり、画面のサイズに合わせて配置されます。
 - **アプリ：** Windows、macOS、Linux、Android、iOS、Web を 1 つのコードベースで。画像がウィンドウいっぱいに広がり、その上にガラスのパネルが浮かびます。デスクトップでは独自のガラスのタイトルバーを備えます。15 言語に対応。
 - **「ランダム」と「変異」：** すべてのシードが 1 枚の画像になります。点や塗りつぶされた四角形になる炎は除外されます。「変異」は気に入った画像の変種を作ります。
@@ -55,6 +56,13 @@ Fractique は 3 種類の画像を作ります。ひとつはフラクタルの�
 | `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
+
+三次元の立体。マンデルバルブ、マンデルボックス、メンガーのスポンジ：
+
+| | | |
+| --- | --- | --- |
+| ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
+| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
 
 ライトとダークの壁紙。それぞれのレイアウトと素材：
 

@@ -18,6 +18,7 @@ Fractique membuat tiga jenis gambar. Api fraktal: fraktal bercahaya dan halus ya
 
 - **Api:** 49 variasi, lapisan dengan mode blend, simetri putar dan cermin, estimasi kerapatan, pendar, dan 29 preset bawaan.
 - **Fraktal:** himpunan Mandelbrot, himpunan Julia, dan penarik Clifford, masing-masing dengan preset dan satu gambar untuk setiap seed; palet, lapisan, dan zoom dalamnya sama dengan milik api.
+- **Benda padat:** Mandelbulb, Mandelbox, dan spons Menger dalam tiga dimensi, dengan cahaya, bayangan, dan kabut; kelilingi atau masuki bagian dalamnya.
 - **Wallpaper:** satu untuk setiap seed, dari 14 tata letak dan 6 bahan, masing-masing dalam versi terang dan gelap, ditata sesuai ukuran layar.
 - **Aplikasi:** satu basis kode untuk Windows, macOS, Linux, Android, iOS, dan web. Gambar memenuhi jendela dan panel kaca melayang di atasnya; di desktop aplikasi memiliki bilah judul kaca sendiri. Dalam 15 bahasa.
 - **“Acak” dan “Mutasi”:** setiap seed adalah sebuah gambar; api yang hanya akan menjadi titik atau kotak penuh dilewati. “Mutasi” membuat varian dari gambar yang Anda sukai.
@@ -55,6 +56,13 @@ Orbit yang digambar sebagai kerapatan: Buddhabrot serta penarik De Jong, Lorenz,
 | `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
+
+Benda padat tiga dimensi: Mandelbulb, Mandelbox, dan spons Menger:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
+| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
 
 Wallpaper, terang dan gelap, masing-masing dengan tata letak dan bahannya:
 

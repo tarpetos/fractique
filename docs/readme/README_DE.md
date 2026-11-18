@@ -18,6 +18,7 @@ Fractique erzeugt drei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fr
 
 - **Flammen:** 49 Variationen, Ebenen mit Mischmodi, Dreh- und Spiegelsymmetrie, Dichteschätzung, Leuchten und 29 eingebaute Vorlagen.
 - **Fraktale:** die Mandelbrot-Menge, Julia-Mengen und der Clifford-Attraktor, jeweils mit Vorlagen und einem Bild für jeden Seed; sie teilen Paletten, Ebenen und den tiefen Zoom mit den Flammen.
+- **Körper:** Mandelbulb, Mandelbox und Menger-Schwamm in drei Dimensionen, mit Licht, Schatten und Nebel; man kann um sie herumgehen oder hineinfliegen.
 - **Hintergrundbilder:** eines für jeden Seed, aus 14 Layouts und 6 Materialien, jedes in einer hellen und einer dunklen Fassung, passend zur Größe des Bildschirms angeordnet.
 - **Die App:** eine Codebasis für Windows, macOS, Linux, Android, iOS und das Web. Das Bild füllt das Fenster, darüber schweben Glasflächen; auf dem Desktop hat die App eine eigene gläserne Titelleiste. In 15 Sprachen.
 - **„Zufall“ und „Mutieren“:** jeder Seed ist ein Bild; Flammen, die nur ein Punkt oder ein gefülltes Quadrat wären, werden übersprungen. „Mutieren“ erzeugt eine Variante des Bildes, das dir gefällt.
@@ -55,6 +56,13 @@ Als Dichte gezeichnete Bahnen: das Buddhabrot und die Attraktoren von De Jong, L
 | `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
+
+Körper in drei Dimensionen: Mandelbulb, Mandelbox und Menger-Schwamm:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
+| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
 
 Hintergrundbilder, hell und dunkel, jedes mit seinem Layout und Material:
 

@@ -18,6 +18,7 @@ Fractique crea tres tipos de imágenes. Llamas fractales: esos fractales luminos
 
 - **Llamas:** 49 variaciones, capas con modos de fusión, simetría rotacional y de espejo, estimación de densidad, resplandor y 29 preajustes integrados.
 - **Fractales:** el conjunto de Mandelbrot, los conjuntos de Julia y el atractor de Clifford, cada uno con preajustes y una imagen para cada semilla; comparten las paletas, las capas y el zoom profundo de las llamas.
+- **Sólidos:** el Mandelbulb, el Mandelbox y la esponja de Menger en tres dimensiones, con luz, sombras y niebla; gira a su alrededor o entra en ellos.
 - **Fondos de pantalla:** uno para cada semilla, a partir de 14 diseños y 6 materiales, cada uno en versión clara y oscura, dispuesto para el tamaño de la pantalla.
 - **La aplicación:** una sola base de código para Windows, macOS, Linux, Android, iOS y la web. La imagen llena la ventana y sobre ella flotan paneles de vidrio; en el escritorio la aplicación tiene su propia barra de título de vidrio. En 15 idiomas.
 - **«Aleatorio» y «Mutar»:** cada semilla es una imagen; las llamas que serían un punto o un cuadrado relleno se descartan. «Mutar» crea una variante de la que te gusta.
@@ -55,6 +56,13 @@ Fractales de otros tipos: el conjunto de Mandelbrot, un conjunto de Julia y el a
 | `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
+
+Sólidos en tres dimensiones: el Mandelbulb, el Mandelbox y la esponja de Menger:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
+| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
 
 Fondos de pantalla, claros y oscuros, cada uno con su diseño y su material:
 

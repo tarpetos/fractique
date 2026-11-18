@@ -18,6 +18,7 @@ Fractique는 세 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입
 
 - **불꽃:** 49가지 배리에이션, 블렌드 모드가 있는 레이어, 회전 대칭과 거울 대칭, 밀도 추정, 글로우, 그리고 29개의 내장 프리셋.
 - **프랙탈:** 만델브로 집합, 줄리아 집합, 클리퍼드 끌개. 각각 프리셋이 있고 시드마다 이미지가 하나씩 나옵니다. 팔레트, 레이어, 깊은 확대는 불꽃과 함께 씁니다.
+- **입체:** 3차원의 만델벌브, 만델박스, 멩거 스펀지. 빛과 그림자, 안개가 있으며 둘레를 돌거나 안으로 들어갈 수 있습니다.
 - **배경화면:** 시드마다 하나씩, 14가지 레이아웃과 6가지 소재로 만들어지며, 각각 라이트 버전과 다크 버전이 있고 화면 크기에 맞게 배치됩니다.
 - **앱:** Windows, macOS, Linux, Android, iOS, 웹을 하나의 코드베이스로 지원합니다. 이미지가 창을 가득 채우고 그 위에 유리 패널이 떠 있으며, 데스크톱에서는 앱 고유의 유리 제목 표시줄이 있습니다. 15개 언어 지원.
 - **‘무작위’와 ‘변이’:** 모든 시드가 하나의 이미지입니다. 점이나 꽉 찬 사각형이 될 불꽃은 건너뜁니다. ‘변이’는 마음에 드는 이미지의 변형을 만듭니다.
@@ -55,6 +56,13 @@ Fractique는 세 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입
 | `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
+
+3차원 입체: 만델벌브, 만델박스, 멩거 스펀지:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
+| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
 
 라이트 배경화면과 다크 배경화면, 각각의 레이아웃과 소재:
 

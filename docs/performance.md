@@ -109,6 +109,33 @@ A step of `magnet` costs two complex divisions and one of `multibrot` a multipli
 power, so they are slower than `mandelbrot` at the same depth; a power that is not whole costs a logarithm, a
 sine and a cosine a step. `newton` measures the distance to every root at every step.
 
+### Solids
+
+The solid kinds were measured otherwise than the rest of this page: on **3 threads** of a Ryzen 7 5700X
+(`RAYON_NUM_THREADS=3`), while other work kept the machine's load between 5 and 9, with the PNG written. Twelve idle
+threads were not measured; the work is per pixel and shares nothing, so it should scale as the other per-pixel
+kinds do.
+
+| Preset | `standard` 1920×1080 | `standard` 3840×2160 | `high` 1920×1080 |
+| --- | --- | --- | --- |
+| `mandelbulb-classic` | 3.0 s | 13.9 s | 8.8 s |
+| `mandelbulb-coral` | 12.3 s | 54.3 s | 38.3 s |
+| `mandelbox-cube` | 3.1 s | 13.8 s | 10.3 s |
+| `mandelbox-station` | 15.7 s | 58.5 s | 36.6 s |
+| `menger_sponge-classic` | 1.4 s | 5.1 s | 3.7 s |
+| `menger_sponge-courtyard` | 4.2 s | 14.3 s | 11.5 s |
+
+A solid seen whole (`mandelbulb-classic`, `mandelbox-cube`, `menger_sponge-classic`) leaves much of the picture
+empty and its rays reach it in a few steps. A view from near or inside (`mandelbulb-coral`, `mandelbox-station`)
+fills the picture, most of it edge: four to five times the work. At `mobile` and 1080×2400, `mandelbulb-classic`
+took 2.1 s and `mandelbox-station` 9.4 s. The app's draft, 480 pixels wide with one sample a pixel, took
+under 0.1 s to 0.2 s for each of these: a ray stops at a pixel's width from the solid, so a small picture walks fewer
+steps as well as fewer rays.
+
+Where the time goes, on `mandelbox-station`: a ray takes about 23 estimates to reach the solid after the look
+ahead (65 without it), 9 for the normal and the pits and about 11 for the shadow; `shadow` 0 saves those. The
+iterations of a kind multiply all of it.
+
 ## Wallpapers
 
 A wallpaper is drawn exactly, so the quality level and the samples do not change its time. It grows with the

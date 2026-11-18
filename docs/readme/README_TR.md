@@ -18,6 +18,7 @@ Fractique üç tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yum
 
 - **Alevler:** 49 varyasyon, karıştırma modlu katmanlar, dönme ve ayna simetrisi, yoğunluk kestirimi, ışıltı ve 29 yerleşik hazır ayar.
 - **Fraktallar:** Mandelbrot kümesi, Julia kümeleri ve Clifford çekicisi; her birinin hazır ayarları ve her tohum için bir görüntüsü vardır. Paletleri, katmanları ve derin yakınlaştırmayı alevlerle paylaşırlar.
+- **Katı cisimler:** üç boyutta Mandelbulb, Mandelbox ve Menger süngeri; ışık, gölge ve sisle. Çevrelerinde dönebilir ya da içlerine girebilirsiniz.
 - **Duvar kâğıtları:** her tohum için bir tane; 14 düzen ve 6 malzemeden, her biri açık ve koyu sürümüyle, ekranın boyutuna göre yerleştirilir.
 - **Uygulama:** Windows, macOS, Linux, Android, iOS ve web için tek kod tabanı. Görüntü pencereyi doldurur, üzerinde cam paneller süzülür; masaüstünde uygulamanın kendi cam başlık çubuğu vardır. 15 dilde.
 - **“Rastgele” ve “Mutasyon”:** her tohum bir görüntüdür; bir nokta ya da dolu bir kare olacak alevler atlanır. “Mutasyon”, beğendiğinizin bir varyantını üretir.
@@ -55,6 +56,13 @@ Yoğunluk olarak çizilen yörüngeler: Buddhabrot ile De Jong, Lorenz, Gumowski
 | `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
+
+Üç boyutlu katı cisimler: Mandelbulb, Mandelbox ve Menger süngeri:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
+| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
 
 Açık ve koyu duvar kâğıtları, her biri kendi düzeni ve malzemesiyle:
 

@@ -18,6 +18,7 @@ Fractique tworzy obrazy trzech rodzajów. Fraktalne płomienie: świetliste, zwi
 
 - **Płomienie:** 49 wariacji, warstwy z trybami mieszania, symetria obrotowa i lustrzana, estymacja gęstości, poświata oraz 29 wbudowanych presetów.
 - **Fraktale:** zbiór Mandelbrota, zbiory Julii i atraktor Clifforda, każdy z presetami i obrazem dla każdego ziarna; mają te same palety, warstwy i głębokie powiększenie co płomienie.
+- **Bryły:** Mandelbulb, Mandelbox i gąbka Mengera w trzech wymiarach, ze światłem, cieniami i mgłą; można je obejść dookoła albo wejść do środka.
 - **Tapety:** osobna dla każdego ziarna, z 14 układów i 6 materiałów, każda w wersji jasnej i ciemnej, rozłożona pod rozmiar ekranu.
 - **Aplikacja:** jedna baza kodu dla systemów Windows, macOS, Linux, Android, iOS i dla przeglądarki. Obraz wypełnia okno, a nad nim unoszą się szklane panele; na komputerze aplikacja ma własny szklany pasek tytułu. W 15 językach.
 - **„Losuj” i „Mutuj”:** każde ziarno to obraz; płomienie, które byłyby kropką albo wypełnionym kwadratem, są pomijane. „Mutuj” tworzy wariant tego, który ci się podoba.
@@ -55,6 +56,13 @@ Orbity rysowane jako gęstości: Buddhabrot oraz atraktory De Jonga, Lorenza, Gu
 | `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
+
+Bryły w trzech wymiarach: Mandelbulb, Mandelbox i gąbka Mengera:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
+| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
 
 Tapety, jasne i ciemne, każda ze swoim układem i materiałem:
 

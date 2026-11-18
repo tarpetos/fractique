@@ -264,7 +264,7 @@ The kinds, by family:
 | Root-finding | per pixel | `newton`, `nova` |
 | Orbit | density | `buddhabrot`, `clifford`, `de_jong`, `gumowski_mira`, `hopalong`, `lorenz` |
 | Geometric | either | |
-| Solid | per pixel | |
+| Solid | per pixel | `mandelbox`, `mandelbulb`, `menger_sponge` |
 
 ### Escape-time kinds
 
@@ -470,7 +470,65 @@ The family has no kind yet.
 
 ### Solid kinds
 
-The family has no kind yet.
+A solid kind is a shape in three dimensions, seen by an eye that looks at its middle: every sample of the picture
+is a ray from the eye. The eye stands `distance` away from the middle, `turn` degrees around the solid's upright
+axis and `tilt` degrees above its level, and the shorter side of the picture spans `field_of_view` degrees at
+zoom 1. The layer's camera moves, turns and magnifies that picture as it does any other: its `zoom` narrows the
+angle the picture spans, as a longer lens does, and does not move the eye. To go nearer, or inside, lower
+`distance`.
+
+A ray walks by the kind's distance estimate, a number that is not more than the distance from a point to the
+solid (for `mandelbulb` and `mandelbox` an approximation of it, and the ray walks 0.9 of it). It walks between
+the two points where it crosses a ball around the solid, for at most 160 steps, and meets the solid where the
+estimate is less than the width of a pixel at that depth: a larger picture or a deeper zoom shows finer detail,
+and a small draft costs little. A ray whose steps run out is taken to have met the solid where it stopped. Before
+the samples, one wider ray for every 4 × 4 pixels finds how deep all the rays of its cell are clear of the solid,
+and they start there: the picture depends on its size in pixels, as a flame's does, and on nothing else.
+
+Where a ray meets the solid, with n the normal (from four estimates a pixel's width around the point), l the
+direction of the light and h the direction halfway between the light and the eye:
+
+| Part | Value |
+| --- | --- |
+| The light | From `light_turn` degrees to the right of the eye and `light_tilt` degrees above it, as seen from the solid's middle: 0 and 0 is a lamp at the eye |
+| lit | 1 where the way to the light is clear. A walk toward the light of at most 20 steps: 0 where it meets the solid, otherwise the least of 6 × estimate / depth along it |
+| direct | max(n · l, 0) × (1 − `shadow` × (1 − lit)) |
+| open | 1 − 0.75 × the sum over i = 1 … 5 of 0.6^(i − 1) × max(0, 1 − estimate(point + i s n) / (i s)), not under 0, with s a hundredth of the picture's shorter side at that depth: how open the surface is |
+| linear light | open × (0.16 + 0.2 × (1 + n.y) / 2 + 0.08 × (1 − n · l) / 2) + direct × (0.72 + 0.5 × max(n · h, 0)³²) |
+| `light` of the sample | √(linear light × e^(−1.6 × `fog` × far)), with far the depth past the nearest point of the ball, in radii of the ball |
+| Place on the palette | `color_shift` + `color_density` × trap, with trap a number from about 0 to 1 the kind takes from the orbit of the point |
+
+A ray that passes the solid by gives its halo: with a the least of estimate / depth along the ray and w a
+fiftieth of the angle of the picture's shorter side, the light is 0.45 × `glow` / (1 + (a / w)²)², fading to
+nothing where the ray cuts less than a third of the ball's radius into it, in the color of the nearest point. Under
+0.004 the point stays clear.
+
+A pixel of a solid is drawn again from the grid of samples where it differs from a neighbour by 0.2 or more, not
+0.02: a lit rough surface differs a little everywhere, and only its sharper steps show as stairs.
+
+| Parameter | Range | Default | Meaning |
+| --- | --- | --- | --- |
+| `turn` | −180 to 180 | 30 | Where the eye stands around the solid, in degrees. |
+| `tilt` | −90 to 90 | 20 | How high the eye stands, in degrees: 90 looks straight down. |
+| `distance` | see the kind | see the kind | From the eye to the middle of the solid. |
+| `field_of_view` | 5 to 120 | 40 | The angle the shorter side of the picture spans at zoom 1, in degrees. |
+| `light_turn` | −180 to 180 | −40 | The light, in degrees to the right of the eye. |
+| `light_tilt` | −90 to 90 | 40 | The light, in degrees above the eye. |
+| `shadow` | 0 to 1 | 0.7 | How dark the cast shadows are; 0 skips them and is faster. |
+| `fog` | 0 to 1 | 0.3 | How fast the far parts fade to dark. |
+| `glow` | 0 to 1 | 0.25 | The halo around the solid. |
+| `color_density` | 0.01 to 100 | 1 | How fast the colors run along the palette. |
+| `color_shift` | 0 to 2 | 0 | Where on the palette the colors start. |
+
+| Kind | Solid and estimate | Own parameters |
+| --- | --- | --- |
+| `mandelbulb` | The points c whose orbit v → vⁿ + c from v = c stays within 4 of the origin, where a point at the distance r, the angle θ from the upright axis and the angle φ around it has the power rⁿ (sin nθ cos nφ, sin nθ sin nφ, cos nθ). The estimate is ½ r ln r / r′ at the end of the orbit, with r′ → n rⁿ⁻¹ r′ + 1 from 1. A whole power is computed by products alone, another by the angles. Trap: the least r of the orbit | `power` (2 to 16, default 8), `iterations` (2 to 200, whole, default 10), `distance` (0.5 to 20, default 3.6) |
+| `mandelbox` | The points c whose orbit v → `scale` × ball(box(v)) + c from v = c stays bounded: box replaces each coordinate x outside ±`fold` by ±2 × `fold` − x, and ball multiplies v by 1 / `inner_radius`² where r < `inner_radius` and by 1 / r² where r < 1. The estimate is r / r′ at the end, with r′ → `scale` × (the factor of ball) × r′ + 1 from 1; the orbit ends past r = 1000. A `scale` between −1.2 and 1.2 is taken for −1.2 or 1.2: nearer to zero the solid has no end. Trap: half the least r after box | `scale` (−4 to 4, default 2), `fold` (0.5 to 2, default 1), `inner_radius` (0.05 to 1, default 0.5), `iterations` (2 to 100, whole, default 14), `distance` (0.1 to 150, default 30) |
+| `menger_sponge` | `iterations` times: the point is turned `twist` degrees about the z axis, its coordinates are made positive and sorted, x the largest, it is turned `bend` degrees about the x axis, then x → s x − (s − 1), y → s y − (s − 1), z → (s − 1) / 2 − \|s z − (s − 1) / 2\| with s the `scale`. The estimate is the distance from the result to the cube from −1 to 1, divided by s to the power `iterations`. With `scale` 3 and no `twist` or `bend` it is the Menger sponge of that level in the cube from −1 to 1, and the estimate is a true bound; other values fold it into other shapes. Trap: half the least distance of the point from the origin after a step | `iterations` (1 to 30, whole, default 5), `scale` (2 to 4, default 3), `twist` and `bend` (−45 to 45, default 0), `distance` (0.05 to 30, default 5) |
+
+The default tone of the three is `glow_radius` 0.004 and `glow_strength` 0.1. The `mandelbox` of `scale` 2 is a
+cube 12 wide and that of a negative `scale` one 4 wide, both times `fold`; the `mandelbulb` of `power` 8 is
+about 2.2 across.
 
 ### How far a view goes
 
@@ -480,6 +538,11 @@ pixels. Past that neighbouring pixels get the same point and the picture turns i
 The app stops where a fractal's own zoom times the view's reaches 10¹⁰. It is the same for every per-pixel kind:
 the distances at which `magnet`, `newton` and `nova` take an orbit to have arrived are measured in the plane of
 z and do not shrink with the view.
+
+A solid kind holds to the same zoom of 10¹⁰: a `menger_sponge` of 30 iterations still shows square holes there.
+What runs out first is the detail the iterations give. A level of the sponge is a third of the one before, so a
+view magnified three times as much needs one more of `iterations`; a `mandelbox` of 100 iterations has detail to
+a zoom of about 10⁸; the surface of a `mandelbulb` is smooth in places at any number of iterations.
 
 ## Sheets
 

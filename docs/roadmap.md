@@ -23,6 +23,7 @@ built on it.
 | 15 | **Fractals of other kinds:** a layer is a flame or a fractal of a kind from a registry, drawn per pixel or as a density; the Mandelbrot set, Julia sets and the Clifford attractor, with presets, a random picture for every seed and mutation; a third tab in the app, `fractique fractals` and `--fractal`, the MCP tools and the HTTP server ([architecture.md](architecture.md#fractals-of-other-kinds)) | The foundation and three kinds are done. Next, on the same registry: Burning Ship, Tricorn, Multibrot, Phoenix, Magnet; Newton, Nova; Buddhabrot, De Jong, Lorenz, Gumowski-Mira, Hopalong; Apollonian gasket, Kleinian groups, L-systems, Lyapunov; Mandelbulb, Mandelbox, Menger sponge |
 | 16 | **Escape-time and root-finding kinds:** Burning Ship, Tricorn, Multibrot, Phoenix and Magnet beside the Mandelbrot and Julia sets, and Newton and Nova, the first two of the root-finding family; each with six presets, a random picture for every seed and a mutation ([scene-format.md](scene-format.md#escape-time-kinds)) | Done. The golden hashes were produced on Linux |
 | 17 | **Orbit kinds:** the Buddhabrot, with the Nebulabrot coloring and the Anti-Buddhabrot, and the De Jong, Lorenz, Gumowski-Mira and Hopalong attractors beside the Clifford attractor, which makes the orbit family whole; each with six presets, a random picture for every seed and a mutation ([scene-format.md](scene-format.md#orbit-kinds)) | Done. The golden hashes were produced on Linux |
+| 18 | **Solids:** the Mandelbulb, the Mandelbox and the Menger sponge, ray-marched by distance estimates on the processor with light, soft shadows, fog and a halo; an eye that turns around the solid and goes inside; presets, random pictures measured before they are kept, mutation ([scene-format.md](scene-format.md#solid-kinds), [architecture.md](architecture.md#the-ray-marched-kinds)) | Done; times measured on 3 threads only |
 
 ## App, next
 
@@ -46,6 +47,9 @@ What the app does not do yet:
 - Views of a Mandelbrot or a Julia set past the digits of 64-bit numbers (perturbation), and deep views of the
   orbit kinds.
 - Rendering in tiles, to lower the memory of large supersampled images.
+- Solids: the graphics card (a distance estimate is a short shader), moving the eye by dragging the picture
+  instead of the `turn` and `tilt` sliders, and more kinds on the shared marcher (quaternion Julia sets, other
+  folded solids).
 - Animation: interpolating between two scenes.
 
 ## Decisions made

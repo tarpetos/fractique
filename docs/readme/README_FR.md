@@ -18,6 +18,7 @@ Fractique crée trois sortes d’images. Des flammes fractales : ces fractales l
 
 - **Flammes :** 49 variations, des calques avec modes de fusion, symétrie de rotation et en miroir, estimation de densité, lueur, et 29 préréglages intégrés.
 - **Fractales :** l’ensemble de Mandelbrot, les ensembles de Julia et l’attracteur de Clifford, chacun avec ses préréglages et une image pour chaque graine ; elles partagent les palettes, les calques et le zoom profond des flammes.
+- **Solides :** le Mandelbulb, la Mandelbox et l’éponge de Menger en trois dimensions, avec lumière, ombres et brouillard ; tournez autour ou entrez à l’intérieur.
 - **Fonds d’écran :** un pour chaque graine, parmi 14 dispositions et 6 matières, chacun en version claire et en version sombre, disposé pour la taille de l’écran.
 - **L’application :** une seule base de code pour Windows, macOS, Linux, Android, iOS et le web. L’image remplit la fenêtre et des panneaux de verre flottent au-dessus ; sur ordinateur, l’application a sa propre barre de titre en verre. En 15 langues.
 - **« Aléatoire » et « Muter » :** chaque graine est une image ; les flammes qui ne seraient qu’un point ou un carré plein sont écartées. « Muter » crée une variante de celle qui vous plaît.
@@ -55,6 +56,13 @@ Des orbites dessinées comme des densités : le Buddhabrot et les attracteurs de
 | `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
+
+Des solides en trois dimensions : le Mandelbulb, la Mandelbox et l’éponge de Menger :
+
+| | | |
+| --- | --- | --- |
+| ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
+| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
 
 Des fonds d’écran, clairs et sombres, chacun avec sa disposition et sa matière :
 

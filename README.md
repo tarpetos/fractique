@@ -18,6 +18,7 @@ Fractique makes three kinds of pictures. Fractal flames: the glowing, wispy kind
 
 - **Flames:** 49 variations, layers with blend modes, rotational and mirror symmetry, density estimation, glow, and 29 built-in presets.
 - **Fractals:** the Mandelbrot set, Julia sets and the Clifford attractor, each with presets and a picture for every seed; they share the palettes, the layers and the deep zoom of the flames.
+- **Solids:** the Mandelbulb, the Mandelbox and the Menger sponge in three dimensions, with light, shadows and fog; turn around them or go inside.
 - **Wallpapers:** one for every seed, out of 14 layouts and 6 materials, each in a light and a dark version, laid out for the size of the screen.
 - **The app:** one codebase for Windows, macOS, Linux, Android, iOS and the web. The picture fills the window and glass panels float over it; on the desktop the app has a glass title bar of its own. In 15 languages.
 - **Randomize and Mutate:** every seed is a picture; flames that would be a dot or a filled square are skipped. Mutate makes a variant of the one you like.
@@ -55,6 +56,13 @@ Orbits drawn as densities: the Buddhabrot and the De Jong, Lorenz, Gumowski-Mira
 | `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
 | ![gumowski_mira](docs/samples/fractal-gumowski_mira.png) | ![hopalong](docs/samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
+
+Solids in three dimensions: the Mandelbulb, the Mandelbox and the Menger sponge:
+
+| | | |
+| --- | --- | --- |
+| ![mandelbulb](docs/samples/fractal-mandelbulb.png) | ![mandelbox](docs/samples/fractal-mandelbox.png) | ![menger sponge](docs/samples/fractal-menger-sponge.png) |
+| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
 
 Wallpapers, light and dark, each with its layout and material:
 
