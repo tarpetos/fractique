@@ -254,6 +254,70 @@ RADV), far weaker: at 1920×1080 the longest batch took 120 ms for `clifford-cla
 `de_jong-classic`, 100 ms for `lorenz-butterfly`, 190 ms for `aurora-spiral` and 301 ms for `solar-mandala`;
 at 1280×720, 65, 78, 47, 73 and 110 ms. All stay under the 0.5 s after which the card is given up.
 
+### Fractals on the graphics card
+
+The escape-time and the root-finding kinds are drawn pixel by pixel by the graphics card
+([architecture.md](architecture.md#fractals-drawn-pixel-by-pixel-on-the-graphics-card)). Measured in the app, in
+a window nobody sees, at the 32 samples per pixel of the full pass: the seconds from the request to the whole
+picture, of the card and of the processor of the same machine. The first of each kind is its first preset, the
+second one of its deeper or longer ones.
+
+A laptop with Windows 11 and an **NVIDIA GeForce GTX 1650** (Vulkan):
+
+| Scene | 640×400: card | Processor | 1280×720: card | Processor | 1920×1080: card | Processor |
+| --- | --- | --- | --- | --- | --- | --- |
+| `mandelbrot-whole` | 0.01 s | 0.05 s | 0.01 s | 0.27 s | 0.02 s | 0.49 s |
+| `mandelbrot-seahorse-valley` | 0.02 s | 0.26 s | 0.04 s | 0.56 s | 0.09 s | 1.10 s |
+| `julia-dragon` | 0.02 s | 0.10 s | 0.02 s | 0.35 s | 0.04 s | 0.71 s |
+| `julia-siegel-disc` | 0.02 s | 0.27 s | 0.04 s | 0.60 s | 0.06 s | 1.28 s |
+| `burning_ship-whole` | 0.02 s | 0.07 s | 0.02 s | 0.30 s | 0.03 s | 0.57 s |
+| `burning_ship-cathedral` | 0.03 s | 0.32 s | 0.06 s | 0.74 s | 0.12 s | 1.46 s |
+| `tricorn-whole` | 0.02 s | 0.07 s | 0.02 s | 0.29 s | 0.02 s | 0.51 s |
+| `tricorn-coast` | 0.02 s | 0.27 s | 0.04 s | 0.56 s | 0.06 s | 1.10 s |
+| `multibrot-cubic` | 0.01 s | 0.09 s | 0.02 s | 0.31 s | 0.03 s | 0.56 s |
+| `multibrot-flower` | 0.02 s | 0.10 s | 0.04 s | 0.35 s | 0.06 s | 0.67 s |
+| `phoenix-ushiki` | 0.02 s | 0.08 s | 0.02 s | 0.34 s | 0.03 s | 0.66 s |
+| `phoenix-galaxy` | 0.03 s | 0.15 s | 0.06 s | 0.54 s | 0.08 s | 1.02 s |
+| `magnet-first` | 0.02 s | 0.27 s | 0.03 s | 0.54 s | 0.04 s | 1.04 s |
+| `magnet-pearls` | 0.03 s | 0.41 s | 0.06 s | 1.03 s | 0.10 s | 2.14 s |
+| `newton-cubic` | 0.02 s | 0.07 s | 0.03 s | 0.28 s | 0.03 s | 0.49 s |
+| `newton-swirl` | 0.03 s | 0.27 s | 0.06 s | 0.52 s | 0.11 s | 0.97 s |
+| `nova-whole` | 0.03 s | 0.27 s | 0.04 s | 0.51 s | 0.08 s | 0.94 s |
+| `nova-julia` | 0.08 s | 0.35 s | 0.24 s | 0.92 s | 0.38 s | 1.78 s |
+
+The first picture came after 0.01 to 0.02 s. A picture took 6 to 696 batches (the most for `nova-julia` at
+1920×1080, whose samples may take 5400 steps each), and the longest batch of all took 15 ms. The card's pictures
+differ from the processor's by 0.3 to 0.4 of 255 on average and by 4 at most, in blocks of 8 × 8 pixels.
+
+A Debian 13 box with the graphics chip of its processor, an **AMD Radeon Vega 3** (Vulkan, RADV), at 1920×1080.
+The app there notices the processor's picture up to a second late, so the time the command line tool took for
+the same picture is beside it:
+
+| Scene | Card | Batches | Longest batch | Processor, in the app | Processor, `fractique render` |
+| --- | --- | --- | --- | --- | --- |
+| `mandelbrot-whole` | 0.16 s | 21 | 23 ms | 1.1 s | 1.3 s |
+| `mandelbrot-seahorse-valley` | 0.46 s | 90 | 20 ms | 3.1 s | 2.4 s |
+| `julia-dragon` | 0.19 s | 37 | 21 ms | 2.1 s | 1.8 s |
+| `julia-siegel-disc` | 0.34 s | 62 | 21 ms | 3.5 s | 2.7 s |
+| `burning_ship-whole` | 0.18 s | 32 | 23 ms | 2.1 s | 1.3 s |
+| `burning_ship-cathedral` | 0.46 s | 193 | 22 ms | 3.1 s | 2.9 s |
+| `tricorn-whole` | 0.17 s | 33 | 22 ms | 1.1 s | 1.3 s |
+| `tricorn-coast` | 0.30 s | 91 | 19 ms | 2.1 s | 2.3 s |
+| `multibrot-cubic` | 0.14 s | 31 | 19 ms | 2.1 s | 1.4 s |
+| `multibrot-flower` | 0.28 s | 92 | 25 ms | 2.1 s | 1.6 s |
+| `phoenix-ushiki` | 0.22 s | 29 | 22 ms | 2.1 s | 1.6 s |
+| `phoenix-galaxy` | 0.42 s | 135 | 22 ms | 3.3 s | 2.5 s |
+| `magnet-first` | 0.26 s | 42 | 27 ms | 3.1 s | 2.6 s |
+| `magnet-pearls` | 0.61 s | 135 | 20 ms | 6.0 s | 5.0 s |
+| `newton-cubic` | 0.15 s | 37 | 19 ms | 1.1 s | 1.3 s |
+| `newton-swirl` | 0.41 s | 222 | 29 ms | 3.1 s | 2.5 s |
+| `nova-whole` | 0.26 s | 121 | 18 ms | 3.1 s | 2.4 s |
+| `nova-julia` | 1.16 s | 695 | 18 ms | 6.1 s | 4.1 s |
+
+At 640×400 the card took 0.03 to 0.26 s there and at 1280×720 0.10 to 0.69 s; the longest batch of all took
+49 ms, and the pictures differ from the processor's by 0.3 of 255 on average and by 4 at most. No other card
+was measured.
+
 ## Memory
 
 A render holds one histogram per layer at a time. Each cell (`width × height × supersample²` of them) takes 28

@@ -1,7 +1,8 @@
 struct Uniforms {
     tone: vec4<f32>,  // brightness, 1 / gamma, vibrancy, highlight
     blend: vec4<f32>, // opacity, glow strength, taps a side, 1 when a blur keeps its weight inside the picture
-    reach: vec4<f32>, // source texels a target pixel (x, y), or the direction of a blur; sigma of a blur (texels)
+    reach: vec4<f32>, // source texels a target pixel (x, y), or the direction of a blur; sigma of a blur (texels);
+                      // 1 for levels that are a color already
 };
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
@@ -23,6 +24,9 @@ fn raised(value: vec3<f32>, power: f32) -> vec3<f32> {
 // The tone mapping of fractique-core's tone.rs, for one pixel.
 fn developed(at: vec2<i32>) -> vec4<f32> {
     let cell = textureLoad(levels, at, 0);
+    if (u.reach.w > 0.5) {
+        return vec4<f32>(cell.rgb * u.tone.x, cell.a);
+    }
     let level = u.tone.x * cell.a;
     let capped = min(level, 1.0);
     let alpha = raised(vec3<f32>(capped), u.tone.y).x;

@@ -147,6 +147,8 @@ impl Painter {
             surf_config.desired_maximum_frame_latency = desired_maximum_frame_latency;
         }
 
+        // Fractique: wgpu refuses to configure a surface while another thread submits work.
+        let _gate = crate::SURFACE_GATE.write().unwrap_or_else(|e| e.into_inner());
         surface_state
             .surface
             .configure(&render_state.device, &surf_config);

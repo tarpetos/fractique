@@ -84,6 +84,15 @@
     bright at every zoom. No existing kind renders differently: every golden hash from before is untouched, and
     those of the four kinds were produced on Linux.
 
+* **GPU acceleration:** the graphics card draws the escape-time kinds (Mandelbrot, Julia, Burning Ship, Tricorn,
+  Multibrot, Phoenix, Magnet) and the root-finding kinds (Newton, Nova) too, pixel by pixel: first in blocks, then
+  every pixel, then the edges from more samples, and a moved view is drawn again at once. What one submission may
+  do is bounded before it is sent, as for flames: at most 100 000 000 steps of the kind's loop and what the card
+  has shown it does in 0.1 s; a scene that could need more for 64 pixels is the processor's, as are views too deep
+  for 32-bit numbers, scenes that mix these kinds with flames, the geometric kinds and the solids. On a GeForce
+  GTX 1650 a picture of 1920×1080 takes 0.02 to 0.4 s where the processor beside it takes 0.5 to 2.1 s. Exports at
+  Standard, High and Ultra, the command line, MCP and the server are the processor's as before: no golden hash
+  changes ([docs/architecture.md](docs/architecture.md#fractals-drawn-pixel-by-pixel-on-the-graphics-card)).
 * **GPU acceleration:** the graphics card draws three attractors beside flames: **Clifford**, **De Jong** and
   **Lorenz**, alone or in a scene with flames. The Gumowski-Mira map, the Hopalong and the Buddhabrot stay the
   processor's: the first is slower on a card than on the processor, 32-bit numbers leave the curve of the second,

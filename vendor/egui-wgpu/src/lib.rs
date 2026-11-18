@@ -41,6 +41,10 @@ use std::sync::Arc;
 
 use epaint::mutex::RwLock;
 
+/// Fractique: held for writing while a surface is configured, and for reading by a thread other than the
+/// window's while it submits work.
+pub static SURFACE_GATE: std::sync::RwLock<()> = std::sync::RwLock::new(());
+
 /// An error produced by egui-wgpu.
 #[derive(thiserror::Error, Debug)]
 pub enum WgpuError {
