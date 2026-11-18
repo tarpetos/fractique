@@ -33,7 +33,7 @@ const FULL_SIDE: f32 = if cfg!(target_arch = "wasm32") {
 } else if cfg!(any(target_os = "android", target_os = "ios")) {
     1600.0
 } else {
-    2560.0
+    4096.0
 };
 const FULL_SAMPLES: u32 = if cfg!(target_arch = "wasm32") {
     14
