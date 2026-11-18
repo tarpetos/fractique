@@ -107,5 +107,6 @@
   "allow_storage": "Consenti l'accesso alla memoria per salvare l'immagine.",
   "color": "COLORE",
   "graphics": "GRAFICA",
+  "gpu_note": "L’immagine rapida può variare leggermente tra dispositivi. Le esportazioni sono sempre esatte.",
   "gpu": "Accelerazione GPU"
 }

@@ -317,7 +317,32 @@ pub fn slider(ui: &mut Ui, label: &str, value: &mut f64, range: (f64, f64), loga
     let knob = 8.0;
     let (start, end) = (rect.left() + knob, rect.right() - knob);
     let mut changed = false;
-    if let Some(pointer) = response.interact_pointer_pos() {
+    // A finger that lands on a slider while it scrolls the panel must not move the knob: the slider waits for
+    // the finger's direction, and a vertical one scrolls.
+    let mut sliding = true;
+    if ui.input(|input| input.any_touches()) {
+        let id = response.id.with("gesture");
+        let (undecided, slide, scroll) = (0u8, 1u8, 2u8);
+        let mut gesture = ui.data(|data| data.get_temp(id)).unwrap_or(undecided);
+        if response.dragged() {
+            if gesture == undecided {
+                let moved = ui
+                    .input(|input| input.pointer.press_origin().zip(input.pointer.interact_pos()))
+                    .map_or(egui::Vec2::ZERO, |(from, to)| to - from);
+                if moved.length() > 8.0 {
+                    gesture = if moved.x.abs() > moved.y.abs() { slide } else { scroll };
+                }
+            }
+            if gesture == scroll {
+                ui.scroll_with_delta(vec2(0.0, response.drag_delta().y));
+            }
+        } else {
+            gesture = undecided;
+        }
+        ui.data_mut(|data| data.insert_temp(id, gesture));
+        sliding = gesture == slide || response.clicked();
+    }
+    if sliding && let Some(pointer) = response.interact_pointer_pos() {
         let share = f64::from(((pointer.x - start) / (end - start)).clamp(0.0, 1.0));
         let next = from_share(share);
         if next != *value {

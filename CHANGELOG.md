@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* **App:** under **GPU acceleration**, while it is on, a line says that the quick picture can differ slightly
+  between devices and that exports are always exact.
+* **Phones:** a finger that lands on a slider while it scrolls a panel no longer moves the slider: the slider
+  follows a sideways move only, and a vertical one scrolls.
 * **App:** GPU acceleration, a switch in the controls, on at first and kept between launches. While a tone slider,
   the zoom, a layer's opacity or its blend moves, the graphics card draws the picture from the layers already
   rendered, so it answers at once; when the control rests, the processor renders the picture and replaces the
