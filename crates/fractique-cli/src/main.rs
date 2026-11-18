@@ -10,6 +10,7 @@ use std::time::Instant;
 use clap::{Parser, Subcommand};
 use fractique_core::import::import_flames;
 use fractique_core::random::{fit_camera, mutate, random_scene};
+use fractique_core::wallpaper::{Layout, Material, Request, random_wallpaper};
 use fractique_core::{Control, Image, Kind, Quality, RenderOptions, Scene, presets, render};
 
 #[derive(Parser)]
@@ -30,6 +31,18 @@ enum Command {
         /// Render the random scene of this seed
         #[arg(long, conflicts_with_all = ["scene", "preset"])]
         random: Option<u64>,
+        /// Render the wallpaper of this seed: stacked sheets instead of a flame
+        #[arg(long, conflicts_with_all = ["scene", "preset", "random"])]
+        wallpaper: Option<u64>,
+        /// The wallpaper's layout (bands, discs, waves, ribbons, burst, arcs, tiles, bars, fan, slats, planes, steps, frames, lines); the seed picks one
+        #[arg(long)]
+        layout: Option<String>,
+        /// The wallpaper's material (relief, paper, glass, glow, steel, carbon); the seed picks one
+        #[arg(long)]
+        material: Option<String>,
+        /// The wallpaper's dark version
+        #[arg(long)]
+        dark: bool,
         #[arg(short, long, default_value = "fractique.png")]
         output: PathBuf,
         /// WIDTHxHEIGHT
@@ -55,6 +68,23 @@ enum Command {
     /// Print the random scene of a seed as JSON
     Randomize {
         seed: u64,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// Print the wallpaper of a seed as JSON
+    Wallpaper {
+        seed: u64,
+        /// bands, discs, waves, ribbons, burst, arcs, tiles, bars, fan, slats, planes, steps, frames or lines
+        #[arg(long)]
+        layout: Option<String>,
+        /// relief, paper, glass, glow, steel or carbon
+        #[arg(long)]
+        material: Option<String>,
+        #[arg(long)]
+        dark: bool,
+        /// WIDTHxHEIGHT the shapes are laid out for
+        #[arg(long, default_value = "1290x2796")]
+        size: String,
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
@@ -126,12 +156,35 @@ fn save_png(image: &Image, path: &Path) -> Result<(), String> {
     fs::write(path, encode_png(image)?).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+fn wallpaper_request(
+    layout: Option<String>,
+    material: Option<String>,
+    width: u32,
+    height: u32,
+    dark: bool,
+) -> Result<Request, String> {
+    Ok(Request {
+        layout: layout
+            .map(|name| Layout::parse(&name).ok_or_else(|| format!("no layout is called '{name}'")))
+            .transpose()?,
+        material: material
+            .map(|name| Material::parse(&name).ok_or_else(|| format!("no material is called '{name}'")))
+            .transpose()?,
+        ratio: f64::from(height) / f64::from(width),
+        dark,
+    })
+}
+
 fn run(cli: Cli) -> Result<(), String> {
     match cli.command {
         Command::Render {
             scene,
             preset,
             random,
+            wallpaper,
+            layout,
+            material,
+            dark,
             output,
             size,
             quality,
@@ -139,16 +192,19 @@ fn run(cli: Cli) -> Result<(), String> {
             supersample,
             seed,
         } => {
-            let mut scene = match (scene, preset, random) {
-                (Some(path), _, _) => load(&path)?,
-                (_, Some(name), _) => presets::get(&name).ok_or_else(|| format!("no preset is called '{name}'"))?,
-                (_, _, Some(seed)) => random_scene(seed),
-                _ => return Err("give a scene file, --preset NAME or --random SEED".into()),
+            let (width, height) = parse_size(&size)?;
+            let mut scene = match (scene, preset, random, wallpaper) {
+                (Some(path), _, _, _) => load(&path)?,
+                (_, Some(name), _, _) => presets::get(&name).ok_or_else(|| format!("no preset is called '{name}'"))?,
+                (_, _, Some(seed), _) => random_scene(seed),
+                (_, _, _, Some(seed)) => {
+                    random_wallpaper(seed, &wallpaper_request(layout, material, width, height, dark)?)
+                }
+                _ => return Err("give a scene file, --preset NAME, --random SEED or --wallpaper SEED".into()),
             };
             if let Some(seed) = seed {
                 scene.seed = seed;
             }
-            let (width, height) = parse_size(&size)?;
             let quality = Quality::parse(&quality).ok_or_else(|| format!("no quality is called '{quality}'"))?;
             let mut options = RenderOptions::new(width, height, quality);
             options.samples_per_pixel = samples.unwrap_or(options.samples_per_pixel);
@@ -191,6 +247,20 @@ fn run(cli: Cli) -> Result<(), String> {
             emit(&scene, None)
         }
         Command::Randomize { seed, output } => emit(&random_scene(seed), output),
+        Command::Wallpaper {
+            seed,
+            layout,
+            material,
+            dark,
+            size,
+            output,
+        } => {
+            let (width, height) = parse_size(&size)?;
+            emit(
+                &random_wallpaper(seed, &wallpaper_request(layout, material, width, height, dark)?),
+                output,
+            )
+        }
         Command::Mutate {
             scene,
             seed,

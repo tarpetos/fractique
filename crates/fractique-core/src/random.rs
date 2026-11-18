@@ -210,6 +210,7 @@ pub fn random_scene(seed: u64) -> Scene {
         name: format!("random-{seed}"),
         seed,
         background: [0.008, 0.01, 0.03],
+        sheets: None,
         layers,
     }
 }

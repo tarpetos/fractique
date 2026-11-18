@@ -245,6 +245,7 @@ fn import_one(node: Node, index: usize) -> Result<Imported, ImportError> {
         name: name.clone(),
         seed: 0,
         background: background.map(|c| c.clamp(0.0, 1.0)),
+        sheets: None,
         layers: vec![Layer {
             name: String::new(),
             blend: Blend::Add,

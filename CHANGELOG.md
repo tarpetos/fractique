@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+* **Wallpapers:** a scene can hold `sheets`, a stack of flat shapes (rounded boxes, petals, rings and arcs, waves and
+  ribbons) with lit edges, gradients, translucency and soft shadows, drawn under the flame layers.
+  `fractique render --wallpaper SEED` makes one for every seed out of fourteen layouts (bands, discs, waves,
+  ribbons, burst, arcs, tiles, bars, fan, slats, planes, steps, frames, lines), six materials (relief, paper,
+  glass, glow, steel, carbon) and generated colors, each with a light and a dark version. Scenes without `sheets`
+  render as before.
+* **App:** a Flames and Wallpapers switch in the controls. In wallpaper mode the layout, the material and light or
+  dark are chosen there; Randomize makes a new wallpaper and Mutate another of the same layout and material.
+
 ## 0.1.0
 
 First version: the renderer and the command line tool.

@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicBool;
 
 use fractique_core::random::random_scene;
+use fractique_core::wallpaper::{Layout, Material, Request, random_wallpaper};
 use fractique_core::{Control, RenderError, RenderOptions, presets, render};
 
 fn small(supersample: u32) -> RenderOptions {
@@ -166,4 +167,69 @@ fn bad_options_are_refused() {
         render(&random_scene(7), &options, &Control::default()),
         Err(RenderError::Options(_))
     ));
+}
+
+fn wallpaper(seed: u64, layout: Layout, material: Material, dark: bool) -> fractique_core::Scene {
+    random_wallpaper(
+        seed,
+        &Request {
+            layout: Some(layout),
+            material: Some(material),
+            ratio: 108.0 / 192.0,
+            dark,
+        },
+    )
+}
+
+const GOLDEN_WALLPAPERS: [(Layout, Material, bool, u64); 7] = [
+    (Layout::Bands, Material::Relief, false, 0xf459_fe72_6982_fa7d),
+    (Layout::Waves, Material::Paper, true, 0x7013_c4e2_9e79_68fa),
+    (Layout::Burst, Material::Glass, false, 0x62bd_9197_547f_f914),
+    (Layout::Arcs, Material::Glow, true, 0xd08f_47a2_d1a9_27f2),
+    (Layout::Fan, Material::Paper, false, 0xd24d_8226_02b9_466c),
+    (Layout::Planes, Material::Steel, true, 0xc7ce_9776_48d8_be7d),
+    (Layout::Lines, Material::Carbon, true, 0xe392_54ac_a3cd_447a),
+];
+
+#[test]
+fn wallpapers_render_to_their_golden_hashes() {
+    for (layout, material, dark, expected) in GOLDEN_WALLPAPERS {
+        let image = render(&wallpaper(3, layout, material, dark), &small(1), &Control::default()).unwrap();
+        assert_eq!(
+            image.hash(),
+            expected,
+            "{layout:?}, {material:?}, dark {dark}: got {:#018x}",
+            image.hash()
+        );
+    }
+}
+
+#[test]
+fn every_wallpaper_layout_renders() {
+    for (name, layout) in Layout::ALL {
+        for (_, material) in Material::ALL {
+            let image = render(&wallpaper(5, layout, material, false), &small(1), &Control::default()).unwrap();
+            let first = &image.rgba[..4];
+            assert!(image.rgba.chunks_exact(4).any(|p| p != first), "{name} is flat");
+        }
+    }
+}
+
+#[cfg(feature = "parallel")]
+#[test]
+fn the_thread_count_does_not_change_a_wallpaper() {
+    let scene = wallpaper(11, Layout::Ribbons, Material::Glass, false);
+    let all_cores = render(&scene, &small(1), &Control::default()).unwrap();
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(1).build().unwrap();
+    let image = pool.install(|| render(&scene, &small(1), &Control::default()).unwrap());
+    assert_eq!(image.hash(), all_cores.hash());
+}
+
+#[test]
+fn sheets_lie_under_the_flame_layers() {
+    let mut scene = random_scene(7);
+    let plain = render(&scene, &small(1), &Control::default()).unwrap();
+    scene.sheets = wallpaper(7, Layout::Discs, Material::Paper, true).sheets;
+    let over = render(&scene, &small(1), &Control::default()).unwrap();
+    assert_ne!(plain.hash(), over.hash());
 }
