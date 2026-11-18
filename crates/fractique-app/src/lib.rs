@@ -448,15 +448,7 @@ impl App {
             is_random: false,
             seed: 0,
             adjust: NEUTRAL,
-            view: if std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.starts_with("redraw")) {
-                View {
-                    right: 0.12,
-                    down: -0.1,
-                    zoom: 3.0,
-                }
-            } else {
-                WHOLE
-            },
+            view: WHOLE,
             shown: WHOLE,
             drawn: None,
             touched: Instant::now(),
@@ -693,59 +685,36 @@ impl App {
         }
     }
 
-    fn redraw_button(&mut self, ctx: &egui::Context, at: egui::Pos2) -> egui::Rect {
-        let area = egui::Area::new(egui::Id::unique("redraw"))
+    fn reset_button(&mut self, ctx: &egui::Context, at: egui::Pos2) -> egui::Rect {
+        let area = egui::Area::new(egui::Id::unique("reset_view"))
             .fixed_pos(at)
             .pivot(egui::Align2::CENTER_BOTTOM)
             .show(ctx, |ui| {
                 let ink = egui::Color32::WHITE;
-                let galley = ui.painter().layout_no_wrap(self.t("redraw"), font(14.0, MEDIUM), ink);
+                let galley = ui
+                    .painter()
+                    .layout_no_wrap(self.t("reset_view"), font(14.0, MEDIUM), ink);
                 let (rect, response) =
-                    ui.allocate_exact_size(egui::vec2(galley.size().x + 62.0, 42.0), egui::Sense::click());
+                    ui.allocate_exact_size(egui::vec2(galley.size().x + 40.0, 42.0), egui::Sense::click());
                 if response.hovered() {
                     ui.painter()
                         .rect_filled(rect, egui::CornerRadius::same(21), egui::Color32::from_white_alpha(22));
                 }
-                let middle = egui::pos2(rect.left() + 26.0, rect.center().y);
-                let turn: Vec<egui::Pos2> = (0..=20)
-                    .map(|step| {
-                        let (sin, cos) = (-0.9 + step as f32 * 0.25).sin_cos();
-                        middle + egui::vec2(cos, sin) * 6.5
-                    })
-                    .collect();
-                let (tip, stroke) = (turn[0], egui::Stroke::new(1.5, ink));
-                ui.painter().line(turn, stroke);
-                ui.painter().line_segment([tip, tip + egui::vec2(-4.5, -0.5)], stroke);
-                ui.painter().line_segment([tip, tip + egui::vec2(0.5, -4.5)], stroke);
                 ui.painter().galley(
-                    egui::pos2(rect.left() + 42.0, rect.center().y - galley.size().y * 0.5),
+                    egui::pos2(rect.left() + 20.0, rect.center().y - galley.size().y * 0.5),
                     galley,
                     ink,
                 );
                 if response.clicked() {
-                    self.redraw_here();
+                    self.reset_view();
                 }
             });
         area.response.rect
     }
 
-    // The view becomes the scene's own camera: a double click comes back to it from then on.
-    fn redraw_here(&mut self) {
-        let view = self.view;
-        for layer in &mut self.base.layers {
-            let mut camera = layer.flame.camera.clone();
-            camera.zoom *= self.adjust.zoom;
-            camera = camera.looking_at(view.right, view.down, view.zoom);
-            camera.zoom /= self.adjust.zoom;
-            layer.flame.camera = camera;
-        }
-        self.shown = View {
-            right: (self.shown.right - view.right) * view.zoom,
-            down: (self.shown.down - view.down) * view.zoom,
-            zoom: self.shown.zoom / view.zoom,
-        };
+    fn reset_view(&mut self) {
         self.view = WHOLE;
-        self.requested = None;
+        self.touched = Instant::now();
     }
 
     fn explore(&mut self, ui: &mut egui::Ui, screen: egui::Rect) {
@@ -1614,12 +1583,6 @@ impl eframe::App for App {
         ];
         let window = size;
         let size = self.picture.unwrap_or(window);
-        if self.requested.is_none()
-            && self.view != WHOLE
-            && std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "redrawn")
-        {
-            self.redraw_here();
-        }
         if window[0] > 0 && window[1] > 0 {
             if self.requested != Some(size) {
                 self.start_render(&ctx, size);
@@ -1675,7 +1638,7 @@ impl eframe::App for App {
         if self.bare {
             let mut panes = Vec::new();
             if self.view != WHOLE {
-                let rect = self.redraw_button(&ctx, egui::pos2(content.center().x, content.bottom() - 20.0));
+                let rect = self.reset_button(&ctx, egui::pos2(content.center().x, content.bottom() - 20.0));
                 panes.push((rect, rect.height() * 0.5, false));
             }
             if panes != self.panes {
@@ -1794,7 +1757,7 @@ impl eframe::App for App {
 
         if self.view != WHOLE && !covered {
             let above = content.bottom() - 20.0 - self.toolbar_size.y - 10.0;
-            let rect = self.redraw_button(&ctx, egui::pos2(content.center().x, above));
+            let rect = self.reset_button(&ctx, egui::pos2(content.center().x, above));
             panes.push((rect, rect.height() * 0.5, false));
         }
 

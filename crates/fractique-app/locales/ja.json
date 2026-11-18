@@ -28,7 +28,7 @@
   "size_window": "自動",
   "size_custom": "カスタム",
   "apply": "適用",
-  "redraw": "ここを再描画",
+  "reset_view": "表示をリセット",
   "layers": "レイヤー",
   "layer": "レイヤー",
   "blend_add": "加算",

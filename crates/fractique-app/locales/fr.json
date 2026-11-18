@@ -28,7 +28,7 @@
   "size_window": "Auto",
   "size_custom": "Personnalisée",
   "apply": "Appliquer",
-  "redraw": "Redessiner ici",
+  "reset_view": "Réinitialiser la vue",
   "layers": "CALQUES",
   "layer": "Calque",
   "blend_add": "Somme",

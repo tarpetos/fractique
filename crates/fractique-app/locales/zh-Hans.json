@@ -28,7 +28,7 @@
   "size_window": "自动",
   "size_custom": "自定义",
   "apply": "应用",
-  "redraw": "在此重绘",
+  "reset_view": "重置视图",
   "layers": "图层",
   "layer": "图层",
   "blend_add": "相加",
