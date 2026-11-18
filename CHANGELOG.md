@@ -26,6 +26,16 @@
   * The kinds live in a registry, one file each ([docs/architecture.md](docs/architecture.md#how-to-add-a-fractal-type)).
     The golden hashes of the three kinds were produced on Linux.
 
+* **GPU acceleration:** the trial of a built-in graphics chip gives way when a picture is asked for and begins
+  again when the app rests; its verdict is kept again, so a slow phone is tried once, not at every start. The
+  first picture after a start is no longer handed to the processor because the shaders took time to load.
+* **Phones:** the small pictures of the styles are drawn on one thread, so the window and the picture keep their
+  cores, and are kept as files, so a sheet that was drawn once opens at once the next time.
+* **GPU acceleration:** the trial that decides whether a built-in graphics chip is used draws a larger picture and
+  asks for the card to be 1.3 times as fast, not twice: a phone with an Adreno 740 was left out at 1.7.
+* **GPU acceleration:** a graphics card of its own (not one built into the processor) is used without a trial.
+  Elsewhere the card's best of three trial runs counts, and a verdict that it is slow is not kept between launches,
+  so one trial at a bad moment no longer hides the switch for good.
 * **App:** with GPU acceleration on, the graphics card's picture of a flame is the screen's picture, and the
   processor no longer renders it a second time: a new flame at 3840×2160 took the processor 45 to 155 s of core
   time before and takes it 2 to 3 s now, the start of the app included, and the whole picture is there after 0.2
