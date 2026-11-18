@@ -46,6 +46,11 @@ fully justified: when a reader would otherwise get something wrong and the code 
 - Doc comments (`///`, `//!`) only on items whose contract is not obvious from the signature.
 - When in doubt, leave it out.
 
+## Pull requests
+
+Every change reaches `master` through a pull request; a direct push is refused, for the owners too. A pull request
+is merged by squashing, so its title becomes the one commit: write it as a commit message (below).
+
 ## Commit messages
 
 Pull requests are squash-merged: the pull request's title becomes the one commit on `master` (the pull request number

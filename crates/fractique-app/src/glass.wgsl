@@ -28,6 +28,12 @@ fn on_picture(uv: vec2<f32>) -> f32 {
 @group(0) @binding(2) var soft: texture_2d<f32>;
 @group(0) @binding(3) var smp: sampler;
 
+// Beside a picture that does not fill the window: its own edge, blurred and dimmed, instead of a dark bar.
+fn beside(uv: vec2<f32>) -> vec3<f32> {
+    let edge = textureSample(soft, smp, clamp(uv, vec2<f32>(0.0), vec2<f32>(1.0))).rgb;
+    return mix(AROUND, edge, 0.72);
+}
+
 @vertex
 fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
     let x = f32(i32(index & 1u) * 4 - 1);
@@ -38,13 +44,13 @@ fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
 @fragment
 fn fs_background(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let uv = picture(pos.xy);
-    let color = mix(AROUND, textureSample(flame, smp, uv).rgb, on_picture(uv));
+    let color = mix(beside(uv), textureSample(flame, smp, uv).rgb, on_picture(uv));
     return vec4<f32>(color, 1.0);
 }
 
 fn look(p: vec2<f32>, blur: f32) -> vec3<f32> {
     let uv = picture(p);
-    return mix(AROUND, mix(textureSample(flame, smp, uv).rgb, textureSample(soft, smp, uv).rgb, blur), on_picture(uv));
+    return mix(beside(uv), mix(textureSample(flame, smp, uv).rgb, textureSample(soft, smp, uv).rgb, blur), on_picture(uv));
 }
 
 @fragment
