@@ -13,7 +13,8 @@ of a scene file see [scene-format.md](scene-format.md); for render times see [pe
 6. [Layers](#6-layers)
 7. [Variants of a scene](#7-variants-of-a-scene)
 8. [Flames from other programs](#8-flames-from-other-programs)
-9. [Troubleshooting](#9-troubleshooting)
+9. [Files of the app](#9-files-of-the-app)
+10. [Troubleshooting](#10-troubleshooting)
 
 ---
 
@@ -184,6 +185,7 @@ view: lower `camera.zoom` then.
 | **Layers** (inspector) | The scene's flames, one over another: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity |
 | **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back. On a phone a tap hides and shows them |
 | **F11** | Full screen; **Esc** leaves it |
+| Starting the app a second time | Brings the window that is already open to the front instead of opening another; a file given to the second start opens in the first |
 | The version next to the name in the title bar | Every released version with its notes; update, or install an older one |
 
 On a phone the picture is saved into the app's own folder (`exports`), and the app has no updates window:
@@ -194,7 +196,7 @@ written when it changes, into the app's data folder: `%APPDATA%\Fractique` on Wi
 
 ### Opening a `.frcq` file from the file manager
 
-A double click on a `.frcq` file opens it in Fractique, each file in a window of its own:
+A double click on a `.frcq` file opens it in Fractique, in the window that is already open if there is one:
 
 - **Windows:** after the downloaded program has been started once. Move or rename the program and start it again,
   and the files follow it.
@@ -216,11 +218,35 @@ fractique render scene.json -o imported.png
 
 The transforms, their colors, the palette, the camera, the symmetry and the tone settings are read. What the file
 uses and Fractique does not have is listed while it converts: variations outside the
-[28 built in](scene-format.md#variation), xaos, and flam3's numbered palettes (a file that names one by number gets
+[49 built in](scene-format.md#variation), xaos, and flam3's numbered palettes (a file that names one by number gets
 the `aurora` palette). An imported flame shows the same structure as in its own program; brightness and color are
 close, not identical, because the tone mapping differs.
 
-## 9. Troubleshooting
+## 9. Files of the app
+
+The app saves `.frcq` files: the scene with the app's session, packed, not text
+([scene-format.md](scene-format.md)). Every command that reads a scene reads them too, and takes the scene as it
+was on the screen:
+
+```sh
+fractique render mine.frcq --size 3840x2160 --quality high -o mine.png
+fractique mutate mine.frcq 1 -o variant.json
+fractique fit mine.frcq -o framed.json
+```
+
+`fractique convert` goes between the two forms; what the file holds decides the direction:
+
+```sh
+fractique convert mine.frcq -o scene.json                 # the scene the file shows, as JSON
+fractique convert mine.frcq --document -o document.json   # everything in the file: the session and the scene
+fractique convert scene.json -o scene.frcq                # a scene, packed for the app
+fractique convert document.json -o mine.frcq              # a document, packed again as it is
+```
+
+Without `-o` the JSON is printed. A scene packed this way opens in the app as a plain scene: whole view, neutral
+tone. A `.frcq` file is about a seventh of the same scene as JSON.
+
+## 10. Troubleshooting
 
 | What you see | What to do |
 | --- | --- |

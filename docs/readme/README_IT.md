@@ -16,7 +16,7 @@ Fractique disegna fiamme frattali: frattali luminosi e impalpabili fatti di curv
 
 ## Cosa funziona oggi
 
-- **Il renderer** (`fractique-core`): fiamme frattali con 28 variazioni, livelli con metodi di fusione, simmetria rotazionale e speculare, stima della densità, bagliore, qualsiasi risoluzione.
+- **Il renderer** (`fractique-core`): fiamme frattali con 49 variazioni, livelli con metodi di fusione, simmetria rotazionale e speculare, stima della densità, bagliore, qualsiasi risoluzione.
 - **L’app:** un unico codice per Windows, Linux, Android, iOS e il web, con pannelli di vetro sopra la fiamma, in 15 lingue.
 - **Preset:** 9 scene integrate.
 - **Generatore casuale:** ogni seme è una scena; le scene che sarebbero un punto o un quadrato pieno vengono scartate.

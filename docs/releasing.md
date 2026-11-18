@@ -79,7 +79,7 @@ The repository must be public for this to work: the app asks GitHub without sign
 ## Files of the app (`.frcq`)
 
 Each system is told that `.frcq` files belong to Fractique, so a double click opens them in the app. The app takes
-the file as its first argument; each file opens in a window of its own.
+the file as its first argument; a second start passes the file to the window that is already open.
 
 | System | How | Where it is set |
 | --- | --- | --- |

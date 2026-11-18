@@ -43,3 +43,11 @@ pub fn sinh(x: f64) -> f64 {
 pub fn cosh(x: f64) -> f64 {
     libm::cosh(x)
 }
+#[inline]
+pub fn log10(x: f64) -> f64 {
+    libm::log10(x)
+}
+#[inline]
+pub fn fmod(x: f64, y: f64) -> f64 {
+    libm::fmod(x, y)
+}
