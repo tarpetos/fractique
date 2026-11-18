@@ -28,6 +28,8 @@ use widgets::{MEDIUM, SEMIBOLD, font};
 
 const DRAFT_SIDE: f32 = 480.0;
 const DRAFT_SAMPLES: u32 = 12;
+const MIDDLE_SIDE: f32 = 1280.0;
+const MIDDLE_SAMPLES: u32 = 16;
 const FULL_SIDE: f32 = if cfg!(target_arch = "wasm32") {
     900.0
 } else if cfg!(any(target_os = "android", target_os = "ios")) {
@@ -46,6 +48,7 @@ const FULL_SAMPLES: u32 = if cfg!(target_arch = "wasm32") {
 struct Rendered {
     generation: u64,
     draft: bool,
+    view: View,
     image: Image,
     soft: (Vec<u8>, u32, u32),
     seconds: f32,
@@ -174,43 +177,81 @@ fn parsed_size(text: &str) -> Option<[u32; 2]> {
     Some([side(width)?, side(height)?])
 }
 
-const MAX_MAGNIFICATION: f32 = 12.0;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 const BAR: f32 = 44.0;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 const BAR_GAP: f32 = 10.0;
 
+// What the picture shows: the point `right` and `down` of the scene's own middle, in shorter sides of the picture,
+// magnified `zoom` times.
 #[derive(Clone, Copy, PartialEq)]
 struct View {
-    center: egui::Vec2,
-    zoom: f32,
+    right: f64,
+    down: f64,
+    zoom: f64,
 }
 
 const WHOLE: View = View {
-    center: egui::vec2(0.5, 0.5),
+    right: 0.0,
+    down: 0.0,
     zoom: 1.0,
 };
 
+// Past this the numbers of the renderer run out of digits.
+const MAX_MAGNIFICATION: f64 = 1e10;
+const MIN_MAGNIFICATION: f64 = 1e-4;
+// A new picture is drawn once the view has stood still this long.
+const SETTLE: f32 = 0.18;
+
 impl View {
-    fn settle(&mut self) {
-        self.zoom = self.zoom.clamp(1.0, MAX_MAGNIFICATION);
-        let edge = 0.5 / self.zoom;
-        self.center = self
-            .center
-            .clamp(egui::Vec2::splat(edge), egui::Vec2::splat(1.0 - edge));
+    fn moved(&mut self, by: [f64; 2]) {
+        self.right = (self.right - by[0] / self.zoom).clamp(-1e6, 1e6);
+        self.down = (self.down - by[1] / self.zoom).clamp(-1e6, 1e6);
     }
 
-    fn moved(&mut self, by: egui::Vec2, screen: egui::Vec2) {
-        self.center -= by / screen / self.zoom;
-        self.settle();
+    fn magnified(&mut self, factor: f64, around: [f64; 2]) {
+        let held = [self.right + around[0] / self.zoom, self.down + around[1] / self.zoom];
+        self.zoom = (self.zoom * factor).clamp(MIN_MAGNIFICATION, MAX_MAGNIFICATION);
+        self.right = held[0] - around[0] / self.zoom;
+        self.down = held[1] - around[1] / self.zoom;
+        self.moved([0.0; 2]);
     }
 
-    fn magnified(&mut self, factor: f32, around: egui::Vec2) {
-        let held = around / self.zoom + self.center;
-        self.zoom = (self.zoom * factor).clamp(1.0, MAX_MAGNIFICATION);
-        self.center = held - around / self.zoom;
-        self.settle();
+    // Where this view is in a picture drawn for the view `shown`: the picture point at its middle, and how many
+    // times larger it shows the picture.
+    fn within(&self, shown: &View, size: [u32; 2]) -> [f32; 3] {
+        let shorter = f64::from(size[0].min(size[1]));
+        let across = (self.right - shown.right) * shown.zoom * shorter / f64::from(size[0]);
+        let along = (self.down - shown.down) * shown.zoom * shorter / f64::from(size[1]);
+        [
+            (0.5 + across) as f32,
+            (0.5 + along) as f32,
+            (self.zoom / shown.zoom) as f32,
+        ]
     }
+
+    fn label(&self) -> String {
+        match self.zoom {
+            zoom if zoom >= 1e6 => format!("{zoom:.1e}"),
+            zoom if zoom >= 100.0 => format!("{zoom:.0}"),
+            zoom if zoom >= 1.0 => format!("{zoom:.1}"),
+            zoom => format!("{zoom:.3}"),
+        }
+    }
+}
+
+// A part of the screen, from its middle, in shorter sides of the picture.
+fn sides(of_screen: egui::Vec2, size: [u32; 2], stretch: f32) -> [f64; 2] {
+    let of_picture = if stretch > 1.0 {
+        egui::vec2(of_screen.x, of_screen.y * stretch)
+    } else {
+        egui::vec2(of_screen.x / stretch, of_screen.y)
+    };
+    let shorter = f64::from(size[0].min(size[1]));
+    [
+        f64::from(of_picture.x) * f64::from(size[0]) / shorter,
+        f64::from(of_picture.y) * f64::from(size[1]) / shorter,
+    ]
 }
 
 const NEUTRAL: Adjust = Adjust {
@@ -228,6 +269,9 @@ struct App {
     seed: u64,
     adjust: Adjust,
     view: View,
+    shown: View,
+    drawn: Option<View>,
+    touched: Instant,
     bare: bool,
     optics: Optics,
     tuning: bool,
@@ -317,6 +361,9 @@ impl App {
             seed: 0,
             adjust: NEUTRAL,
             view: WHOLE,
+            shown: WHOLE,
+            drawn: None,
+            touched: Instant::now(),
             bare: false,
             optics: Optics {
                 refraction: 38.0,
@@ -371,6 +418,10 @@ impl App {
             tone.gamma *= self.adjust.gamma;
             tone.glow_strength *= self.adjust.glow;
             layer.flame.camera.zoom *= self.adjust.zoom;
+            layer.flame.camera = layer
+                .flame
+                .camera
+                .looking_at(self.view.right, self.view.down, self.view.zoom);
         }
         scene
     }
@@ -380,15 +431,22 @@ impl App {
         self.cancel = Arc::new(AtomicBool::new(false));
         self.generation += 1;
         self.requested = Some(size);
+        self.drawn = Some(self.view);
         self.rendering = true;
 
         let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
         let mut passes = vec![(true, fitted(size, DRAFT_SIDE, DRAFT_SAMPLES)), (false, full)];
+        // A deep view takes several times longer to draw: a picture in between shortens the wait for a sharp one.
+        let between = fitted(size, MIDDLE_SIDE, MIDDLE_SAMPLES);
+        if self.view.zoom > 4.0 && full.width.max(full.height) >= 2 * between.width.max(between.height) {
+            passes.insert(1, (true, between));
+        }
         // A browser page has one thread: a draft first would only make it wait twice.
         if passes[0].1.width == full.width || cfg!(target_arch = "wasm32") {
             passes.remove(0);
         }
         let (scene, cancel, generation) = (self.scene(), self.cancel.clone(), self.generation);
+        let view = self.view;
         let (sender, ctx) = (self.results.0.clone(), ctx.clone());
         let work = move || {
             for (draft, options) in passes {
@@ -410,6 +468,7 @@ impl App {
                 let done = Rendered {
                     generation,
                     draft,
+                    view,
                     image,
                     soft,
                     seconds,
@@ -443,10 +502,14 @@ impl App {
                     soft,
                 );
             }
+            self.shown = done.view;
             if !done.draft {
                 self.rendering = false;
                 self.shown_frames = self.shown_frames.max(1);
                 self.status = format!("{} × {}  ·  {:.2} s", done.image.width, done.image.height, done.seconds);
+                if done.view.zoom != 1.0 {
+                    self.status += &format!("  ·  {}×", done.view.label());
+                }
             }
         }
     }
@@ -472,8 +535,20 @@ impl App {
 
     fn explore(&mut self, ui: &mut egui::Ui, screen: egui::Rect) {
         let picture = ui.interact(screen, egui::Id::unique("picture"), egui::Sense::click_and_drag());
+        let scale = ui.ctx().pixels_per_point();
+        let window = [
+            (screen.width() * scale).round() as u32,
+            (screen.height() * scale).round() as u32,
+        ];
+        let size = self.picture.unwrap_or(window);
+        if size[0] == 0 || size[1] == 0 {
+            return;
+        }
+        let stretch = (size[0] as f32 / size[1] as f32) / (screen.width() / screen.height()).max(0.001);
+        let before = self.view;
         if picture.dragged() {
-            self.view.moved(picture.drag_delta(), screen.size());
+            self.view
+                .moved(sides(picture.drag_delta() / screen.size(), size, stretch));
         }
         if picture.clicked() && (self.languages_open || self.sizes_open) {
             self.languages_open = false;
@@ -494,8 +569,11 @@ impl App {
             let factor = pinch * (1.0 + wheel * 0.004).clamp(0.5, 2.0);
             if factor != 1.0 {
                 let around = pointer.map_or(egui::Vec2::ZERO, |at| (at - screen.center()) / screen.size());
-                self.view.magnified(factor, around);
+                self.view.magnified(f64::from(factor), sides(around, size, stretch));
             }
+        }
+        if self.view != before {
+            self.touched = Instant::now();
         }
     }
 
@@ -1212,8 +1290,17 @@ impl eframe::App for App {
         ];
         let window = size;
         let size = self.picture.unwrap_or(window);
-        if window[0] > 0 && window[1] > 0 && self.requested != Some(size) {
-            self.start_render(&ctx, size);
+        if window[0] > 0 && window[1] > 0 {
+            if self.requested != Some(size) {
+                self.start_render(&ctx, size);
+            } else if self.drawn != Some(self.view) {
+                let still = self.touched.elapsed().as_secs_f32();
+                if still >= SETTLE {
+                    self.start_render(&ctx, size);
+                } else {
+                    ctx.request_repaint_after(std::time::Duration::from_secs_f32(SETTLE - still));
+                }
+            }
         }
         let stretch = (size[0] as f32 / size[1] as f32) / (screen.width() / screen.height()).max(0.001);
 
@@ -1239,11 +1326,10 @@ impl eframe::App for App {
                 self.shown_frames = 2;
             }
         }
-        let mut glass = glass::Frame::new(
-            &painter,
-            screen,
-            [self.view.center.x, self.view.center.y, self.view.zoom, stretch],
-        );
+        let mut glass = glass::Frame::new(&painter, screen, {
+            let [across, along, larger] = self.view.within(&self.shown, size);
+            [across, along, larger, stretch]
+        });
         for (rect, radius, dark) in &self.panes {
             let mut optics = Optics {
                 radius: *radius,
