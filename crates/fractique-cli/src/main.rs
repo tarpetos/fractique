@@ -127,17 +127,21 @@ fn parse_size(text: &str) -> Result<(u32, u32), String> {
 }
 
 fn load(path: &Path) -> Result<Scene, String> {
-    let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let fail = |e: String| format!("{}: {e}", path.display());
+    let bytes = fs::read(path).map_err(|e| fail(e.to_string()))?;
     // A .frcq file of the app holds its session; the scene as it was on the screen is under "shown".
-    let shown = serde_json::from_str::<serde_json::Value>(&text)
-        .ok()
-        .filter(|file| file.get("fractique").is_some())
-        .and_then(|mut file| file.get_mut("shown").map(serde_json::Value::take));
-    match shown {
+    let file = if fractique_core::file::is_packed(&bytes) {
+        Some(fractique_core::file::unpack(&bytes).map_err(fail)?)
+    } else {
+        serde_json::from_slice::<serde_json::Value>(&bytes)
+            .ok()
+            .filter(|file| file.get("fractique").is_some())
+    };
+    let scene = match file.and_then(|mut file| file.get_mut("shown").map(serde_json::Value::take)) {
         Some(scene) => Scene::from_json(&scene.to_string()),
-        None => Scene::from_json(&text),
-    }
-    .map_err(|e| format!("{}: {e}", path.display()))
+        None => Scene::from_json(&String::from_utf8_lossy(&bytes)),
+    };
+    scene.map_err(|e| fail(e.to_string()))
 }
 
 fn emit(scene: &Scene, output: Option<PathBuf>) -> Result<(), String> {
