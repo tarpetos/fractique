@@ -49,7 +49,8 @@ On Windows the program is `fractique.exe`.
 | `import_flame` | `xml`, `index` (default 0) | A `.flame` file (flam3, Apophysis) as a scene, with what was left out |
 | `render_scene` | one of `scene`, `preset`, `random_seed`; `width` (640), `height` (360), `quality` (`mobile`), `save_to` | The image as PNG, and a line with the size, the time and the hash |
 
-A `scene` argument is the scene as a JSON object; its JSON text is accepted too.
+A `scene` argument is the scene as a JSON object; its JSON text is accepted too. `quality` is one of `draft`,
+`mobile`, `standard`, `high`, `ultra`; `width` and `height` go up to 16384.
 
 ### Rendering
 
@@ -67,9 +68,18 @@ A usual session:
 4. `render_scene` again, and so on.
 5. `render_scene` with the final size, `quality: "high"` and `save_to`.
 
+### Wallpapers
+
+No tool makes a wallpaper yet. A scene with `sheets` is a scene like any other, so `validate_scene` and
+`render_scene` take one: write it with `fractique wallpaper SEED -o wallpaper.json`
+([usage.md](usage.md#6-wallpapers)) or by hand from `describe_scene_format`, and render it at the proportion it
+was laid out for. `fit_camera` and
+`mutate_scene` change flames only and leave the sheets as they are.
+
 ## What the server does not do
 
-- It writes only the file named in `save_to` and reads no files: scenes travel in the tool arguments.
+- It writes only the file named in `save_to` and reads no files: scenes travel in the tool arguments. The app's
+  `.frcq` files are for the command line: `fractique render file.frcq`.
 - It handles one request at a time, in the order they arrive. A render cannot be cancelled and reports no progress
   yet; keep previews small.
 - There is no HTTP transport yet: it comes with the server ([roadmap.md](roadmap.md)).

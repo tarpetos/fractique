@@ -24,8 +24,35 @@ given to WSL2 on Windows 11, release build. They show what to expect, not a guar
 | `high` | 1920×1080 | 6.9 s |
 | `high` | 3840×2160 | 30.4 s |
 
-The time grows with `samples per pixel × width × height` and falls with the number of cores. Phones were not
-measured yet: there is no app to run on them.
+The time grows with `samples per pixel × width × height` and falls with the number of cores. A view magnified
+until it holds less than an eighth of the flame costs five to ten times as much
+([architecture.md](architecture.md#any-zoom)). Phones were not measured yet.
+
+## Wallpapers
+
+A wallpaper is drawn exactly, so the quality level and the samples do not change its time. It grows with the
+number of pixels and with the number of sheets and shapes of the layout.
+
+| Size | Time, about |
+| --- | --- |
+| 1290×2796 | 1 s |
+| 3840×2160 | 1 to 2 s |
+
+## In the app
+
+The picture on the screen is rendered in passes, so that something shows at once
+([architecture.md](architecture.md#the-app)).
+
+| Pass | Longer side, at most | Samples per pixel |
+| --- | --- | --- |
+| Draft | 480 | 12 |
+| In between, for a view magnified more than 4 times | 1280 | 16 |
+| Full, on a computer | 4096 | 32 |
+| Full, on a phone | 1600 | 18 |
+| Full, in a browser (no draft) | 900 | 14 |
+
+Renders use all cores but two, which stay with the window. The toolbar shows the time the full picture took. An
+export is a separate render at `standard`, `high` or `ultra`.
 
 ## Memory
 
@@ -41,4 +68,9 @@ bytes in the histogram and about 20 more while the layer is developed.
 | 3840×2160 | 2 | 1.6 GB |
 
 The memory column is computed from the cell sizes, not measured. Rendering in tiles to lower it is on the
-[roadmap](roadmap.md).
+[roadmap](roadmap.md). A wallpaper without flame layers has no histogram: it takes about 16 bytes a pixel while it
+is drawn.
+
+The app also keeps developed layers, so that a layer that did not change is not rendered again: 12 bytes a pixel
+each, up to 1200 MB on a computer and 160 MB on a phone or in a browser; the least recently used go first, the
+layers of the whole view last.

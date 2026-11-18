@@ -1,39 +1,121 @@
 # Using Fractique
 
-Today Fractique is a command line tool, `fractique`. This guide covers every command, with examples. For the fields
-of a scene file see [scene-format.md](scene-format.md); for render times see [performance.md](performance.md).
+Fractique is two programs over one renderer: the app, `fractique-gui`, and the command line tool, `fractique`.
+This guide covers both, with examples. For the fields of a scene file see [scene-format.md](scene-format.md); for
+render times see [performance.md](performance.md).
 
 ## Contents
 
 1. [Install](#1-install)
-2. [Render a preset](#2-render-a-preset)
-3. [Size and quality](#3-size-and-quality)
-4. [Random scenes](#4-random-scenes)
-5. [Edit a scene](#5-edit-a-scene)
-6. [Layers](#6-layers)
-7. [Variants of a scene](#7-variants-of-a-scene)
-8. [Flames from other programs](#8-flames-from-other-programs)
-9. [Troubleshooting](#9-troubleshooting)
+2. [The app](#2-the-app)
+3. [Render a preset](#3-render-a-preset)
+4. [Size and quality](#4-size-and-quality)
+5. [Random scenes](#5-random-scenes)
+6. [Wallpapers](#6-wallpapers)
+7. [Edit a scene](#7-edit-a-scene)
+8. [Layers](#8-layers)
+9. [Variants of a scene](#9-variants-of-a-scene)
+10. [Flames from other programs](#10-flames-from-other-programs)
+11. [Troubleshooting](#11-troubleshooting)
+12. [The sample pictures](#12-the-sample-pictures)
 
 ---
 
 ## 1. Install
 
-You need the repository and one command. It installs Rust when it is missing, builds the tool and runs the tests.
+You need the repository and one command. It installs Rust when it is missing, builds both programs and runs the
+tests.
 
 | System | Command | Result |
 | --- | --- | --- |
-| Linux, macOS | `./setup.sh` | `target/release/fractique` |
-| Windows | `setup.cmd` | `target\release\fractique.exe` |
+| Linux, macOS | `./setup.sh` | `target/release/fractique-gui`, `target/release/fractique` |
+| Windows | `setup.cmd` | `target\release\fractique-gui.exe`, `target\release\fractique.exe` |
 
 `--skip-tests` leaves the tests out. On Windows the script also installs the Microsoft C++ Build Tools (several GB)
 when they are missing: Rust needs them to link programs. On Linux and macOS it needs a C compiler and tells you how
 to install one.
 
+A released version needs no build: [releasing.md](releasing.md) lists the files of a release, among them one
+program file for Windows, an AppImage, a macOS app and an Android APK. The iPhone app is built on a Mac:
+[ios.md](ios.md).
+
 The examples below write `fractique` for the tool; use the path from the table, or copy the file to a folder on
 your `PATH`.
 
-## 2. Render a preset
+## 2. The app
+
+`fractique-gui` is the same renderer with a window: the picture fills it and glass panels float over it. It makes
+flames and wallpapers; a switch in the controls goes from one to the other.
+
+```sh
+./target/release/fractique-gui
+./target/release/fractique-gui scene.frcq      # opens that file; .json and .flame work too
+```
+
+### On a computer
+
+| Where | What |
+| --- | --- |
+| Title bar | The app draws its own, as a glass capsule: the name, the version (opens the updates), the language, hide the panels, full screen, minimize, maximize, close. Dragging it moves the window, a double click maximizes it, the window's edges resize it |
+| Inspector (left; **Controls** in the toolbar shows and hides it) | **Flames** or **Wallpapers**, then the preset or the wallpaper's choices, the size, the layers, the tone, the zoom, the glass, the scene |
+| Toolbar (bottom) | The picture's name, its size, the time it took and the magnification; **Randomize**, **Mutate**, **Export**, **Controls** |
+| **Presets** (inspector) | A list of the 21 built-in flames |
+| **Randomize** | Flames: a new random flame in the chosen layer. Wallpapers: a new wallpaper |
+| **Mutate** | Flames: a variant of the chosen layer's flame. Wallpapers: another wallpaper of the same layout and material |
+| **Layout**, **Material**, **Light** and **Dark** (inspector, wallpapers) | One of the 14 layouts and 6 materials of [Wallpapers](#6-wallpapers), or **Any**, which leaves the choice to each new wallpaper; and its light or dark version |
+| **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 21 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone, 900 in a browser); a larger one is shown scaled down and exported in full. It is shown whole in the window |
+| **Layers** (inspector, flames) | The scene's flames, one over another, up to 16: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity. Only the layer that changed is rendered again |
+| **Tone**, **View** (inspector, flames) | Brightness, gamma and glow of the whole picture, and a zoom; **Reset** brings them back |
+| **Glass** (inspector) | Opacity and blur of the panels. **F2** opens the fine tuning of the glass: refraction, depth, bezel |
+| Drag, wheel or pinch on the picture | Moves the view and zooms in and out, from 10,000 times smaller to 10,000,000,000 times larger. The picture follows at once and is drawn anew, sharp, when the view rests; the toolbar shows the magnification. **Export** and **Save** take the view as it is. A double click shows the whole scene again |
+| **Reset view** (appears once the picture is moved or zoomed) | Shows the whole scene again, as a double click does |
+| **Export** | A PNG at the picture's size, or at another size chosen in the same list there, in one of three qualities; rendered in the background with a progress bar and **Cancel** |
+| **Scene: Open, Save** | **Save** writes a `.frcq` file, the app's own: the scene together with the tone, the view, the size and the flames or wallpapers choices, so it opens as it was saved, in a compact form that is not text. It can also write a plain `.json` scene, which is. **Open** reads `.frcq`, `.json` and `.flame`. A file given to the app when it starts (dropped on its icon, or "Open with") opens in it |
+| **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back |
+| **F11**, or the four corners in the title bar | Full screen; **Esc** leaves it |
+| The version next to the name in the title bar | Every released version with its notes; update, or install an older one. It shows an arrow when a newer version is out |
+
+The qualities of **Export**:
+
+| Quality | Samples per pixel | Supersample | The same as |
+| --- | --- | --- | --- |
+| Standard | 100 | 1 | `--quality standard` |
+| High | 300 | 2 | `--quality high` |
+| Ultra | 1000 | 2 | `--quality ultra` |
+
+A wallpaper is drawn exactly, so its export is the same at every quality. The file name is offered from the
+picture's name and size, for example `AuroraSpiral-1920x1080.png`.
+
+### On a phone
+
+On Android and iOS the picture fills the screen and the controls are a few round glass buttons.
+
+| Where | What |
+| --- | --- |
+| **Flames**, **Wallpapers** (top) | What the app makes |
+| The large round button | A new picture: a random flame, or the next wallpaper |
+| The four small buttons above it | **Keep** puts the picture into the collection, or takes it out (it holds 48). **Similar** makes another wallpaper of the same layout and material; for a flame it is **Mutate**, a variant of it. **Style** opens the styles. **Export** saves the picture. Their names stand beside them until the round button has been pressed six times |
+| The placard (bottom left) | A wallpaper's layout, material and number, or a flame's name; under it the size and the time |
+| Swipe left or right (wallpapers) | The next or the previous wallpaper |
+| Drag and pinch (flames) | Move the view and zoom, as on a computer; **Reset view** appears |
+| Tap | Hides the buttons, and shows them again |
+| Press and hold | Shows the picture as a lock screen, with a clock, for as long as the finger rests |
+| **Style** | A sheet that slides up, with small live pictures to choose from. First the **collection**, the pictures kept. For wallpapers: every layout, every material, a row of colors (any, or one of eight) and **Light** or **Dark**. For flames: every preset, and a random one. Its handle drags it taller or away |
+| **Fine-tune** (at the end of the styles) | The controls of the computer's inspector, over the whole screen: language, size, layers, tone, glass. The cross closes them |
+| **Export** | The size and the quality, then **Save to Photos** or **Share**. On an iPhone the picture goes to Photos or to the share sheet. On Android it goes to the gallery, into `Pictures/Fractique`, and **Share** then offers it to other apps. Android 9 and older ask for storage access first: allow it, then save again |
+
+A phone has no **Scene: Open, Save** and no updates window: [releasing.md](releasing.md) says what updates itself
+and what does not. In a browser the app has no export, no scene files and no updates window.
+
+### What the app keeps
+
+The whole session is kept between launches: the scene that was open with its layers, the view, the tone, the size,
+flames or wallpapers and their choices, the collection, the language, the glass and the window (its place, size and
+screen). It is written when it changes, into the app's data folder: `%APPDATA%\Fractique\data` on Windows,
+`~/.local/share/fractique` on Linux, `~/Library/Application Support/Fractique` on macOS, and the app's own folder
+on a phone. The window never reopens in full screen.
+
+## 3. Render a preset
 
 ```sh
 fractique presets                                  # the names
@@ -50,15 +132,15 @@ aurora.png (1920x1080, 100 samples per pixel, 2.2 s, hash 1b440b3a4f4106cd)
 The hash is the same on every machine for the same scene and options: that is how you check that two computers
 rendered the same picture.
 
-## 3. Size and quality
+## 4. Size and quality
 
 ```sh
 fractique render --preset emerald-star --size 3840x2160 --quality high -o star-4k.png
 fractique render --preset emerald-star --size 1080x2400 --quality mobile -o star-phone.png
 ```
 
-`--size` takes any `WIDTHxHEIGHT` up to 16384 a side. The picture is framed by its shorter side: a wider or taller
-image shows more of the surroundings, it does not stretch or crop the middle.
+`--size` takes any `WIDTHxHEIGHT` up to 16384 a side; without it the image is 1920x1080. The picture is framed by
+its shorter side: a wider or taller image shows more of the surroundings, it does not stretch or crop the middle.
 
 | `--quality` | Samples per pixel | Supersample | Use |
 | --- | --- | --- | --- |
@@ -71,7 +153,7 @@ image shows more of the surroundings, it does not stretch or crop the middle.
 `--samples N` and `--supersample N` replace the level's numbers. More samples means less grain; supersample 2
 renders at twice the size and averages, which sharpens thin lines and costs four times the memory.
 
-## 4. Random scenes
+## 5. Random scenes
 
 Every number is a scene:
 
@@ -90,8 +172,7 @@ fractique render scene.json -o mine.png
 A random scene of a seed may change between versions of Fractique when the randomizer improves. A saved scene file
 does not.
 
-
-## Wallpapers
+## 6. Wallpapers
 
 A wallpaper is a scene made of flat sheets with lit edges and soft shadows instead of a flame. Every number is one:
 
@@ -112,16 +193,19 @@ fractique render --wallpaper 7 --layout waves --material glass --size 1290x2796 
 | `--layout` | Round: `bands`, `discs`, `waves`, `ribbons`, `burst`, `arcs`, `tiles`, `bars`, `fan`. Straight: `slats`, `planes`, `steps`, `frames`, `lines` |
 | `--material` | `relief` (one color, bright edges), `paper` (a color ramp, deep shadows), `glass` (translucent sheets that mix where they overlap), `glow` (dim sheets, wide bright edges), `steel` (graphite, navy, forest, oxblood or bronze, thin sharp edges), `carbon` (near black or near white with one accent color) |
 
-The shapes are laid out for the size given, so render at the size of the screen the wallpaper is for. To keep one
-as a scene file, and change it by hand:
+The shapes are laid out for the size given, so render at the size of the screen the wallpaper is for: the same
+seed gives other shapes for a screen of another proportion. To keep one as a scene file, and change it by hand:
 
 ```sh
 fractique wallpaper 7 --layout waves --size 1290x2796 -o wallpaper.json
+fractique render wallpaper.json --size 1290x2796 -o wallpaper.png
 ```
 
-The quality and the samples change nothing here: sheets are drawn exactly.
+`fractique wallpaper` lays the shapes out for 1290x2796 when no `--size` is given. The quality, the samples and
+`--seed` change nothing here: sheets are drawn exactly. The app can also ask for a wallpaper in one color; the
+command line leaves the colors to the seed.
 
-## 5. Edit a scene
+## 7. Edit a scene
 
 A scene is a JSON file ([scene-format.md](scene-format.md)). Start from a preset or a random scene:
 
@@ -143,7 +227,14 @@ Changes that are easy to try by hand:
 Render at `--quality draft` while you experiment. A file with a mistake is refused with a message that names the
 field, for example `layer 0, transform 1: color: must be between 0 and 1`.
 
-## 6. Layers
+Every command that takes a scene file also takes a `.frcq` file saved by the app, and uses the scene as it was on
+the screen:
+
+```sh
+fractique render AuroraSpiral.frcq --size 3840x2160 --quality high -o aurora.png
+```
+
+## 8. Layers
 
 A scene can hold up to 16 layers, each a flame of its own with its own camera, palette and tone, blended in order.
 The `emerald-star` preset is two: a violet veil of rings under a green four-pointed star.
@@ -153,9 +244,10 @@ fractique preset emerald-star > star.json
 ```
 
 To overlay two scenes, copy the entry in `layers` of one file into the `layers` list of the other. `blend` decides
-how they meet (`add`, `screen`, `over`) and `opacity` how strong the layer is.
+how they meet (`add`, `screen`, `over`) and `opacity` how strong the layer is. In the app the same is done in
+**Layers**, without a file.
 
-## 7. Variants of a scene
+## 9. Variants of a scene
 
 ```sh
 fractique mutate scene.json 1 --strength 0.2 -o variant1.json
@@ -164,35 +256,10 @@ fractique mutate scene.json 2 --strength 0.2 -o variant2.json
 
 The number picks the variant; the same number always gives the same one. `--strength` goes from 0 (no change) to 1
 (barely related); the default is 0.3. The camera is kept, so a strong mutation can move the flame partly out of
-view: lower `camera.zoom` then.
+view: lower `camera.zoom` then, or run `fractique fit`. Only flames change: the sheets of a wallpaper stay as they
+are.
 
-## The app
-
-`fractique-gui` is the same renderer with a window: the flame fills it and glass panels float over it.
-
-| Where | What |
-| --- | --- |
-| Inspector (left; **Controls** in the toolbar shows and hides it) | Preset (a list of 21), size, layers, tone, zoom, glass, scene |
-| Title bar (desktop) | The version (opens the updates), the language, hide panels, minimize, maximize, close |
-| **Randomize** | A new random flame in the chosen layer |
-| **Mutate** | A variant of the chosen layer's flame |
-| **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 21 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone); a larger one is shown scaled down and exported in full. It is shown whole in the window |
-| **Export** | A PNG at the picture's size, or at another size chosen in the same list there, and at the quality you choose; rendered in the background with a progress bar |
-| **Scene: Open, Save** | **Save** writes a `.frcq` file, the app's own: the scene together with the tone, the view, the size and the flames or wallpapers choices, so it opens as it was saved, in a compact form that is not text. It can also write a plain `.json` scene, which is. **Open** reads `.frcq`, `.json` and `.flame`. A file given to the app when it starts (dropped on its icon, or "Open with") opens in it |
-| Drag, wheel or pinch on the picture | Moves the view and zooms in and out, from 10,000 times smaller to 10,000,000,000 times larger. The picture follows at once and is drawn anew, sharp, when the view rests; the bar shows the magnification. **Export** and **Save** take the view as it is. A double click shows the whole scene again |
-| **Reset view** (appears once the picture is moved or zoomed) | Shows the whole scene again, as a double click does |
-| **Layers** (inspector) | The scene's flames, one over another: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity |
-| **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back. On a phone a tap hides and shows them |
-| **F11** | Full screen; **Esc** leaves it |
-| The version next to the name in the title bar | Every released version with its notes; update, or install an older one |
-
-On a phone the picture is saved into the app's own folder (`exports`), and the app has no updates window:
-[releasing.md](releasing.md) says what updates itself and what does not. The whole session is kept between launches: the scene that was open with its layers, the view, the tone, the size,
-flames or wallpapers and their choices, the language, the glass and the window (its place, size and screen). It is
-written when it changes, into the app's data folder: `%APPDATA%\Fractique` on Windows, `~/.local/share/fractique` on Linux,
-`~/Library/Application Support/Fractique` on macOS. The window never reopens in full screen.
-
-## 8. Flames from other programs
+## 10. Flames from other programs
 
 `.flame` files, the format of flam3, Apophysis and the programs built on them, convert to scenes:
 
@@ -206,9 +273,10 @@ The transforms, their colors, the palette, the camera, the symmetry and the tone
 uses and Fractique does not have is listed while it converts: variations outside the
 [28 built in](scene-format.md#variation), xaos, and flam3's numbered palettes (a file that names one by number gets
 the `aurora` palette). An imported flame shows the same structure as in its own program; brightness and color are
-close, not identical, because the tone mapping differs.
+close, not identical, because the tone mapping differs. The app opens a `.flame` file too, and takes its first
+flame.
 
-## 9. Troubleshooting
+## 11. Troubleshooting
 
 | What you see | What to do |
 | --- | --- |
@@ -218,3 +286,28 @@ close, not identical, because the tone mapping differs.
 | `the image is too large for this supersample` | Width × height × supersample² is limited to 2²⁸ cells. Lower the supersample. |
 | The render uses too much memory | See the memory table in [performance.md](performance.md); lower the supersample. |
 | `not a scene: unknown field ...` | A field name is misspelled, or it is in the wrong place. Compare with [scene-format.md](scene-format.md). |
+| `the file is of version ...` | The `.frcq` file was saved by a newer version of the app. Update, or save a `.json` scene there. |
+| A deep view in the app stays empty | Where the flame has nothing, there is nothing to draw: the gaps between its threads are wider than the threads. **Reset view** goes back. |
+| The Android app closes at start | It leaves `fractique-log.txt` in its own folder (`Android/data/app.fractique/files`): send that file with the report. |
+
+## 12. The sample pictures
+
+The pictures in `docs/samples/` and in the README are rendered by these commands, from the repository's root:
+
+```sh
+fractique render --preset aurora-spiral --size 960x540 --quality high -o docs/samples/aurora-spiral.png
+fractique render --preset emerald-star --size 640x360 --quality high -o docs/samples/emerald-star.png
+fractique render --preset ember-vortex --size 640x360 --quality high -o docs/samples/ember-vortex.png
+fractique render --preset golden-bloom --size 640x360 --quality high -o docs/samples/golden-bloom.png
+fractique render --preset solar-mandala --size 640x360 --quality high -o docs/samples/solar-mandala.png
+fractique render --wallpaper 3 --layout waves --material glass --size 360x780 -o docs/samples/wallpaper-waves-light.png
+fractique render --wallpaper 5 --layout burst --material glow --size 360x780 -o docs/samples/wallpaper-burst-light.png
+fractique render --wallpaper 7 --layout tiles --material relief --size 360x780 -o docs/samples/wallpaper-tiles-light.png
+fractique render --wallpaper 9 --layout fan --material glass --size 360x780 -o docs/samples/wallpaper-fan-light.png
+fractique render --wallpaper 2 --layout discs --material paper --dark --size 360x780 -o docs/samples/wallpaper-discs-dark.png
+fractique render --wallpaper 6 --layout arcs --material carbon --dark --size 360x780 -o docs/samples/wallpaper-arcs-dark.png
+fractique render --wallpaper 14 --layout lines --material paper --dark --size 360x780 -o docs/samples/wallpaper-lines-dark.png
+fractique render --wallpaper 8 --layout bars --material paper --dark --size 360x780 -o docs/samples/wallpaper-bars-dark.png
+```
+
+The files were then made smaller without changing a pixel (`optipng -o2`).

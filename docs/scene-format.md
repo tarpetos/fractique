@@ -1,18 +1,14 @@
 # Scene format
 
-A scene file is JSON, described below. The app's own `.frcq` file is not text. It is the four bytes `FRCQ`, one byte
-with the file version (1), then a document squeezed with raw DEFLATE. The document holds the app's session (the
-scene under `scene`, with the tone sliders, the view, the size and the wallpaper choices beside it) and, under
-`shown`, the scene exactly as it was on the screen. `fractique render file.frcq` and the other commands read
-`shown`. `fractique_core::file` packs and unpacks it. A `.frcq` file is about a seventh of the same scene as
-indented JSON.
-
 A scene is one JSON document. It holds everything a render depends on, so the same scene always renders to the
 same image (see [determinism.md](determinism.md)). This file is the contract: it changes together with
 `crates/fractique-core/src/scene.rs` and `variation.rs`.
 
 Unknown fields are refused, so a typo in a field name is an error and not a silently ignored setting. Fields with
 a default may be left out. Colors are sRGB with each channel from 0 to 1.
+
+A scene is a flame (one or more [layers](#layer)), a wallpaper ([sheets](#sheets)), or both. The app saves scenes
+in a packed file of its own, [`.frcq`](#the-frcq-file), which every command reads as well.
 
 ## Example
 
@@ -254,7 +250,35 @@ A shape has a `kind` and the fields of that kind. `rotation` is in degrees, cloc
 | `wave` | `level`, `swells`, `thickness` 0 or more, `rotation` | A curve across the whole image: the line `y = level` moved up and down by its swells and turned around `[0, level]`. With `thickness` 0 the shape is everything under the curve; above 0 it is a ribbon that wide along the curve. Its edge distance is approximate where the curve is steep. |
 
 A swell is one sine: `height` (how far it moves the curve), `length` above 0 (the distance from crest to crest) and
-`shift` (radians, 0 where left out). A wave takes up to 4.
+`shift` (radians, 0 where left out). `swells` is a list of up to 4; an empty list leaves the line straight.
+
+### Generated wallpapers
+
+`fractique wallpaper SEED` and `fractique render --wallpaper SEED` write such a scene for a seed
+(`crates/fractique-core/src/wallpaper.rs`). The seed picks one of 14 layouts and 6 materials, the colors and the
+light; a layout or a material can be given instead. The shapes are laid out for the proportion of the size given,
+from 1:4 to 4:1, so the scene is for images of that proportion. The scene has `sheets`, a `background` and no
+layers, and is named `wallpaper-SEED`.
+
+| Layout | What it stacks |
+| --- | --- |
+| `bands`, `discs`, `tiles`, `bars`, `fan` | Rounded boxes: wide bands, circles, a grid of quarter circles, slanted bars, an opened fan |
+| `burst` | Petals around a middle |
+| `arcs` | Rings and arcs |
+| `waves`, `ribbons` | Waves: filled under the curve, or as ribbons |
+| `slats`, `steps`, `frames` | Boxes with square corners: slanted slats, steps, nested frames |
+| `planes`, `lines` | Waves without swells, which are straight: large tilted planes, thin lines |
+
+| Material | What it sets |
+| --- | --- |
+| `relief` | One color, bright rims |
+| `paper` | A ramp of colors, deep shadows |
+| `glass` | Translucent sheets (`opacity` below 1) that mix where they overlap |
+| `glow` | Dim sheets with wide bright rims |
+| `steel` | Graphite, navy, forest, oxblood or bronze, thin sharp rims |
+| `carbon` | Near black or near white with one accent color |
+
+Each has a light and a dark version of the same shapes.
 
 ## Transform
 
@@ -309,6 +333,33 @@ In the formulas `r` is the distance from the origin, `θ = atan2(x, y)` and `φ 
 | `curl` | (x, y) divided by the complex number 1 + c1 z + c2 z² | `c1` = 0.5, `c2` = 0.2 |
 
 `fractique variations` prints this list from the build you run.
+
+## The .frcq file
+
+The app's own file is not text. It is the four bytes `FRCQ`, one byte with the file version (`1`), then a JSON
+document squeezed with raw DEFLATE. `fractique_core::file` packs and unpacks it; a document may be up to 64 MB
+unpacked. A `.frcq` file is about a seventh of the same scene as indented JSON. A file of another version, or one
+that does not unpack, is refused.
+
+The document is the app's session, so a file opens as it was saved:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `fractique` | `1` | Marks the document as the app's. |
+| `scene` | scene | The scene as it was chosen, before the sliders and the view. For a wallpaper this is the flame the app held before it. |
+| `shown` | scene | The scene exactly as it was on the screen: the sliders and the view applied, or the wallpaper itself. `fractique render file.frcq` and the other commands read this one. |
+| `title` | string | The name the app shows. |
+| `random` | `true`, `false` | Whether the picture came from Randomize. |
+| `seed` | integer | The number of the last random flame or wallpaper. |
+| `adjust` | `[brightness, gamma, glow, zoom]` | The tone and zoom sliders, as factors: 1 changes nothing. |
+| `view` | `[right, down, zoom]` | Where the picture was moved to, in shorter sides of the picture from its middle, and the magnification. |
+| `picture` | `[width, height]` or `null` | The picture's size; `null` is the window's own. |
+| `layer` | integer | The chosen layer, from 0. |
+| `inspector` | `true`, `false`, `null` | Whether the controls were open. |
+| `optics` | `[refraction, depth, bezel]` | The fine tuning of the glass. |
+| `wall` | object | The wallpaper choices: `on` (wallpapers or flames), `live` (a wallpaper is shown), `layout` and `material` (a name, or `null` for any), `held` (the layout and material kept by Mutate), `dark`, `hue` (degrees, or `null`). |
+
+A plain JSON scene file has none of this: it is the scene alone.
 
 ## Versions
 

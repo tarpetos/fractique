@@ -1,60 +1,86 @@
 <div align="center">
   <img src="../../assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <h1>Fractique</h1>
-  <p><strong>Un generador de llamas fractales que produce la misma imagen a partir de la misma entrada, en cualquier plataforma.</strong></p>
+  <p><strong>Un generador de llamas fractales y fondos de pantalla que produce la misma imagen a partir de la misma entrada, en todas las plataformas.</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <strong>Español</strong> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
     <a href="README_CN.md">简体中文</a> · <a href="README_PT.md">Português</a> · <a href="README_KO.md">한국어</a> · <a href="README_HI.md">हिन्दी</a> · <a href="README_TR.md">Türkçe</a> · <a href="README_PL.md">Polski</a> · <a href="README_ID.md">Bahasa Indonesia</a>
   </sub></p>
 </div>
 
-Fractique dibuja llamas fractales: fractales luminosos y etéreos hechos de curvas finas y luz suave. Eliges un preajuste, generas una escena al azar o superpones varias llamas, y obtienes la imagen en cualquier resolución, desde la pantalla de un teléfono hasta un fondo de pantalla 4K. Una escena es un pequeño archivo JSON, y el mismo archivo produce siempre exactamente los mismos píxeles en Windows, macOS, Linux, Android e iOS.
+Fractique crea dos tipos de imágenes. Llamas fractales: esos fractales luminosos y etéreos hechos de curvas finas y luz suave. Y fondos de pantalla: láminas planas con bordes iluminados y sombras suaves, cada uno en versión clara y oscura. Eliges un preajuste, generas una imagen al azar o superpones varias llamas, y exportas el resultado a cualquier tamaño, desde la pantalla de un teléfono hasta un monitor 4K. Una escena es un único archivo pequeño, y el mismo archivo siempre da exactamente los mismos píxeles, en Windows, macOS, Linux, Android e iOS.
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="El preajuste aurora-spiral: volutas en espiral turquesas y verdes sobre fondo oscuro" width="880">
+  <img src="../samples/aurora-spiral.png" alt="El preajuste aurora-spiral: volutas en espiral turquesas y verdes sobre un fondo oscuro" width="880">
 </p>
 
-## Qué funciona hoy
+## Qué hace Fractique
 
-- **El motor de render** (`fractique-core`): llamas fractales con 28 variaciones, capas con modos de fusión, simetría rotacional y de espejo, estimación de densidad, resplandor, cualquier resolución.
-- **La aplicación:** un solo código para Windows, Linux, Android, iOS y la web, con paneles de vidrio sobre la llama, en 15 idiomas.
-- **Preajustes:** 9 escenas integradas.
-- **Generador aleatorio:** cada semilla es una escena; las escenas que serían un punto o un cuadrado relleno se descartan.
-- **Mutación:** una variante de una escena que te gusta, con una fuerza de 0 a 1.
+- **Llamas:** 28 variaciones, capas con modos de fusión, simetría rotacional y de espejo, estimación de densidad, resplandor y 21 preajustes integrados.
+- **Fondos de pantalla:** uno para cada semilla, a partir de 14 diseños y 6 materiales, cada uno en versión clara y oscura, dispuesto para el tamaño de la pantalla.
+- **La aplicación:** una sola base de código para Windows, macOS, Linux, Android, iOS y la web. La imagen llena la ventana y sobre ella flotan paneles de vidrio; en el escritorio la aplicación tiene su propia barra de título de vidrio. En 15 idiomas.
+- **Randomize y Mutate:** cada semilla es una imagen; las llamas que serían un punto o un cuadrado relleno se descartan. Mutate crea una variante de la que te gusta.
+- **Capas:** añade una llama de los preajustes o una aleatoria, quítala, cambia el orden y ajusta la fusión (add, screen, over) y la opacidad de cada una. Hasta 16 capas.
+- **Tamaño de la imagen:** el de la ventana, una de 21 pantallas (ordenadores hasta 4K, teléfonos y tabletas Android, iPhone y iPad) o cualquier ancho y alto de 16 a 16384 píxeles.
+- **Zoom profundo:** arrastrar, la rueda y el pellizco mueven la vista y la amplían hasta diez mil millones de veces. La imagen sigue al instante y se vuelve a dibujar nítida cuando la vista se detiene.
+- **Teléfonos:** una pantalla propia. Un botón redondo crea una imagen nueva, un deslizamiento pasa al siguiente fondo de pantalla, una hoja de pequeñas imágenes vivas elige el estilo y las imágenes que guardas forman una colección.
+- **Exportación:** un PNG de cualquier tamaño, en tres niveles de calidad, renderizado en segundo plano. En un teléfono se guarda en Fotos o en la galería, o se comparte.
+- **Archivos de proyecto:** un archivo `.frcq` guarda la escena con su vista, tono y tamaño, así que se abre tal como se guardó ([docs/scene-format.md](../scene-format.md)). También se abren escenas `.json` sencillas y archivos `.flame` de flam3 y Apophysis. Entre un inicio y otro, la aplicación vuelve a la sesión en la que se dejó.
+- **Actualizaciones:** una ventana muestra cada versión publicada con sus notas e instala cualquiera de ellas. En Windows la aplicación es un único `.exe` portátil que se reemplaza a sí mismo.
 - **Repetibilidad exacta:** la misma escena da los mismos píxeles en cualquier máquina, comprobado con pruebas en Linux, Windows y macOS ([docs/determinism.md](../determinism.md)).
-- **Importación:** los archivos `.flame` de flam3 y Apophysis se convierten en escenas.
-- **La herramienta de línea de comandos** (`fractique`): renderiza escenas a PNG.
+- **La herramienta de línea de comandos** (`fractique`): renderiza llamas y fondos de pantalla a PNG, crea escenas aleatorias y variantes, convierte archivos `.flame`.
 - **Servidor MCP** (`fractique mcp`): un agente de IA crea, modifica y renderiza escenas ([docs/mcp.md](../mcp.md)).
 
 | | |
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
 | `emerald-star` (dos capas) | `ember-vortex` |
+| ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
+| `golden-bloom` | `solar-mandala` |
 
-## Instalación
+Fondos de pantalla, claros y oscuros, cada uno con su diseño y su material:
 
-Un solo comando lo compila todo. Instala Rust si falta.
+| | | | |
+| --- | --- | --- | --- |
+| ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
+| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
+| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+
+## Inicio rápido
+
+Un solo comando compila la aplicación y la herramienta de línea de comandos. Instala Rust si falta.
 
 | Sistema | Comando |
 | --- | --- |
 | Linux, macOS | `./setup.sh` |
 | Windows | `setup.cmd` |
 
-Después:
+Inicia la aplicación:
 
 ```sh
-# un preajuste como fondo de pantalla 4K
+./target/release/fractique-gui
+```
+
+O renderiza desde la línea de comandos:
+
+```sh
+# un preajuste como imagen 4K
 ./target/release/fractique render --preset aurora-spiral --size 3840x2160 --quality high -o aurora.png
 
-# la escena aleatoria de la semilla 42, para la pantalla de un teléfono
+# la llama aleatoria de la semilla 42, para la pantalla de un teléfono
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
 
-# guardar una escena aleatoria en un archivo, modificarla, renderizarla
+# el fondo de pantalla de la semilla 7 para un teléfono, claro y oscuro
+./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png
+./target/release/fractique render --wallpaper 7 --dark --size 1290x2796 -o wallpaper-dark.png
+
+# guardar una escena aleatoria en un archivo, cambiarla, renderizarla
 ./target/release/fractique randomize 42 -o scene.json
 ./target/release/fractique render scene.json -o mine.png
 ```
 
-En Windows la herramienta está en `target\release\fractique.exe`. Todos los comandos y opciones: [docs/usage.md](../usage.md).
+En Windows los programas son `target\release\fractique-gui.exe` y `target\release\fractique.exe`. Todo lo que hacen la aplicación y los comandos: [docs/usage.md](../usage.md).
 
 ## Documentación
 
@@ -62,13 +88,14 @@ La documentación está en inglés.
 
 | | |
 | --- | --- |
-| [docs/usage.md](../usage.md) | Los comandos, los niveles de calidad, cómo editar una escena |
-| [docs/scene-format.md](../scene-format.md) | Cada campo de un archivo de escena, cada variación |
+| [docs/usage.md](../usage.md) | La aplicación, los comandos, los niveles de calidad, cómo editar una escena |
+| [docs/scene-format.md](../scene-format.md) | Cada campo de un archivo de escena, cada variación, las láminas, el archivo `.frcq` |
 | [docs/mcp.md](../mcp.md) | El servidor MCP: conectar un agente de IA, las herramientas |
 | [docs/ios.md](../ios.md) | Compilar y ejecutar en un iPhone o en el simulador de iOS |
-| [docs/architecture.md](../architecture.md) | Cómo encajan las partes, cómo funciona un render |
-| [docs/determinism.md](../determinism.md) | Por qué un render se repite con exactitud, y qué se promete y qué no |
-| [docs/performance.md](../performance.md) | Tiempos de render y memoria medidos |
+| [docs/releasing.md](../releasing.md) | Cómo se publica una versión y cómo se actualiza la aplicación |
+| [docs/architecture.md](../architecture.md) | Cómo encajan las partes, cómo funciona un renderizado |
+| [docs/determinism.md](../determinism.md) | Por qué un renderizado se repite exactamente, qué se promete y qué no |
+| [docs/performance.md](../performance.md) | Tiempos de renderizado y memoria medidos |
 | [docs/roadmap.md](../roadmap.md) | Qué está hecho y qué viene después |
 
 ## Licencia

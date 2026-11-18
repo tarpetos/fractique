@@ -1,60 +1,86 @@
 <div align="center">
   <img src="../../assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <h1>Fractique</h1>
-  <p><strong>एक फ्रैक्टल फ्लेम जनरेटर जो एक ही इनपुट से हर प्लेटफ़ॉर्म पर एक ही तस्वीर बनाता है।</strong></p>
+  <p><strong>फ्रैक्टल फ्लेम और वॉलपेपर जनरेटर, जो एक ही इनपुट से हर प्लेटफ़ॉर्म पर एक ही तस्वीर बनाता है।</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
     <a href="README_CN.md">简体中文</a> · <a href="README_PT.md">Português</a> · <a href="README_KO.md">한국어</a> · <strong>हिन्दी</strong> · <a href="README_TR.md">Türkçe</a> · <a href="README_PL.md">Polski</a> · <a href="README_ID.md">Bahasa Indonesia</a>
   </sub></p>
 </div>
 
-Fractique फ्रैक्टल फ्लेम बनाता है: पतली रेखाओं और नरम रोशनी से बने चमकते, धुएँ जैसे फ्रैक्टल। आप कोई प्रीसेट चुनते हैं, यादृच्छिक दृश्य बनाते हैं या कई फ्लेम एक के ऊपर एक रखते हैं, और उसे किसी भी रिज़ॉल्यूशन में रेंडर करते हैं, फ़ोन की स्क्रीन से लेकर 4K वॉलपेपर तक। एक दृश्य एक छोटी JSON फ़ाइल है, और वही फ़ाइल Windows, macOS, Linux, Android और iOS पर हमेशा बिल्कुल वही पिक्सेल देती है।
+Fractique दो तरह की तस्वीरें बनाता है। फ्रैक्टल फ्लेम: पतली वक्र रेखाओं और कोमल रोशनी से बने चमकदार, धुएँ जैसे फ्रैक्टल। और वॉलपेपर: रोशन किनारों और हल्की परछाइयों वाली सपाट परतें, हर एक हल्के और गहरे रूप में। आप कोई प्रीसेट चुनते हैं, कोई रैंडम तस्वीर बनाते हैं या कई फ्लेम एक-दूसरे पर रखते हैं, और नतीजे को फ़ोन की स्क्रीन से लेकर 4K मॉनिटर तक किसी भी आकार में एक्सपोर्ट करते हैं। एक सीन एक छोटी फ़ाइल है, और वही फ़ाइल Windows, macOS, Linux, Android और iOS पर हमेशा बिल्कुल वही पिक्सेल देती है।
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="aurora-spiral प्रीसेट: गहरे पृष्ठभूमि पर फ़िरोज़ी और हरी सर्पिल लकीरें" width="880">
+  <img src="../samples/aurora-spiral.png" alt="aurora-spiral प्रीसेट: गहरे बैकग्राउंड पर फ़िरोज़ी और हरी सर्पिल लहरें" width="880">
 </p>
 
-## अभी क्या काम करता है
+## Fractique क्या करता है
 
-- **रेंडरर** (`fractique-core`): 28 वेरिएशन वाले फ्रैक्टल फ्लेम, ब्लेंड मोड वाली लेयर, घूर्णन और दर्पण सममिति, घनत्व अनुमान, आभा, कोई भी रिज़ॉल्यूशन।
-- **ऐप:** Windows, Linux, Android, iOS और वेब के लिए एक ही कोडबेस, फ्लेम के ऊपर काँच के पैनल, 15 भाषाओं में।
-- **प्रीसेट:** 9 बने-बनाए दृश्य।
-- **यादृच्छिक जनरेटर:** हर सीड एक दृश्य है; जो दृश्य केवल एक बिंदु या भरा हुआ वर्ग बनते, उन्हें छोड़ दिया जाता है।
-- **उत्परिवर्तन:** आपके पसंदीदा दृश्य का एक रूपांतर, 0 से 1 तक की तीव्रता के साथ।
-- **सटीक दोहराव:** वही दृश्य हर मशीन पर वही पिक्सेल देता है; इसे Linux, Windows और macOS पर टेस्ट जाँचते हैं ([docs/determinism.md](../determinism.md))।
-- **आयात:** flam3 और Apophysis की `.flame` फ़ाइलें दृश्यों में बदल जाती हैं।
-- **कमांड लाइन टूल** (`fractique`): दृश्यों को PNG में रेंडर करता है।
-- **MCP सर्वर** (`fractique mcp`): एक AI एजेंट दृश्य बनाता, बदलता और रेंडर करता है ([docs/mcp.md](../mcp.md))।
+- **फ्लेम:** 28 वेरिएशन, ब्लेंड मोड वाली लेयर, घूर्णी और दर्पण सममिति, घनत्व आकलन, ग्लो और 21 बिल्ट-इन प्रीसेट।
+- **वॉलपेपर:** हर सीड के लिए एक, 14 लेआउट और 6 मटीरियल से, हर एक हल्के और गहरे रूप में, स्क्रीन के आकार के हिसाब से सजाया हुआ।
+- **ऐप:** Windows, macOS, Linux, Android, iOS और वेब के लिए एक ही कोडबेस। तस्वीर पूरी विंडो में फैलती है और उसके ऊपर काँच के पैनल तैरते हैं; डेस्कटॉप पर ऐप की अपनी काँच की टाइटल बार है। 15 भाषाओं में।
+- **Randomize और Mutate:** हर सीड एक तस्वीर है; जो फ्लेम सिर्फ़ एक बिंदु या भरा हुआ वर्ग बनते, वे छोड़ दिए जाते हैं। Mutate आपकी पसंद की तस्वीर का एक रूपांतर बनाता है।
+- **लेयर:** प्रीसेट में से या कोई रैंडम फ्लेम जोड़ें, हटाएँ, क्रम बदलें और हर एक का ब्लेंड (add, screen, over) और अपारदर्शिता तय करें। अधिकतम 16 लेयर।
+- **तस्वीर का आकार:** विंडो का अपना आकार, 21 स्क्रीन में से एक (4K तक के कंप्यूटर, Android फ़ोन और टैबलेट, iPhone और iPad), या 16 से 16384 पिक्सेल तक कोई भी चौड़ाई और ऊँचाई।
+- **गहरा ज़ूम:** ड्रैग, व्हील और पिंच से व्यू खिसकता है और दस अरब गुना तक बड़ा होता है। तस्वीर तुरंत साथ चलती है और व्यू के रुकते ही साफ़ दोबारा बनती है।
+- **फ़ोन:** अपनी अलग स्क्रीन। एक गोल बटन नई तस्वीर बनाता है, स्वाइप अगले वॉलपेपर पर ले जाता है, छोटी लाइव तस्वीरों की एक शीट से स्टाइल चुना जाता है, और जो तस्वीरें आप रखते हैं उनसे एक संग्रह बनता है।
+- **एक्सपोर्ट:** किसी भी आकार का PNG, तीन क्वालिटी स्तरों में, बैकग्राउंड में रेंडर होता है। फ़ोन पर यह Photos या गैलरी में सेव होता है, या शेयर किया जाता है।
+- **प्रोजेक्ट फ़ाइलें:** `.frcq` फ़ाइल सीन को उसके व्यू, टोन और आकार के साथ रखती है, इसलिए वह वैसी ही खुलती है जैसी सेव की गई थी ([docs/scene-format.md](../scene-format.md))। सादे `.json` सीन और flam3 तथा Apophysis की `.flame` फ़ाइलें भी खुलती हैं। दोबारा खोलने पर ऐप उसी सेशन पर लौटता है जहाँ उसे छोड़ा गया था।
+- **अपडेट:** एक विंडो हर जारी संस्करण को उसके नोट्स के साथ दिखाती है और उनमें से कोई भी इंस्टॉल करती है। Windows पर ऐप एक पोर्टेबल `.exe` है, जो ख़ुद को बदल लेता है।
+- **सटीक दोहराव:** एक ही सीन हर मशीन पर वही पिक्सेल देता है; Linux, Windows और macOS पर टेस्ट इसकी जाँच करते हैं ([docs/determinism.md](../determinism.md))।
+- **कमांड लाइन टूल** (`fractique`): फ्लेम और वॉलपेपर को PNG में रेंडर करता है, रैंडम सीन और रूपांतर बनाता है, `.flame` फ़ाइलें बदलता है।
+- **MCP सर्वर** (`fractique mcp`): एक AI एजेंट सीन बनाता, बदलता और रेंडर करता है ([docs/mcp.md](../mcp.md))।
 
 | | |
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
 | `emerald-star` (दो लेयर) | `ember-vortex` |
+| ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
+| `golden-bloom` | `solar-mandala` |
 
-## सेटअप
+हल्के और गहरे वॉलपेपर, हर एक अपने लेआउट और मटीरियल के साथ:
 
-एक कमांड सब कुछ बिल्ड कर देता है। Rust न हो तो वह उसे इंस्टॉल कर देता है।
+| | | | |
+| --- | --- | --- | --- |
+| ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
+| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
+| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+
+## झटपट शुरुआत
+
+एक कमांड ऐप और कमांड लाइन टूल दोनों बना देता है। Rust न हो तो उसे इंस्टॉल कर देता है।
 
 | सिस्टम | कमांड |
 | --- | --- |
 | Linux, macOS | `./setup.sh` |
 | Windows | `setup.cmd` |
 
-फिर:
+ऐप शुरू करें:
 
 ```sh
-# एक प्रीसेट, 4K वॉलपेपर के रूप में
+./target/release/fractique-gui
+```
+
+या कमांड लाइन से रेंडर करें:
+
+```sh
+# एक प्रीसेट 4K तस्वीर के रूप में
 ./target/release/fractique render --preset aurora-spiral --size 3840x2160 --quality high -o aurora.png
 
-# सीड 42 का यादृच्छिक दृश्य, फ़ोन की स्क्रीन के लिए
+# सीड 42 का रैंडम फ्लेम, फ़ोन स्क्रीन के लिए
 ./target/release/fractique render --random 42 --size 1080x2400 --quality mobile -o phone.png
 
-# यादृच्छिक दृश्य को फ़ाइल में रखें, बदलें, रेंडर करें
+# सीड 7 का वॉलपेपर फ़ोन के लिए, हल्का और गहरा
+./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png
+./target/release/fractique render --wallpaper 7 --dark --size 1290x2796 -o wallpaper-dark.png
+
+# रैंडम सीन को फ़ाइल में रखें, बदलें, रेंडर करें
 ./target/release/fractique randomize 42 -o scene.json
 ./target/release/fractique render scene.json -o mine.png
 ```
 
-Windows पर टूल `target\release\fractique.exe` में है। सभी कमांड और विकल्प: [docs/usage.md](../usage.md)।
+Windows पर प्रोग्राम `target\release\fractique-gui.exe` और `target\release\fractique.exe` हैं। ऐप और कमांड जो कुछ करते हैं, वह सब: [docs/usage.md](../usage.md)।
 
 ## दस्तावेज़
 
@@ -62,15 +88,16 @@ Windows पर टूल `target\release\fractique.exe` में है। स�
 
 | | |
 | --- | --- |
-| [docs/usage.md](../usage.md) | कमांड, गुणवत्ता स्तर, दृश्य को कैसे संपादित करें |
-| [docs/scene-format.md](../scene-format.md) | दृश्य फ़ाइल का हर फ़ील्ड, हर वेरिएशन |
-| [docs/mcp.md](../mcp.md) | MCP सर्वर: AI एजेंट जोड़ना, टूल |
-| [docs/ios.md](../ios.md) | iPhone या iOS सिम्युलेटर पर बिल्ड करना और चलाना |
+| [docs/usage.md](../usage.md) | ऐप, कमांड, क्वालिटी स्तर, सीन कैसे संपादित करें |
+| [docs/scene-format.md](../scene-format.md) | सीन फ़ाइल का हर फ़ील्ड, हर वेरिएशन, शीट, `.frcq` फ़ाइल |
+| [docs/mcp.md](../mcp.md) | MCP सर्वर: AI एजेंट को जोड़ना, टूल |
+| [docs/ios.md](../ios.md) | iPhone या iOS सिम्युलेटर पर बनाना और चलाना |
+| [docs/releasing.md](../releasing.md) | रिलीज़ कैसे बनती है, ऐप ख़ुद को कैसे अपडेट करता है |
 | [docs/architecture.md](../architecture.md) | हिस्से आपस में कैसे जुड़ते हैं, रेंडर कैसे काम करता है |
-| [docs/determinism.md](../determinism.md) | रेंडर बिल्कुल वैसा ही क्यों दोहराता है, किस बात का वादा है और किसका नहीं |
+| [docs/determinism.md](../determinism.md) | रेंडर ठीक वैसा ही क्यों दोहराता है, किस बात का वादा है और किसका नहीं |
 | [docs/performance.md](../performance.md) | मापा गया रेंडर समय और मेमोरी |
 | [docs/roadmap.md](../roadmap.md) | क्या हो चुका है और आगे क्या है |
 
 ## लाइसेंस
 
-[PolyForm Noncommercial License 1.0.0](../../LICENSE.md): किसी भी गैर-व्यावसायिक उपयोग के लिए निःशुल्क। व्यावसायिक उपयोग के लिए लेखक से अलग लाइसेंस माँगें। तृतीय-पक्ष लाइसेंस [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) में सूचीबद्ध हैं। योगदान: [CONTRIBUTING.md](../../CONTRIBUTING.md) देखें।
+[PolyForm Noncommercial License 1.0.0](../../LICENSE.md): किसी भी गैर-व्यावसायिक उपयोग के लिए मुफ़्त। व्यावसायिक उपयोग के लिए लेखक से अलग लाइसेंस माँगें। तृतीय-पक्ष लाइसेंस [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) में सूचीबद्ध हैं। योगदान: [CONTRIBUTING.md](../../CONTRIBUTING.md) देखें।
