@@ -29,8 +29,16 @@ icons = [
     "../../assets/icon/icon.icns",
 ]
 
+[[file-associations]]
+extensions = ["frcq"]
+mime-type = "application/x-fractique"
+name = "Fractique scene"
+description = "Fractique scene"
+role = "editor"
+
 [deb]
 section = "graphics"
+files = { "assets/linux/app.fractique.xml" = "usr/share/mime/packages/app.fractique.xml" }
 depends = [
     "libxkbcommon0",
     "libvulkan1",
@@ -40,6 +48,9 @@ depends = [
     "libxi6",
     "libxrandr2",
 ]
+
+[appimage]
+files = { "assets/linux/app.fractique.xml" = "usr/share/mime/packages/app.fractique.xml" }
 
 [macos]
 minimum-system-version = "13.0"

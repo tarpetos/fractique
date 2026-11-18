@@ -1,5 +1,7 @@
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(any(windows, test))]
+mod association;
 mod blur;
 #[cfg(not(target_arch = "wasm32"))]
 mod export;
@@ -269,6 +271,11 @@ static OPEN_FIRST: OnceLock<PathBuf> = OnceLock::new();
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 pub fn open_at_start(path: PathBuf) {
     let _ = OPEN_FIRST.set(path);
+}
+
+#[cfg(windows)]
+pub fn register_scene_files() {
+    association::register();
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]

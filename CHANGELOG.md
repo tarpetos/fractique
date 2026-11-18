@@ -34,6 +34,9 @@
 * **iPhone:** an exported picture goes to Photos or to the share sheet.
 * **Wallpapers:** a wallpaper can be asked for in one color (`hue` of the request). The bands layout no longer
   makes an invalid shape on screens about 1.6 times as tall as wide.
+* **App:** a double click on a `.frcq` file opens it in Fractique. The Windows program registers the file type for
+  the current user when it starts; the `.deb` and the AppImage carry the type and the association. On macOS the type
+  is declared, but a double click does not open the file yet.
 
 ## 0.1.0
 
