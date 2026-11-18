@@ -175,6 +175,13 @@ enum Sheet {
     Sizes,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Listing {
+    Presets,
+    Layouts,
+    Materials,
+}
+
 fn shown(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
     for word in name.split('-') {
@@ -341,6 +348,7 @@ struct App {
     custom: [String; 2],
     sizes_open: bool,
     presets_open: bool,
+    listing: Listing,
     adding_layer: bool,
     layer: usize,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -505,8 +513,8 @@ impl App {
             texts,
             base: named(presets::get(&title).unwrap_or_else(|| random_scene(1)), &shown(&title)),
             wall: Wall {
-                on: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "wallpaper"),
-                live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "wallpaper"),
+                on: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "wallpaper" || what == "layouts"),
+                live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "wallpaper" || what == "layouts"),
                 ..Default::default()
             },
             title,
@@ -535,7 +543,12 @@ impl App {
             picture: stored("picture").and_then(|text| parsed_size(&text)),
             custom: Default::default(),
             sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
-            presets_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "presets"),
+            presets_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "presets" || what == "layouts"),
+            listing: if std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "layouts") {
+                Listing::Layouts
+            } else {
+                Listing::Presets
+            },
             adding_layer: false,
             layer: 0,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -797,6 +810,7 @@ impl App {
     fn open_sheet(&mut self, which: Sheet) {
         let (presets, sizes) = (self.presets_open, self.sizes_open);
         self.presets_open = which == Sheet::Presets && !presets;
+        self.listing = Listing::Presets;
         self.adding_layer = false;
         self.sizes_open = which == Sheet::Sizes && !sizes;
         self.languages_open = false;
@@ -813,6 +827,10 @@ impl App {
     fn preset_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
         ui.set_width(260.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+        if self.listing != Listing::Presets {
+            self.wall_sheet(ui, room);
+            return;
+        }
         let adding = self.adding_layer;
         widgets::section(ui, &self.t(if adding { "layers" } else { "presets" }));
         let mut bar = egui::style::ScrollStyle::floating();
@@ -1283,16 +1301,7 @@ impl App {
 
         ui.add_space(12.0);
         let (flames, wallpapers) = (self.t("flames"), self.t("wallpapers"));
-        let half = (ui.available_width() - 8.0) * 0.5;
-        let mut mode = None;
-        ui.horizontal(|ui| {
-            if widgets::pill(ui, &flames, !self.wall.on, half) {
-                mode = Some(false);
-            }
-            if widgets::pill(ui, &wallpapers, self.wall.on, half) {
-                mode = Some(true);
-            }
-        });
+        let mode = widgets::segments(ui, &[flames, wallpapers], usize::from(self.wall.on)).map(|index| index == 1);
         match mode {
             Some(true) if !self.wall.on => {
                 self.wall.on = true;
@@ -1484,75 +1493,96 @@ impl App {
     }
 
     fn wallpaper_controls(&mut self, ui: &mut egui::Ui) {
-        let before = (self.wall.layout, self.wall.material, self.wall.dark);
         let any = self.t("any");
-        let chips = |ui: &mut egui::Ui, run: &mut dyn FnMut(&mut egui::Ui)| {
-            ui.add_space(4.0);
-            ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing = egui::vec2(6.0, 6.0);
-                ui.spacing_mut().button_padding.x = 12.0;
-                run(ui);
-            });
-        };
+        let layout = self
+            .wall
+            .layout
+            .and_then(|layout| Layout::ALL.iter().find(|(_, each)| *each == layout));
+        let material = self
+            .wall
+            .material
+            .and_then(|material| Material::ALL.iter().find(|(_, each)| *each == material));
 
         widgets::section(ui, &self.t("layout"));
-        let layouts: Vec<(String, Layout)> = Layout::ALL
-            .iter()
-            .map(|(name, layout)| (self.t(&format!("l_{name}")), *layout))
-            .collect();
-        let mut layout = self.wall.layout;
-        chips(ui, &mut |ui| {
-            if widgets::pill(ui, &any, layout.is_none(), 0.0) {
-                layout = None;
-            }
-            for (label, value) in &layouts {
-                if widgets::pill(ui, label, layout == Some(*value), 0.0) {
-                    layout = Some(*value);
-                }
-            }
-        });
-        self.wall.layout = layout;
+        let label = layout.map_or(any.clone(), |(name, _)| self.t(&format!("l_{name}")));
+        if widgets::dropdown(ui, &label) {
+            self.open_listing(Listing::Layouts);
+        }
 
         widgets::section(ui, &self.t("material"));
-        let materials: Vec<(String, Material)> = Material::ALL
-            .iter()
-            .map(|(name, material)| (self.t(&format!("m_{name}")), *material))
-            .collect();
-        let mut material = self.wall.material;
-        chips(ui, &mut |ui| {
-            if widgets::pill(ui, &any, material.is_none(), 0.0) {
-                material = None;
-            }
-            for (label, value) in &materials {
-                if widgets::pill(ui, label, material == Some(*value), 0.0) {
-                    material = Some(*value);
-                }
-            }
-        });
-        self.wall.material = material;
+        let label = material.map_or(any, |(name, _)| self.t(&format!("m_{name}")));
+        if widgets::dropdown(ui, &label) {
+            self.open_listing(Listing::Materials);
+        }
 
         ui.add_space(12.0);
-        let (light, dark) = (self.t("light"), self.t("dark"));
-        let half = (ui.available_width() - 8.0) * 0.5;
-        let mut is_dark = self.wall.dark;
-        ui.horizontal(|ui| {
-            if widgets::pill(ui, &light, !is_dark, half) {
-                is_dark = false;
-            }
-            if widgets::pill(ui, &dark, is_dark, half) {
-                is_dark = true;
-            }
-        });
-        self.wall.dark = is_dark;
+        let before = self.wall.dark;
+        let tones = [self.t("light"), self.t("dark")];
+        if let Some(index) = widgets::segments(ui, &tones, usize::from(self.wall.dark)) {
+            self.wall.dark = index == 1;
+        }
+        if before != self.wall.dark {
+            self.wall_changed(true);
+        }
+    }
 
-        if before != (self.wall.layout, self.wall.material, self.wall.dark) {
-            if before.2 == self.wall.dark {
-                self.wall.held = None;
-            }
-            if self.wall.live {
-                self.requested = None;
-            } else {
-                self.new_wallpaper();
+    fn open_listing(&mut self, listing: Listing) {
+        let again = self.presets_open && self.listing == listing;
+        self.open_sheet(Sheet::Presets);
+        self.presets_open = !again;
+        self.listing = listing;
+    }
+
+    fn wall_changed(&mut self, same_shapes: bool) {
+        if !same_shapes {
+            self.wall.held = None;
+        }
+        if self.wall.live {
+            self.requested = None;
+        } else {
+            self.new_wallpaper();
+        }
+    }
+
+    fn wall_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
+        let layouts = self.listing == Listing::Layouts;
+        widgets::section(ui, &self.t(if layouts { "layout" } else { "material" }));
+        let mut bar = egui::style::ScrollStyle::floating();
+        bar.bar_width = 5.0;
+        ui.spacing_mut().scroll = bar;
+        let before = (self.wall.layout, self.wall.material);
+        let mut picked = false;
+        egui::ScrollArea::vertical()
+            .max_height((room - 110.0).max(90.0))
+            .show(ui, |ui| {
+                if layouts {
+                    if widgets::row(ui, &self.t("any"), self.wall.layout.is_none()) {
+                        self.wall.layout = None;
+                        picked = true;
+                    }
+                    for (name, layout) in Layout::ALL {
+                        if widgets::row(ui, &self.t(&format!("l_{name}")), self.wall.layout == Some(layout)) {
+                            self.wall.layout = Some(layout);
+                            picked = true;
+                        }
+                    }
+                } else {
+                    if widgets::row(ui, &self.t("any"), self.wall.material.is_none()) {
+                        self.wall.material = None;
+                        picked = true;
+                    }
+                    for (name, material) in Material::ALL {
+                        if widgets::row(ui, &self.t(&format!("m_{name}")), self.wall.material == Some(material)) {
+                            self.wall.material = Some(material);
+                            picked = true;
+                        }
+                    }
+                }
+            });
+        if picked {
+            self.presets_open = false;
+            if before != (self.wall.layout, self.wall.material) {
+                self.wall_changed(false);
             }
         }
     }
