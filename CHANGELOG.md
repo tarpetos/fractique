@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+* **GPU acceleration:** the trial of a built-in graphics chip gives way when a picture is asked for and begins
+  again when the app rests; its verdict is kept again, so a slow phone is tried once, not at every start. The
+  first picture after a start is no longer handed to the processor because the shaders took time to load.
 * **Phones:** the small pictures of the styles are drawn on one thread, so the window and the picture keep their
   cores, and are kept as files, so a sheet that was drawn once opens at once the next time.
 * **GPU acceleration:** the trial that decides whether a built-in graphics chip is used draws a larger picture and

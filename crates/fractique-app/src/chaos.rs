@@ -682,12 +682,15 @@ impl Chaos {
                     .iter()
                     .zip(&run.layers)
                     .any(|(landed, layer)| f64::from(*landed) < IN_VIEW * layer.plotted * run.done as f64);
-                // A card that would take longer than the processor is told to stop: the processor renders.
+                // A card that would take longer than the processor is told to stop: the processor renders. Its
+                // own work counts, not the wait for its shaders or for a frame.
                 let since = run.started.elapsed().as_secs_f32();
+                let took = at.duration_since(run.submitted).as_secs_f32().max(1e-4);
+                let worked = run.spent + took;
                 let slow = run.done < run.goal
                     && run
                         .limit
-                        .is_some_and(|limit| since * run.goal as f32 / run.done as f32 > limit);
+                        .is_some_and(|limit| worked * run.goal as f32 / run.done as f32 > limit);
                 if flight.broken || sparse || slow {
                     if flight.broken {
                         self.failed.store(true, Ordering::Relaxed);
@@ -701,7 +704,6 @@ impl Chaos {
                     run.full.get_or_insert(since);
                     run.layers.iter_mut().for_each(|layer| layer.work = None);
                 }
-                let took = at.duration_since(run.submitted).as_secs_f32().max(1e-4);
                 // Drawing the levels costs the same after a short batch: a batch walks for longer than that takes.
                 run.fastest = run.fastest.min(took);
                 run.spent += took;
