@@ -171,6 +171,9 @@ impl App {
         let (opacity, blur) = (glass("glass_opacity", 0.4), glass("glass_blur", 0.7));
         widgets::install_fonts(&cc.egui_ctx, texts.lang);
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        // The window comes back where and as large as it was, on the same screen, but never in full screen.
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
         if let Some(state) = &cc.wgpu_render_state {
             note(&format!("graphics: {:?}", state.adapter.get_info()));
             let gfx = Gfx::new(&state.device, state.target_format);

@@ -28,13 +28,16 @@ fn main() -> eframe::Result {
         // A screenshot run is a test: it draws into a window nobody sees.
         viewport = viewport.with_visible(false).with_taskbar(false).with_active(false);
     }
-    fractique_app::run(
-        eframe::NativeOptions {
-            viewport,
-            ..Default::default()
-        },
-        screenshot,
-    )
+    let mut options = eframe::NativeOptions {
+        viewport,
+        ..Default::default()
+    };
+    if screenshot.is_some() {
+        // A test run must not change the window and settings the owner's next launch restores.
+        options.persist_window = false;
+        options.persistence_path = Some(std::env::temp_dir().join("fractique-screenshot.ron"));
+    }
+    fractique_app::run(options, screenshot)
 }
 
 #[cfg(target_arch = "wasm32")]
