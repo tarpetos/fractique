@@ -36,6 +36,20 @@ struct Args {
     /// Seconds a render may take before it is stopped
     #[arg(long, env = "FRACTIQUE_TIMEOUT", default_value_t = 120)]
     timeout: u64,
+    /// MCP for AI agents at /mcp: on or off
+    #[arg(
+        long,
+        env = "FRACTIQUE_MCP",
+        default_value = "on",
+        value_name = "on|off",
+        hide_possible_values = true,
+        action = clap::ArgAction::Set,
+        value_parser = clap::builder::BoolishValueParser::new()
+    )]
+    mcp: bool,
+    /// Origin of a web page that may call /mcp besides the pages of this machine; * for any
+    #[arg(long = "mcp-origin", env = "FRACTIQUE_MCP_ORIGINS", value_delimiter = ',')]
+    mcp_origins: Vec<String>,
 }
 
 async fn stop_signal() {
@@ -68,6 +82,8 @@ async fn run(args: Args) -> Result<(), String> {
         max_supersample: args.max_supersample,
         timeout: Duration::from_secs(args.timeout),
         web: args.web,
+        mcp: args.mcp,
+        mcp_origins: args.mcp_origins,
     };
     let listener = tokio::net::TcpListener::bind(args.bind)
         .await

@@ -1,6 +1,8 @@
+mod mcp;
+
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use axum::body::Bytes;
@@ -12,7 +14,9 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use fractique_core::random::random_scene;
 use fractique_core::wallpaper::{Layout, Material, Request, random_wallpaper};
-use fractique_core::{Control, Image, Quality, RenderError, RenderOptions, Scene, presets, render};
+use fractique_core::{Control, Quality, RenderError, RenderOptions, Scene, presets, render};
+pub use fractique_mcp::encode_png;
+use fractique_mcp::{Host, Limits};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
@@ -32,6 +36,8 @@ pub struct Config {
     pub max_supersample: u32,
     pub timeout: Duration,
     pub web: Option<PathBuf>,
+    pub mcp: bool,
+    pub mcp_origins: Vec<String>,
 }
 
 impl Default for Config {
@@ -45,6 +51,19 @@ impl Default for Config {
             max_supersample: 2,
             timeout: Duration::from_secs(120),
             web: None,
+            mcp: true,
+            mcp_origins: Vec::new(),
+        }
+    }
+}
+
+impl Config {
+    fn limits(&self) -> Limits {
+        Limits {
+            max_side: self.max_side,
+            max_pixels: self.max_pixels,
+            max_samples: self.max_samples,
+            max_supersample: self.max_supersample,
         }
     }
 }
@@ -53,6 +72,8 @@ struct Shared {
     config: Config,
     slots: Arc<Semaphore>,
     busy: watch::Sender<usize>,
+    host: Host,
+    sessions: Mutex<mcp::Sessions>,
 }
 
 struct Ticket(Arc<Shared>);
@@ -189,31 +210,7 @@ impl RenderBody {
         options.samples_per_pixel = self.samples.unwrap_or(options.samples_per_pixel);
         options.supersample = self.supersample.unwrap_or(options.supersample);
 
-        let side = |v: u32| (1..=limits.max_side).contains(&v);
-        if !side(options.width) || !side(options.height) {
-            return Err(Failure::bad(format!(
-                "width and height must be between 1 and {} on this server",
-                limits.max_side
-            )));
-        }
-        if u64::from(options.width) * u64::from(options.height) > limits.max_pixels {
-            return Err(Failure::bad(format!(
-                "{}x{} is more than the {} pixels this server renders",
-                options.width, options.height, limits.max_pixels
-            )));
-        }
-        if !(1..=limits.max_samples).contains(&options.samples_per_pixel) {
-            return Err(Failure::bad(format!(
-                "samples per pixel must be between 1 and {} on this server",
-                limits.max_samples
-            )));
-        }
-        if !(1..=limits.max_supersample).contains(&options.supersample) {
-            return Err(Failure::bad(format!(
-                "supersample must be between 1 and {} on this server",
-                limits.max_supersample
-            )));
-        }
+        limits.limits().check(&options).map_err(Failure::bad)?;
         Ok(options)
     }
 
@@ -248,17 +245,6 @@ impl RenderBody {
         };
         Ok(Source::Scene(Box::new(scene)))
     }
-}
-
-pub fn encode_png(image: &Image) -> Result<Vec<u8>, String> {
-    let mut bytes = Vec::new();
-    let mut encoder = png::Encoder::new(&mut bytes, image.width, image.height);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder.write_header().map_err(|e| e.to_string())?;
-    writer.write_image_data(&image.rgba).map_err(|e| e.to_string())?;
-    writer.finish().map_err(|e| e.to_string())?;
-    Ok(bytes)
 }
 
 async fn list_presets() -> Json<Value> {
@@ -353,6 +339,7 @@ async fn limits(State(shared): State<Arc<Shared>>) -> Json<Value> {
         "max_supersample": config.max_supersample,
         "timeout_seconds": config.timeout.as_secs_f64(),
         "max_body_bytes": MAX_BODY_BYTES,
+        "mcp": config.mcp,
         "qualities": Quality::ALL.map(|(name, _)| name),
         "layouts": Layout::ALL.map(|(name, _)| name),
         "materials": Material::ALL.map(|(name, _)| name),
@@ -377,19 +364,27 @@ pub fn app(config: Config) -> App {
     let web = config.web.clone();
     let shared = Arc::new(Shared {
         slots: Arc::new(Semaphore::new(config.jobs.max(1))),
+        host: Host {
+            protocols: &mcp::PROTOCOLS,
+            files: false,
+            limits: Some(config.limits()),
+        },
+        sessions: Mutex::default(),
         config,
         busy,
     });
-    let router = Router::new()
+    let mut router = Router::new()
         .route("/presets", get(list_presets))
         .route("/presets/{name}", get(get_preset))
         .route("/random", post(random))
         .route("/wallpaper", post(wallpaper))
         .route("/render", post(render_png))
         .route("/limits", get(limits))
-        .route("/health", get(health))
-        .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
-        .with_state(shared);
+        .route("/health", get(health));
+    if shared.config.mcp {
+        router = router.route("/mcp", post(mcp::post).delete(mcp::delete));
+    }
+    let router = router.layer(DefaultBodyLimit::max(MAX_BODY_BYTES)).with_state(shared);
     let router = match web {
         Some(folder) => router.fallback_service(ServeDir::new(folder).precompressed_gzip()),
         None => router.fallback(not_found),

@@ -3,7 +3,7 @@
 `fractique-server` puts Fractique behind an HTTP API: presets, random scenes, wallpapers and renders that come back
 as PNG. It calls the same renderer as the command line tool and the app, so a request renders to the same pixels
 there, here and in a container. When it is given the web build of the app it serves that too, so one address offers
-both the API and the app in a browser.
+both the API and the app in a browser. AI agents reach the same renderer through MCP at `/mcp`.
 
 Renders go through a queue with hard limits, so an instance open to the internet cannot be made to work without
 end. See [Limits](#limits) before you publish one.
@@ -15,9 +15,10 @@ end. See [Limits](#limits) before you publish one.
 3. [Errors](#errors)
 4. [Limits](#limits)
 5. [The queue](#the-queue)
-6. [The web app](#the-web-app)
-7. [Docker](#docker)
-8. [Publishing an instance](#publishing-an-instance)
+6. [MCP](#mcp)
+7. [The web app](#the-web-app)
+8. [Docker](#docker)
+9. [Publishing an instance](#publishing-an-instance)
 
 ## Run it
 
@@ -39,6 +40,8 @@ It listens on `127.0.0.1:8080`. Every setting is an option and an environment va
 | `--max-samples` | `FRACTIQUE_MAX_SAMPLES` | 1000 | Most samples per pixel |
 | `--max-supersample` | `FRACTIQUE_MAX_SUPERSAMPLE` | 2 | Largest supersample |
 | `--timeout` | `FRACTIQUE_TIMEOUT` | 120 | Seconds a render may take before it is stopped |
+| `--mcp` | `FRACTIQUE_MCP` | `on` | MCP for AI agents at `/mcp`: `on` or `off` |
+| `--mcp-origin` | `FRACTIQUE_MCP_ORIGINS` | none | Origins of web pages that may call `/mcp` besides the pages of this machine; the option once per origin, the variable with commas between them; `*` for any |
 
 ## Endpoints
 
@@ -52,8 +55,9 @@ refused, so a misspelt name is an error and not a silent default.
 | `POST /random` | `{"seed"}` | The random scene of the seed |
 | `POST /wallpaper` | `{"seed", "layout"?, "material"?, "dark"?, "hue"?, "width"?, "height"?}` | The wallpaper of the seed as a scene |
 | `POST /render` | One source, a size and a quality, see below | `image/png` |
-| `GET /limits` | | The limits of this instance and the names of the qualities, layouts and materials |
+| `GET /limits` | | The limits of this instance, whether MCP is on (`"mcp"`) and the names of the qualities, layouts and materials |
 | `GET /health` | | `{"status": "ok", "busy": 0}`: renders running and waiting |
+| `POST /mcp`, `DELETE /mcp` | JSON-RPC | MCP for AI agents, see [MCP](#mcp) |
 
 A scene is the JSON document described in [scene-format.md](scene-format.md). A seed is a whole number from 0 to
 2⁶⁴ − 1.
@@ -160,6 +164,25 @@ is answered at once with 429. `GET /health` shows how many are running and waiti
 A client that closes its connection gives its place up: a waiting render leaves the queue, a running one is
 cancelled. Scenes, presets and the other answers do not go through the queue.
 
+## MCP
+
+`/mcp` is the MCP server of the command line tool ([mcp.md](mcp.md)) over HTTP: the same tools, from the same
+code, for an agent that is not on this machine.
+
+```sh
+claude mcp add --transport http fractique http://127.0.0.1:8080/mcp
+```
+
+It is on by default. It opens nothing that the API beside it does not: a render asked for through it obeys the
+same limits, waits in the same queue (`GET /health` counts it) and is stopped by the same time limit, and the
+arguments that read or write a file (`file`, `save_to`) do not exist there, so a client cannot reach the disk.
+`--mcp off` or `FRACTIQUE_MCP=off` takes the path away: `/mcp` then answers 404 and `GET /limits` says
+`"mcp": false`.
+
+A full queue, a time limit reached and a request outside the limits are tool errors there (`"isError": true` with
+the reason as text), not HTTP statuses: the HTTP status of `/mcp` speaks of the transport only. The sessions, the
+headers, progress, cancelling and the check of `Origin` are described in [mcp.md](mcp.md#over-http).
+
 ## The web app
 
 The app compiles to WebAssembly with [Trunk](https://trunkrs.dev):
@@ -207,3 +230,5 @@ the browser.
   requests per address in the proxy.
 - Give the container a memory limit that fits `FRACTIQUE_JOBS` renders at the largest size you allow.
 - The API sends no CORS headers, so a page on another address cannot call it from a browser.
+- `/mcp` has no accounts either. Turn it off (`FRACTIQUE_MCP=off`) when no agent uses it, or let the proxy ask
+  for a token on that path. A session id is a random number that tells sessions apart, not a password.

@@ -28,14 +28,17 @@ flowchart LR
     end
 
     CLI["fractique-cli<br/>the fractique command"]
+    TOOLS["fractique-mcp<br/>the MCP tools"]
     MCP["fractique mcp<br/>MCP server over stdio"]
-    SRV["fractique-server<br/>HTTP API, web UI, Docker"]
+    SRV["fractique-server<br/>HTTP API, MCP over HTTP, web UI, Docker"]
     APP["fractique-app<br/>Windows, macOS, Linux, Android, iOS, web"]
 
     SCENE --> VAL
     TON -- "RGBA pixels" --> CLI
     SHE -- "under the layers" --> TON
-    TON -- "PNG, inline" --> MCP
+    TON -- "PNG, inline" --> TOOLS
+    TOOLS --> MCP
+    TOOLS -- "at /mcp" --> SRV
     TON -- "PNG over HTTP" --> SRV
     TON -- "RGBA pixels" --> APP
     CLI -- "PNG" --> OUT[("image file")]
@@ -46,15 +49,16 @@ flowchart LR
 | --- | --- | --- |
 | `fractique-core` | works | The renderer, the scene format, presets, the randomizer, the wallpapers, the `.frcq` packing |
 | `fractique-cli` | works | The `fractique` command: renders scenes and wallpapers to PNG, converts `.flame` files and the app's `.frcq` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts |
+| `fractique-mcp` | works | The MCP tools and the JSON-RPC answers, without a transport: `fractique mcp` puts them on stdin and stdout, `fractique-server` on `/mcp` ([MCP](#mcp)) |
 | `fractique-app` | works | The app, `fractique-gui`: one codebase for Windows, macOS, Linux, Android, iOS and the web ([The app](#the-app)) |
-| `fractique-server` | works | The `fractique-server` command: an HTTP API with a render queue and limits, which also serves the web build of the app; the Docker image ([server.md](server.md)) |
+| `fractique-server` | works | The `fractique-server` command: an HTTP API with a render queue and limits, MCP over HTTP at `/mcp`, which also serves the web build of the app; the Docker image ([server.md](server.md)) |
 
 `vendor/` holds `eframe` and `egui-wgpu` with the fix the iOS drawing surface needs; the workspace patches them
 in.
 
 ### Why this shape
 
-- **One renderer.** The app, the CLI, the MCP server and the HTTP server all call the same `render` function with
+- **One renderer.** The app, the CLI, the MCP server (over stdio and over HTTP) and the HTTP server all call the same `render` function with
   the same scene, so they cannot disagree about what a scene looks like.
 - **A scene is data.** Everything a render depends on is in one JSON document (`Scene`): the flames, the palettes,
   the camera, the tone settings, the sheets of a wallpaper and the seed. Presets, random scenes, wallpapers,
@@ -137,6 +141,28 @@ rejects flames that are a dot, dust or a filled square, trying up to 40 candidat
 the seed alone, so a seed is a scene. `mutate(scene, seed, strength)` nudges the transforms of an existing scene.
 The list does not hold the 21 variations added after the first version (`waves` to `twintrian`): a new entry
 would change the scene of every seed.
+
+## MCP
+
+The tools live once, in `fractique-mcp`, a library with no transport in it. A separate crate, and not a library
+target of the command line tool, because the HTTP server would otherwise depend on a program and its argument
+parser, and not a module of the core, because the tools read files, encode PNG and speak JSON-RPC, which the core
+must not know.
+
+| Part | Where | What |
+| --- | --- | --- |
+| Tools | `fractique-mcp` | `tools` lists them, `prepare` runs one or, for `render_scene`, returns the render to run; `handle` answers `initialize`, `ping` and `tools/list`; `reporter` turns the renderer's progress into notifications that only grow |
+| What a transport allows | `Host` in `fractique-mcp` | The protocol revisions, whether the arguments that read and write files exist, and the limits of a render. `Host::LOCAL` allows everything; the HTTP server gives its own |
+| stdio | `fractique-cli/src/mcp.rs` | Reads lines, queues the calls for one worker thread, writes lines |
+| HTTP | `fractique-server/src/mcp.rs` | Sessions, the headers, one event stream for each call. A render is prepared first, then takes a ticket and a slot of the server's queue like `POST /render`, so a refused request never waits |
+
+A call over HTTP is a task that sends its messages into a channel; the response body is the other end. A
+cancellation, the end of the session, a closed connection and the time limit all set the one flag the renderer
+reads and wake the task if it still waits for a slot. Nothing polls.
+
+The helpers the command line tool shares with the tools (reading a scene from JSON or `.frcq` bytes, encoding a
+PNG, a wallpaper request from names) are in `fractique-mcp` too, and the limits of the HTTP server are checked by
+its `Limits`, for `/render` and `/mcp` alike.
 
 ## The app
 

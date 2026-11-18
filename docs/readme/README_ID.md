@@ -30,7 +30,7 @@ Fractique membuat dua jenis gambar. Fractal flame: fraktal bercahaya dan halus y
 - **Keterulangan yang persis:** scene yang sama menghasilkan piksel yang sama di semua mesin, diperiksa oleh pengujian di Linux, Windows, dan macOS ([docs/determinism.md](../determinism.md)).
 - **Alat baris perintah** (`fractique`): merender flame dan wallpaper ke PNG, membuat scene acak dan varian, mengonversi berkas `.flame`.
 - **Server MCP** (`fractique mcp`): agen AI membuat, mengubah, dan merender scene ([docs/mcp.md](../mcp.md)).
-- **Server HTTP** (`fractique-server`): API HTTP dengan antrean render dan batasan, menyajikan aplikasi web, tersedia sebagai image Docker ([docs/server.md](../server.md)).
+- **Server HTTP** (`fractique-server`): API HTTP dengan antrean render dan batasan, MCP untuk agen AI di `/mcp`, menyajikan aplikasi web, tersedia sebagai image Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |

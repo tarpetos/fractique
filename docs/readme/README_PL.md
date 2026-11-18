@@ -30,7 +30,7 @@ Fractique tworzy obrazy dwóch rodzajów. Fraktalne płomienie: świetliste, zwi
 - **Dokładna powtarzalność:** ta sama scena daje te same piksele na każdej maszynie, co sprawdzają testy w systemach Linux, Windows i macOS ([docs/determinism.md](../determinism.md)).
 - **Narzędzie wiersza poleceń** (`fractique`): renderuje płomienie i tapety do PNG, tworzy losowe sceny i warianty, konwertuje pliki `.flame`.
 - **Serwer MCP** (`fractique mcp`): agent AI tworzy, zmienia i renderuje sceny ([docs/mcp.md](../mcp.md)).
-- **Serwer HTTP** (`fractique-server`): API HTTP z kolejką renderowania i limitami, udostępnia aplikację webową, dostępny jako obraz Dockera ([docs/server.md](../server.md)).
+- **Serwer HTTP** (`fractique-server`): API HTTP z kolejką renderowania i limitami, MCP dla agentów AI pod `/mcp`, udostępnia aplikację webową, dostępny jako obraz Dockera ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
