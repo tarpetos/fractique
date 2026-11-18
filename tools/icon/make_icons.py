@@ -133,6 +133,9 @@ def main():
     draw(LIGHT, 230, DEEP, DARK).save(OUT / "icon-light-1024.png")
     draw(DARK, 230, WHITE, "#ffffff").save(OUT / "icon-mono-1024.png")
     draw(DARK, 0, WARM, "#ffffff").convert("RGB").save(OUT / "ios-1024.png")
+    draw(LIGHT, 0, DEEP, DARK).convert("RGB").save(OUT / "ios-light-1024.png")
+    # iOS turns the tinted icon to grey and tints it: white glyph on black, as Apple asks.
+    draw("#000000", 0, WHITE, "#ffffff").convert("RGB").save(OUT / "ios-tinted-1024.png")
 
     # Android crops an adaptive icon's foreground to the middle two thirds, so the glyph is drawn smaller there.
     foreground = draw(DARK, 0, WARM, "#ffffff", scale=0.62)
