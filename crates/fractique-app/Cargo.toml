@@ -64,6 +64,8 @@ target_sdk_version = 35
 [package.metadata.android.application]
 label = "Fractique"
 icon = "@mipmap/ic_launcher"
+# Without it Android keeps room for a title bar the app never shows, and the layout starts 56 dp too low.
+theme = "@android:style/Theme.DeviceDefault.NoActionBar"
 
 [lints]
 workspace = true
