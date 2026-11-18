@@ -19,8 +19,12 @@ pub enum Kind {
     Never,
 }
 
+pub fn is_release() -> bool {
+    option_env!("FRACTIQUE_RELEASE").is_some()
+}
+
 pub fn kind() -> Kind {
-    if option_env!("FRACTIQUE_RELEASE").is_none() {
+    if !is_release() {
         return Kind::Never;
     }
     if cfg!(target_os = "linux") {

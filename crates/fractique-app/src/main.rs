@@ -21,6 +21,10 @@ fn main() -> eframe::Result {
             fractique_app::open_at_start(PathBuf::from(arg));
         }
     }
+    #[cfg(windows)]
+    if screenshot.is_none() {
+        fractique_app::register_scene_files();
+    }
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Fractique")
         .with_inner_size(size)

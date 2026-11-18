@@ -192,6 +192,18 @@ flames or wallpapers and their choices, the language, the glass and the window (
 written when it changes, into the app's data folder: `%APPDATA%\Fractique` on Windows, `~/.local/share/fractique` on Linux,
 `~/Library/Application Support/Fractique` on macOS. The window never reopens in full screen.
 
+### Opening a `.frcq` file from the file manager
+
+A double click on a `.frcq` file opens it in Fractique, each file in a window of its own:
+
+- **Windows:** after the downloaded program has been started once. Move or rename the program and start it again,
+  and the files follow it.
+- **Linux:** after installing the `.deb`. The AppImage needs a tool that adds AppImages to the system
+  (AppImageLauncher, `appimaged`); without one, choose Fractique under "Open with".
+- **macOS:** the files are shown as Fractique's, but a double click does not open them yet: use **Open** in the app.
+
+[releasing.md](releasing.md#files-of-the-app-frcq) says how each system is told.
+
 ## 8. Flames from other programs
 
 `.flame` files, the format of flam3, Apophysis and the programs built on them, convert to scenes:

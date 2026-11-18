@@ -337,6 +337,7 @@ license texts are in each crate's repository and in its package on [crates.io](h
 | windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 |
 | winit | 0.30.13 | Apache-2.0 |
 | winnow | 1.0.5 | MIT |
+| winreg | 0.56.0 | MIT |
 | winresource | 0.1.34 | MIT |
 | wit-bindgen | 0.57.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | wl-clipboard-rs | 0.9.5 | MIT OR Apache-2.0 |
