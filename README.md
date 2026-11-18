@@ -16,7 +16,7 @@ Fractique renders fractal flames: the glowing, wispy kind of fractal made of thi
 
 ## What works today
 
-- **The renderer** (`fractique-core`): fractal flames with 28 variations, layers with blend modes, rotational and mirror symmetry, density estimation, glow, any resolution.
+- **The renderer** (`fractique-core`): fractal flames with 49 variations, layers with blend modes, rotational and mirror symmetry, density estimation, glow, any resolution.
 - **The app:** one codebase for Windows, Linux, Android, iOS and the web, with glass panels over the flame, in 15 languages.
 - **Presets:** 9 built-in scenes.
 - **Randomizer:** every seed is a scene; scenes that would be a dot or a filled square are skipped.

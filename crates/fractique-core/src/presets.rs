@@ -22,6 +22,14 @@ const PRESETS: &[(&str, &str)] = &[
     ("moss-nebula", include_str!("../presets/moss-nebula.json")),
     ("lilac-cloud", include_str!("../presets/lilac-cloud.json")),
     ("ice-crystal", include_str!("../presets/ice-crystal.json")),
+    ("golden-filigree", include_str!("../presets/golden-filigree.json")),
+    ("frost-lotus", include_str!("../presets/frost-lotus.json")),
+    ("azure-turbine", include_str!("../presets/azure-turbine.json")),
+    ("orchid-pinwheel", include_str!("../presets/orchid-pinwheel.json")),
+    ("ember-thorns", include_str!("../presets/ember-thorns.json")),
+    ("lilac-mosaic", include_str!("../presets/lilac-mosaic.json")),
+    ("amber-lantern", include_str!("../presets/amber-lantern.json")),
+    ("emerald-plume", include_str!("../presets/emerald-plume.json")),
 ];
 
 pub fn names() -> Vec<&'static str> {

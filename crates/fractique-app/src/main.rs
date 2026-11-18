@@ -9,6 +9,7 @@ fn main() -> eframe::Result {
     let mut args = std::env::args().skip(1);
     let mut screenshot = None;
     let mut size = [1280.0, 800.0];
+    let mut open = None;
     while let Some(arg) = args.next() {
         if arg == "--screenshot" {
             screenshot = args.next().map(PathBuf::from);
@@ -18,8 +19,20 @@ fn main() -> eframe::Result {
         {
             size = [width, height];
         } else if !arg.starts_with("--") {
-            fractique_app::open_at_start(PathBuf::from(arg));
+            open = Some(std::path::absolute(&arg).unwrap_or_else(|_| PathBuf::from(arg)));
         }
+    }
+    let test = screenshot.is_some() || std::env::var_os("FRACTIQUE_DEBUG_FULL").is_some();
+    let many = cfg!(debug_assertions) || std::env::var_os("FRACTIQUE_MANY").is_some();
+    if !test && !many && !fractique_app::first_instance(open.as_deref()) {
+        return Ok(());
+    }
+    if let Some(path) = open {
+        fractique_app::open_at_start(path);
+    }
+    #[cfg(windows)]
+    if screenshot.is_none() {
+        fractique_app::register_scene_files();
     }
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Fractique")

@@ -16,7 +16,7 @@ Fractique menggambar api fraktal: fraktal yang berpendar dan halus, terbuat dari
 
 ## Yang sudah berfungsi
 
-- **Perender** (`fractique-core`): api fraktal dengan 28 variasi, lapisan dengan mode campur, simetri putar dan cermin, estimasi kepadatan, pendar, resolusi apa pun.
+- **Perender** (`fractique-core`): api fraktal dengan 49 variasi, lapisan dengan mode campur, simetri putar dan cermin, estimasi kepadatan, pendar, resolusi apa pun.
 - **Aplikasi:** satu basis kode untuk Windows, Linux, Android, iOS, dan web, dengan panel kaca di atas api, dalam 15 bahasa.
 - **Preset:** 9 adegan bawaan.
 - **Generator acak:** setiap benih adalah satu adegan; adegan yang hanya akan menjadi titik atau persegi penuh dilewati.

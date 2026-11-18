@@ -11,7 +11,8 @@ use clap::{Parser, Subcommand};
 use fractique_core::import::import_flames;
 use fractique_core::random::{fit_camera, mutate, random_scene};
 use fractique_core::wallpaper::{Layout, Material, Request, random_wallpaper};
-use fractique_core::{Control, Image, Kind, Quality, RenderOptions, Scene, presets, render};
+use fractique_core::{Control, Image, Kind, Quality, RenderOptions, Scene, file, presets, render};
+use serde_json::{Value, json};
 
 #[derive(Parser)]
 #[command(name = "fractique", version, about = "Deterministic fractal flame generator")]
@@ -24,7 +25,7 @@ struct Cli {
 enum Command {
     /// Render a scene to a PNG
     Render {
-        /// Scene file (JSON); or use --preset or --random
+        /// Scene file (JSON or .frcq); or use --preset or --random
         scene: Option<PathBuf>,
         #[arg(long, conflicts_with = "scene")]
         preset: Option<String>,
@@ -90,6 +91,7 @@ enum Command {
     },
     /// Print a variant of a scene as JSON
     Mutate {
+        /// Scene file (JSON or .frcq)
         scene: PathBuf,
         seed: u64,
         /// 0 to 1
@@ -100,6 +102,7 @@ enum Command {
     },
     /// Print a scene with every layer's camera moved to frame its flame
     Fit {
+        /// Scene file (JSON or .frcq)
         scene: PathBuf,
         #[arg(short, long)]
         output: Option<PathBuf>,
@@ -110,6 +113,15 @@ enum Command {
         /// Which flame of the file, counted from 0
         #[arg(long, default_value_t = 0)]
         index: usize,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// Convert between .frcq and JSON: a .frcq becomes its scene, a scene or a document becomes a .frcq
+    Convert {
+        input: PathBuf,
+        /// From a .frcq, print the whole document of the app instead of the scene it shows
+        #[arg(long)]
+        document: bool,
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
@@ -126,22 +138,76 @@ fn parse_size(text: &str) -> Result<(u32, u32), String> {
     parsed.ok_or_else(|| format!("'{text}' is not a size; write it as 1920x1080"))
 }
 
-fn load(path: &Path) -> Result<Scene, String> {
-    let fail = |e: String| format!("{}: {e}", path.display());
-    let bytes = fs::read(path).map_err(|e| fail(e.to_string()))?;
-    // A .frcq file of the app holds its session; the scene as it was on the screen is under "shown".
-    let file = if fractique_core::file::is_packed(&bytes) {
-        Some(fractique_core::file::unpack(&bytes).map_err(fail)?)
+// A .frcq file of the app holds its session; the scene as it was on the screen is under "shown".
+pub(crate) fn shown(mut document: Value) -> Value {
+    match document.get_mut("shown").map(Value::take) {
+        Some(scene) => scene,
+        None => document,
+    }
+}
+
+pub(crate) fn scene_from_bytes(bytes: &[u8]) -> Result<Scene, String> {
+    let document = if file::is_packed(bytes) {
+        Some(file::unpack(bytes)?)
     } else {
-        serde_json::from_slice::<serde_json::Value>(&bytes)
+        serde_json::from_slice::<Value>(bytes)
             .ok()
-            .filter(|file| file.get("fractique").is_some())
+            .filter(|document| document.get("fractique").is_some())
     };
-    let scene = match file.and_then(|mut file| file.get_mut("shown").map(serde_json::Value::take)) {
-        Some(scene) => Scene::from_json(&scene.to_string()),
-        None => Scene::from_json(&String::from_utf8_lossy(&bytes)),
+    match document {
+        Some(document) => Scene::from_json(&shown(document).to_string()),
+        None => Scene::from_json(&String::from_utf8_lossy(bytes)),
+    }
+    .map_err(|e| e.to_string())
+}
+
+pub(crate) fn load(path: &Path) -> Result<Scene, String> {
+    let fail = |e: String| format!("{}: {e}", path.display());
+    scene_from_bytes(&fs::read(path).map_err(|e| fail(e.to_string()))?).map_err(fail)
+}
+
+// The fields the app needs to open a document: "scene" is what it edits, "shown" what the other tools render.
+fn document_of(scene: &Scene) -> Value {
+    let scene_value = serde_json::to_value(scene).unwrap_or_default();
+    json!({
+        "fractique": 1,
+        "scene": scene_value,
+        "shown": scene_value,
+        "title": scene.name,
+        "random": false,
+        "seed": scene.seed,
+        "wall": { "on": false, "live": false, "dark": false },
+    })
+}
+
+fn convert(input: &Path, document: bool, output: Option<PathBuf>) -> Result<(), String> {
+    let fail = |e: String| format!("{}: {e}", input.display());
+    let bytes = fs::read(input).map_err(|e| fail(e.to_string()))?;
+    if file::is_packed(&bytes) {
+        let unpacked = file::unpack(&bytes).map_err(fail)?;
+        if !document {
+            let scene = Scene::from_json(&shown(unpacked).to_string()).map_err(|e| fail(e.to_string()))?;
+            return emit(&scene, output);
+        }
+        let text = serde_json::to_string_pretty(&unpacked).unwrap_or_default();
+        return match output {
+            Some(path) => fs::write(&path, text + "\n").map_err(|e| format!("{}: {e}", path.display())),
+            None => {
+                println!("{text}");
+                Ok(())
+            }
+        };
+    }
+    if document {
+        return Err(fail("--document is for a .frcq file; this one is JSON".into()));
+    }
+    let scene = scene_from_bytes(&bytes).map_err(fail)?;
+    let packed = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(given) if given.get("fractique").is_some() => file::pack(&given),
+        _ => file::pack(&document_of(&scene)),
     };
-    scene.map_err(|e| fail(e.to_string()))
+    let path = output.ok_or("a .frcq file is not text: give -o FILE.frcq")?;
+    fs::write(&path, packed).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 fn emit(scene: &Scene, output: Option<PathBuf>) -> Result<(), String> {
@@ -169,7 +235,7 @@ fn save_png(image: &Image, path: &Path) -> Result<(), String> {
     fs::write(path, encode_png(image)?).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-fn wallpaper_request(
+pub(crate) fn wallpaper_request(
     layout: Option<String>,
     material: Option<String>,
     width: u32,
@@ -310,6 +376,11 @@ fn run(cli: Cli) -> Result<(), String> {
             }
             emit(&flame.scene, output)
         }
+        Command::Convert {
+            input,
+            document,
+            output,
+        } => convert(&input, document, output),
         Command::Mcp => mcp::serve(),
         Command::Variations => {
             for kind in Kind::ALL {

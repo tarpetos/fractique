@@ -16,7 +16,7 @@ Fractique rysuje płomienie fraktalne: świetliste, zwiewne fraktale z cienkich 
 
 ## Co działa już dziś
 
-- **Renderer** (`fractique-core`): płomienie fraktalne z 28 wariacjami, warstwy z trybami mieszania, symetria obrotowa i lustrzana, estymacja gęstości, poświata, dowolna rozdzielczość.
+- **Renderer** (`fractique-core`): płomienie fraktalne z 49 wariacjami, warstwy z trybami mieszania, symetria obrotowa i lustrzana, estymacja gęstości, poświata, dowolna rozdzielczość.
 - **Aplikacja:** jedna baza kodu dla systemów Windows, Linux, Android, iOS i dla przeglądarki, ze szklanymi panelami nad płomieniem, w 15 językach.
 - **Presety:** 9 wbudowanych scen.
 - **Generator losowy:** każde ziarno to scena; sceny, które byłyby punktem albo wypełnionym kwadratem, są pomijane.

@@ -18,7 +18,7 @@ fn text<'local>(env: &mut Env<'local>, value: &str) -> Call<JObject<'local>> {
 
 // Before Android 10 a picture goes into the gallery only with this permission, which the owner grants in a
 // dialog; from Android 10 on an app may add its own pictures without asking.
-fn allowed(env: &mut Env<'_>, activity: &JObject<'_>) -> Call<bool> {
+fn permitted(env: &mut Env<'_>, activity: &JObject<'_>) -> Call<bool> {
     if AndroidApp::sdk_version() >= 29 {
         return Ok(true);
     }
@@ -31,9 +31,14 @@ fn allowed(env: &mut Env<'_>, activity: &JObject<'_>) -> Call<bool> {
             &[JValue::Object(&permission)],
         )?
         .i()?;
-    if state == 0 {
+    Ok(state == 0)
+}
+
+fn allowed(env: &mut Env<'_>, activity: &JObject<'_>) -> Call<bool> {
+    if permitted(env, activity)? {
         return Ok(true);
     }
+    let permission = text(env, "android.permission.WRITE_EXTERNAL_STORAGE")?;
     let wanted = env.new_object_array(1, jni_str!("java/lang/String"), &permission)?;
     env.call_method(
         activity,
@@ -152,6 +157,24 @@ fn offer(env: &mut Env<'_>, activity: &JObject<'_>, picture: &JObject<'_>) -> Ca
         &[JValue::Object(&chooser)],
     )?;
     Ok(())
+}
+
+pub fn granted() -> bool {
+    let Some(app) = crate::ANDROID.get() else {
+        return false;
+    };
+    // SAFETY: as in `keep`.
+    let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) };
+    let granted: Call<bool> = vm.attach_current_thread(|env| {
+        // SAFETY: as in `keep`.
+        let activity = unsafe { JObject::from_raw(env, app.activity_as_ptr().cast()) };
+        let granted = permitted(env, &activity);
+        if granted.is_err() {
+            env.exception_clear();
+        }
+        granted
+    });
+    granted.unwrap_or(false)
 }
 
 pub fn keep(path: &Path, share: bool) -> Kept {

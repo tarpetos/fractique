@@ -9,6 +9,7 @@ disallowed-methods = [
     { path = "f64::exp", reason = "use math::exp" },
     { path = "f64::ln", reason = "use math::ln" },
     { path = "f64::ln_1p", reason = "use math::ln_1p" },
+    { path = "f64::log10", reason = "use math::log10" },
     { path = "f64::powf", reason = "use math::pow" },
     { path = "f64::sinh", reason = "use math::sinh" },
     { path = "f64::cosh", reason = "use math::cosh" },

@@ -1,7 +1,7 @@
 use crate::math::{TAU, cos, sin};
 use crate::rng::Rng;
 use crate::scene::{Flame, Transform};
-use crate::variation::Kind;
+use crate::variation::{Kind, MAX_PARAMS};
 
 const FUSE: u32 = 24;
 const ESCAPED: f64 = 1e10;
@@ -13,7 +13,7 @@ struct Xf {
     color: f64,
     speed: f64,
     opacity: f64,
-    variations: Vec<(Kind, f64, [f64; 2])>,
+    variations: Vec<(Kind, f64, [f64; MAX_PARAMS])>,
 }
 
 impl Xf {
@@ -39,7 +39,7 @@ impl Xf {
         let (ax, ay) = (a * x + b * y + c, d * x + e * y + f);
         let (mut ox, mut oy) = (0.0, 0.0);
         for (kind, weight, params) in &self.variations {
-            let (vx, vy) = kind.eval(ax, ay, params, rng);
+            let (vx, vy) = kind.eval(ax, ay, params, *weight, &self.affine, rng);
             ox += weight * vx;
             oy += weight * vy;
         }

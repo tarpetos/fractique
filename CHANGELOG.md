@@ -8,6 +8,23 @@
   serve the web build of the app beside the API.
 * **Docker:** a `Dockerfile` and a `docker-compose.yml` build one small image with the server and the web app,
   run as a user without rights.
+* **MCP server:** `list_wallpaper_styles` and `randomize_wallpaper` make wallpapers; `render_scene` also takes
+  `wallpaper_seed` (with `layout`, `material`, `dark`), `file` (the path of a `.frcq` or JSON scene) and `frcq`
+  (the bytes of a `.frcq` in base64). A call with a progress token gets `notifications/progress` while it renders,
+  and `notifications/cancelled` stops a render, which then gets no answer. `ping` is answered during a render.
+* **Command line tool:** `fractique convert` turns a `.frcq` file into its scene as JSON (`--document` for
+  everything the file holds) and a JSON scene or document into a `.frcq`.
+
+* **Variations:** 21 more, 49 in all: `waves`, `popcorn`, `rings` and `fan`, which take their shape from the
+  transform's own `affine` numbers, and `blob`, `pdj`, `fan2`, `rings2`, `perspective`, `noise`, `juliascope`,
+  `radial_blur`, `pie`, `ngon`, `rectangles`, `arch`, `square`, `rays`, `blade`, `secant2` and `twintrian`.
+  `fractique variations` lists them with their parameters, and the `.flame` import reads them and their
+  parameters. Existing scenes render as before, and `fractique randomize` gives the same scene for every seed: the
+  randomizer does not use the new variations.
+* **Presets:** `golden-filigree`, `frost-lotus`, `azure-turbine`, `orchid-pinwheel`, `lilac-mosaic`,
+  `amber-lantern`, `emerald-plume` and `ember-thorns`, made with the new variations.
+* **App (desktop):** one window at a time. A second start brings the open window to the front and passes it the
+  file it was given. A debug build, or `FRACTIQUE_MANY=1`, still opens as many as asked.
 * **Wallpapers:** a scene can hold `sheets`, a stack of flat shapes (rounded boxes, petals, rings and arcs, waves and
   ribbons) with lit edges, gradients, translucency and soft shadows, drawn under the flame layers.
   `fractique render --wallpaper SEED` makes one for every seed out of fourteen layouts (bands, discs, waves,
@@ -23,6 +40,9 @@
 * **iPhone:** an exported picture goes to Photos or to the share sheet.
 * **Wallpapers:** a wallpaper can be asked for in one color (`hue` of the request). The bands layout no longer
   makes an invalid shape on screens about 1.6 times as tall as wide.
+* **App:** a double click on a `.frcq` file opens it in Fractique. The Windows program registers the file type for
+  the current user when it starts; the `.deb` and the AppImage carry the type and the association. On macOS the type
+  is declared, but a double click does not open the file yet.
 
 ## 0.1.0
 
