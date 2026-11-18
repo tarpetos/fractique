@@ -32,7 +32,8 @@ and the commands. The short mark `frcq.` was tried and is on hold: do not use it
 - **The scene format is a contract:** `docs/scene-format.md` changes together with `scene.rs` and `variation.rs`.
   A scene file that loaded before must keep loading and rendering the same; otherwise bump `SCENE_VERSION`.
 - **Texts of the app:** never a literal in the code. Every text is a key in `crates/fractique-app/locales/en.json`
-  and in each of the other 14 locale files; a test fails when one lacks a key. After adding texts in Japanese,
+  and in each of the other 14 locale files; a test fails when one lacks a key. The texts of the fractal kinds are in
+  `locales/fractals/<family>.json`, all 15 languages in one file. After adding texts in Japanese,
   Chinese, Korean or Hindi, run `tools/i18n/make_fonts.py`: the fonts for those hold only the characters in use.
 - **README:** `README.md` has 14 translations in `docs/readme/`. A change to one goes into all of them.
 - **Dependencies:** after a change to `Cargo.lock`, run `python3 tools/notices/make_notices.py`: it rewrites the table of
@@ -49,6 +50,8 @@ cargo build --release                               # the CLI: target/release/fr
 cargo test --release                                # unit tests and golden hashes
 cargo test --release -p fractique-core --no-default-features   # the same without threads
 cargo fmt --all && cargo clippy --all-targets -- -D warnings
+cargo clippy -p fractique-app --all-targets --features store -- -D warnings   # the App Store variant
+cargo check --target aarch64-apple-ios -p fractique-app                       # the binary too, not only --lib
 ./target/release/fractique render --preset aurora-spiral --size 960x540 -o /tmp/check.png
 ```
 
@@ -66,10 +69,11 @@ is stable, not that it is good.
 | `crates/fractique-core/src/deep.rs` | Deep views: the particles a magnified view is drawn from |
 | `crates/fractique-core/src/tone.rs` | Density estimation, log tone mapping, glow |
 | `crates/fractique-core/src/random.rs` | Random scenes, mutation, camera fitting |
+| `crates/fractique-core/src/fractal/` | Fractals of other kinds: `mod.rs` registry, one file per kind in a folder per family (`escape`, `root`, `orbit`, `geometric`, `solid`); "How to add a fractal type" in `docs/architecture.md` |
 | `crates/fractique-core/presets/` | Built-in scenes, compiled into the binary |
 | `crates/fractique-core/src/import.rs` | The `.flame` import |
 | `crates/fractique-cli/src/main.rs` | The `fractique` command |
-| `crates/fractique-app/` | The app (desktop, Android, iOS, web): `lib.rs` UI, `glass.wgsl` shader, `preview.rs` + `preview.wgsl` GPU preview, `i18n.rs` + `locales/` texts |
+| `crates/fractique-app/` | The app (desktop, Android, iOS, web): `lib.rs` UI, `glass.wgsl` shader, `preview.rs` + `preview.wgsl` GPU preview, `chaos.rs` + `chaos.wgsl` the chaos game on the graphics card, `store.rs` the App Store purchase, `i18n.rs` + `locales/` texts |
 | `crates/fractique-app/src/update.rs`, `updates.rs` | Checking for, listing and installing releases; its window |
 | `scripts/build/`, `.github/workflows/release.yml`, `docs/releasing.md` | Installers and the release workflow |
 | `vendor/` | `eframe` and `egui-wgpu` with the iOS surface fix |
