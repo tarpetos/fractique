@@ -530,20 +530,33 @@ impl App {
     }
 
     fn phone_tune(&mut self, ctx: &egui::Context, content: Rect, panes: &mut Panes) {
-        let column = (content.width() - 84.0).min(320.0);
-        // On its side a phone has no height to give to a button under the panel: it goes beside it.
+        let panel = content.shrink(14.0);
+        // On its side a phone is wide and low: the controls go in two columns.
         let lying = content.width() > content.height();
-        let inspector = egui::Area::new(egui::Id::unique("phone_tune"))
-            .fixed_pos(content.min + vec2(20.0, 20.0))
+        let mut done = false;
+        egui::Area::new(egui::Id::unique("phone_tune"))
+            .fixed_pos(panel.min)
             .show(ctx, |ui| {
                 let margin = egui::Margin {
                     left: 22,
                     right: 8,
-                    top: 22,
-                    bottom: 22,
+                    top: 16,
+                    bottom: 14,
                 };
                 egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
-                    let room = content.height() - 40.0 - 44.0 - if lying { 0.0 } else { 72.0 };
+                    let inner = panel.width() - 30.0;
+                    ui.set_width(inner);
+                    ui.spacing_mut().item_spacing = vec2(8.0, 2.0);
+                    let top = ui.cursor().top();
+                    ui.horizontal(|ui| {
+                        ui.vertical(|ui| self.inspector_head(ui));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                            ui.add_space(14.0);
+                            done = widgets::round(ui, "remove", true);
+                        });
+                    });
+                    ui.add_space(4.0);
+                    let room = panel.height() - 30.0 - (ui.cursor().top() - top);
                     let mut bar = egui::style::ScrollStyle::floating();
                     bar.bar_width = 5.0;
                     bar.floating_allocated_width = 0.0;
@@ -556,39 +569,24 @@ impl App {
                                 right: 14,
                                 ..Default::default()
                             };
-                            egui::Frame::NONE
-                                .inner_margin(gutter)
-                                .show(ui, |ui| self.inspector(ui, column));
+                            egui::Frame::NONE.inner_margin(gutter).show(ui, |ui| {
+                                if lying {
+                                    ui.spacing_mut().item_spacing.x = 26.0;
+                                    ui.columns(2, |columns| {
+                                        columns[0].spacing_mut().item_spacing = vec2(8.0, 2.0);
+                                        self.inspector_scene(&mut columns[0]);
+                                        columns[1].spacing_mut().item_spacing = vec2(8.0, 2.0);
+                                        self.inspector_look(&mut columns[1]);
+                                    });
+                                } else {
+                                    self.inspector_scene(ui);
+                                    self.inspector_look(ui);
+                                }
+                            });
                         });
                 });
             });
-        panes.push((inspector.response.rect, self.optics.radius, false));
-
-        let close = self.t("close");
-        let mut done = false;
-        let button = egui::Area::new(egui::Id::unique("phone_tune_close"))
-            .fixed_pos(if lying {
-                content.max - vec2(20.0, 20.0)
-            } else {
-                egui::pos2(content.center().x, content.bottom() - 20.0)
-            })
-            .pivot(if lying {
-                Align2::RIGHT_BOTTOM
-            } else {
-                Align2::CENTER_BOTTOM
-            })
-            .show(ctx, |ui| {
-                let galley = ui.painter().layout_no_wrap(close, font(14.0, MEDIUM), Color32::WHITE);
-                let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x + 64.0, 46.0), Sense::click());
-                if response.is_pointer_button_down_on() || response.hovered() {
-                    ui.painter()
-                        .rect_filled(rect, CornerRadius::same(23), Color32::from_white_alpha(22));
-                }
-                ui.painter()
-                    .galley(rect.center() - galley.size() * 0.5, galley, Color32::WHITE);
-                done = response.clicked();
-            });
-        panes.push((button.response.rect, button.response.rect.height() * 0.5, false));
+        panes.push((panel, self.optics.radius, false));
         if done {
             self.phone.tune = false;
         }

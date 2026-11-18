@@ -1364,6 +1364,12 @@ impl App {
     fn inspector(&mut self, ui: &mut egui::Ui, width: f32) {
         ui.set_width(width);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+        self.inspector_head(ui);
+        self.inspector_scene(ui);
+        self.inspector_look(ui);
+    }
+
+    fn inspector_head(&mut self, ui: &mut egui::Ui) {
         ui.label(
             egui::RichText::new("Fractique")
                 .font(font(30.0, SEMIBOLD))
@@ -1374,7 +1380,9 @@ impl App {
                 .size(12.5)
                 .color(egui::Color32::from_white_alpha(140)),
         );
+    }
 
+    fn inspector_scene(&mut self, ui: &mut egui::Ui) {
         #[cfg(any(target_os = "android", target_os = "ios", target_arch = "wasm32"))]
         {
             widgets::section(ui, &self.t("language"));
@@ -1423,11 +1431,13 @@ impl App {
             self.open_sheet(Sheet::Sizes);
         }
 
-        let flames = !self.wall.live && !self.base.layers.is_empty();
-        if flames {
+        if !self.wall.live && !self.base.layers.is_empty() {
             self.layers(ui);
         }
+    }
 
+    fn inspector_look(&mut self, ui: &mut egui::Ui) {
+        let flames = !self.wall.live && !self.base.layers.is_empty();
         let before = self.adjust;
         if flames {
             widgets::section(ui, &self.t("tone"));
