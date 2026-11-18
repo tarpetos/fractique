@@ -97,6 +97,36 @@ pub fn row(ui: &mut Ui, text: &str, selected: bool) -> bool {
     response.clicked()
 }
 
+pub fn round(ui: &mut Ui, kind: &str, enabled: bool) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(32.0, 32.0), Sense::click());
+    let lift = if enabled && response.hovered() { 24 } else { 0 };
+    ui.painter().circle_filled(rect.center(), 16.0, white(30 + lift));
+    let ink = egui::Stroke::new(1.5, white(if enabled { 235 } else { 80 }));
+    let (c, r) = (rect.center(), 5.0);
+    let line = |from: egui::Vec2, to: egui::Vec2| {
+        ui.painter().line_segment([c + from, c + to], ink);
+    };
+    match kind {
+        "add" => {
+            line(vec2(-r, 0.0), vec2(r, 0.0));
+            line(vec2(0.0, -r), vec2(0.0, r));
+        }
+        "remove" => {
+            line(vec2(-r + 1.0, -r + 1.0), vec2(r - 1.0, r - 1.0));
+            line(vec2(-r + 1.0, r - 1.0), vec2(r - 1.0, -r + 1.0));
+        }
+        "up" => {
+            line(vec2(-r, 2.5), vec2(0.0, -2.5));
+            line(vec2(r, 2.5), vec2(0.0, -2.5));
+        }
+        _ => {
+            line(vec2(-r, -2.5), vec2(0.0, 2.5));
+            line(vec2(r, -2.5), vec2(0.0, 2.5));
+        }
+    }
+    enabled && response.clicked()
+}
+
 pub fn pill_width(ui: &Ui, text: &str) -> f32 {
     let galley = ui
         .painter()

@@ -20,6 +20,7 @@ use web_time::Instant;
 use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
 use fractique_core::random::{mutate, random_scene};
+use fractique_core::scene::{Blend, MAX_LAYERS};
 use fractique_core::{Control, Image, RenderOptions, Scene, presets, render};
 
 use glass::{Gfx, Optics};
@@ -238,6 +239,7 @@ struct App {
     picture: Option<[u32; 2]>,
     custom: [String; 2],
     sizes_open: bool,
+    layer: usize,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     maximize_again: bool,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -316,7 +318,14 @@ impl App {
             is_random: false,
             seed: 0,
             adjust: NEUTRAL,
-            view: WHOLE,
+            view: if std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.starts_with("redraw")) {
+                View {
+                    center: egui::vec2(0.62, 0.4),
+                    zoom: 3.0,
+                }
+            } else {
+                WHOLE
+            },
             bare: false,
             optics: Optics {
                 refraction: 38.0,
@@ -335,6 +344,7 @@ impl App {
             picture: stored("picture").and_then(|text| parsed_size(&text)),
             custom: Default::default(),
             sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
+            layer: 0,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             maximize_again: false,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -468,6 +478,40 @@ impl App {
         ) {
             self.sizes_open = false;
         }
+    }
+
+    fn redraw_button(&mut self, ctx: &egui::Context, at: egui::Pos2, size: [u32; 2]) -> egui::Rect {
+        let area = egui::Area::new(egui::Id::unique("redraw"))
+            .fixed_pos(at)
+            .pivot(egui::Align2::CENTER_BOTTOM)
+            .show(ctx, |ui| {
+                egui::Frame::NONE.inner_margin(egui::Margin::same(6)).show(ui, |ui| {
+                    ui.spacing_mut().button_padding.x = 18.0;
+                    if widgets::pill(ui, &self.t("redraw"), true, 0.0) {
+                        self.redraw_here(size);
+                    }
+                });
+            });
+        area.response.rect
+    }
+
+    fn redraw_here(&mut self, size: [u32; 2]) {
+        let (wide, high) = (f64::from(size[0]), f64::from(size[1]));
+        let across = (f64::from(self.view.center.x) - 0.5) * wide;
+        let down = (f64::from(self.view.center.y) - 0.5) * high;
+        for layer in &mut self.base.layers {
+            let camera = &mut layer.flame.camera;
+            let per_unit = camera.zoom * self.adjust.zoom * wide.min(high) / 4.0;
+            let up = if camera.flip_y { -per_unit } else { per_unit };
+            let (along, raised) = (across / per_unit, -down / up);
+            let angle = camera.rotation.to_radians();
+            let (cos, sin) = (fractique_core::math::cos(angle), fractique_core::math::sin(angle));
+            camera.center[0] += along * cos - raised * sin;
+            camera.center[1] += along * sin + raised * cos;
+            camera.zoom *= f64::from(self.view.zoom);
+        }
+        self.view = WHOLE;
+        self.requested = None;
     }
 
     fn explore(&mut self, ui: &mut egui::Ui, screen: egui::Rect) {
@@ -792,6 +836,7 @@ impl App {
         self.is_random = is_random;
         self.requested = None;
         self.view = WHOLE;
+        self.layer = 0;
     }
 
     fn t(&self, key: &str) -> String {
@@ -858,6 +903,8 @@ impl App {
         ui.painter()
             .line_segment([mark + egui::vec2(4.5, -2.5), mark + egui::vec2(0.0, 2.5)], ink);
 
+        self.layers(ui);
+
         widgets::section(ui, &self.t("tone"));
         let before = self.adjust;
         widgets::slider(ui, &self.t("brightness"), &mut self.adjust.brightness, (0.3, 2.5), true);
@@ -899,6 +946,68 @@ impl App {
             if clicked.1 {
                 self.save_scene();
             }
+        }
+    }
+
+    fn layers(&mut self, ui: &mut egui::Ui) {
+        widgets::section(ui, &self.t("layers"));
+        let before = self.base.layers.clone();
+        self.layer = self.layer.min(self.base.layers.len() - 1);
+        for index in 0..self.base.layers.len() {
+            let name = &self.base.layers[index].name;
+            let label = if name.is_empty() {
+                format!("{} {}", self.t("layer"), index + 1)
+            } else {
+                name.clone()
+            };
+            if widgets::row(ui, &label, index == self.layer) {
+                self.layer = index;
+            }
+        }
+
+        ui.add_space(6.0);
+        let (at, count) = (self.layer, self.base.layers.len());
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            if widgets::round(ui, "add", count < MAX_LAYERS) {
+                self.seed += 1;
+                let mut layer = random_scene(self.seed).layers.swap_remove(0);
+                layer.blend = Blend::Screen;
+                self.base.layers.push(layer);
+                self.layer = count;
+            }
+            if widgets::round(ui, "remove", count > 1) {
+                self.base.layers.remove(at);
+                self.layer = at.min(count - 2);
+            }
+            if widgets::round(ui, "up", at > 0) {
+                self.base.layers.swap(at, at - 1);
+                self.layer = at - 1;
+            }
+            if widgets::round(ui, "down", at + 1 < count) {
+                self.base.layers.swap(at, at + 1);
+                self.layer = at + 1;
+            }
+        });
+
+        ui.add_space(6.0);
+        let labels = ["blend_add", "blend_screen", "blend_over"].map(|key| self.t(key));
+        let opacity = self.t("opacity");
+        let layer = &mut self.base.layers[self.layer];
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            let each = (ui.available_width() - 8.0) / 3.0;
+            for (label, blend) in labels.iter().zip([Blend::Add, Blend::Screen, Blend::Over]) {
+                ui.allocate_ui(egui::vec2(each, 30.0), |ui| {
+                    if widgets::row(ui, label, layer.blend == blend) {
+                        layer.blend = blend;
+                    }
+                });
+            }
+        });
+        widgets::slider(ui, &opacity, &mut layer.opacity, (0.0, 1.0), false);
+        if self.base.layers != before {
+            self.requested = None;
         }
     }
 
@@ -1212,6 +1321,12 @@ impl eframe::App for App {
         ];
         let window = size;
         let size = self.picture.unwrap_or(window);
+        if self.requested.is_none()
+            && self.view != WHOLE
+            && std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "redrawn")
+        {
+            self.redraw_here(size);
+        }
         if window[0] > 0 && window[1] > 0 && self.requested != Some(size) {
             self.start_render(&ctx, size);
         }
@@ -1257,8 +1372,13 @@ impl eframe::App for App {
         }
 
         if self.bare {
-            if !self.panes.is_empty() {
-                self.panes.clear();
+            let mut panes = Vec::new();
+            if self.view != WHOLE {
+                let rect = self.redraw_button(&ctx, egui::pos2(content.center().x, content.bottom() - 20.0), size);
+                panes.push((rect, rect.height() * 0.5, false));
+            }
+            if panes != self.panes {
+                self.panes = panes;
                 ctx.request_repaint();
             }
             if self.screenshot.is_some() {
@@ -1366,6 +1486,12 @@ impl eframe::App for App {
                 (toolbar.response.rect.height() * 0.5).min(28.0),
                 false,
             ));
+        }
+
+        if self.view != WHOLE && !covered {
+            let above = content.bottom() - 20.0 - self.toolbar_size.y - 10.0;
+            let rect = self.redraw_button(&ctx, egui::pos2(content.center().x, above), size);
+            panes.push((rect, rect.height() * 0.5, false));
         }
 
         #[cfg(not(target_arch = "wasm32"))]
