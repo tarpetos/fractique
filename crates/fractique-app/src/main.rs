@@ -33,7 +33,7 @@ fn main() -> eframe::Result {
         viewport,
         ..Default::default()
     };
-    if screenshot.is_some() {
+    if screenshot.is_some() || std::env::var_os("FRACTIQUE_DEBUG_FULL").is_some() {
         // A test run must not change the window and settings the owner's next launch restores.
         options.persist_window = false;
         options.persistence_path = Some(std::env::temp_dir().join("fractique-screenshot.ron"));

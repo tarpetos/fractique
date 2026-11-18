@@ -122,6 +122,10 @@ struct App {
     languages_open: bool,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     maximize_again: bool,
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    full_pending: bool,
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    probe: u32,
     language_anchor: egui::Pos2,
     results: (mpsc::Sender<Rendered>, mpsc::Receiver<Rendered>),
     cancel: Arc<AtomicBool>,
@@ -208,6 +212,10 @@ impl App {
             language_anchor: egui::Pos2::ZERO,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             maximize_again: false,
+            #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+            full_pending: false,
+            #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+            probe: 0,
             results: mpsc::channel(),
             cancel: Arc::new(AtomicBool::new(false)),
             generation: 0,
@@ -369,19 +377,65 @@ impl App {
                 self.full_screen(ctx, false);
             }
         }
+        if self.full_pending {
+            if ctx.input(|input| input.viewport().maximized.unwrap_or(false)) {
+                ctx.request_repaint();
+            } else {
+                self.full_screen(ctx, true);
+            }
+        }
+        self.probe_full_screen(ctx);
         self.resize_edges(ctx, is_full);
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn full_screen(&mut self, ctx: &egui::Context, on: bool) {
-        // A maximized window keeps its maximized size in full screen and leaves a black strip where the taskbar was.
+        // A maximized window keeps its maximized size in full screen and leaves a black strip where the taskbar was,
+        // so it leaves the maximized state first and goes full screen once the system has done that.
         if on && ctx.input(|input| input.viewport().maximized.unwrap_or(false)) {
             self.maximize_again = true;
+            self.full_pending = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false));
+            ctx.request_repaint();
+            return;
         }
+        self.full_pending = false;
         ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(on));
         if !on && std::mem::take(&mut self.maximize_again) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+        }
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn probe_full_screen(&mut self, ctx: &egui::Context) {
+        let Some(report) = std::env::var_os("FRACTIQUE_DEBUG_FULL") else {
+            return;
+        };
+        self.probe += 1;
+        ctx.request_repaint();
+        match self.probe {
+            20 => ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true)),
+            90 => self.full_screen(ctx, true),
+            91..240 => {
+                let line = format!(
+                    "{} {:?} {:?}\n",
+                    self.probe,
+                    ctx.viewport_rect().size() * ctx.pixels_per_point(),
+                    ctx.input(|input| (
+                        input.viewport().maximized,
+                        input.viewport().fullscreen,
+                        input.viewport().monitor_size
+                    )),
+                );
+                use std::io::Write;
+                if self.probe.is_multiple_of(10)
+                    && let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(&report)
+                {
+                    let _ = file.write_all(line.as_bytes());
+                }
+            }
+            240 => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            _ => {}
         }
     }
 
@@ -1051,9 +1105,37 @@ impl eframe::App for App {
             .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
             .pivot(egui::Align2::CENTER_BOTTOM)
             .show(&ctx, |ui| {
-                egui::Frame::NONE
-                    .inner_margin(egui::Margin::same(9))
-                    .show(ui, |ui| self.toolbar(ui, wide, content.width() - 58.0));
+                egui::Frame::NONE.inner_margin(egui::Margin::same(9)).show(ui, |ui| {
+                    let detail = if self.rendering {
+                        self.t("rendering")
+                    } else {
+                        self.status.clone()
+                    };
+                    let name =
+                        ui.painter()
+                            .layout_no_wrap(self.title.clone(), font(13.5, MEDIUM), egui::Color32::WHITE);
+                    let detail = ui.painter().layout_no_wrap(
+                        detail,
+                        egui::FontId::proportional(13.0),
+                        egui::Color32::from_white_alpha(170),
+                    );
+                    let width = (self.toolbar_size.x - 18.0).max(name.size().x + 10.0 + detail.size().x);
+                    let (line, _) = ui.allocate_exact_size(egui::vec2(width, 24.0), egui::Sense::hover());
+                    let left = line.center().x - (name.size().x + 10.0 + detail.size().x) * 0.5;
+                    let after = left + name.size().x + 10.0;
+                    ui.painter().galley(
+                        egui::pos2(left, line.center().y - name.size().y * 0.5),
+                        name,
+                        egui::Color32::WHITE,
+                    );
+                    ui.painter().galley(
+                        egui::pos2(after, line.center().y - detail.size().y * 0.5),
+                        detail,
+                        egui::Color32::WHITE,
+                    );
+                    ui.add_space(5.0);
+                    self.toolbar(ui, wide, content.width() - 58.0);
+                });
             });
         self.toolbar_size = toolbar.response.rect.size();
         panes.push((
@@ -1061,34 +1143,6 @@ impl eframe::App for App {
             (toolbar.response.rect.height() * 0.5).min(28.0),
             false,
         ));
-
-        if (wide || !open) && !self.languages_open {
-            let status = egui::Area::new(egui::Id::unique("status"))
-                .fixed_pos(egui::pos2(content.right() - 20.0, content.top() + 20.0))
-                .pivot(egui::Align2::RIGHT_TOP)
-                .show(&ctx, |ui| {
-                    egui::Frame::NONE
-                        .inner_margin(egui::Margin::symmetric(18, 11))
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                let name = egui::RichText::new(&self.title)
-                                    .font(font(13.5, MEDIUM))
-                                    .color(egui::Color32::WHITE);
-                                ui.add(egui::Label::new(name).extend());
-                                let detail = if self.rendering {
-                                    self.t("rendering")
-                                } else {
-                                    self.status.clone()
-                                };
-                                let detail = egui::RichText::new(detail)
-                                    .size(13.0)
-                                    .color(egui::Color32::from_white_alpha(170));
-                                ui.add(egui::Label::new(detail).extend());
-                            });
-                        });
-                });
-            panes.push((status.response.rect, status.response.rect.height() * 0.5, false));
-        }
 
         #[cfg(not(target_arch = "wasm32"))]
         if self.export.open {
