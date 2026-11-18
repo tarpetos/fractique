@@ -6,6 +6,9 @@ First version: the renderer and the command line tool.
 
 * **Renderer:** fractal flames with 28 variations, layers (add, screen, over), rotational and mirror symmetry,
   density estimation, glow, ordered dithering, any resolution up to 16384 pixels a side.
+* **Any zoom:** a view magnified up to ten thousand million times is drawn sharp, from particles kept inside it; in
+  the app, drag, wheel and pinch move the view and zoom in and out, and the picture is drawn anew when the view rests.
+  A scene whose view holds less than an eighth of its flame renders differently from before this.
 * **Exact repeatability:** the same scene and options give the same pixels on every platform and thread count.
 * **Presets:** `aurora-spiral`, `emerald-star`, `emerald-burst`, `emerald-mandala`, `ember-vortex`, `azure-rings`, `golden-bloom`,
   `solar-mandala`, `jade-orb`, `violet-whirl`, `radiant-star`, `teal-lattice`, `amber-tree`, `silk-current`,

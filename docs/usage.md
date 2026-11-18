@@ -148,10 +148,9 @@ view: lower `camera.zoom` then.
 | **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 21 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone); a larger one is shown scaled down and exported in full. It is shown whole in the window |
 | **Export** | A PNG at the picture's size, or at another size chosen in the same list there, and at the quality you choose; rendered in the background with a progress bar |
 | **Scene: Open, Save** | Scenes as `.json`; **Open** also reads `.flame` files |
-| Drag, wheel or pinch on the picture | Moves and magnifies the picture as it is, up to 12 times, without a new render; a double click shows all of it again |
-| **Redraw here** (appears once the picture is moved or magnified) | Renders that view anew, sharp, and makes it the scene's camera: export and **Save** then give this view. It goes up to 8 times deeper than the scene's own view and spends up to 8 times the samples there; deeper, a flame breaks up into dots |
+| Drag, wheel or pinch on the picture | Moves the view and zooms in and out, from 10,000 times smaller to 10,000,000,000 times larger. The picture follows at once and is drawn anew, sharp, when the view rests; the bar shows the magnification. **Export** and **Save** take the view as it is. A double click shows the whole scene again |
+| **Reset view** (appears once the picture is moved or zoomed) | Shows the whole scene again, as a double click does |
 | **Layers** (inspector) | The scene's flames, one over another: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity |
-| **Reset view** (beside it, and after a redraw) | Back to the view the scene came with |
 | **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back. On a phone a tap hides and shows them |
 | **F11** | Full screen; **Esc** leaves it |
 | The version next to the name in the title bar | Every released version with its notes; update, or install an older one |

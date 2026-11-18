@@ -86,6 +86,71 @@ impl Compiled {
     }
 }
 
+const SEEDED: u64 = 0x5EED;
+
+impl Compiled {
+    #[inline]
+    fn chosen(&self, rng: &mut Rng) -> &Xf {
+        let pick = rng.next_f64() * self.total;
+        self.xfs
+            .iter()
+            .find(|xf| pick < xf.cumulative)
+            .unwrap_or(&self.xfs[self.xfs.len() - 1])
+    }
+
+    // One step of the chaos game whose every random choice comes from `seed`: the same seed moves a point the same
+    // way again.
+    #[inline]
+    pub(crate) fn seeded(&self, seed: u64, (x, y, color): (f64, f64, f64)) -> Option<(f64, f64, f64)> {
+        let mut rng = Rng::derive(seed, SEEDED, 0);
+        let xf = self.chosen(&mut rng);
+        let (x, y) = xf.apply(x, y, &mut rng);
+        (x.is_finite() && y.is_finite() && x.abs() < ESCAPED && y.abs() < ESCAPED).then_some((
+            x,
+            y,
+            color + (xf.color - color) * xf.speed,
+        ))
+    }
+
+    // What `Walker::run` does to a point before it plots it, with the random choices from `seed`; `last` is the
+    // seed of the step that made the point. `None`: the step's transform hides the point this time.
+    #[inline]
+    pub(crate) fn finished(
+        &self,
+        seed: u64,
+        last: u64,
+        (mut x, mut y, mut color): (f64, f64, f64),
+    ) -> Option<(f64, f64, f64)> {
+        let mut rng = Rng::derive(seed, SEEDED, 1);
+        let opacity = self.chosen(&mut Rng::derive(last, SEEDED, 0)).opacity;
+        if opacity < 1.0 && rng.next_f64() >= opacity {
+            return None;
+        }
+        if let Some(fin) = &self.fin {
+            (x, y) = fin.apply(x, y, &mut rng);
+            color += (fin.color - color) * fin.speed;
+        }
+        if self.rotations.len() > 1 {
+            let (c, s) = self.rotations[rng.below(self.rotations.len() as u64) as usize];
+            (x, y) = (x * c - y * s, x * s + y * c);
+        }
+        if self.mirror && rng.next_bool() {
+            x = -x;
+        }
+        (x.is_finite() && y.is_finite()).then_some((x, y, color))
+    }
+
+    pub(crate) fn plotted(&self) -> f64 {
+        let mut below = 0.0;
+        let mut sum = 0.0;
+        for xf in &self.xfs {
+            sum += (xf.cumulative - below) * xf.opacity.clamp(0.0, 1.0);
+            below = xf.cumulative;
+        }
+        sum / self.total
+    }
+}
+
 pub(crate) struct Walker {
     x: f64,
     y: f64,

@@ -21,7 +21,7 @@ use web_time::Instant;
 use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
 use fractique_core::random::{mutate, random_scene};
-use fractique_core::scene::{Blend, Camera, MAX_LAYERS};
+use fractique_core::scene::{Blend, MAX_LAYERS};
 use fractique_core::{Control, Developed, Image, RenderError, RenderOptions, Scene, compose, presets, render_layer};
 
 use glass::{Gfx, Optics};
@@ -30,6 +30,8 @@ use widgets::{MEDIUM, SEMIBOLD, font};
 
 const DRAFT_SIDE: f32 = 480.0;
 const DRAFT_SAMPLES: u32 = 12;
+const MIDDLE_SIDE: f32 = 1280.0;
+const MIDDLE_SAMPLES: u32 = 16;
 const FULL_SIDE: f32 = if cfg!(target_arch = "wasm32") {
     900.0
 } else if cfg!(any(target_os = "android", target_os = "ios")) {
@@ -48,6 +50,7 @@ const FULL_SAMPLES: u32 = if cfg!(target_arch = "wasm32") {
 struct Rendered {
     generation: u64,
     draft: bool,
+    view: View,
     image: Image,
     soft: (Vec<u8>, u32, u32),
     seconds: f32,
@@ -209,47 +212,81 @@ fn parsed_size(text: &str) -> Option<[u32; 2]> {
     Some([side(width)?, side(height)?])
 }
 
-const MAX_MAGNIFICATION: f32 = 12.0;
-// Zoomed in, most of a flame's points fall outside the frame: past this depth no affordable number of samples
-// keeps the picture from breaking up into dots.
-const MAX_DEPTH: f32 = 8.0;
-const MAX_BOOST: f32 = 8.0;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 const BAR: f32 = 44.0;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 const BAR_GAP: f32 = 10.0;
 
+// What the picture shows: the point `right` and `down` of the scene's own middle, in shorter sides of the picture,
+// magnified `zoom` times.
 #[derive(Clone, Copy, PartialEq)]
 struct View {
-    center: egui::Vec2,
-    zoom: f32,
+    right: f64,
+    down: f64,
+    zoom: f64,
 }
 
 const WHOLE: View = View {
-    center: egui::vec2(0.5, 0.5),
+    right: 0.0,
+    down: 0.0,
     zoom: 1.0,
 };
 
+// Past this the numbers of the renderer run out of digits.
+const MAX_MAGNIFICATION: f64 = 1e10;
+const MIN_MAGNIFICATION: f64 = 1e-4;
+// A new picture is drawn once the view has stood still this long.
+const SETTLE: f32 = 0.18;
+
 impl View {
-    fn settle(&mut self) {
-        self.zoom = self.zoom.clamp(1.0, MAX_MAGNIFICATION);
-        let edge = 0.5 / self.zoom;
-        self.center = self
-            .center
-            .clamp(egui::Vec2::splat(edge), egui::Vec2::splat(1.0 - edge));
+    fn moved(&mut self, by: [f64; 2]) {
+        self.right = (self.right - by[0] / self.zoom).clamp(-1e6, 1e6);
+        self.down = (self.down - by[1] / self.zoom).clamp(-1e6, 1e6);
     }
 
-    fn moved(&mut self, by: egui::Vec2, screen: egui::Vec2) {
-        self.center -= by / screen / self.zoom;
-        self.settle();
+    fn magnified(&mut self, factor: f64, around: [f64; 2]) {
+        let held = [self.right + around[0] / self.zoom, self.down + around[1] / self.zoom];
+        self.zoom = (self.zoom * factor).clamp(MIN_MAGNIFICATION, MAX_MAGNIFICATION);
+        self.right = held[0] - around[0] / self.zoom;
+        self.down = held[1] - around[1] / self.zoom;
+        self.moved([0.0; 2]);
     }
 
-    fn magnified(&mut self, factor: f32, around: egui::Vec2) {
-        let held = around / self.zoom + self.center;
-        self.zoom = (self.zoom * factor).clamp(1.0, MAX_MAGNIFICATION);
-        self.center = held - around / self.zoom;
-        self.settle();
+    // Where this view is in a picture drawn for the view `shown`: the picture point at its middle, and how many
+    // times larger it shows the picture.
+    fn within(&self, shown: &View, size: [u32; 2]) -> [f32; 3] {
+        let shorter = f64::from(size[0].min(size[1]));
+        let across = (self.right - shown.right) * shown.zoom * shorter / f64::from(size[0]);
+        let along = (self.down - shown.down) * shown.zoom * shorter / f64::from(size[1]);
+        [
+            (0.5 + across) as f32,
+            (0.5 + along) as f32,
+            (self.zoom / shown.zoom) as f32,
+        ]
     }
+
+    fn label(&self) -> String {
+        match self.zoom {
+            zoom if zoom >= 1e6 => format!("{zoom:.1e}"),
+            zoom if zoom >= 100.0 => format!("{zoom:.0}"),
+            zoom if zoom >= 1.0 => format!("{zoom:.1}"),
+            zoom => format!("{zoom:.3}"),
+        }
+    }
+}
+
+// A part of the screen, from its middle, in shorter sides of the picture.
+fn sides(of_screen: egui::Vec2, size: [u32; 2], stretch: f32) -> [f64; 2] {
+    let of_picture = if stretch > 1.0 {
+        egui::vec2(of_screen.x, of_screen.y * stretch)
+    } else {
+        egui::vec2(of_screen.x / stretch, of_screen.y)
+    };
+    let shorter = f64::from(size[0].min(size[1]));
+    [
+        f64::from(of_picture.x) * f64::from(size[0]) / shorter,
+        f64::from(of_picture.y) * f64::from(size[1]) / shorter,
+    ]
 }
 
 const NEUTRAL: Adjust = Adjust {
@@ -267,8 +304,9 @@ struct App {
     seed: u64,
     adjust: Adjust,
     view: View,
-    depth: f32,
-    home: Vec<Camera>,
+    shown: View,
+    drawn: Option<View>,
+    touched: Instant,
     bare: bool,
     optics: Optics,
     tuning: bool,
@@ -410,16 +448,10 @@ impl App {
             is_random: false,
             seed: 0,
             adjust: NEUTRAL,
-            view: if std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.starts_with("redraw")) {
-                View {
-                    center: egui::vec2(0.62, 0.4),
-                    zoom: 3.0,
-                }
-            } else {
-                WHOLE
-            },
-            depth: 1.0,
-            home: Vec::new(),
+            view: WHOLE,
+            shown: WHOLE,
+            drawn: None,
+            touched: Instant::now(),
             bare: false,
             optics: Optics {
                 refraction: 38.0,
@@ -479,6 +511,10 @@ impl App {
             tone.gamma *= self.adjust.gamma;
             tone.glow_strength *= self.adjust.glow;
             layer.flame.camera.zoom *= self.adjust.zoom;
+            layer.flame.camera = layer
+                .flame
+                .camera
+                .looking_at(self.view.right, self.view.down, self.view.zoom);
         }
         scene
     }
@@ -488,15 +524,22 @@ impl App {
         self.cancel = Arc::new(AtomicBool::new(false));
         self.generation += 1;
         self.requested = Some(size);
+        self.drawn = Some(self.view);
         self.rendering = true;
 
-        let full = fitted(size, FULL_SIDE, (FULL_SAMPLES as f32 * self.boost()) as u32);
+        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
         let mut passes = vec![(true, fitted(size, DRAFT_SIDE, DRAFT_SAMPLES)), (false, full)];
+        // A deep view takes several times longer to draw: a picture in between shortens the wait for a sharp one.
+        let between = fitted(size, MIDDLE_SIDE, MIDDLE_SAMPLES);
+        if self.view.zoom > 4.0 && full.width.max(full.height) >= 2 * between.width.max(between.height) {
+            passes.insert(1, (true, between));
+        }
         // A browser page has one thread: a draft first would only make it wait twice.
         if passes[0].1.width == full.width || cfg!(target_arch = "wasm32") {
             passes.remove(0);
         }
         let (scene, cancel, generation) = (self.scene(), self.cancel.clone(), self.generation);
+        let view = self.view;
         let (sender, ctx, kept) = (self.results.0.clone(), ctx.clone(), self.kept.clone());
         let work = move || {
             for (draft, options) in passes {
@@ -518,6 +561,7 @@ impl App {
                 let done = Rendered {
                     generation,
                     draft,
+                    view,
                     image,
                     soft,
                     seconds,
@@ -551,10 +595,14 @@ impl App {
                     soft,
                 );
             }
+            self.shown = done.view;
             if !done.draft {
                 self.rendering = false;
                 self.shown_frames = self.shown_frames.max(1);
                 self.status = format!("{} × {}  ·  {:.2} s", done.image.width, done.image.height, done.seconds);
+                if done.view.zoom != 1.0 {
+                    self.status += &format!("  ·  {}×", done.view.label());
+                }
             }
         }
     }
@@ -609,9 +657,6 @@ impl App {
             {
                 layer.blend = Blend::Screen;
                 layer.name = shown(&title);
-                if self.home.len() == self.base.layers.len() {
-                    self.home.push(layer.flame.camera.clone());
-                }
                 self.base.layers.push(layer);
                 self.layer = self.base.layers.len() - 1;
                 self.requested = None;
@@ -640,122 +685,54 @@ impl App {
         }
     }
 
-    fn redraw_button(&mut self, ctx: &egui::Context, at: egui::Pos2, size: [u32; 2]) -> egui::Rect {
-        let area = egui::Area::new(egui::Id::unique("redraw"))
+    fn reset_button(&mut self, ctx: &egui::Context, at: egui::Pos2) -> egui::Rect {
+        let area = egui::Area::new(egui::Id::unique("reset_view"))
             .fixed_pos(at)
             .pivot(egui::Align2::CENTER_BOTTOM)
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    let ink = egui::Color32::WHITE;
-                    let item = |ui: &mut egui::Ui, text: String, turn: bool| {
-                        let galley = ui.painter().layout_no_wrap(text, font(14.0, MEDIUM), ink);
-                        let lead = if turn { 42.0 } else { 20.0 };
-                        let (rect, response) = ui
-                            .allocate_exact_size(egui::vec2(galley.size().x + lead + 20.0, 42.0), egui::Sense::click());
-                        if response.hovered() {
-                            ui.painter().rect_filled(
-                                rect,
-                                egui::CornerRadius::same(21),
-                                egui::Color32::from_white_alpha(22),
-                            );
-                        }
-                        if turn {
-                            let middle = egui::pos2(rect.left() + 26.0, rect.center().y);
-                            // A clockwise arc open at the upper right, with an arrowhead on its end.
-                            let (from, to) = (0.45_f32, std::f32::consts::TAU - 0.75);
-                            let at = |angle: f32| {
-                                let (sin, cos) = angle.sin_cos();
-                                middle + egui::vec2(cos, sin) * 6.5
-                            };
-                            let arc: Vec<egui::Pos2> = (0..=24)
-                                .map(|step| at(from + (to - from) * step as f32 / 24.0))
-                                .collect();
-                            let stroke = egui::Stroke::new(1.6, ink);
-                            ui.painter().line(arc, stroke);
-                            let (tip, back) = (at(to + 0.2), at(to - 0.55));
-                            let along = (tip - back).normalized();
-                            let across = egui::vec2(-along.y, along.x);
-                            let base = tip - along * 5.0;
-                            ui.painter().add(egui::Shape::convex_polygon(
-                                vec![tip, base + across * 3.4, base - across * 3.4],
-                                ink,
-                                egui::Stroke::NONE,
-                            ));
-                        }
-                        ui.painter().galley(
-                            egui::pos2(rect.left() + lead, rect.center().y - galley.size().y * 0.5),
-                            galley,
-                            ink,
-                        );
-                        response.clicked()
-                    };
-                    let redraw = self.view != WHOLE && item(ui, self.t("redraw"), true);
-                    let reset = item(ui, self.t("reset_view"), false);
-                    if redraw {
-                        self.redraw_here(size);
-                    }
-                    if reset {
-                        self.reset_view();
-                    }
-                });
+                let ink = egui::Color32::WHITE;
+                let galley = ui
+                    .painter()
+                    .layout_no_wrap(self.t("reset_view"), font(14.0, MEDIUM), ink);
+                let (rect, response) =
+                    ui.allocate_exact_size(egui::vec2(galley.size().x + 40.0, 42.0), egui::Sense::click());
+                if response.hovered() {
+                    ui.painter()
+                        .rect_filled(rect, egui::CornerRadius::same(21), egui::Color32::from_white_alpha(22));
+                }
+                ui.painter().galley(
+                    egui::pos2(rect.left() + 20.0, rect.center().y - galley.size().y * 0.5),
+                    galley,
+                    ink,
+                );
+                if response.clicked() {
+                    self.reset_view();
+                }
             });
         area.response.rect
     }
 
-    fn moved(&self) -> bool {
-        self.view != WHOLE || self.depth > 1.0
-    }
-
     fn reset_view(&mut self) {
-        if self.home.len() == self.base.layers.len() {
-            for (layer, camera) in self.base.layers.iter_mut().zip(&self.home) {
-                layer.flame.camera = camera.clone();
-            }
-            self.requested = None;
-        }
-        self.home.clear();
-        self.depth = 1.0;
         self.view = WHOLE;
-    }
-
-    fn boost(&self) -> f32 {
-        (self.depth * self.depth).clamp(1.0, MAX_BOOST)
-    }
-
-    fn redraw_here(&mut self, size: [u32; 2]) {
-        let (wide, high) = (f64::from(size[0]), f64::from(size[1]));
-        let across = (f64::from(self.view.center.x) - 0.5) * wide;
-        let down = (f64::from(self.view.center.y) - 0.5) * high;
-        let deeper = self.view.zoom.min(MAX_DEPTH / self.depth).max(1.0);
-        if self.home.len() != self.base.layers.len() {
-            self.home = self
-                .base
-                .layers
-                .iter()
-                .map(|layer| layer.flame.camera.clone())
-                .collect();
-        }
-        for layer in &mut self.base.layers {
-            let camera = &mut layer.flame.camera;
-            let per_unit = camera.zoom * self.adjust.zoom * wide.min(high) / 4.0;
-            let up = if camera.flip_y { -per_unit } else { per_unit };
-            let (along, raised) = (across / per_unit, -down / up);
-            let angle = camera.rotation.to_radians();
-            let (cos, sin) = (fractique_core::math::cos(angle), fractique_core::math::sin(angle));
-            camera.center[0] += along * cos - raised * sin;
-            camera.center[1] += along * sin + raised * cos;
-            camera.zoom *= f64::from(deeper);
-        }
-        self.depth *= deeper;
-        self.view = WHOLE;
-        self.requested = None;
+        self.touched = Instant::now();
     }
 
     fn explore(&mut self, ui: &mut egui::Ui, screen: egui::Rect) {
         let picture = ui.interact(screen, egui::Id::unique("picture"), egui::Sense::click_and_drag());
+        let scale = ui.ctx().pixels_per_point();
+        let window = [
+            (screen.width() * scale).round() as u32,
+            (screen.height() * scale).round() as u32,
+        ];
+        let size = self.picture.unwrap_or(window);
+        if size[0] == 0 || size[1] == 0 {
+            return;
+        }
+        let stretch = (size[0] as f32 / size[1] as f32) / (screen.width() / screen.height()).max(0.001);
+        let before = self.view;
         if picture.dragged() {
-            self.view.moved(picture.drag_delta(), screen.size());
+            self.view
+                .moved(sides(picture.drag_delta() / screen.size(), size, stretch));
         }
         if picture.clicked() && (self.languages_open || self.sizes_open || self.presets_open) {
             self.languages_open = false;
@@ -777,8 +754,11 @@ impl App {
             let factor = pinch * (1.0 + wheel * 0.004).clamp(0.5, 2.0);
             if factor != 1.0 {
                 let around = pointer.map_or(egui::Vec2::ZERO, |at| (at - screen.center()) / screen.size());
-                self.view.magnified(factor, around);
+                self.view.magnified(f64::from(factor), sides(around, size, stretch));
             }
+        }
+        if self.view != before {
+            self.touched = Instant::now();
         }
     }
 
@@ -1082,8 +1062,6 @@ impl App {
         self.is_random = is_random;
         self.requested = None;
         self.view = WHOLE;
-        self.depth = 1.0;
-        self.home.clear();
         self.layer = 0;
     }
 
@@ -1261,23 +1239,14 @@ impl App {
                 self.adding_layer = true;
             }
             Some("remove") => {
-                if at < self.home.len() {
-                    self.home.remove(at);
-                }
                 self.base.layers.remove(at);
                 self.layer = at.min(count - 2);
             }
             Some("up") => {
-                if at < self.home.len() {
-                    self.home.swap(at, at - 1);
-                }
                 self.base.layers.swap(at, at - 1);
                 self.layer = at - 1;
             }
             Some("down") => {
-                if at + 1 < self.home.len() {
-                    self.home.swap(at, at + 1);
-                }
                 self.base.layers.swap(at, at + 1);
                 self.layer = at + 1;
             }
@@ -1325,15 +1294,11 @@ impl App {
                 let title = format!("{} {}", shown(&self.t("random")), self.seed);
                 let at = self.layer.min(self.base.layers.len() - 1);
                 let fresh = random_scene(self.seed).layers.swap_remove(0);
-                if let Some(home) = self.home.get_mut(at) {
-                    *home = fresh.flame.camera.clone();
-                }
                 self.base.layers[at].flame = fresh.flame;
                 self.base.layers[at].name = title.clone();
                 if self.base.layers.len() == 1 {
                     self.title = title;
                     self.is_random = true;
-                    self.depth = 1.0;
                 }
                 self.view = WHOLE;
                 self.requested = None;
@@ -1479,7 +1444,6 @@ impl App {
         }
         if clicked.1 {
             let (_, samples_per_pixel, supersample) = export::QUALITIES[self.export.quality];
-            let samples_per_pixel = (samples_per_pixel as f32 * self.boost()) as u32;
             let options = RenderOptions {
                 width,
                 height,
@@ -1619,14 +1583,17 @@ impl eframe::App for App {
         ];
         let window = size;
         let size = self.picture.unwrap_or(window);
-        if self.requested.is_none()
-            && self.view != WHOLE
-            && std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "redrawn")
-        {
-            self.redraw_here(size);
-        }
-        if window[0] > 0 && window[1] > 0 && self.requested != Some(size) {
-            self.start_render(&ctx, size);
+        if window[0] > 0 && window[1] > 0 {
+            if self.requested != Some(size) {
+                self.start_render(&ctx, size);
+            } else if self.drawn != Some(self.view) {
+                let still = self.touched.elapsed().as_secs_f32();
+                if still >= SETTLE {
+                    self.start_render(&ctx, size);
+                } else {
+                    ctx.request_repaint_after(std::time::Duration::from_secs_f32(SETTLE - still));
+                }
+            }
         }
         let stretch = (size[0] as f32 / size[1] as f32) / (screen.width() / screen.height()).max(0.001);
 
@@ -1652,11 +1619,10 @@ impl eframe::App for App {
                 self.shown_frames = 2;
             }
         }
-        let mut glass = glass::Frame::new(
-            &painter,
-            screen,
-            [self.view.center.x, self.view.center.y, self.view.zoom, stretch],
-        );
+        let mut glass = glass::Frame::new(&painter, screen, {
+            let [across, along, larger] = self.view.within(&self.shown, size);
+            [across, along, larger, stretch]
+        });
         for (rect, radius, dark) in &self.panes {
             let mut optics = Optics {
                 radius: *radius,
@@ -1671,8 +1637,8 @@ impl eframe::App for App {
 
         if self.bare {
             let mut panes = Vec::new();
-            if self.moved() {
-                let rect = self.redraw_button(&ctx, egui::pos2(content.center().x, content.bottom() - 20.0), size);
+            if self.view != WHOLE {
+                let rect = self.reset_button(&ctx, egui::pos2(content.center().x, content.bottom() - 20.0));
                 panes.push((rect, rect.height() * 0.5, false));
             }
             if panes != self.panes {
@@ -1700,7 +1666,7 @@ impl eframe::App for App {
         let column = (content.width() - 84.0).min(248.0);
         let beside = content.left() + 20.0 + column + 44.0 + 16.0;
         let fits = wide && open && content.center().x - self.toolbar_size.x * 0.5 >= beside;
-        let lifted = if self.moved() { 56.0 } else { 0.0 };
+        let lifted = if self.view != WHOLE { 56.0 } else { 0.0 };
         let under = if wide && (fits || !open) {
             0.0
         } else {
@@ -1789,9 +1755,9 @@ impl eframe::App for App {
             ));
         }
 
-        if self.moved() && !covered {
+        if self.view != WHOLE && !covered {
             let above = content.bottom() - 20.0 - self.toolbar_size.y - 10.0;
-            let rect = self.redraw_button(&ctx, egui::pos2(content.center().x, above), size);
+            let rect = self.reset_button(&ctx, egui::pos2(content.center().x, above));
             panes.push((rect, rect.height() * 0.5, false));
         }
 

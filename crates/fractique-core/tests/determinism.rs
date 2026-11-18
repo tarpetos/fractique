@@ -72,6 +72,63 @@ fn the_thread_count_does_not_change_the_image() {
     }
 }
 
+fn deep() -> fractique_core::Scene {
+    let mut scene = presets::get("aurora-spiral").unwrap();
+    let camera = &mut scene.layers[0].flame.camera;
+    *camera = camera.looking_at(-0.1, -0.31, 40_000.0);
+    scene
+}
+
+// A view that holds little of the flame is drawn another way (`deep.rs`); it keeps the same promise.
+#[test]
+fn a_deep_view_renders_to_its_golden_hash() {
+    let image = render(&deep(), &small(1), &Control::default()).unwrap();
+    assert!(
+        image.rgba.chunks_exact(4).any(|p| p[0] > 40 || p[1] > 40 || p[2] > 40),
+        "the deep view is black"
+    );
+    assert_eq!(image.hash(), 0x3322_9bcf_e53e_2be4, "got {:#018x}", image.hash());
+}
+
+#[cfg(feature = "parallel")]
+#[test]
+fn the_thread_count_does_not_change_a_deep_view() {
+    let all_cores = render(&deep(), &small(1), &Control::default()).unwrap();
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(1).build().unwrap();
+    let image = pool.install(|| render(&deep(), &small(1), &Control::default()).unwrap());
+    assert_eq!(image.hash(), all_cores.hash());
+}
+
+// The picture point that is `right` and `down` of the middle becomes the middle.
+#[test]
+fn a_camera_looks_at_a_point_of_its_picture() {
+    let mut scene = presets::get("ember-vortex").unwrap();
+    let options = RenderOptions {
+        width: 96,
+        height: 64,
+        samples_per_pixel: 60,
+        supersample: 1,
+    };
+    let whole = render(&scene, &options, &Control::default()).unwrap();
+    for layer in &mut scene.layers {
+        layer.flame.camera = layer.flame.camera.looking_at(0.25, -0.125, 1.0);
+    }
+    let moved = render(&scene, &options, &Control::default()).unwrap();
+    let lit = |image: &fractique_core::Image, x: u32, y: u32| {
+        let at = ((y * image.width + x) * 4) as usize;
+        image.rgba[at..at + 3].iter().map(|c| u32::from(*c)).sum::<u32>()
+    };
+    let (mut same, mut all) = (0, 0);
+    for y in 8..56 {
+        for x in 0..72 {
+            all += 1;
+            let (a, b) = (lit(&whole, x + 16, y - 8), lit(&moved, x, y));
+            same += u32::from(a.abs_diff(b) <= 48);
+        }
+    }
+    assert!(same * 10 >= all * 9, "{same} of {all} pixels moved with the camera");
+}
+
 #[test]
 fn the_seed_changes_the_image() {
     let mut scene = random_scene(7);

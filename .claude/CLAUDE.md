@@ -61,6 +61,7 @@ is stable, not that it is good.
 | `crates/fractique-core/src/variation.rs` | The variations (the nonlinear functions) |
 | `crates/fractique-core/src/chaos.rs` | The chaos game: one walker per stream |
 | `crates/fractique-core/src/render.rs` | Streams, histogram, layers, dithering |
+| `crates/fractique-core/src/deep.rs` | Deep views: the particles a magnified view is drawn from |
 | `crates/fractique-core/src/tone.rs` | Density estimation, log tone mapping, glow |
 | `crates/fractique-core/src/random.rs` | Random scenes, mutation, camera fitting |
 | `crates/fractique-core/presets/` | Built-in scenes, compiled into the binary |

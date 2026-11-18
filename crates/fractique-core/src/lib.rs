@@ -9,6 +9,7 @@ pub mod scene;
 pub mod variation;
 
 mod chaos;
+mod deep;
 mod tone;
 
 pub use render::{Control, Developed, Image, Quality, RenderError, RenderOptions, compose, render, render_layer};
