@@ -258,6 +258,7 @@ struct App {
     shown_frames: u32,
     screenshot: Option<PathBuf>,
     screenshot_done: Arc<AtomicBool>,
+    saved: String,
     last_frame: Instant,
     #[cfg(not(target_arch = "wasm32"))]
     export: export::Sheet,
@@ -362,6 +363,7 @@ impl App {
             shown_frames: 0,
             screenshot,
             screenshot_done: Arc::new(AtomicBool::new(false)),
+            saved: String::new(),
             last_frame: Instant::now(),
             #[cfg(not(target_arch = "wasm32"))]
             export: export::Sheet {
@@ -466,7 +468,7 @@ impl App {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         widgets::section(ui, &self.t("size"));
         let own = format!("{} · {} × {}", self.t("size_window"), window[0], window[1]);
-        let height = (room - 230.0).clamp(64.0, 420.0);
+        let height = (room - 230.0).clamp(34.0, 420.0);
         if size_list(
             ui,
             &self.texts,
@@ -738,6 +740,7 @@ impl App {
                 );
                 painter.galley(chip.center() - galley.size() * 0.5, galley, ink);
                 if version.clicked() {
+                    self.languages_open = false;
                     self.sizes_open = false;
                     self.export.open = false;
                     self.updates.show(ctx);
@@ -825,6 +828,9 @@ impl App {
                 self.language_anchor = chip.right_bottom();
                 if language.clicked() {
                     self.languages_open = !self.languages_open;
+                    self.sizes_open = false;
+                    self.export.open = false;
+                    self.updates.open = false;
                 }
             });
         bar
@@ -862,6 +868,7 @@ impl App {
             widgets::section(ui, &self.t("language"));
             if widgets::row(ui, self.texts.lang.name(), true) {
                 self.languages_open = !self.languages_open;
+                self.sizes_open = false;
             }
         }
 
@@ -888,6 +895,7 @@ impl App {
         );
         if widgets::row(ui, &label, true) {
             self.sizes_open = !self.sizes_open;
+            self.languages_open = false;
             #[cfg(not(target_arch = "wasm32"))]
             {
                 self.export.open = false;
@@ -914,7 +922,7 @@ impl App {
         widgets::slider(ui, &self.t("zoom"), &mut self.adjust.zoom, (0.4, 2.5), true);
 
         ui.add_space(8.0);
-        if widgets::pill(ui, &self.t("reset"), false, 0.0) {
+        if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
             self.adjust = NEUTRAL;
         }
 
@@ -1057,6 +1065,7 @@ impl App {
             #[cfg(not(target_arch = "wasm32"))]
             Some("export") => {
                 self.sizes_open = false;
+                self.languages_open = false;
                 self.export.open = !self.export.open;
                 self.export.note.clear();
             }
@@ -1144,7 +1153,7 @@ impl App {
         let shown = self.picture.unwrap_or(window);
         widgets::section(ui, &self.t("size"));
         let own = format!("{} × {}", shown[0], shown[1]);
-        let height = (room - 400.0).clamp(64.0, 230.0);
+        let height = (room - 400.0).clamp(34.0, 230.0);
         size_list(
             ui,
             &self.texts,
@@ -1313,7 +1322,14 @@ impl eframe::App for App {
             content
         };
         #[cfg(any(target_os = "android", target_os = "ios", target_arch = "wasm32"))]
-        let content = safe_content(&ctx);
+        let content = {
+            let mut content = safe_content(&ctx);
+            // The on-screen keyboard covers the lower part of a phone's screen and does not report its size.
+            if cfg!(any(target_os = "android", target_os = "ios")) && ctx.egui_wants_keyboard_input() {
+                content.max.y = content.min.y + content.height() * 0.56;
+            }
+            content
+        };
         let scale = ctx.pixels_per_point();
         let size = [
             (screen.width() * scale).round() as u32,
@@ -1389,15 +1405,24 @@ impl eframe::App for App {
 
         let wide = content.width() >= 700.0;
         let open = *self.inspector_open.get_or_insert(wide);
+        // A sheet's glass is drawn under every text, so a panel it would cover hides while the sheet is open.
         #[cfg(not(target_arch = "wasm32"))]
-        let open = open && (wide || !self.export.open);
+        let sheet = self.export.open || self.sizes_open;
+        #[cfg(target_arch = "wasm32")]
+        let sheet = self.sizes_open;
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        let sheet = sheet || self.updates.open;
+        let sheet = sheet
+            || (self.languages_open && cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")));
+        let open = open && !(sheet && content.width() < 1320.0);
         let column = (content.width() - 84.0).min(248.0);
         let beside = content.left() + 20.0 + column + 44.0 + 16.0;
         let fits = wide && open && content.center().x - self.toolbar_size.x * 0.5 >= beside;
+        let lifted = if self.view != WHOLE { 56.0 } else { 0.0 };
         let under = if wide && (fits || !open) {
             0.0
         } else {
-            self.toolbar_size.y.max(60.0) + 12.0
+            self.toolbar_size.y.max(60.0) + 12.0 + lifted
         };
         let mut panes = Vec::new();
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -1436,13 +1461,7 @@ impl eframe::App for App {
             panes.push((inspector.response.rect, self.optics.radius, false));
         }
 
-        #[cfg(not(target_arch = "wasm32"))]
-        let covered = self.export.open;
-        #[cfg(target_arch = "wasm32")]
-        let covered = false;
-        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        let covered = covered || self.updates.open;
-        let covered = covered || self.sizes_open;
+        let covered = sheet || self.languages_open;
         if !covered {
             let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
                 .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
@@ -1593,6 +1612,23 @@ impl eframe::App for App {
         if self.screenshot.is_some() {
             self.take_screenshot(&ctx);
         }
+
+        // A phone ends an app without telling it, so settings are written when they change, not at exit.
+        let settings = format!(
+            "{} {} {} {:?}",
+            self.texts.lang.code(),
+            self.optics.tint,
+            self.optics.blur,
+            self.picture
+        );
+        if settings != self.saved
+            && !ctx.input(|input| input.pointer.any_down())
+            && let Some(storage) = frame.storage_mut()
+        {
+            self.saved = settings;
+            eframe::App::save(self, storage);
+            storage.flush();
+        }
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -1697,6 +1733,14 @@ pub fn run(mut options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> e
         log::set_max_level(log::LevelFilter::Warn);
     }
     offered_limits(&mut options.wgpu_options);
+    // eframe finds no settings folder of its own on a phone.
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    if options.persistence_path.is_none()
+        && let Some(folder) = own_folder()
+    {
+        let _ = std::fs::create_dir_all(&folder);
+        options.persistence_path = Some(folder.join("settings.ron"));
+    }
     eframe::run_native(
         "Fractique",
         options,
