@@ -1778,10 +1778,19 @@ impl App {
         let is_flame = path
             .extension()
             .is_some_and(|extension| extension.eq_ignore_ascii_case("flame"));
-        let text = match std::fs::read_to_string(path) {
+        let read = std::fs::read(path)
+            .map_err(|error| error.to_string())
+            .and_then(|bytes| {
+                if fractique_core::file::is_packed(&bytes) {
+                    fractique_core::file::unpack(&bytes).map(|document| document.to_string())
+                } else {
+                    String::from_utf8(bytes).map_err(|error| error.to_string())
+                }
+            });
+        let text = match read {
             Ok(text) => text,
             Err(error) => {
-                self.status = error.to_string();
+                self.status = error;
                 return;
             }
         };
@@ -1821,10 +1830,10 @@ impl App {
         }
     }
 
-    // The app's own file: the session, so that it opens as it was saved, and under "shown" the scene as it was on
-    // the screen, which is what the other tools render.
+    // The app's own file, packed by `fractique_core::file`: the session, so that it opens as it was saved, and
+    // under "shown" the scene as it was on the screen, which is what the other tools render.
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-    fn document(&self) -> String {
+    fn document(&self) -> Vec<u8> {
         let size = self.requested.unwrap_or([1, 2]);
         let mut document: serde_json::Value = serde_json::from_str(&self.session()).unwrap_or_default();
         if let Some(fields) = document.as_object_mut() {
@@ -1835,7 +1844,7 @@ impl App {
                 serde_json::to_value(self.scene_at(size)).unwrap_or_default(),
             );
         }
-        serde_json::to_string_pretty(&document).unwrap_or_default() + "\n"
+        fractique_core::file::pack(&document)
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -1852,12 +1861,12 @@ impl App {
         let own = path
             .extension()
             .is_some_and(|extension| extension.eq_ignore_ascii_case(SCENE_FILE));
-        let text = if own {
+        let bytes = if own {
             self.document()
         } else {
-            self.scene_at(self.requested.unwrap_or([1, 2])).to_json() + "\n"
+            (self.scene_at(self.requested.unwrap_or([1, 2])).to_json() + "\n").into_bytes()
         };
-        self.status = match std::fs::write(&path, text) {
+        self.status = match std::fs::write(&path, bytes) {
             Ok(()) => self.t("saved"),
             Err(error) => format!("{}: {error}", self.t("failed")),
         };

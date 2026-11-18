@@ -1,9 +1,11 @@
 # Scene format
 
-A scene file is JSON, described below. The app's own `.frcq` file is JSON too but more than a scene: it holds the
-app's session (the scene under `scene`, with the tone sliders, the view, the size and the wallpaper choices beside
-it) and, under `shown`, the scene exactly as it was on the screen. `fractique render file.frcq` and the other commands
-read `shown`.
+A scene file is JSON, described below. The app's own `.frcq` file is not text. It is the four bytes `FRCQ`, one byte
+with the file version (1), then a document squeezed with raw DEFLATE. The document holds the app's session (the
+scene under `scene`, with the tone sliders, the view, the size and the wallpaper choices beside it) and, under
+`shown`, the scene exactly as it was on the screen. `fractique render file.frcq` and the other commands read
+`shown`. `fractique_core::file` packs and unpacks it. A `.frcq` file is about a seventh of the same scene as
+indented JSON.
 
 A scene is one JSON document. It holds everything a render depends on, so the same scene always renders to the
 same image (see [determinism.md](determinism.md)). This file is the contract: it changes together with
