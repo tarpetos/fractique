@@ -555,10 +555,7 @@ impl App {
                 live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall") || what == "layouts"),
                 ..Default::default()
             },
-            phone: phone::Phone::new(
-                stored("hints").and_then(|text| text.parse().ok()).unwrap_or(0),
-                stored("kept"),
-            ),
+            phone: phone::Phone::new(stored("kept")),
             title,
             is_random: false,
             seed: 0,
@@ -2531,8 +2528,7 @@ impl eframe::App for App {
             && let Some(storage) = frame.storage_mut()
         {
             let settings = format!(
-                "{} {} {} {} {} {:?} {}",
-                self.phone.hints,
+                "{} {} {} {} {:?} {}",
                 self.phone.kept.len(),
                 self.texts.lang.code(),
                 self.optics.tint,
@@ -2558,7 +2554,6 @@ impl eframe::App for App {
             .map_or("auto".to_owned(), |[width, height]| format!("{width}x{height}"));
         storage.set_string("picture", picture);
         storage.set_string("session", self.session());
-        storage.set_string("hints", self.phone.hints.to_string());
         storage.set_string("kept", self.phone.kept_text());
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         if let Some(path) = std::env::var_os("FRACTIQUE_DOCUMENT") {
