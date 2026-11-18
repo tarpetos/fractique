@@ -154,6 +154,46 @@ impl Phone {
     }
 }
 
+// One thread: a sheet of small pictures must not take the cores the window and the picture itself are drawn with.
+#[cfg(not(target_arch = "wasm32"))]
+fn thumb_pool() -> &'static rayon::ThreadPool {
+    static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("the thread of the small pictures starts")
+    })
+}
+
+// A small picture is kept as a file on a phone: drawing a sheet of them anew at every start takes a slow phone
+// most of a minute.
+fn thumb_file(key: &str, pixels: [usize; 2]) -> Option<std::path::PathBuf> {
+    use std::hash::{Hash, Hasher};
+    #[cfg(target_os = "android")]
+    let folder = crate::own_folder().map(|folder| folder.join("cache"));
+    #[cfg(target_os = "ios")]
+    let folder = std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join("Library/Caches"));
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let folder: Option<std::path::PathBuf> = None;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    key.hash(&mut hasher);
+    let name = format!("{:016x}-{}x{}.png", hasher.finish(), pixels[0], pixels[1]);
+    Some(folder?.join(concat!("thumbs-", env!("CARGO_PKG_VERSION"))).join(name))
+}
+
+fn stored_thumb(path: &std::path::Path, pixels: [usize; 2]) -> Option<Vec<u8>> {
+    let mut reader = png::Decoder::new(std::io::BufReader::new(std::fs::File::open(path).ok()?))
+        .read_info()
+        .ok()?;
+    let mut rgba = vec![0; reader.output_buffer_size()?];
+    let frame = reader.next_frame(&mut rgba).ok()?;
+    let fits = [frame.width as usize, frame.height as usize] == pixels
+        && frame.color_type == png::ColorType::Rgba
+        && frame.bit_depth == png::BitDepth::Eight;
+    fits.then_some(rgba)
+}
+
 // Four across on an upright phone; more on one lying on its side, where four would be taller than the screen.
 fn tile_width(room: f32, gap: f32) -> f32 {
     let across = (room / 104.0).floor().max(4.0);
@@ -798,15 +838,28 @@ impl App {
         let scene = scene()?;
         self.phone.drawing.insert(key.clone());
         let (sender, ctx) = (self.phone.drawn.0.clone(), ctx.clone());
+        let kept = thumb_file(&key, pixels);
         // A small picture drawn on the window's thread holds every frame up for as long as it takes.
         let work = move || {
-            #[cfg(not(target_arch = "wasm32"))]
-            let image = crate::render_pool().install(|| render(&scene, &options, &Control::default()));
-            #[cfg(target_arch = "wasm32")]
-            let image = render(&scene, &options, &Control::default());
-            let rgba = image
-                .map(|image| image.rgba)
-                .unwrap_or_else(|_| vec![0; pixels[0] * pixels[1] * 4]);
+            let rgba = kept
+                .as_deref()
+                .and_then(|path| stored_thumb(path, pixels))
+                .unwrap_or_else(|| {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let image = thumb_pool().install(|| render(&scene, &options, &Control::default()));
+                    #[cfg(target_arch = "wasm32")]
+                    let image = render(&scene, &options, &Control::default());
+                    match image {
+                        Ok(image) => {
+                            if let Some(path) = &kept {
+                                let _ = path.parent().map(std::fs::create_dir_all);
+                                let _ = crate::save_png(path, &image.rgba, pixels);
+                            }
+                            image.rgba
+                        }
+                        Err(_) => vec![0; pixels[0] * pixels[1] * 4],
+                    }
+                });
             let _ = sender.send((key, pixels, rgba));
             ctx.request_repaint();
         };

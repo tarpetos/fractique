@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* **Phones:** the small pictures of the styles are drawn on one thread, so the window and the picture keep their
+  cores, and are kept as files, so a sheet that was drawn once opens at once the next time.
 * **GPU acceleration:** the trial that decides whether a built-in graphics chip is used draws a larger picture and
   asks for the card to be 1.3 times as fast, not twice: a phone with an Adreno 740 was left out at 1.7.
 * **GPU acceleration:** a graphics card of its own (not one built into the processor) is used without a trial.
