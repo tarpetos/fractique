@@ -289,6 +289,8 @@ fn fitted(size: [u32; 2], side: f32, samples: u32) -> RenderOptions {
 
 impl App {
     fn new(cc: &eframe::CreationContext<'_>, screenshot: Option<PathBuf>) -> Self {
+        #[cfg(target_os = "ios")]
+        join_scene(cc);
         let stored = |key: &str| cc.storage.and_then(|storage| storage.get_string(key));
         let lang = Lang::forced()
             .or_else(|| stored("language").map(|code| Lang::from_locale(&code)))
@@ -1585,6 +1587,38 @@ pub async fn run_web(canvas: eframe::web_sys::HtmlCanvasElement) -> Result<(), e
     runner
         .start(canvas, options, Box::new(|cc| Ok(Box::new(App::new(cc, None)))))
         .await
+}
+
+// iOS 27 refuses to start an app without a scene; winit's window does not join one by itself.
+#[cfg(target_os = "ios")]
+fn join_scene(cc: &eframe::CreationContext<'_>) {
+    use objc2::runtime::AnyObject;
+    use objc2::{class, msg_send};
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+    let Ok(handle) = cc.window_handle() else { return };
+    let RawWindowHandle::UiKit(handle) = handle.as_raw() else {
+        return;
+    };
+    let view = handle.ui_view.as_ptr().cast::<AnyObject>();
+    unsafe {
+        let window: *mut AnyObject = msg_send![view, window];
+        if window.is_null() {
+            return;
+        }
+        let joined: *mut AnyObject = msg_send![window, windowScene];
+        if !joined.is_null() {
+            return;
+        }
+        let app: *mut AnyObject = msg_send![class!(UIApplication), sharedApplication];
+        let scenes: *mut AnyObject = msg_send![app, connectedScenes];
+        let scene: *mut AnyObject = msg_send![scenes, anyObject];
+        if scene.is_null() {
+            return;
+        }
+        let _: () = msg_send![window, setWindowScene: scene];
+        let _: () = msg_send![window, makeKeyAndVisible];
+    }
 }
 
 #[cfg(target_os = "android")]

@@ -47,6 +47,15 @@ cat > "$app/Info.plist" <<EOF
     <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string><string>metal</string></array>
     <key>UILaunchScreen</key><dict/>
     <key>UIRequiresFullScreen</key><false/>
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+        <key>UIApplicationSupportsMultipleScenes</key><false/>
+        <key>UISceneConfigurations</key>
+        <dict>
+            <key>UIWindowSceneSessionRoleApplication</key>
+            <array><dict><key>UISceneConfigurationName</key><string>Default</string></dict></array>
+        </dict>
+    </dict>
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>
