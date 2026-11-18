@@ -498,8 +498,10 @@ impl App {
             let gfx = Gfx::new(&state.device, state.target_format);
             state.renderer.write().callback_resources.insert(gfx);
         }
+        let restore = screenshot.is_none() || std::env::var_os("FRACTIQUE_RESTORE").is_some();
+        let session = if restore { stored("session") } else { None };
         let title = "aurora-spiral".to_owned();
-        Self {
+        let mut app = Self {
             texts,
             base: named(presets::get(&title).unwrap_or_else(|| random_scene(1)), &shown(&title)),
             wall: Wall {
@@ -564,7 +566,11 @@ impl App {
             },
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             updates: updates::Updates::new(),
+        };
+        if let Some(session) = session {
+            let _ = app.restore(&session);
         }
+        app
     }
 
     fn scene(&self) -> Scene {
@@ -695,6 +701,97 @@ impl App {
                 }
             }
         }
+    }
+
+    fn session(&self) -> String {
+        let name = |layout: Layout| {
+            Layout::ALL
+                .iter()
+                .find(|(_, each)| *each == layout)
+                .map(|(name, _)| *name)
+        };
+        let stuff = |material: Material| {
+            Material::ALL
+                .iter()
+                .find(|(_, each)| *each == material)
+                .map(|(name, _)| *name)
+        };
+        let optics = [self.optics.refraction, self.optics.rim, self.optics.bezel];
+        let session = serde_json::json!({
+            "scene": serde_json::to_value(&self.base).unwrap_or_default(),
+            "title": self.title,
+            "random": self.is_random,
+            "seed": self.seed,
+            "adjust": [self.adjust.brightness, self.adjust.gamma, self.adjust.glow, self.adjust.zoom],
+            "view": [self.view.right, self.view.down, self.view.zoom],
+            "layer": self.layer,
+            "inspector": self.inspector_open,
+            "optics": optics,
+            "wall": {
+                "on": self.wall.on,
+                "live": self.wall.live,
+                "layout": self.wall.layout.and_then(name),
+                "material": self.wall.material.and_then(stuff),
+                "held": self.wall.held.and_then(|(layout, material)| Some([name(layout)?, stuff(material)?])),
+                "dark": self.wall.dark,
+            },
+        });
+        session.to_string()
+    }
+
+    fn restore(&mut self, text: &str) -> Option<()> {
+        let session: serde_json::Value = serde_json::from_str(text).ok()?;
+        let scene: Scene = serde_json::from_value(session.get("scene")?.clone()).ok()?;
+        scene.validate().ok()?;
+        let numbers = |key: &str| -> Option<Vec<f64>> {
+            session
+                .get(key)?
+                .as_array()?
+                .iter()
+                .map(serde_json::Value::as_f64)
+                .collect()
+        };
+        self.base = scene;
+        self.title = session.get("title")?.as_str()?.to_owned();
+        self.is_random = session.get("random")?.as_bool()?;
+        self.seed = session.get("seed")?.as_u64()?;
+        if let Some(&[brightness, gamma, glow, zoom]) = numbers("adjust").as_deref() {
+            self.adjust = Adjust {
+                brightness,
+                gamma,
+                glow,
+                zoom,
+            };
+        }
+        if let Some(&[right, down, zoom]) = numbers("view").as_deref()
+            && (MIN_MAGNIFICATION..=MAX_MAGNIFICATION).contains(&zoom)
+        {
+            self.view = View { right, down, zoom };
+        }
+        self.layer = session.get("layer").and_then(serde_json::Value::as_u64).unwrap_or(0) as usize;
+        self.inspector_open = session.get("inspector").and_then(serde_json::Value::as_bool);
+        if let Some(&[refraction, rim, bezel]) = numbers("optics").as_deref() {
+            self.optics.refraction = refraction as f32;
+            self.optics.rim = rim as f32;
+            self.optics.bezel = bezel as f32;
+        }
+        let wall = session.get("wall")?;
+        let word = |key: &str| wall.get(key).and_then(serde_json::Value::as_str);
+        let held = wall.get("held").and_then(serde_json::Value::as_array);
+        self.wall = Wall {
+            on: wall.get("on")?.as_bool()?,
+            live: wall.get("live")?.as_bool()?,
+            layout: word("layout").and_then(Layout::parse),
+            material: word("material").and_then(Material::parse),
+            held: held.and_then(|held| {
+                Some((
+                    Layout::parse(held.first()?.as_str()?)?,
+                    Material::parse(held.get(1)?.as_str()?)?,
+                ))
+            }),
+            dark: wall.get("dark")?.as_bool()?,
+        };
+        Some(())
     }
 
     fn open_sheet(&mut self, which: Sheet) {
@@ -2097,18 +2194,22 @@ impl eframe::App for App {
             self.take_screenshot(&ctx);
         }
 
-        // A phone ends an app without telling it, so settings are written when they change, not at exit.
-        let settings = format!(
-            "{} {} {} {:?}",
-            self.texts.lang.code(),
-            self.optics.tint,
-            self.optics.blur,
-            self.picture
-        );
-        if settings != self.saved
+        // A phone ends an app without telling it, so the session is written when it changes, not at exit.
+        if self.screenshot.is_none()
             && !ctx.input(|input| input.pointer.any_down())
             && let Some(storage) = frame.storage_mut()
         {
+            let settings = format!(
+                "{} {} {} {:?} {}",
+                self.texts.lang.code(),
+                self.optics.tint,
+                self.optics.blur,
+                self.picture,
+                self.session()
+            );
+            if settings == self.saved {
+                return;
+            }
             self.saved = settings;
             eframe::App::save(self, storage);
             storage.flush();
@@ -2123,6 +2224,7 @@ impl eframe::App for App {
             .picture
             .map_or("auto".to_owned(), |[width, height]| format!("{width}x{height}"));
         storage.set_string("picture", picture);
+        storage.set_string("session", self.session());
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
