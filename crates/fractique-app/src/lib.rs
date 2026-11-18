@@ -1893,8 +1893,8 @@ impl App {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
-        ui.set_width(300.0);
+    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32, wide: Option<f32>) {
+        ui.set_width(wide.unwrap_or(300.0));
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         ui.label(
             egui::RichText::new(self.t("export_title"))
@@ -1921,19 +1921,71 @@ impl App {
         }
 
         let shown = self.picture.unwrap_or(window);
-        widgets::section(ui, &self.t("size"));
         let own = format!("{} × {}", shown[0], shown[1]);
-        let height = (room - 400.0).clamp(34.0, 230.0);
-        size_list(
-            ui,
-            &self.texts,
-            &own,
-            shown,
-            &mut self.export.size,
-            &mut self.export.custom,
-            height,
-        );
+        let size = self.t("size");
+        let clicked = if wide.is_some() {
+            // A low, wide screen: the sizes at the left, the rest at the right.
+            ui.spacing_mut().item_spacing.x = 24.0;
+            let mut clicked = (false, false);
+            ui.columns(2, |columns| {
+                let ui = &mut columns[0];
+                ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+                widgets::section(ui, &size);
+                let height = (room - 250.0).clamp(34.0, 230.0);
+                size_list(
+                    ui,
+                    &self.texts,
+                    &own,
+                    shown,
+                    &mut self.export.size,
+                    &mut self.export.custom,
+                    height,
+                );
+                columns[1].spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+                clicked = self.export_choices(&mut columns[1]);
+            });
+            clicked
+        } else {
+            widgets::section(ui, &size);
+            let height = (room - 400.0).clamp(34.0, 230.0);
+            size_list(
+                ui,
+                &self.texts,
+                &own,
+                shown,
+                &mut self.export.size,
+                &mut self.export.custom,
+                height,
+            );
+            self.export_choices(ui)
+        };
         let [width, height] = self.export.size.unwrap_or(shown);
+        if clicked.0 {
+            self.export.open = false;
+        }
+        if clicked.1 {
+            let (_, samples_per_pixel, supersample) = export::QUALITIES[self.export.quality];
+            let options = RenderOptions {
+                width,
+                height,
+                samples_per_pixel,
+                supersample,
+            };
+            let name = format!("{}-{width}x{height}.png", file_name(&self.title));
+            if let Some(path) = export::target(&name) {
+                self.export.job = Some(export::Job::start(
+                    self.scene_at([width, height]),
+                    options,
+                    path,
+                    ui.ctx().clone(),
+                    render_pool(),
+                ));
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn export_choices(&mut self, ui: &mut egui::Ui) -> (bool, bool) {
         widgets::section(ui, &self.t("quality"));
         ui.add_space(2.0);
         let qualities = export::QUALITIES.map(|(key, _, _)| self.t(key));
@@ -1970,28 +2022,7 @@ impl App {
                 clicked.1 = true;
             }
         }
-        if clicked.0 {
-            self.export.open = false;
-        }
-        if clicked.1 {
-            let (_, samples_per_pixel, supersample) = export::QUALITIES[self.export.quality];
-            let options = RenderOptions {
-                width,
-                height,
-                samples_per_pixel,
-                supersample,
-            };
-            let name = format!("{}-{width}x{height}.png", file_name(&self.title));
-            if let Some(path) = export::target(&name) {
-                self.export.job = Some(export::Job::start(
-                    self.scene_at([width, height]),
-                    options,
-                    path,
-                    ui.ctx().clone(),
-                    render_pool(),
-                ));
-            }
-        }
+        clicked
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -2343,10 +2374,9 @@ impl eframe::App for App {
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
                     egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
-                        // A phone on its side is lower than the sheet: it scrolls there.
-                        egui::ScrollArea::vertical()
-                            .max_height(content.height() - 56.0)
-                            .show(ui, |ui| self.export_sheet(ui, window, content.height()));
+                        let low = content.width() > content.height() && content.height() < 560.0;
+                        let wide = low.then(|| (content.width() - 60.0).min(604.0));
+                        self.export_sheet(ui, window, content.height(), wide);
                     });
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
