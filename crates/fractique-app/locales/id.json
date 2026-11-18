@@ -108,5 +108,18 @@
   "color": "WARNA",
   "graphics": "GRAFIS",
   "gpu_note": "Saat aktif, gambar bisa tampak sedikit berbeda di tiap perangkat. Ekspor tidak terpengaruh.",
-  "gpu": "Akselerasi GPU"
+  "gpu": "Akselerasi GPU",
+  "pro_title": "Fractique Pro",
+  "pro_about": "Ekspor gambar berukuran 2560 × 1440 ke atas, juga dalam ukuran kustom apa pun. Bayar sekali, milik Anda selamanya. Fitur lainnya tetap gratis.",
+  "pro_buy": "Beli seharga {price}",
+  "pro_retry": "Coba lagi",
+  "pro_restore": "Pulihkan pembelian",
+  "pro_loading": "Menghubungi App Store…",
+  "pro_waiting": "Menunggu App Store…",
+  "pro_owned": "Fractique Pro sudah menjadi milik Anda. Terima kasih!",
+  "pro_failed": "Pembelian tidak dapat diselesaikan.",
+  "pro_no_product": "App Store tidak merespons. Coba lagi sebentar lagi.",
+  "pro_nothing": "Tidak ada pembelian di Akun Apple ini.",
+  "pro_not_allowed": "Pembelian dinonaktifkan di perangkat ini.",
+  "pro_deferred": "Pembelian menunggu persetujuan."
 }

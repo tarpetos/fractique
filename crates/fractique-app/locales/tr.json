@@ -108,5 +108,18 @@
   "color": "RENK",
   "graphics": "GRAFİK",
   "gpu_note": "Açıkken görüntü cihazdan cihaza biraz farklı görünebilir. Dışa aktarma bundan etkilenmez.",
-  "gpu": "GPU hızlandırma"
+  "gpu": "GPU hızlandırma",
+  "pro_title": "Fractique Pro",
+  "pro_about": "2560 × 1440 ve üzeri boyutta ya da istediğiniz özel boyutta görüntüleri dışa aktarın. Bir kez ödersiniz, hep sizin kalır. Geri kalan her şey ücretsiz.",
+  "pro_buy": "{price} karşılığında satın al",
+  "pro_retry": "Yeniden dene",
+  "pro_restore": "Satın alınanları geri yükle",
+  "pro_loading": "App Store’a soruluyor…",
+  "pro_waiting": "App Store bekleniyor…",
+  "pro_owned": "Fractique Pro artık sizin. Teşekkürler!",
+  "pro_failed": "Satın alma tamamlanamadı.",
+  "pro_no_product": "App Store yanıt vermiyor. Birazdan yeniden deneyin.",
+  "pro_nothing": "Bu Apple Hesabında bir satın alma bulunamadı.",
+  "pro_not_allowed": "Bu aygıtta satın almalar kapalı.",
+  "pro_deferred": "Satın alma onay bekliyor."
 }

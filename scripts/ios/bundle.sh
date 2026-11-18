@@ -1,5 +1,6 @@
 #!/bin/sh
 # Builds Fractique.app for iOS: scripts/ios/bundle.sh [aarch64-apple-ios-sim | aarch64-apple-ios]
+# FRACTIQUE_FEATURES=store builds it as the App Store gets it, with the purchase.
 set -eu
 cd "$(dirname "$0")/../.."
 
@@ -22,7 +23,8 @@ if ! command -v cargo >/dev/null 2>&1; then
     export PATH
 fi
 rustup target add "$target" >&2
-IPHONEOS_DEPLOYMENT_TARGET=15.0 cargo build --release --locked -p fractique-app --bin fractique-gui --target "$target" >&2
+IPHONEOS_DEPLOYMENT_TARGET=15.0 cargo build --release --locked -p fractique-app --bin fractique-gui \
+    ${FRACTIQUE_FEATURES:+--features "$FRACTIQUE_FEATURES"} --target "$target" >&2
 
 app="target/ios/$target/Fractique.app"
 rm -rf "$app"

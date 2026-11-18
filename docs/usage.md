@@ -66,14 +66,14 @@ flames and wallpapers; a switch in the controls goes from one to the other.
 | **Randomize** | Flames: a new random flame in the chosen layer, made by the second random generator ([Random scenes](#5-random-scenes)). Wallpapers: a new wallpaper |
 | **Mutate** | Flames: a variant of the chosen layer's flame. Wallpapers: another wallpaper of the same layout and material |
 | **Layout**, **Material**, **Light** and **Dark** (inspector, wallpapers) | One of the 14 layouts and 6 materials of [Wallpapers](#6-wallpapers), or **Any**, which leaves the choice to each new wallpaper; and its light or dark version |
-| **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 21 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone, 900 in a browser); a larger one is shown scaled down and exported in full. It is shown whole in the window |
+| **Size** (inspector) | The picture's size: **Auto** (the window's own, in its real pixels), one of 21 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels. The picture is rendered at that size, up to 4096 pixels a side on screen (1600 on a phone, 900 in a browser); a larger one is shown scaled down and exported in full. It is shown whole in the window. The App Store builds list computer screens and Apple devices, and a size typed in needs Fractique Pro there ([Free and Fractique Pro](#free-and-fractique-pro)) |
 | **Layers** (inspector, flames) | The scene's flames, one over another, up to 16: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity. Only the layer that changed is rendered again |
 | **Tone**, **View** (inspector, flames) | Brightness, gamma and glow of the whole picture, and a zoom; **Reset** brings them back |
 | **Graphics: GPU acceleration** (inspector; on at first) | A flame that is new on the screen (**Randomize**, **Mutate**, a preset, a moved view, another size) is first drawn by the graphics card, at the full size and in a fraction of a second; it grows finer over the next frames, and the processor's picture replaces it when it is rendered. The toolbar shows the time the first picture took. While a tone slider, the zoom, a layer's opacity or its blend moves, the graphics card draws the picture from the layers already rendered, so it answers at once; when the control rests the processor renders the picture and replaces the preview. The preview is close to the rendered picture, not equal to it: it has no dithering and its glow is blurred at a lower resolution. The graphics card's own picture has another grain than the processor's and can differ slightly from one device to the next. An export never uses either. Off, every change is rendered by the processor straight away, drafts first. The switch is not shown where the graphics card cannot draw a preview; in a browser, and where the graphics card has no compute shaders (older phones), it previews but leaves every flame to the processor |
 | **Glass** (inspector) | Opacity and blur of the panels. **F2** opens the fine tuning of the glass: refraction, depth, bezel |
 | Drag, wheel or pinch on the picture | Moves the view and zooms in and out, from 10,000 times smaller to 10,000,000,000 times larger. The picture follows at once and is drawn anew, sharp, when the view rests; the toolbar shows the magnification. **Export** and **Save** take the view as it is. A double click shows the whole scene again |
 | **Reset view** (appears once the picture is moved or zoomed) | Shows the whole scene again, as a double click does |
-| **Export** | A PNG at the picture's size, or at another size chosen in the same list there, in one of four qualities. **Instant** saves the picture that is on the screen, at once; the others render it anew in the background with a progress bar and **Cancel** |
+| **Export** | A PNG at the picture's size, or at another size chosen in the same list there, in one of four qualities. **Instant** saves the picture that is on the screen, at once; the others render it anew in the background with a progress bar and **Cancel**. In the App Store builds a size with a lock needs Fractique Pro ([Free and Fractique Pro](#free-and-fractique-pro)) |
 | **Scene: Open, Save** | **Save** writes a `.frcq` file, the app's own: the scene together with the tone, the view, the size and the flames or wallpapers choices, so it opens as it was saved, in a compact form that is not text. It can also write a plain `.json` scene, which is. **Open** reads `.frcq`, `.json` and `.flame`. A file given to the app when it starts (dropped on its icon, or "Open with") opens in it |
 | **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back |
 | **F11**, or the four corners in the title bar | Full screen; **Esc** leaves it |
@@ -125,6 +125,72 @@ On Android and iOS the picture fills the screen and the controls are a few round
 
 A phone has no **Scene: Open, Save** and no updates window: [releasing.md](releasing.md) says what updates itself
 and what does not. In a browser the app has no export, no scene files and no updates window.
+
+### Free and Fractique Pro
+
+Every feature of Fractique is free on every platform. The builds from the App Store (iPhone, iPad, Mac) have one
+purchase, **Fractique Pro**: paid once, kept for good, restored on another device of the same Apple Account with
+**Restore purchases**.
+
+| Where | Free | Needs Fractique Pro |
+| --- | --- | --- |
+| Windows, Linux, Android, the web, and every build made without the `store` feature | Everything | Nothing: these builds hold no purchase |
+| The App Store builds | Everything on the screen at any size; **Auto**; a listed size of fewer than 3 686 400 pixels (2560 × 1440), such as 1920 × 1080 or 1290 × 2796, as the picture's size and as an export | An export (**Save**, **Share**, at every quality, **Instant** too) of 3 686 400 pixels or more, whatever its shape; choosing such a size for the picture; a size typed into **Custom** |
+
+The limit counts pixels, width times height: 1440 × 2560 and 1920 × 1920 are at it, 2560 × 1439 is under it. The
+window's own size (**Auto**) is never refused on the screen; exporting it follows the same count, so a window of
+2560 × 1600 pixels exports with Fractique Pro.
+
+A size that needs the purchase has a small lock in the list. Choosing it, pressing **Save** or **Share** with it,
+or pressing **Apply** under **Custom** opens the **Fractique Pro** sheet: the price as the App Store gives it,
+**Buy**, **Restore purchases** and **Cancel**. After the purchase the locks are gone and what was asked for goes
+on: the export starts, or the size is set. The purchase is remembered on the device, so the app is unlocked
+without a network.
+
+The sizes the App Store builds list, besides HD, Full HD, QHD, Ultrawide and 4K. They are the native pixels of
+the screens, read from Apple's Tech Specs pages (`support.apple.com/en-us/<number>`) in November 2026; iPhones
+and iPads upright, as Apple gives them:
+
+| Name in the list | Pixels | Screens | Apple's page |
+| --- | --- | --- | --- |
+| iPhone SE | 750 × 1334 | SE (2nd and 3rd generation) | 111882, 111866 |
+| iPhone 11 | 828 × 1792 | 11 | 111865 |
+| iPhone mini | 1080 × 2340 | 12 mini, 13 mini | 111877, 111873 |
+| iPhone 11 Pro | 1125 × 2436 | 11 Pro | 111879 |
+| iPhone 11 Pro Max | 1242 × 2688 | 11 Pro Max | 111878 |
+| iPhone 12–14, 17e | 1170 × 2532 | 12, 12 Pro, 13, 13 Pro, 14, 16e, 17e | 111876, 111872, 111850, 122208, 126470 |
+| iPhone 14 Plus | 1284 × 2778 | 12 Pro Max, 13 Pro Max, 14 Plus | 111874, 111870, 111854 |
+| iPhone 15, 16 | 1179 × 2556 | 14 Pro, 15, 15 Pro, 16 | 111849, 111831, 111829, 121029 |
+| iPhone 15–16 Plus | 1290 × 2796 | 14 Pro Max, 15 Plus, 15 Pro Max, 16 Plus | 111846, 111830, 111828, 121030 |
+| iPhone 17, 18 Pro | 1206 × 2622 | 16 Pro, 17, 17 Pro, 18 Pro | 121031, 125089, 125090, 148590 |
+| iPhone Air | 1260 × 2736 | Air | 125092 |
+| iPhone 18 Pro Max | 1320 × 2868 | 16 Pro Max, 17 Pro Max, 18 Pro Max | 121032, 125091, 148591 |
+| iPhone Duo 5.4″ | 1398 × 2034 | Duo, the outer screen | 148588 |
+| iPhone Duo 7.6″ | 1878 × 2670 | Duo, the inner screen | 148588 |
+| iPad mini | 1488 × 2266 | mini (6th generation, A17 Pro) | 111886, 121456 |
+| iPad mini (A20 Pro) | 1512 × 2316 | mini (A20 Pro) | 149482 |
+| iPad 10.2″ | 1620 × 2160 | iPad (7th to 9th generation) | 111911, 118451, 111898 |
+| iPad, iPad Air 11″ | 1640 × 2360 | iPad (10th generation, A16), Air (4th, 5th generation), Air 11-inch | 111840, 122240, 111887, 126471 |
+| iPad Pro 10.5″ | 1668 × 2224 | Pro 10.5-inch, Air (3rd generation) | 111927, 111939 |
+| iPad Pro 11″ 2018–22 | 1668 × 2388 | Pro 11-inch (1st to 4th generation) | 111974, 118452, 111897, 111842 |
+| iPad Pro 11″ | 1668 × 2420 | Pro 11-inch (M4, M5) | 119892, 125406 |
+| iPad Air 13″ | 2048 × 2732 | Air 13-inch, Pro 12.9-inch (3rd to 6th generation) | 126472, 111841 |
+| iPad Pro 13″ | 2064 × 2752 | Pro 13-inch (M4, M5) | 119891, 125407 |
+| MacBook Neo | 2408 × 1506 | MacBook Neo | 126322 |
+| MacBook Air 13″ M1 | 2560 × 1600 | MacBook Air 13-inch to 2020, MacBook Pro 13-inch | 111883, 111869 |
+| MacBook Air 13″ | 2560 × 1664 | MacBook Air 13-inch from 2022 | 111867, 126320 |
+| MacBook Air 15″ | 2880 × 1864 | MacBook Air 15-inch | 111346, 126321 |
+| MacBook Pro 14″ | 3024 × 1964 | MacBook Pro 14-inch | 111902, 148300 |
+| MacBook 14″ OLED | 3024 × 1986 | MacBook Pro 14-inch PROLED XDR | 148301 |
+| MacBook Pro 16″ | 3456 × 2234 | MacBook Pro 16-inch | 111901, 126319 |
+| MacBook 16″ OLED | 3472 × 2266 | MacBook Pro 16-inch PROLED XDR | 148302 |
+| iMac 24″ | 4480 × 2520 | iMac 24-inch | 111895, 148299 |
+| Studio Display, 5K | 5120 × 2880 | Studio Display, Studio Display XDR, iMac 27-inch 5K | 111890, 126324, 126323, 111913 |
+| Pro Display XDR | 6016 × 3384 | Pro Display XDR | 111892 |
+
+The 10.5-inch iPads no longer get the current iPadOS and are listed because they are still in use. Apple Watch
+faces are not in the list: a watch crops any photo to its face. The Android sizes are left out of the App Store
+builds; every other build keeps its list of 21 screens.
 
 ### What the app keeps
 
