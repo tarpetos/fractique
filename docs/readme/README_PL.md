@@ -19,12 +19,12 @@ Fractique tworzy obrazy dwóch rodzajów. Fraktalne płomienie: świetliste, zwi
 - **Płomienie:** 49 wariacji, warstwy z trybami mieszania, symetria obrotowa i lustrzana, estymacja gęstości, poświata oraz 29 wbudowanych presetów.
 - **Tapety:** osobna dla każdego ziarna, z 14 układów i 6 materiałów, każda w wersji jasnej i ciemnej, rozłożona pod rozmiar ekranu.
 - **Aplikacja:** jedna baza kodu dla systemów Windows, macOS, Linux, Android, iOS i dla przeglądarki. Obraz wypełnia okno, a nad nim unoszą się szklane panele; na komputerze aplikacja ma własny szklany pasek tytułu. W 15 językach.
-- **Randomize i Mutate:** każde ziarno to obraz; płomienie, które byłyby kropką albo wypełnionym kwadratem, są pomijane. Mutate tworzy wariant tego, który ci się podoba.
-- **Warstwy:** dodaj płomień z presetów albo losowy, usuń go, zmień kolejność i ustaw dla każdej mieszanie (add, screen, over) oraz krycie. Do 16 warstw.
+- **„Losuj” i „Mutuj”:** każde ziarno to obraz; płomienie, które byłyby kropką albo wypełnionym kwadratem, są pomijane. „Mutuj” tworzy wariant tego, który ci się podoba.
+- **Warstwy:** dodaj płomień z presetów albo losowy, usuń go, zmień kolejność i ustaw dla każdej mieszanie („Suma”, „Ekran”, „Nad”) oraz krycie. Do 16 warstw.
 - **Rozmiar obrazu:** rozmiar samego okna, jeden z 21 ekranów (komputery do 4K, telefony i tablety z Androidem, iPhone’y i iPady) albo dowolna szerokość i wysokość od 16 do 16384 pikseli.
 - **Głęboki zoom:** przeciąganie, kółko myszy i szczypanie przesuwają widok i powiększają go do dziesięciu miliardów razy. Obraz podąża od razu, a gdy widok się zatrzyma, jest rysowany na nowo, ostro.
 - **Telefony:** własny ekran. Jeden okrągły przycisk tworzy nowy obraz, przesunięcie palcem prowadzi do następnej tapety, arkusz z małymi żywymi obrazkami wybiera styl, a zachowane obrazy tworzą kolekcję.
-- **Eksport:** PNG w dowolnym rozmiarze, w trzech poziomach jakości, renderowany w tle. Na telefonie trafia do Zdjęć lub galerii albo jest udostępniany.
+- **Eksport:** PNG w dowolnym rozmiarze: natychmiast, taki jak na ekranie, albo renderowany w tle na trzech wyższych poziomach jakości. Na telefonie trafia do Zdjęć lub galerii albo jest udostępniany.
 - **Pliki projektu:** plik `.frcq` przechowuje scenę razem z widokiem, tonem i rozmiarem, więc otwiera się taka, jaka została zapisana ([docs/scene-format.md](../scene-format.md)). Otwierają się też zwykłe sceny `.json` i pliki `.flame` z flam3 i Apophysis. Między uruchomieniami aplikacja wraca do sesji, w której ją zostawiono.
 - **Aktualizacje:** okno pokazuje każdą wydaną wersję z jej opisem i instaluje dowolną z nich. W systemie Windows aplikacja to jeden przenośny plik `.exe`, który sam siebie podmienia.
 - **Dokładna powtarzalność:** ta sama scena daje te same piksele na każdej maszynie, co sprawdzają testy w systemach Linux, Windows i macOS ([docs/determinism.md](../determinism.md)).

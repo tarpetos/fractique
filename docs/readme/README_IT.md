@@ -19,12 +19,12 @@ Fractique crea due tipi di immagini. Fiamme frattali: frattali luminosi ed etere
 - **Fiamme:** 49 variazioni, livelli con metodi di fusione, simmetria rotazionale e speculare, stima della densità, bagliore e 29 preset integrati.
 - **Sfondi:** uno per ogni seme, da 14 disposizioni e 6 materiali, ciascuno in versione chiara e scura, disposto per la dimensione dello schermo.
 - **L’app:** un’unica base di codice per Windows, macOS, Linux, Android, iOS e il web. L’immagine riempie la finestra e sopra fluttuano pannelli di vetro; sul desktop l’app ha una propria barra del titolo di vetro. In 15 lingue.
-- **Randomize e Mutate:** ogni seme è un’immagine; le fiamme che sarebbero un punto o un quadrato pieno vengono scartate. Mutate crea una variante di quella che ti piace.
-- **Livelli:** aggiungi una fiamma dai preset o una casuale, rimuovila, cambia l’ordine e imposta per ciascuna la fusione (add, screen, over) e l’opacità. Fino a 16 livelli.
+- **«Casuale» e «Muta»:** ogni seme è un’immagine; le fiamme che sarebbero un punto o un quadrato pieno vengono scartate. «Muta» crea una variante di quella che ti piace.
+- **Livelli:** aggiungi una fiamma dai preset o una casuale, rimuovila, cambia l’ordine e imposta per ciascuna la fusione («Somma», «Scolora», «Sopra») e l’opacità. Fino a 16 livelli.
 - **Dimensione dell’immagine:** quella della finestra, uno dei 21 schermi (computer fino al 4K, telefoni e tablet Android, iPhone e iPad) oppure qualsiasi larghezza e altezza da 16 a 16384 pixel.
 - **Zoom profondo:** trascinamento, rotellina e pizzico spostano la vista e la ingrandiscono fino a dieci miliardi di volte. L’immagine segue subito e viene ridisegnata nitida quando la vista si ferma.
-- **Telefoni:** una schermata dedicata. Un pulsante rotondo crea una nuova immagine, uno scorrimento passa allo sfondo successivo, un foglio di piccole immagini vive sceglie lo stile e le immagini che conservi formano una collezione.
-- **Esportazione:** un PNG di qualsiasi dimensione, in tre livelli di qualità, renderizzato in background. Su un telefono viene salvato in Foto o nella galleria, oppure condiviso.
+- **Telefoni:** una schermata dedicata. Un pulsante rotondo crea una nuova immagine, uno scorrimento passa allo sfondo successivo, un foglio di piccole immagini vive sceglie lo stile e le immagini che tieni formano una collezione.
+- **Esportazione:** un PNG di qualsiasi dimensione: subito, così com’è sullo schermo, oppure renderizzato in background in tre livelli di qualità superiori. Su un telefono viene salvato in Foto o nella galleria, oppure condiviso.
 - **File di progetto:** un file `.frcq` conserva la scena con vista, tono e dimensione, così si riapre com’era stata salvata ([docs/scene-format.md](../scene-format.md)). Si aprono anche le scene `.json` semplici e i file `.flame` di flam3 e Apophysis. Tra un avvio e l’altro l’app torna alla sessione in cui era stata lasciata.
 - **Aggiornamenti:** una finestra elenca ogni versione pubblicata con le sue note e installa una qualsiasi di esse. Su Windows l’app è un unico `.exe` portatile che sostituisce sé stesso.
 - **Ripetibilità esatta:** la stessa scena dà gli stessi pixel su ogni macchina, come verificano i test su Linux, Windows e macOS ([docs/determinism.md](../determinism.md)).

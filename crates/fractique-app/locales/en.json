@@ -34,6 +34,7 @@
   "blend_add": "Add",
   "blend_screen": "Screen",
   "blend_over": "Over",
+  "q_instant": "Instant",
   "q_standard": "Standard",
   "q_high": "High",
   "q_ultra": "Ultra",

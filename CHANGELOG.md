@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* **Export:** a fourth quality, **Instant**, now the first choice: it saves the picture that is on the screen at
+  once instead of rendering it anew. Standard, High and Ultra render as before.
+* **Android 9 and older:** storage access is asked for when Save is pressed, before the picture is made, and the
+  export goes on by itself once it is allowed.
+* **Scenes:** a number in a scene file is read as exactly the value written. Before, one could come out a last
+  digit away, so a scene saved and read again could render differently from the one it was saved from. The two
+  presets this touched, `ice-crystal` and `violet-whirl`, now carry the numbers they were always read as, so every
+  preset renders the same pixels as before.
 * **HTTP server:** `fractique-server` offers presets, random scenes, wallpapers and renders as PNG over HTTP
   ([docs/server.md](docs/server.md)). Renders wait in a bounded queue and a full one answers 429; the size, the
   samples and the time of a render are limited by settings; a client that disconnects cancels its render. It can
@@ -12,6 +20,8 @@
   `wallpaper_seed` (with `layout`, `material`, `dark`), `file` (the path of a `.frcq` or JSON scene) and `frcq`
   (the bytes of a `.frcq` in base64). A call with a progress token gets `notifications/progress` while it renders,
   and `notifications/cancelled` stops a render, which then gets no answer. `ping` is answered during a render.
+* **README translations:** the 14 translations name the buttons, the blend modes and the other terms as the app
+  shows them in that language.
 * **Command line tool:** `fractique convert` turns a `.frcq` file into its scene as JSON (`--document` for
   everything the file holds) and a JSON scene or document into a `.frcq`.
 
@@ -75,8 +85,8 @@ First version: the renderer and the command line tool.
 * **Command line tool:** `render`, `presets`, `preset`, `randomize`, `mutate`, `fit`, `import`, `variations`, `mcp`.
 * **Import:** `.flame` files of flam3 and Apophysis convert to scenes.
 * **MCP server:** `fractique mcp` lets an AI agent list presets, make and change scenes and render them.
-* **App:** a window with the flame and glass panels over it, for Windows, Linux, Android, iOS and the web, in 15
-  languages.
+* **App:** a window with the flame and glass panels over it, for Windows, macOS, Linux, Android, iOS and the web,
+  in 15 languages.
 * **Export, scenes, updates:** the app exports PNGs at any size, opens and saves scenes, checks GitHub for newer
   versions and installs any released version.
 * **Downloads:** one program file for Windows (no installer), an AppImage and a .deb, a macOS app and an Android
