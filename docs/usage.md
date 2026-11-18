@@ -61,6 +61,7 @@ flames, fractals of other kinds and wallpapers; three tabs in the controls go fr
 | Title bar | The app draws its own, as a glass capsule: the name, the version (opens the updates), the language, hide the panels, full screen, minimize, maximize, close. Dragging it moves the window, a double click maximizes it, the window's edges resize it |
 | Inspector (left; **Controls** in the toolbar shows and hides it) | **Flames**, **Fractals** or **Shapes**, then the preset, the fractal's type or the wallpaper's choices, the colors, the size, the layers, the fractal's parameters, the tone, the zoom, the glass, the scene |
 | **Fractals** (inspector) | **Type** lists the kinds of fractal: the Mandelbrot set, Julia sets, the Clifford attractor. Choosing one shows its first preset; **Presets** lists the presets of that kind. **Parameters** has a slider for every parameter of the chosen layer's fractal: the iterations, the color density and shift, the dark edge and the fade of an escape-time fractal, the constant of a Julia set, the four numbers of an attractor ([scene-format.md](scene-format.md#fractal)). The colors, the size, the layers, the tone, the view, **Recent**, **Export** and **Scene** work as for flames. Each tab keeps its picture while another is shown |
+| **Parameters**, the fields (inspector, fractals) | A kind with a parameter that is text has a field for it under the sliders: the axiom and the rules of an L-system, the sequence of letters of a Lyapunov fractal. The picture follows what is typed as soon as the kind can read it; until then the text is shown in red and the picture stays |
 | Toolbar (bottom) | The picture's name, its size, the time it took and the magnification; **Randomize**, **Mutate**, **Export**, **Controls** |
 | **Presets** (inspector) | A list of the 29 built-in flames; in **Fractals**, the presets of the chosen type |
 | **Recent** (inspector; in the styles on a phone) | The last 24 pictures that were on the screen, newest first: presets, random flames, opened files and wallpapers. A click brings one back. A flame that is being adjusted counts once. The list is kept between launches |
@@ -306,12 +307,30 @@ fractique randomize 7 --fractal clifford -o attractor.json
 | `hopalong` | `a` and `c` between −12 and 12, `b` between 0.05 and 6, orbits of 30 000 to 600 000 steps, with any of the colorings; the camera frames the middle 92 % of the points, since the lace thins out far from its middle |
 | `lorenz` | `sigma` between 4 and 20, `rho` between 25 and 120, `beta` between 0.5 and 4, seen from any side, followed for 60 to 1800 units of time. Systems that come to rest, single closed curves and views along the attractor's edge are skipped |
 | `buddhabrot` | 300 to 9000 iterations, with the shortest orbits drawn 5 steps long or a 4th to a 40th of the iterations, any of the three colorings; a third of the pictures are turned towards the plane of the starting points, and one in seven is an Anti-Buddhabrot of 20 to 200 iterations |
+| `apollonian` | A gasket of random first circles, as discs, rings or a glow: whole for half of the seeds, a view into its gaps for the other half. Views that one circle fills are skipped |
+| `kleinian` | A group close to the edge of those that have a limit set to draw, found by walking the traces toward that edge; Grandma's recipe, or for about four seeds in ten Maskit's, whose limit set is a band |
+| `l_system` | One of 26 curves and plants, often with its angle moved a little, iterated as far as its lines stay apart. Drawings that are a line or a blot are skipped |
+| `lyapunov` | A random sequence of 2 to 10 letters and a view where both rates are under 4. Views that are flat, all chaos or noise are skipped |
 | `mandelbulb` | A bulb of power 8, or of a whole power from 3 to 12, seen whole from a random side or from near through a longer lens, under a light at a random angle. A view is probed before it is kept: one that fills too little of the frame, is dark, flat, of one color or noise is skipped, up to 12 times, and the colors are spread over what the view shows |
 | `mandelbox` | A box of a scale from 1.6 to 3.2 or from −2.6 to −1.5, mostly seen from inside its outer layers and sometimes whole, judged the same way, up to 16 times |
 | `menger_sponge` | The sponge, whole or from near, in a little over half of the seeds folded by a twist, a bend or a scale other than 3; judged the same way, with rough surfaces allowed |
 
 The random fractal of a seed may change from one version of Fractique to the next, as a wallpaper's does; a scene
 kept in a file does not. `--generator` is for flames and is refused with `--fractal`.
+
+`fractique mutate` and the app's **Mutate** change the geometric kinds this way: an `apollonian` gets a nearby view
+and nearby first circles, a `kleinian` nearby traces (kept only while the limit set stays much the same) and a
+camera that frames it again, an `l_system` a nearby angle, a `lyapunov` a nearby view and starting value; each
+moves its colors along the palette.
+
+A kind can have parameters that are text; `fractique fractals` lists them after the numbers. In a scene file they
+are in `text`, beside `params` ([scene-format.md](scene-format.md#geometric-kinds)): the axiom and the rules of an
+L-system, the sequence of a Lyapunov fractal. To draw an L-system of your own, take a preset and change its texts:
+
+```sh
+fractique preset l_system-koch-snowflake > curve.json    # then edit "axiom", "rules", "angle", "iterations"
+fractique render curve.json -o curve.png
+```
 
 A fractal is drawn at the samples and the supersample of the quality level, in its own way
 ([scene-format.md](scene-format.md#fractal)): `--quality high` draws the edges of a Mandelbrot set from 36 samples
@@ -491,6 +510,10 @@ fractique render --preset de_jong-classic --size 640x360 --quality high -o docs/
 fractique render --preset lorenz-butterfly --size 640x360 --quality high -o docs/samples/fractal-lorenz.png
 fractique render --preset gumowski_mira-feathers --size 640x360 --quality high -o docs/samples/fractal-gumowski_mira.png
 fractique render --preset hopalong-web --size 640x360 --quality high -o docs/samples/fractal-hopalong.png
+fractique render --preset apollonian-threefold --size 640x360 --quality high -o docs/samples/fractal-apollonian.png
+fractique render --preset kleinian-cusp --size 640x360 --quality high -o docs/samples/fractal-kleinian.png
+fractique render --preset l_system-plant --size 640x360 --quality high -o docs/samples/fractal-l_system.png
+fractique render --preset lyapunov-feathers --size 640x360 --quality high -o docs/samples/fractal-lyapunov.png
 fractique render --preset mandelbulb-crown --size 640x360 --quality high -o docs/samples/fractal-mandelbulb.png
 fractique render --preset mandelbox-station --size 640x360 --quality high -o docs/samples/fractal-mandelbox.png
 fractique render --preset menger_sponge-classic --size 640x360 --quality high -o docs/samples/fractal-menger-sponge.png

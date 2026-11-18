@@ -57,6 +57,13 @@ Orbity rysowane jako gęstości: Buddhabrot oraz atraktory De Jonga, Lorenza, Gu
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+Fraktale geometryczne: uszczelka Apoloniusza, zbiór graniczny grupy Kleina, L-system i fraktal Lapunowa:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 Bryły w trzech wymiarach: Mandelbulb, Mandelbox i gąbka Mengera:
 
 | | | |

@@ -57,6 +57,13 @@ Fractique は 3 種類の画像を作ります。ひとつはフラクタルの�
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+幾何学的なフラクタル。アポロニウスのギャスケット、クライン群の極限集合、Lシステム、リアプノフ・フラクタル：
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 三次元の立体。マンデルバルブ、マンデルボックス、メンガーのスポンジ：
 
 | | | |

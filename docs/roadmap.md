@@ -24,6 +24,7 @@ built on it.
 | 16 | **Escape-time and root-finding kinds:** Burning Ship, Tricorn, Multibrot, Phoenix and Magnet beside the Mandelbrot and Julia sets, and Newton and Nova, the first two of the root-finding family; each with six presets, a random picture for every seed and a mutation ([scene-format.md](scene-format.md#escape-time-kinds)) | Done. The golden hashes were produced on Linux |
 | 17 | **Orbit kinds:** the Buddhabrot, with the Nebulabrot coloring and the Anti-Buddhabrot, and the De Jong, Lorenz, Gumowski-Mira and Hopalong attractors beside the Clifford attractor, which makes the orbit family whole; each with six presets, a random picture for every seed and a mutation ([scene-format.md](scene-format.md#orbit-kinds)) | Done. The golden hashes were produced on Linux |
 | 18 | **Solids:** the Mandelbulb, the Mandelbox and the Menger sponge, ray-marched by distance estimates on the processor with light, soft shadows, fog and a halo; an eye that turns around the solid and goes inside; presets, random pictures measured before they are kept, mutation ([scene-format.md](scene-format.md#solid-kinds), [architecture.md](architecture.md#the-ray-marched-kinds)) | Done; times measured on 3 threads only |
+| 19 | **Geometric fractals** on the same registry: the Apollonian gasket, Kleinian limit sets (Grandma's and Maskit's recipes), L-systems with their rules as text in the scene, the Lyapunov fractal ([scene-format.md](scene-format.md#geometric-kinds)) | Done |
 
 ## App, next
 

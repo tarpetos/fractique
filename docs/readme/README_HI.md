@@ -57,6 +57,13 @@ Fractique तीन तरह की तस्वीरें बनाता �
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+ज्यामितीय फ्रैक्टल: अपोलोनियन गैस्केट, क्लाइनियन समूह का सीमा सेट, एल-सिस्टम और ल्यापुनोव फ्रैक्टल:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 तीन आयामों के ठोस: मैंडलबल्ब, मैंडलबॉक्स और मेंगर स्पंज:
 
 | | | |

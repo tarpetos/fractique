@@ -238,6 +238,7 @@ Newton fractal, a strange attractor. It blends with the layers around it as a fl
 | `tone` | [tone](#tone) | see below | How the layer is lit. A kind uses the fields its way of drawing has a use for. |
 | `palette` | [palette](#palette) | required | The colors of the layer. |
 | `params` | object of numbers | empty | The parameters of the kind, by name. One that is left out has its default; an unknown name or a value outside the parameter's range is refused. |
+| `text` | object of strings | empty | The parameters of the kind that are text, by name: the axiom and the rules of an `l_system`, the sequence of a `lyapunov`. One that is left out has its default; an unknown name, a text longer than 2000 bytes or one the kind cannot read is refused. A kind without such parameters takes none. |
 
 A kind is drawn in one of two ways:
 
@@ -263,7 +264,7 @@ The kinds, by family:
 | Escape-time | per pixel | `burning_ship`, `julia`, `magnet`, `mandelbrot`, `multibrot`, `phoenix`, `tricorn` |
 | Root-finding | per pixel | `newton`, `nova` |
 | Orbit | density | `buddhabrot`, `clifford`, `de_jong`, `gumowski_mira`, `hopalong`, `lorenz` |
-| Geometric | either | |
+| Geometric | either | `apollonian`, `kleinian`, `l_system`, `lyapunov` |
 | Solid | per pixel | `mandelbox`, `mandelbulb`, `menger_sponge` |
 
 ### Escape-time kinds
@@ -466,7 +467,147 @@ double about every 0.8 units of time; it stays on the attractor, which is what t
 
 ### Geometric kinds
 
-The family has no kind yet.
+`apollonian` and `lyapunov` are drawn per pixel. `kleinian` and `l_system` are curves, drawn as a density: the
+curve is a chain of line segments, and every stream spreads its points evenly along the whole length of the
+segments that reach the view, each moved by up to `width` thousandths of the picture's shorter side (two random
+shifts in each direction, so the line fades toward its sides). The density is scaled so that a line is as bright
+at every zoom and whatever the length of the curve; the scene's `seed` only picks where the points fall along it.
+A point's place on the palette runs along it and back, as for a per-pixel kind.
+
+| Parameter the kinds share | Range | Default | Meaning |
+| --- | --- | --- | --- |
+| `color_density` | 0.01 to 100 | 1 | How fast the colors run along the palette. |
+| `color_shift` | 0 to 2 | 0 | Where on the palette the colors start. |
+| `width` (the curves) | 0 to 10 | 1 | The softness of the line, in thousandths of the picture's shorter side. 0 is the bare curve. |
+
+#### `apollonian`
+
+The gasket fills the circle of radius 1 around the origin. It starts from three circles inside it, each touching
+the other two and the outer circle: the first has the radius `radius` and touches the outer circle at (−1, 0),
+the second has the radius `balance` × (1 − `radius`), and the third is the one that touches all of them, with the
+curvature k₃ = k₁ + k₂ − 1 + 2 √(k₁ k₂ − k₁ − k₂) of Descartes' theorem (a curvature is 1 over a radius, and the
+outer circle counts as −1). Every gap between three circles that touch holds the circle that touches all three,
+and so on without end.
+
+A point outside the outer circle is clear. A point in a gap is mirrored in the circle through the three points
+where the gap's circles touch, which carries it out of the gap, and again until it lies inside one of the four
+first circles; the circle it began in is the image of that one under the same mirrorings. `iterations` is the
+most mirrorings a point is given: the circles of later generations stay clear. The circle found has a
+generation n (the number of mirrorings), a curvature k, and one of the four first circles as its ancestor.
+
+| Parameter | Range | Default | Meaning |
+| --- | --- | --- | --- |
+| `radius` | 0.05 to 0.95 | 0.5 | The radius of the first circle. |
+| `balance` | 0.05 to 1 | 1 | The radius of the second circle, as a share of the room the first leaves: 1 puts the middles of both on one line. |
+| `iterations` | 1 to 100 000, whole | 400 | The generations drawn. |
+| `style` | 0, 1, 2 | 0 | 0 is discs, 1 is rings (a thin line along every circle), 2 is a glow along every circle. |
+| `coloring` | 0, 1, 2 | 0 | What the place on the palette follows: 0 the generation, ½ ln(1 + n); 1 the size, ¼ ln k; 2 the ancestor, 0.3 × its number (0 to 3) + 0.05 ln k. It is multiplied by `color_density` and added to `color_shift`. |
+| `relief` | 0 to 1 | 0.5 | How round a disc looks: its light is 1 − `relief` × (1 − √(1 − (d / R)²)) at the distance d from the middle of a circle of radius R. |
+| `edge` | 0 to 1 | 0.35 | The width r = 0.012 × `edge`² of the dark rim of a disc, of a ring and of the glow, in shorter sides of the picture. |
+
+With e = (R² − d²) / 2R, which is the distance to the circle's edge near it, the light of a disc is darkened by
+√(e / r) where e is under r; a ring's light is 1 / (1 + (e / r)²) and the glow's 1 / (1 + e / 4r), and a point
+where either is under 0.004 is clear. The default tone is `glow_radius` 0.004 and `glow_strength` 0.1.
+
+The gaskets whose curvatures are all whole numbers, scaled to the outer circle:
+
+| Curvatures | `radius` | `balance` |
+| --- | --- | --- |
+| −1, 2, 2, 3 | 0.5 | 1 |
+| −2, 3, 6, 7 | 0.6667 | 1 |
+| −3, 5, 8, 8 | 0.6 | 0.9375 |
+| −6, 11, 14, 15 | 0.5455 | 0.9429 |
+| three equal circles, 2√3 − 3 | 0.4641 | 0.866 |
+
+#### `kleinian`
+
+The limit set of the group made by two Möbius maps a and b, z → (p z + q) / (r z + s), whose commutator
+a b a⁻¹ b⁻¹ has the trace −2: the groups of "Indra's Pearls". The traces t_a = `ta_real` + i `ta_imaginary` and
+t_b = `tb_real` + i `tb_imaginary` choose the group, by one of two recipes:
+
+| `recipe` | The maps |
+| --- | --- |
+| 0, Grandma's | t_ab = (t_a t_b − √(t_a² t_b² − 4 (t_a² + t_b²))) / 2, with the square root whose real part is not negative, and z₀ = (t_ab − 2) t_b / (t_b t_ab − 2 t_a + 2 i t_ab). a has p = s = t_a / 2, q = (t_a t_ab − 2 t_b + 4 i) / ((2 t_ab + 4) z₀) and r = (t_a t_ab − 2 t_b − 4 i) z₀ / (2 t_ab − 4); b has p = (t_b − 2 i) / 2, q = r = t_b / 2 and s = (t_b + 2 i) / 2. |
+| 1, Maskit's | a has p = t_a, q = r = −i, s = 0, and b is z → z + 2: the group of Maskit's μ = i t_a. t_b is not read. The limit set is a band without end along the real axis, between Im z = 0 and Im z = `ta_real`. |
+
+The limit set is drawn by a search of the tree of words in a, b, a⁻¹, b⁻¹, depth first: the part of the curve
+under a word lies between the images of the fixed points of the commutator's four turns, and with three fixed
+points between them it is five points in a row. A branch ends where neighbours among the five are closer than a
+1500th of the picture's shorter side, and its four segments are drawn; a part outside the view ends sooner, once it
+is six times smaller than its distance to the view, and is left out. The search stops at 1200 letters, 12 000 000
+words or 2 000 000 segments, which a group that is not discrete reaches: its picture is the part found by then. A
+point's place on the palette is `color_shift` + `color_density` × its place in the tree of words, from 0 to 1 along
+the curve.
+
+| Parameter | Range | Default | Meaning |
+| --- | --- | --- | --- |
+| `recipe` | 0, 1 | 0 | Grandma's recipe or Maskit's. |
+| `ta_real`, `ta_imaginary` | 1.5 to 3, −1 to 1 | 1.91, −0.05 | The trace of a. |
+| `tb_real`, `tb_imaginary` | 1.5 to 3, −1 to 1 | 1.91, −0.05 | The trace of b. |
+
+Both traces 2 give the Apollonian gasket; real traces above 2 give a circle. The pictures worth having lie near
+the edge of the traces whose groups are discrete; past it the search does not end and the picture is a tangle.
+The default tone is `gamma` 2.6, `highlight` 0.15, `glow_radius` 0.005, `glow_strength` 0.45 and `smoothing` 0.6.
+
+#### `l_system`
+
+A drawing by a turtle that follows a word. The word starts as the text `axiom`, and `iterations` times every
+symbol that has a rule is replaced by what the rule says, all at once. The text `rules` holds the rules as
+`F=F+F--F+F`, apart by commas, semicolons or spaces; a rule rewrites one symbol, and a symbol has at most one.
+
+```json
+"fractal": {
+  "kind": "l_system",
+  "palette": { "stops": [{ "pos": 0, "color": [0.2, 0.5, 1] }, { "pos": 1, "color": [1, 1, 1] }] },
+  "params": { "iterations": 4, "angle": 60 },
+  "text": { "axiom": "F--F--F", "rules": "F=F+F--F+F" }
+}
+```
+
+| Symbol | What the turtle does |
+| --- | --- |
+| `F`, `G` | Draws a step forward. |
+| `f`, `g` | Moves a step forward without drawing. |
+| `+`, `-` | Turns left, right by `angle`. |
+| `\|` | Turns back. |
+| `[`, `]` | Remembers the place and the heading; returns to the last remembered. |
+| any other | Nothing: it only stands for its rule. |
+
+The turtle starts heading up. A symbol is any printable ASCII character but a comma, a semicolon and `=`; the
+axiom holds 1 to 200 of them and the rules 1000 at most. The rules are applied as many times as asked while the
+drawing stays under 1 048 576 steps drawn and 16 000 000 symbols: further iterations change nothing. The drawing
+is then placed with its middle at the origin and scaled so that its longer side is 3, which a camera at zoom 1.15
+shows whole.
+
+| Parameter | Range | Default | Meaning |
+| --- | --- | --- | --- |
+| `iterations` | 0 to 30, whole | 12 | How many times the rules are applied. |
+| `angle` | 0 to 180 | 90 | The turn of `+` and `-`, in degrees. |
+| `color_from` | 0, 1, 2 | 0 | What the place on the palette follows, from 0 to 1: 0 the way along the drawing, 1 how many `[` deep a step is, 2 the step's heading. It is multiplied by `color_density` and added to `color_shift`. |
+
+The default texts are the dragon curve, `FX` with `X=X+YF+,Y=-FX-Y`. The default tone is that of `kleinian`.
+
+#### `lyapunov`
+
+The Markus–Lyapunov fractal. The logistic map x → r x (1 − x) is iterated from x = `start` with r changing
+from step to step: the text `sequence`, 1 to 64 letters `A` and `B`, is read over and over, and r is the point's
+first coordinate at an `A` and its second at a `B`. After `warmup` steps the Lyapunov exponent is measured over
+`iterations` steps: λ = the mean of ln |r (1 − 2 x)|. A point whose x runs away is clear.
+
+| λ | Place on the palette | Light |
+| --- | --- | --- |
+| below 0: order | `color_shift` + `color_density` × o / (o + 0.5), with o = −λ | 1 − 0.8 e^(−40 o): dark along the edge of chaos |
+| 0 and above: chaos | `color_shift` − `color_density` × w / 2, with w = λ / (λ + 0.35) | `chaos` × (0.2 + 0.8 w); clear at `chaos` 0 |
+
+| Parameter | Range | Default | Meaning |
+| --- | --- | --- | --- |
+| `iterations` | 20 to 20 000, whole | 400 | The steps the exponent is measured over. |
+| `warmup` | 0 to 5000, whole | 100 | The steps before them. |
+| `start` | 0.01 to 0.99 | 0.5 | The first x. |
+| `chaos` | 0 to 1 | 0.3 | The brightness of the chaotic part. |
+
+The pictures of the books lie where both coordinates are between 2 and 4, so the camera's `center` is there.
+The default `sequence` is `AB`, and the default tone is `glow_radius` 0.004 and `glow_strength` 0.1.
 
 ### Solid kinds
 
@@ -538,6 +679,13 @@ pixels. Past that neighbouring pixels get the same point and the picture turns i
 The app stops where a fractal's own zoom times the view's reaches 10¹⁰. It is the same for every per-pixel kind:
 the distances at which `magnet`, `newton` and `nova` take an orbit to have arrived are measured in the plane of
 z and do not shrink with the view.
+
+| Kind | Where a view ends |
+| --- | --- |
+| `apollonian` | As any per-pixel kind. Where two circles touch, the circles between them shrink with the square of the distance, so a view there needs `iterations` near the square root of its zoom. |
+| `lyapunov` | As any per-pixel kind, but the picture is smooth where the map is in order: a view magnified a few hundred times shows soft bands unless it follows an edge of chaos, and there the exponent settles only as fast as `iterations` let it, so grain stays until they are raised. |
+| `kleinian` | The search follows the view: the middle of a spiral was drawn magnified 10¹¹ times, as sharp and as bright as the whole; deeper views were not tried. Where the curve pinches the words grow with the square root of the zoom, and what the 1200 letters do not reach is drawn in longer segments. |
+| `l_system` | The lines stay sharp and as bright at any zoom, but there is nothing between them: detail ends at the length of a step. |
 
 A solid kind holds to the same zoom of 10¹⁰: a `menger_sponge` of 30 iterations still shows square holes there.
 What runs out first is the detail the iterations give. A level of the sponge is a third of the one before, so a
@@ -739,3 +887,6 @@ what existing scenes look like, `version` is how old scenes keep their look; see
 Fractal layers came without a new version: `fractal` is a field a layer may hold in place of `flame`, so every
 scene written before reads and renders as it did. A build from before them refuses a scene that has one, as it
 refuses any field it does not know.
+
+The `text` of a fractal came the same way: a field that may be left out, so every scene written before reads and
+renders as it did.

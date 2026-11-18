@@ -57,6 +57,13 @@ Fractique는 세 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+기하학적 프랙탈: 아폴로니안 개스킷, 클라인 군의 극한 집합, L-시스템, 랴푸노프 프랙탈:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 3차원 입체: 만델벌브, 만델박스, 멩거 스펀지:
 
 | | | |

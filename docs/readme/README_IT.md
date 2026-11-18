@@ -57,6 +57,13 @@ Orbite disegnate come densità: il Buddhabrot e gli attrattori di De Jong, Loren
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+Frattali geometrici: una guarnizione apolloniana, l’insieme limite di un gruppo kleiniano, un sistema L e un frattale di Lyapunov:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 Solidi in tre dimensioni: il Mandelbulb, la Mandelbox e la spugna di Menger:
 
 | | | |

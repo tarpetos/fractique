@@ -57,6 +57,13 @@ Orbits drawn as densities: the Buddhabrot and the De Jong, Lorenz, Gumowski-Mira
 | ![gumowski_mira](docs/samples/fractal-gumowski_mira.png) | ![hopalong](docs/samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+Geometric fractals: an Apollonian gasket, the limit set of a Kleinian group, an L-system and a Lyapunov fractal:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](docs/samples/fractal-apollonian.png) | ![kleinian](docs/samples/fractal-kleinian.png) | ![l-system](docs/samples/fractal-l_system.png) | ![lyapunov](docs/samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 Solids in three dimensions: the Mandelbulb, the Mandelbox and the Menger sponge:
 
 | | | |

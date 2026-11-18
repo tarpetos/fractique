@@ -325,6 +325,32 @@ pub fn toggle(ui: &mut Ui, label: &str, on: &mut bool) -> bool {
     response.clicked()
 }
 
+pub fn text_field(ui: &mut Ui, label: &str, value: &mut String, limit: usize, valid: bool) -> egui::Response {
+    ui.add_space(4.0);
+    let (header, _) = ui.allocate_exact_size(vec2(ui.available_width(), 16.0), Sense::hover());
+    ui.painter().text(
+        header.left_center(),
+        Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(13.0),
+        white(190),
+    );
+    ui.add_space(2.0);
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
+    ui.painter().rect_filled(rect, CornerRadius::same(8), white(26));
+    let field = egui::TextEdit::singleline(value)
+        .frame(egui::Frame::NONE)
+        .font(font(13.0, MEDIUM))
+        .text_color(if valid {
+            Color32::WHITE
+        } else {
+            Color32::from_rgb(255, 150, 140)
+        })
+        .desired_width(rect.width() - 20.0)
+        .char_limit(limit);
+    ui.put(rect.shrink2(vec2(10.0, 4.0)), field)
+}
+
 pub fn slider(ui: &mut Ui, label: &str, value: &mut f64, range: (f64, f64), logarithmic: bool) -> bool {
     slider_to(ui, label, value, range, logarithmic, 2)
 }

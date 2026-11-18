@@ -57,6 +57,13 @@ Als Dichte gezeichnete Bahnen: das Buddhabrot und die Attraktoren von De Jong, L
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+Geometrische Fraktale: ein Apollonisches Netz, die Grenzmenge einer Kleinschen Gruppe, ein L-System und ein Ljapunow-Fraktal:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 Körper in drei Dimensionen: Mandelbulb, Mandelbox und Menger-Schwamm:
 
 | | | |

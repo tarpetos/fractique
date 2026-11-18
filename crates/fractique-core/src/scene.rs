@@ -12,6 +12,7 @@ pub const MAX_TRANSFORMS: usize = 64;
 pub const MAX_SHEETS: usize = 48;
 pub const MAX_SHAPES: usize = 32;
 pub const MAX_SWELLS: usize = 4;
+pub const MAX_TEXT: usize = 2000;
 
 fn one() -> f64 {
     1.0
@@ -330,6 +331,8 @@ pub struct Fractal {
     pub palette: Palette,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub params: BTreeMap<String, f64>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub text: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -578,6 +581,15 @@ impl Fractal {
                     param.min, param.max
                 ));
             }
+        }
+        for (name, value) in &self.text {
+            let Some(text) = spec.texts().iter().find(|text| text.name == name) else {
+                return fail(format!("{what}: {} has no text `{name}`", self.kind));
+            };
+            if value.len() > MAX_TEXT {
+                return fail(format!("{what}: {name} is longer than {MAX_TEXT} bytes"));
+            }
+            (text.check)(value).map_err(|e| SceneError(format!("{what}: {name}: {e}")))?;
         }
         Ok(())
     }

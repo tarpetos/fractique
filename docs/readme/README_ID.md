@@ -57,6 +57,13 @@ Orbit yang digambar sebagai kerapatan: Buddhabrot serta penarik De Jong, Lorenz,
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+Fraktal geometris: gasket Apollonius, himpunan limit grup Klein, sistem-L, dan fraktal Lyapunov:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 Benda padat tiga dimensi: Mandelbulb, Mandelbox, dan spons Menger:
 
 | | | |
