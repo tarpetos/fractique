@@ -405,6 +405,7 @@ impl App {
             screen.min + egui::vec2(BAR_GAP, BAR_GAP),
             egui::pos2(screen.right() - BAR_GAP, screen.top() + BAR_GAP + BAR),
         );
+        let is_full = ctx.input(|input| input.viewport().fullscreen.unwrap_or(false));
         let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
         egui::Area::new(egui::Id::unique("title bar"))
             .fixed_pos(bar.min)
@@ -452,7 +453,7 @@ impl App {
                     egui::pos2(rect.right() - 7.0 - 15.0, rect.center().y),
                     egui::Vec2::splat(30.0),
                 );
-                for button in ["close", "maximize", "minimize", "hide"] {
+                for button in ["close", "maximize", "minimize", "full", "hide"] {
                     let pressed = ui.interact(slot, egui::Id::unique(("title bar", button)), egui::Sense::click());
                     let fill = match (pressed.hovered(), button) {
                         (true, "close") => egui::Color32::from_rgb(214, 58, 44),
@@ -474,6 +475,13 @@ impl App {
                             painter.rect_stroke(square, egui::CornerRadius::same(2), ink, egui::StrokeKind::Middle);
                         }
                         "minimize" => line(egui::vec2(-r, 0.0), egui::vec2(r, 0.0)),
+                        "full" => {
+                            for (x, y) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+                                let corner = egui::vec2(x * (r + 0.5), y * (r + 0.5));
+                                line(corner, corner - egui::vec2(x * 3.5, 0.0));
+                                line(corner, corner - egui::vec2(0.0, y * 3.5));
+                            }
+                        }
                         _ => {
                             let pane = egui::Rect::from_center_size(c, egui::vec2(2.0 * r + 3.0, 2.0 * r - 1.0));
                             painter.rect_stroke(pane, egui::CornerRadius::same(3), ink, egui::StrokeKind::Middle);
@@ -485,6 +493,7 @@ impl App {
                             "close" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
                             "maximize" => ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized)),
                             "minimize" => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+                            "full" => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!is_full)),
                             _ => self.bare = true,
                         }
                     }
@@ -1036,7 +1045,7 @@ impl eframe::App for App {
             false,
         ));
 
-        if wide || !open {
+        if (wide || !open) && !self.languages_open {
             let status = egui::Area::new(egui::Id::unique("status"))
                 .fixed_pos(egui::pos2(content.right() - 20.0, content.top() + 20.0))
                 .pivot(egui::Align2::RIGHT_TOP)
