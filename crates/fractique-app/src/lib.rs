@@ -76,6 +76,76 @@ const SIZES: [(&str, [u32; 2]); 13] = [
 ];
 const LARGEST_SIDE: u32 = 16384;
 
+fn size_list(
+    ui: &mut egui::Ui,
+    texts: &Texts,
+    own: &str,
+    base: [u32; 2],
+    chosen: &mut Option<[u32; 2]>,
+    custom: &mut [String; 2],
+    height: f32,
+) -> bool {
+    let mut picked = false;
+    if widgets::row(ui, own, chosen.is_none()) {
+        *chosen = None;
+        picked = true;
+    }
+    let listed = SIZES.iter().any(|(_, size)| Some(*size) == *chosen);
+    let mut bar = egui::style::ScrollStyle::floating();
+    bar.bar_width = 5.0;
+    ui.spacing_mut().scroll = bar;
+    egui::ScrollArea::vertical().max_height(height).show(ui, |ui| {
+        for (name, size) in SIZES {
+            let label = format!("{} × {}  ·  {name}", size[0], size[1]);
+            if widgets::row(ui, &label, *chosen == Some(size)) {
+                *chosen = Some(size);
+                picked = true;
+            }
+        }
+    });
+    if custom[0].is_empty() {
+        let [width, height] = chosen.unwrap_or(base);
+        *custom = [width.to_string(), height.to_string()];
+    }
+    ui.add_space(6.0);
+    widgets::row(ui, &texts.get("size_custom"), chosen.is_some() && !listed);
+    ui.add_space(4.0);
+    let mut entered = false;
+    ui.horizontal(|ui| {
+        for (side, text) in custom.iter_mut().enumerate() {
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(82.0, 34.0), egui::Sense::hover());
+            ui.painter()
+                .rect_filled(rect, egui::CornerRadius::same(10), egui::Color32::from_white_alpha(30));
+            let field = egui::TextEdit::singleline(text)
+                .frame(egui::Frame::NONE)
+                .font(font(14.0, MEDIUM))
+                .text_color(egui::Color32::WHITE)
+                .char_limit(5);
+            let typed = ui.put(rect.shrink2(egui::vec2(12.0, 5.0)), field);
+            entered |= typed.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
+            text.retain(|c| c.is_ascii_digit());
+            if side == 0 {
+                ui.label(
+                    egui::RichText::new("×")
+                        .size(14.0)
+                        .color(egui::Color32::from_white_alpha(170)),
+                );
+            }
+        }
+        entered |= widgets::pill(ui, &texts.get("apply"), false, ui.available_width());
+    });
+    if entered {
+        match parsed_size(&format!("{}x{}", custom[0], custom[1])) {
+            Some(size) => {
+                *chosen = Some(size);
+                picked = true;
+            }
+            None => *custom = Default::default(),
+        }
+    }
+    picked
+}
+
 fn parsed_size(text: &str) -> Option<[u32; 2]> {
     let (width, height) = text.split_once('x')?;
     let side = |text: &str| {
@@ -367,66 +437,17 @@ impl App {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         widgets::section(ui, &self.t("size"));
         let own = format!("{} · {} × {}", self.t("size_window"), window[0], window[1]);
-        if widgets::row(ui, &own, self.picture.is_none()) {
-            self.picture = None;
+        let height = (room - 230.0).clamp(64.0, 420.0);
+        if size_list(
+            ui,
+            &self.texts,
+            &own,
+            window,
+            &mut self.picture,
+            &mut self.custom,
+            height,
+        ) {
             self.sizes_open = false;
-        }
-        let listed = SIZES.iter().any(|(_, size)| Some(*size) == self.picture);
-        let mut bar = egui::style::ScrollStyle::floating();
-        bar.bar_width = 5.0;
-        ui.spacing_mut().scroll = bar;
-        egui::ScrollArea::vertical()
-            .max_height((room - 230.0).clamp(64.0, 420.0))
-            .show(ui, |ui| {
-                for (name, size) in SIZES {
-                    let label = format!("{} × {}  ·  {name}", size[0], size[1]);
-                    if widgets::row(ui, &label, self.picture == Some(size)) {
-                        self.picture = Some(size);
-                        self.sizes_open = false;
-                    }
-                }
-            });
-        let custom = self.picture.is_some() && !listed;
-        if self.custom[0].is_empty() {
-            let [width, height] = self.picture.unwrap_or(window);
-            self.custom = [width.to_string(), height.to_string()];
-        }
-        ui.add_space(6.0);
-        widgets::row(ui, &self.t("size_custom"), custom);
-        ui.add_space(4.0);
-        let mut entered = false;
-        ui.horizontal(|ui| {
-            for side in 0..2 {
-                let (rect, _) = ui.allocate_exact_size(egui::vec2(96.0, 34.0), egui::Sense::hover());
-                ui.painter()
-                    .rect_filled(rect, egui::CornerRadius::same(10), egui::Color32::from_white_alpha(30));
-                let field = egui::TextEdit::singleline(&mut self.custom[side])
-                    .frame(egui::Frame::NONE)
-                    .font(font(14.0, MEDIUM))
-                    .text_color(egui::Color32::WHITE)
-                    .char_limit(5);
-                let typed = ui.put(rect.shrink2(egui::vec2(12.0, 5.0)), field);
-                entered |= typed.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
-                self.custom[side].retain(|c| c.is_ascii_digit());
-                if side == 0 {
-                    ui.label(
-                        egui::RichText::new("×")
-                            .size(14.0)
-                            .color(egui::Color32::from_white_alpha(170)),
-                    );
-                }
-            }
-        });
-        ui.add_space(8.0);
-        entered |= widgets::pill(ui, &self.t("apply"), true, ui.available_width());
-        if entered {
-            match parsed_size(&format!("{}x{}", self.custom[0], self.custom[1])) {
-                Some(size) => {
-                    self.picture = Some(size);
-                    self.sizes_open = false;
-                }
-                None => self.custom = Default::default(),
-            }
         }
     }
 
@@ -654,6 +675,8 @@ impl App {
                 );
                 painter.galley(chip.center() - galley.size() * 0.5, galley, ink);
                 if version.clicked() {
+                    self.sizes_open = false;
+                    self.export.open = false;
                     self.updates.show(ctx);
                 }
 
@@ -801,6 +824,14 @@ impl App {
         );
         if widgets::row(ui, &label, true) {
             self.sizes_open = !self.sizes_open;
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                self.export.open = false;
+            }
+            #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+            {
+                self.updates.open = false;
+            }
         }
         let ink = egui::Stroke::new(1.4, egui::Color32::from_white_alpha(210));
         ui.painter()
@@ -897,6 +928,7 @@ impl App {
             }
             #[cfg(not(target_arch = "wasm32"))]
             Some("export") => {
+                self.sizes_open = false;
                 self.export.open = !self.export.open;
                 self.export.note.clear();
             }
@@ -954,7 +986,7 @@ impl App {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2]) {
+    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
         ui.set_width(300.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         ui.label(
@@ -981,13 +1013,20 @@ impl App {
             return;
         }
 
-        let [width, height] = self.picture.unwrap_or(window);
-        ui.add_space(6.0);
-        ui.label(
-            egui::RichText::new(format!("{width} × {height}"))
-                .size(13.5)
-                .color(egui::Color32::from_white_alpha(200)),
+        let shown = self.picture.unwrap_or(window);
+        widgets::section(ui, &self.t("size"));
+        let own = format!("{} × {}", shown[0], shown[1]);
+        let height = (room - 400.0).clamp(64.0, 230.0);
+        size_list(
+            ui,
+            &self.texts,
+            &own,
+            shown,
+            &mut self.export.size,
+            &mut self.export.custom,
+            height,
         );
+        let [width, height] = self.export.size.unwrap_or(shown);
         widgets::section(ui, &self.t("quality"));
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
@@ -1319,7 +1358,7 @@ impl eframe::App for App {
                 .show(&ctx, |ui| {
                     egui::Frame::NONE
                         .inner_margin(egui::Margin::same(22))
-                        .show(ui, |ui| self.export_sheet(ui, window));
+                        .show(ui, |ui| self.export_sheet(ui, window, content.height()));
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }

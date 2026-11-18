@@ -11,6 +11,8 @@ pub const QUALITIES: [(&str, u32, u32); 3] = [("q_standard", 100, 1), ("q_high",
 pub struct Sheet {
     pub open: bool,
     pub quality: usize,
+    pub size: Option<[u32; 2]>,
+    pub custom: [String; 2],
     pub job: Option<Job>,
     pub note: String,
 }
