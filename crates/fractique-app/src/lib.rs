@@ -185,6 +185,18 @@ fn shown(name: &str) -> String {
     out
 }
 
+fn named(mut scene: Scene, title: &str) -> Scene {
+    let several = scene.layers.len() > 1;
+    for (index, layer) in scene.layers.iter_mut().enumerate() {
+        layer.name = if several {
+            format!("{title} {}", index + 1)
+        } else {
+            title.to_owned()
+        };
+    }
+    scene
+}
+
 fn parsed_size(text: &str) -> Option<[u32; 2]> {
     let (width, height) = text.split_once('x')?;
     let side = |text: &str| {
@@ -261,6 +273,7 @@ struct App {
     custom: [String; 2],
     sizes_open: bool,
     presets_open: bool,
+    adding_layer: bool,
     layer: usize,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     maximize_again: bool,
@@ -336,7 +349,7 @@ impl App {
         let title = "aurora-spiral".to_owned();
         Self {
             texts,
-            base: presets::get(&title).unwrap_or_else(|| random_scene(1)),
+            base: named(presets::get(&title).unwrap_or_else(|| random_scene(1)), &shown(&title)),
             title,
             is_random: false,
             seed: 0,
@@ -368,6 +381,7 @@ impl App {
             custom: Default::default(),
             sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
             presets_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "presets"),
+            adding_layer: false,
             layer: 0,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             maximize_again: false,
@@ -489,6 +503,7 @@ impl App {
     fn open_sheet(&mut self, which: Sheet) {
         let (presets, sizes) = (self.presets_open, self.sizes_open);
         self.presets_open = which == Sheet::Presets && !presets;
+        self.adding_layer = false;
         self.sizes_open = which == Sheet::Sizes && !sizes;
         self.languages_open = false;
         #[cfg(not(target_arch = "wasm32"))]
@@ -504,22 +519,43 @@ impl App {
     fn preset_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
         ui.set_width(260.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-        widgets::section(ui, &self.t("presets"));
+        let adding = self.adding_layer;
+        widgets::section(ui, &self.t(if adding { "layers" } else { "presets" }));
         let mut bar = egui::style::ScrollStyle::floating();
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
+        let mut chosen = None;
         egui::ScrollArea::vertical()
             .max_height((room - 110.0).max(90.0))
             .show(ui, |ui| {
+                if adding && widgets::row(ui, &shown(&self.t("random")), false) {
+                    self.seed += 1;
+                    let title = format!("{} {}", shown(&self.t("random")), self.seed);
+                    chosen = Some((named(random_scene(self.seed), &title), title));
+                }
                 for name in presets::names() {
-                    if widgets::row(ui, &shown(name), !self.is_random && self.title == name)
+                    let current = !adding && !self.is_random && self.title == name;
+                    if widgets::row(ui, &shown(name), current)
                         && let Some(scene) = presets::get(name)
                     {
-                        self.pick(scene, name.to_owned(), false);
-                        self.presets_open = false;
+                        chosen = Some((named(scene, &shown(name)), name.to_owned()));
                     }
                 }
             });
+        let Some((scene, title)) = chosen else { return };
+        self.presets_open = false;
+        if adding {
+            for mut layer in scene.layers {
+                if self.base.layers.len() < MAX_LAYERS {
+                    layer.blend = Blend::Screen;
+                    self.base.layers.push(layer);
+                }
+            }
+            self.layer = self.base.layers.len() - 1;
+            self.requested = None;
+        } else {
+            self.pick(scene, title, false);
+        }
     }
 
     fn size_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
@@ -1098,11 +1134,9 @@ impl App {
         let at = self.layer;
         match act {
             Some("add") => {
-                self.seed += 1;
-                let mut layer = random_scene(self.seed).layers.swap_remove(0);
-                layer.blend = Blend::Screen;
-                self.base.layers.push(layer);
-                self.layer = count;
+                self.open_sheet(Sheet::Presets);
+                self.presets_open = true;
+                self.adding_layer = true;
             }
             Some("remove") => {
                 self.base.layers.remove(at);
@@ -1141,7 +1175,7 @@ impl App {
         let mut row = |ui: &mut egui::Ui, buttons: std::ops::Range<usize>| {
             ui.horizontal(|ui| {
                 for index in buttons {
-                    if widgets::pill(ui, &labels[index], index == 0, width) {
+                    if widgets::pill(ui, &labels[index], false, width) {
                         clicked = Some(keys[index]);
                     }
                 }
@@ -1158,7 +1192,7 @@ impl App {
             Some("randomize") => {
                 self.seed += 1;
                 let title = format!("{} {}", self.t("random"), self.seed);
-                self.pick(random_scene(self.seed), title, true);
+                self.pick(named(random_scene(self.seed), &shown(&title)), title, true);
             }
             Some("mutate") => {
                 self.seed += 1;
