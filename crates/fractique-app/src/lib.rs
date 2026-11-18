@@ -120,6 +120,8 @@ struct App {
     panes: Vec<(egui::Rect, f32, bool)>,
     toolbar_size: egui::Vec2,
     languages_open: bool,
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    maximize_again: bool,
     language_anchor: egui::Pos2,
     results: (mpsc::Sender<Rendered>, mpsc::Receiver<Rendered>),
     cancel: Arc<AtomicBool>,
@@ -204,6 +206,8 @@ impl App {
             toolbar_size: egui::Vec2::ZERO,
             languages_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "languages"),
             language_anchor: egui::Pos2::ZERO,
+            #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+            maximize_again: false,
             results: mpsc::channel(),
             cancel: Arc::new(AtomicBool::new(false)),
             generation: 0,
@@ -354,7 +358,7 @@ impl App {
             self.bare = !self.bare;
         }
         if full {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!is_full));
+            self.full_screen(ctx, !is_full);
         }
         if leave {
             if self.languages_open {
@@ -362,10 +366,23 @@ impl App {
             } else if self.bare {
                 self.bare = false;
             } else if is_full {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+                self.full_screen(ctx, false);
             }
         }
         self.resize_edges(ctx, is_full);
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn full_screen(&mut self, ctx: &egui::Context, on: bool) {
+        // A maximized window keeps its maximized size in full screen and leaves a black strip where the taskbar was.
+        if on && ctx.input(|input| input.viewport().maximized.unwrap_or(false)) {
+            self.maximize_again = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false));
+        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(on));
+        if !on && std::mem::take(&mut self.maximize_again) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+        }
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -493,7 +510,7 @@ impl App {
                             "close" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
                             "maximize" => ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized)),
                             "minimize" => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
-                            "full" => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!is_full)),
+                            "full" => self.full_screen(ctx, !is_full),
                             _ => self.bare = true,
                         }
                     }
