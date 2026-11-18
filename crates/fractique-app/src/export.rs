@@ -15,6 +15,7 @@ pub struct Sheet {
     pub custom: [String; 2],
     pub job: Option<Job>,
     pub note: String,
+    pub share: bool,
 }
 
 pub enum Outcome {

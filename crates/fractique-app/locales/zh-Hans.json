@@ -94,5 +94,13 @@
   "m_glass": "玻璃",
   "m_glow": "辉光",
   "m_steel": "钢",
-  "m_carbon": "碳纤维"
+  "m_carbon": "碳纤维",
+  "similar": "相似",
+  "style": "风格",
+  "fine_tune": "微调",
+  "keep": "收藏",
+  "collection": "收藏夹",
+  "save_photos": "存储到照片",
+  "share": "分享",
+  "color": "颜色"
 }

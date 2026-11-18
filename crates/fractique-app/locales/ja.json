@@ -94,5 +94,13 @@
   "m_glass": "ガラス",
   "m_glow": "グロー",
   "m_steel": "スチール",
-  "m_carbon": "カーボン"
+  "m_carbon": "カーボン",
+  "similar": "似たもの",
+  "style": "スタイル",
+  "fine_tune": "微調整",
+  "keep": "キープ",
+  "collection": "コレクション",
+  "save_photos": "写真に保存",
+  "share": "共有",
+  "color": "カラー"
 }

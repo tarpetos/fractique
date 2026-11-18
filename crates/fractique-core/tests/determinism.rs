@@ -177,6 +177,7 @@ fn wallpaper(seed: u64, layout: Layout, material: Material, dark: bool) -> fract
             material: Some(material),
             ratio: 108.0 / 192.0,
             dark,
+            hue: None,
         },
     )
 }

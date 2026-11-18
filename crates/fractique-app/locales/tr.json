@@ -94,5 +94,13 @@
   "m_glass": "Cam",
   "m_glow": "Parıltı",
   "m_steel": "Çelik",
-  "m_carbon": "Karbon"
+  "m_carbon": "Karbon",
+  "similar": "Benzer",
+  "style": "Stil",
+  "fine_tune": "İnce ayar",
+  "keep": "Sakla",
+  "collection": "KOLEKSİYON",
+  "save_photos": "Fotoğraflar’a kaydet",
+  "share": "Paylaş",
+  "color": "RENK"
 }

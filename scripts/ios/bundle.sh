@@ -46,6 +46,7 @@ cat > "$app/Info.plist" <<EOF
     <key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>
     <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string><string>metal</string></array>
     <key>UILaunchScreen</key><dict/>
+    <key>NSPhotoLibraryAddUsageDescription</key><string>Fractique saves the pictures you export to your photo library.</string>
     <key>UIRequiresFullScreen</key><false/>
     <key>UIApplicationSceneManifest</key>
     <dict>

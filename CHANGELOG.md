@@ -10,6 +10,13 @@
   render as before.
 * **App:** a Flames and Wallpapers switch in the controls. In wallpaper mode the layout, the material and light or
   dark are chosen there; Randomize makes a new wallpaper and Mutate another of the same layout and material.
+* **Phones:** the app has a screen of its own on a phone. The picture fills it, with its name and number as a
+  placard. A round glass button makes a new one; four small ones keep it, make a similar one, open the styles and
+  export. A swipe goes to the next or the previous wallpaper. The styles are a sheet of small live pictures of every
+  layout, material and preset, with the kept pictures in a row above them and a row of colors for the wallpapers.
+* **iPhone:** an exported picture goes to Photos or to the share sheet.
+* **Wallpapers:** a wallpaper can be asked for in one color (`hue` of the request). The bands layout no longer
+  makes an invalid shape on screens about 1.6 times as tall as wide.
 
 ## 0.1.0
 

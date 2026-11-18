@@ -94,5 +94,13 @@
   "m_glass": "Glass",
   "m_glow": "Glow",
   "m_steel": "Steel",
-  "m_carbon": "Carbon"
+  "m_carbon": "Carbon",
+  "similar": "Similar",
+  "style": "Style",
+  "fine_tune": "Fine-tune",
+  "keep": "Keep",
+  "collection": "COLLECTION",
+  "save_photos": "Save to Photos",
+  "share": "Share",
+  "color": "COLOR"
 }

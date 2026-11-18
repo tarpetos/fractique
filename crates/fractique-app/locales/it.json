@@ -94,5 +94,13 @@
   "m_glass": "Vetro",
   "m_glow": "Bagliore",
   "m_steel": "Acciaio",
-  "m_carbon": "Carbonio"
+  "m_carbon": "Carbonio",
+  "similar": "Simile",
+  "style": "Stile",
+  "fine_tune": "Regolazione fine",
+  "keep": "Tieni",
+  "collection": "COLLEZIONE",
+  "save_photos": "Salva in Foto",
+  "share": "Condividi",
+  "color": "COLORE"
 }

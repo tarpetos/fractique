@@ -94,5 +94,13 @@
   "m_glass": "Kaca",
   "m_glow": "Pendar",
   "m_steel": "Baja",
-  "m_carbon": "Karbon"
+  "m_carbon": "Karbon",
+  "similar": "Serupa",
+  "style": "Gaya",
+  "fine_tune": "Atur halus",
+  "keep": "Simpan",
+  "collection": "KOLEKSI",
+  "save_photos": "Simpan ke Foto",
+  "share": "Bagikan",
+  "color": "WARNA"
 }
