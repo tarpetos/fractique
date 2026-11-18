@@ -3,9 +3,15 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, mpsc};
 
 use eframe::egui;
-use fractique_core::{Control, RenderError, RenderOptions, Scene, render};
+use fractique_core::{Control, Image, RenderError, RenderOptions, Scene, render};
 
-pub const QUALITIES: [(&str, u32, u32); 3] = [("q_standard", 100, 1), ("q_high", 300, 2), ("q_ultra", 1000, 2)];
+pub const AS_SHOWN: u32 = 0;
+pub const QUALITIES: [(&str, u32, u32); 4] = [
+    ("q_instant", AS_SHOWN, 1),
+    ("q_standard", 100, 1),
+    ("q_high", 300, 2),
+    ("q_ultra", 1000, 2),
+];
 
 #[derive(Default)]
 pub struct Sheet {
@@ -60,6 +66,22 @@ impl Job {
                 Err(RenderError::Cancelled) => Outcome::Cancelled,
                 Err(error) => Outcome::Failed(error.to_string()),
             };
+            let _ = sender.send(outcome);
+            ctx.request_repaint();
+        });
+        Self { progress, cancel, done }
+    }
+
+    pub fn save(image: Arc<Image>, path: PathBuf, ctx: egui::Context) -> Self {
+        let (progress, cancel) = (Arc::new(AtomicU32::new(0)), Arc::new(AtomicBool::new(false)));
+        let (sender, done) = mpsc::channel();
+        let shown = progress.clone();
+        std::thread::spawn(move || {
+            let outcome = match crate::save_png(&path, &image.rgba, [image.width as usize, image.height as usize]) {
+                Ok(()) => Outcome::Saved(path),
+                Err(error) => Outcome::Failed(error),
+            };
+            shown.store(1000, Ordering::Relaxed);
             let _ = sender.send(outcome);
             ctx.request_repaint();
         });

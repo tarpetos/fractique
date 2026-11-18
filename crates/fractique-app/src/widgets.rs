@@ -145,6 +145,16 @@ pub fn segments(ui: &mut Ui, labels: &[String], chosen: usize) -> Option<usize> 
     let (track, _) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
     ui.painter().rect_filled(track, CornerRadius::same(10), white(18));
     let each = track.width() / labels.len() as f32;
+    let widest = labels
+        .iter()
+        .map(|label| {
+            let galley = ui
+                .painter()
+                .layout_no_wrap(label.clone(), font(13.5, MEDIUM), Color32::WHITE);
+            galley.size().x
+        })
+        .fold(1.0, f32::max);
+    let size = (13.5 * ((each - 14.0) / widest).min(1.0)).max(8.0);
     let mut picked = None;
     for (index, label) in labels.iter().enumerate() {
         let cell = egui::Rect::from_min_size(track.min + vec2(each * index as f32, 0.0), vec2(each, track.height()));
@@ -163,12 +173,12 @@ pub fn segments(ui: &mut Ui, labels: &[String], chosen: usize) -> Option<usize> 
                 .rect_filled(cell.shrink(2.0), CornerRadius::same(8), white(16));
         }
         let (font, color) = if selected {
-            (font(13.5, MEDIUM), white(255))
+            (font(size, MEDIUM), white(255))
         } else {
-            (FontId::proportional(13.5), white(190))
+            (FontId::proportional(size), white(190))
         };
-        let galley = fitted(ui, label, font, color, each - 14.0);
-        ui.painter().galley(cell.center() - galley.size() * 0.5, galley, color);
+        ui.painter()
+            .text(cell.center(), Align2::CENTER_CENTER, label, font, color);
         if response.clicked() {
             picked = Some(index);
         }

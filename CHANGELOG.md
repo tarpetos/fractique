@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* **Export:** a fourth quality, **Instant**, now the first choice: it saves the picture that is on the screen at
+  once instead of rendering it anew. Standard, High and Ultra render as before.
+* **Android 9 and older:** storage access is asked for when Save is pressed, before the picture is made, and the
+  export goes on by itself once it is allowed.
 * **Scenes:** a number in a scene file is read as exactly the value written. Before, one could come out a last
   digit away, so a scene saved and read again could render differently from the one it was saved from. The two
   presets this touched, `ice-crystal` and `violet-whirl`, now carry the numbers they were always read as, so every
