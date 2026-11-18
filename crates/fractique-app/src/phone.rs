@@ -730,7 +730,7 @@ impl App {
                     bar.bar_width = 5.0;
                     bar.floating_allocated_width = 0.0;
                     ui.spacing_mut().scroll = bar;
-                    egui::ScrollArea::vertical()
+                    crate::scrolled(egui::ScrollArea::vertical())
                         .max_height(room)
                         .min_scrolled_height(room)
                         .show(ui, |ui| {

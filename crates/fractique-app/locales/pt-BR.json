@@ -108,7 +108,7 @@
   "allow_storage": "Permita o acesso ao armazenamento para salvar a imagem.",
   "color": "COR",
   "graphics": "GRÁFICOS",
-  "gpu_note": "Com a aceleração, a imagem pode ficar um pouco diferente de um dispositivo para outro. A exportação não muda.",
+  "gpu_note": "Com a aceleração, a imagem e a exportação Instantânea podem ficar um pouco diferentes de um dispositivo para outro. As exportações Padrão e superiores são sempre exatas.",
   "gpu": "Aceleração por GPU",
   "pro_title": "Fractique Pro",
   "pro_about": "Exporte imagens de 2560 × 1440 ou mais e em qualquer tamanho personalizado. Você paga uma vez e é seu para sempre. Todo o resto é grátis.",

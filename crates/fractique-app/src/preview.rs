@@ -332,6 +332,71 @@ impl Preview {
         Some((&self.picture.as_ref()?.view, &self.soft.as_ref()?[0].view))
     }
 
+    // Copies the picture drawn last, or the blurred one under the panes, back from the graphics card. `then` gets
+    // its bytes on the thread that hears of the submission returned here: the caller has one listen for it.
+    pub fn read(
+        &self,
+        soft: bool,
+        ctx: &egui::Context,
+        then: impl FnOnce(Option<(Vec<u8>, [u32; 2])>) + Send + 'static,
+    ) -> Option<wgpu::SubmissionIndex> {
+        let target = if soft {
+            &self.soft.as_ref()?[0]
+        } else {
+            self.picture.as_ref()?
+        };
+        let size = target.size;
+        let stride = (size[0] * 4).div_ceil(256) * 256;
+        let index = guarded(&self.device, &self.failed, ctx, || {
+            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("fractique picture"),
+                size: u64::from(stride) * u64::from(size[1]),
+                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("fractique picture"),
+            });
+            encoder.copy_texture_to_buffer(
+                wgpu::TexelCopyTextureInfo {
+                    texture: target.view.texture(),
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::TexelCopyBufferInfo {
+                    buffer: &buffer,
+                    layout: wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(stride),
+                        rows_per_image: Some(size[1]),
+                    },
+                },
+                wgpu::Extent3d {
+                    width: size[0],
+                    height: size[1],
+                    depth_or_array_layers: 1,
+                },
+            );
+            let index = self.queue.submit([encoder.finish()]);
+            let mapped = buffer.clone();
+            buffer.slice(..).map_async(wgpu::MapMode::Read, move |result| {
+                let pixels = result
+                    .ok()
+                    .and_then(|()| mapped.slice(..).get_mapped_range().ok())
+                    .map(|rows| {
+                        rows.chunks(stride as usize)
+                            .flat_map(|row| row[..size[0] as usize * 4].iter().copied())
+                            .collect::<Vec<u8>>()
+                    });
+                mapped.unmap();
+                then(pixels.map(|pixels| (pixels, size)));
+            });
+            index
+        });
+        self.works().then_some(index)
+    }
+
     // The layers' levels as textures: false when one of them cannot be on this graphics card.
     pub fn take(&self, sources: &[Arc<Source>], ctx: &egui::Context) -> bool {
         let taken = guarded(&self.device, &self.failed, ctx, || {

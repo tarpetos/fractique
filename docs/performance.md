@@ -51,44 +51,37 @@ The picture on the screen is rendered in passes, so that something shows at once
 | Full, on a phone | 1600 | 18 |
 | Full, in a browser (no draft) | 900 | 14 |
 
-Renders use all cores but two, which stay with the window. The toolbar shows the time the full picture took, or
-the time of the first picture when the graphics card drew it. An export is a separate render at `standard`,
-`high` or `ultra`.
+Renders use all cores but two, which stay with the window. The toolbar shows the time the picture took. An export
+is a separate render at `standard`, `high` or `ultra`.
 
-### The first picture on the graphics card
+### The picture of the graphics card
 
-With GPU acceleration on, the graphics card plays the chaos game of a flame itself and shows it at the full size
-([architecture.md](architecture.md#the-chaos-game-on-the-graphics-card)); the processor's picture replaces it
-later. Measured in the app on Windows 11 with the same processor and an **NVIDIA GeForce RTX 4070** (Vulkan), at
-the 32 samples per pixel of the full pass, in seconds from the request. `random-9` is seed 9 of the first random
-generator, `random2-3` and `random2-11` are seeds of the second.
+Where the graphics card is used ([architecture.md](architecture.md#when-the-graphics-card-is-used)) and GPU
+acceleration is on, the card plays the chaos game of a flame and its picture is the screen's: the processor
+renders nothing for it. Measured in the app on Windows 11 with the same processor and an **NVIDIA GeForce RTX
+4070** (Vulkan), at the 32 samples per pixel of the full pass. `random2-3` is seed 3 of the second random
+generator; `solar-mandala` has two layers, the others one.
 
-| Scene | Layers | Size | First picture | All samples | Processor |
-| --- | --- | --- | --- | --- | --- |
-| `aurora-spiral` | 1 | 1920×1080 | 0.02 s | 0.05 s | 0.69 s |
-| `ember-vortex` | 1 | 1920×1080 | 0.02 s | 0.05 s | 1.22 s |
-| `golden-filigree` | 1 | 1920×1080 | 0.02 s | 0.05 s | 0.95 s |
-| `random2-3` | 1 | 1920×1080 | 0.02 s | 0.05 s | 1.01 s |
-| `solar-mandala` | 2 | 1920×1080 | 0.02 s | 0.06 s | 2.28 s |
-| `lilac-cloud` | 2 | 1920×1080 | 0.02 s | 0.12 s | 1.25 s |
-| `frost-crown` | 2 | 1920×1080 | 0.02 s | 0.06 s | 1.77 s |
-| `random-9` | 2 | 1920×1080 | 0.02 s | 0.06 s | 1.84 s |
-| `random2-11` | 2 | 1920×1080 | 0.02 s | 0.06 s | 1.81 s |
-| `aurora-spiral` | 1 | 3840×2160 | 0.03 s | 0.16 s | 4.36 s |
-| `ember-vortex` | 1 | 3840×2160 | 0.03 s | 0.20 s | 6.79 s |
-| `golden-filigree` | 1 | 3840×2160 | 0.03 s | 0.19 s | 5.30 s |
-| `random2-3` | 1 | 3840×2160 | 0.04 s | 0.18 s | 5.62 s |
-| `solar-mandala` | 2 | 3840×2160 | 0.07 s | 0.34 s | 11.64 s |
-| `lilac-cloud` | 2 | 3840×2160 | 0.06 s | 0.35 s | 7.40 s |
-| `frost-crown` | 2 | 3840×2160 | 0.05 s | 0.31 s | 9.07 s |
-| `random-9` | 2 | 3840×2160 | 0.06 s | 0.39 s | 9.61 s |
-| `random2-11` | 2 | 3840×2160 | 0.06 s | 0.27 s | 8.29 s |
+| Scene | Size | Card: first picture | Card: whole picture | Processor: whole picture | Processor time, card | Processor time, processor |
+| --- | --- | --- | --- | --- | --- | --- |
+| `aurora-spiral` | 1920×1080 | 0.02 s | 0.05 s | 0.68 s | 1.3 s | 9.5 s |
+| `random2-3` | 1920×1080 | 0.02 s | 0.05 s | 1.00 s | 1.3 s | 12.7 s |
+| `solar-mandala` | 1920×1080 | 0.02 s | 0.05 s | 2.37 s | 1.6 s | 29.5 s |
+| `aurora-spiral` | 3840×2160 | 0.03 s | 0.17 s | 3.55 s | 2.2 s | 44.5 s |
+| `random2-3` | 3840×2160 | 0.04 s | 0.20 s | 5.51 s | 2.7 s | 70.1 s |
+| `solar-mandala` | 3840×2160 | 0.07 s | 0.34 s | 12.62 s | 3.0 s | 155.0 s |
 
-"First picture" is when the frame after the first batch of samples begins: the picture is then on its way to the
-screen. "All samples" is when the last batch is finished. "Processor" is the full pass of the same app with GPU
-acceleration off, on 14 threads. Over the 29 presets and 20 seeds of each random generator at 1920×1080 the first
-picture took 0.02 s every time, all samples 0.05 to 0.12 s (0.05 s in the middle) and the processor 0.62 to 2.28 s (1.04 s in
-the middle). No other graphics card was measured.
+"First picture" is when the frame after the first batch of samples begins, "whole picture" when the last batch is
+finished, both from the request. The two last columns are the processor time of the whole test run, all cores
+added up: the app starts, shows the one scene, writes a screenshot and ends. With the card that is the start and
+the screenshot; with the processor rendering the same picture it is the render too.
+
+An **Instant** export of the card's picture, asked for while the first batch was on the screen, was saved 0.6 to
+0.7 s later at 1920×1080 and 2.2 to 2.5 s later at 3840×2160; nearly all of that is writing the PNG. The file held
+the same pixels as the screen.
+
+The trial that decides whether the card is used took 0.009 s on this card and 0.095 s on the processor. No other
+graphics card was measured, and no phone.
 
 ## Memory
 
@@ -113,4 +106,5 @@ layers of the whole view last. With GPU acceleration on, the densities of the la
 pixel each, and the graphics card holds 8 more for each density that has been on the screen, for as long as it is kept.
 
 While the graphics card plays the chaos game it holds, for each layer, 16 bytes a pixel of histogram, 8 of levels
-and up to 8 MB of walkers: about 200 MB a layer at 3840×2160. They are freed when the processor's picture arrives.
+and up to 8 MB of walkers: about 200 MB a layer at 3840×2160. With the last batch the histogram and the walkers
+are freed, and the levels, 66 MB a layer at that size, stay for as long as the picture is on the screen.

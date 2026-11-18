@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* **App:** with GPU acceleration on, the graphics card's picture of a flame is the screen's picture, and the
+  processor no longer renders it a second time: a new flame at 3840×2160 took the processor 45 to 155 s of core
+  time before and takes it 2 to 3 s now, the start of the app included, and the whole picture is there after 0.2
+  to 0.3 s on an NVIDIA RTX 4070. Tone, opacity and blend follow at once. **Instant** export saves that picture,
+  copied back from the card, once all of its samples are there; exports at Standard, High and Ultra are rendered
+  by the processor and exact as before, and so are the command line tool, the MCP tools and the server. What the
+  card does not draw (wallpapers, deep views) is rendered as before.
+* **App:** the **Graphics** section is shown only where the graphics card helps. The app tries the card against the
+  processor once, after its first picture, and remembers the answer for that card and version; where the card has
+  no compute shaders or is not at least twice as fast, there is no switch and the app works on the processor
+  alone, as it did before any acceleration. A card that turns out slow on one picture gives that picture to the
+  processor at once, and an error of the card takes the switch away for the session. Under the switch are the
+  card's name and the note, which now says that an Instant export can differ between devices too.
+
 * **Sizes:** the size list is in groups with tabs over it: Screens, iPhone, iPad, Mac, Watch and Android. Every
   build has the full Apple list now (59 sizes in all), with the Apple Watch screens for a picture to use as a
   watch face; the App Store builds leave the Android group out.
@@ -20,9 +34,7 @@
 * **App:** with GPU acceleration on, the graphics card plays the chaos game itself, so a new flame is on the screen
   in a fraction of a second: at 3840×2160 the first picture comes after about 0.03 s and all of its samples after
   0.2 to 0.4 s on an NVIDIA RTX 4070, where the processor takes 4 to 12 s. The picture is at the full size from the
-  start and grows finer with every frame. The processor renders the scene meanwhile and its picture replaces the
-  graphics card's, so the picture that stays, every export and every saved file are exact as before; the toolbar
-  shows the time the first picture took. Wallpapers, views that hold little of the flame and graphics cards
+  start and grows finer with every frame. Wallpapers, views that hold little of the flame and graphics cards
   without compute shaders are left to the processor, and so is everything when the switch is off
   ([docs/architecture.md](docs/architecture.md#the-chaos-game-on-the-graphics-card)).
 

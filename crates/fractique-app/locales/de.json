@@ -108,7 +108,7 @@
   "allow_storage": "Speicherzugriff erlauben, um das Bild zu speichern.",
   "color": "FARBE",
   "graphics": "GRAFIK",
-  "gpu_note": "Mit Beschleunigung kann das Bild je nach Gerät leicht anders aussehen. Der Export ist davon nicht betroffen.",
+  "gpu_note": "Mit Beschleunigung können das Bild und der Export „Sofort“ je nach Gerät leicht anders aussehen. Exporte ab „Standard“ sind immer exakt.",
   "gpu": "GPU-Beschleunigung",
   "pro_title": "Fractique Pro",
   "pro_about": "Bilder ab 2560 × 1440 und in jeder eigenen Größe exportieren. Einmal zahlen, für immer behalten. Alles andere bleibt kostenlos.",
