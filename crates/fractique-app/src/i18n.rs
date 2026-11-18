@@ -203,7 +203,12 @@ mod tests {
         }
         let main: HashMap<String, String> = serde_json::from_str(Lang::En.source()).unwrap();
         for spec in fractique_core::fractal::all() {
-            let names = spec.params.iter().map(|param| format!("p_{}", param.name));
+            let names = spec
+                .params
+                .iter()
+                .map(|param| param.name)
+                .chain(spec.texts().iter().map(|text| text.name))
+                .map(|name| format!("p_{name}"));
             for key in names.chain([format!("f_{}", spec.name)]) {
                 assert!(keys.contains(&key), "{key} has no text");
                 assert!(!main.contains_key(&key), "{key} is in en.json too");

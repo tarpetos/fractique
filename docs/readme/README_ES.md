@@ -57,6 +57,13 @@ Fractales de otros tipos: el conjunto de Mandelbrot, un conjunto de Julia y el a
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+Fractales geométricos: un tamiz de Apolonio, el conjunto límite de un grupo kleiniano, un sistema L y un fractal de Liapunov:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 Sólidos en tres dimensiones: el Mandelbulb, el Mandelbox y la esponja de Menger:
 
 | | | |

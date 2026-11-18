@@ -57,6 +57,13 @@ Fractique 生成三类图像。一类是分形火焰：由纤细曲线和柔和�
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+几何分形：阿波罗尼奥斯垫片、克莱因群的极限集、L-系统和李雅普诺夫分形：
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 三维立体：曼德球、曼德盒和门格海绵：
 
 | | | |

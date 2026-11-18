@@ -63,6 +63,27 @@
   pixels may differ before they are drawn again; the pictures of the other kinds are untouched. The golden hashes
   of the three kinds were produced on Linux.
 
+* **Geometric fractals:** four kinds join the registry. The **Apollonian gasket** (`apollonian`), from any
+  Descartes configuration, as shaded discs, rings or a glow, colored by generation, size or ancestor. **Kleinian
+  limit sets** (`kleinian`), the two-generator groups of "Indra's Pearls" by Grandma's recipe and Maskit's, with
+  the traces as parameters, drawn by a depth-first search of words that follows the view. **L-systems**
+  (`l_system`): a turtle draws what an axiom and rewriting rules spell, with brackets for branches; the dragon
+  curve, the Koch snowflake, the Sierpinski triangle, the Hilbert and Gosper curves, a plant and a bush are
+  presets. The **Lyapunov fractal** (`lyapunov`) of the logistic map for any sequence of A and B. Each has six or
+  seven presets, a random picture for every seed and a mutation.
+  * **Scene format:** a fractal may hold `text` beside `params`, for parameters that are text: the axiom and the
+    rules of an L-system, the sequence of a Lyapunov fractal
+    ([docs/scene-format.md](docs/scene-format.md#geometric-kinds)). A field that may be left out: the version
+    stays 1 and every scene written before loads and renders as it did.
+  * **App:** a field under the sliders for every text of the chosen fractal; the style and the coloring of a
+    gasket, what an L-system's colors follow and the recipe of a Kleinian group are choices with names.
+  * **Command line, MCP, HTTP:** `fractique fractals`, `list_fractals` and `GET /fractals` list the texts of a
+    kind with their defaults.
+  * In `fractique-core`: `Draw::PixelText` and `Draw::DensityText` build a kind from the whole `Fractal`, with
+    its `Text`s; `Orbit::gain`, 1 unless a kind says otherwise, scales a density, which lets a curve stay as
+    bright at every zoom. No existing kind renders differently: every golden hash from before is untouched, and
+    those of the four kinds were produced on Linux.
+
 * **GPU acceleration:** the trial of a built-in graphics chip gives way when a picture is asked for and begins
   again when the app rests; its verdict is kept again, so a slow phone is tried once, not at every start. The
   first picture after a start is no longer handed to the processor because the shaders took time to load.

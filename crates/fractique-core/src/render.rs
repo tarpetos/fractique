@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 
 use crate::chaos::{Compiled, Walker};
 use crate::deep;
-use crate::fractal::{self, Draw, Orbit};
+use crate::fractal::{self, Orbit};
 use crate::math::{cos, sin};
 use crate::palette::{self, Lut};
 use crate::rng::Rng;
@@ -354,9 +354,8 @@ fn develop_layer(
 ) -> Result<Developed, RenderError> {
     let layer = &scene.layers[index];
     if let Content::Fractal(fractal) = &layer.content
-        && let Some((spec, Draw::Pixel(field))) = fractal::spec(&fractal.kind).map(|spec| (spec, &spec.draw))
+        && let Some(field) = fractal::spec(&fractal.kind).and_then(|spec| spec.field(fractal))
     {
-        let field = field(&spec.values(fractal), &fractal.camera);
         let pixels = fractal::pixel::draw(&*field, fractal, options, cancel, report).ok_or(RenderError::Cancelled)?;
         return Ok(Developed {
             width: options.width,
@@ -378,13 +377,12 @@ fn density(
     let (histogram, normalize) = match &scene.layers[index].content {
         Content::Flame(_) => gather(scene, index, options, cancel, report, false)?,
         Content::Fractal(fractal) => {
-            let Some((spec, Draw::Density(orbit))) = fractal::spec(&fractal.kind).map(|spec| (spec, &spec.draw)) else {
+            let Some(orbit) = fractal::spec(&fractal.kind).and_then(|spec| spec.orbit(fractal)) else {
                 return Err(RenderError::Options(format!(
                     "a layer of {} is drawn pixel by pixel: it has no density",
                     fractal.kind
                 )));
             };
-            let orbit = orbit(&spec.values(fractal), &fractal.camera);
             gather_orbit(scene.seed, index, fractal, &*orbit, options, cancel, report)?
         }
     };
@@ -566,7 +564,10 @@ fn gather_orbit(
         return Err(RenderError::Cancelled);
     }
     let per_cell = f64::from(options.samples_per_pixel) / (supersample * supersample) as f64;
-    Ok((histogram, fractal.camera.zoom * fractal.camera.zoom / per_cell))
+    Ok((
+        histogram,
+        fractal.camera.zoom * fractal.camera.zoom / per_cell * orbit.gain(),
+    ))
 }
 
 fn composed(scene: &Scene, layers: &[&Developed], options: &RenderOptions) -> Image {

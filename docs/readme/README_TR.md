@@ -57,6 +57,13 @@ Yoğunluk olarak çizilen yörüngeler: Buddhabrot ile De Jong, Lorenz, Gumowski
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+Geometrik fraktallar: bir Apollonius contası, bir Klein grubunun limit kümesi, bir L-sistemi ve bir Lyapunov fraktalı:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 Üç boyutlu katı cisimler: Mandelbulb, Mandelbox ve Menger süngeri:
 
 | | | |

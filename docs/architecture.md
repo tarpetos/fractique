@@ -144,6 +144,8 @@ tools, the HTTP server and the app read the kinds from the registry, so none of 
 | Escape-time helpers | `fractal/escape/mod.rs` | The parameters the family shares, the smooth count, the distance estimate with the dark rim and the fade, the step limit that grows with the zoom, `Seen`, which measures a probe, and what the randomizers share: the walk toward the edge of a set (`descend`), the judging of a view (`fitted`, `judged`) and the move of a mutation (`moved`). The root-finding kinds use them too |
 | Root-finding helpers | `fractal/root/mod.rs` | The parameters the family shares, the part of the last step in the smooth count, and the light by the count |
 | Orbit helpers | `fractal/orbit/mod.rs` | `System`: a map or a flow with its starting point, its step and its point in the picture. `Traced` makes an `Orbit` of one: it measures a short orbit first, colors by the rank of the pace, the direction or the height among what it measured, and can move and scale the picture to a size near 1. `judged` frames an orbit and measures whether it is worth a picture; `random_by` and `mutate_by` are the randomizer and the mutation the attractors share. An `Orbit` may bring its own colors in place of the layer's palette (`Orbit::colors`): the Nebulabrot does |
+| Text parameters | `fractal/mod.rs`, `Text` | A kind whose parameters are not all numbers is built with `Draw::PixelText` or `Draw::DensityText` in place of `Draw::Pixel` or `Draw::Density`: the list of its texts (a name, a default, a check that refuses what the kind cannot read, and the values its presets take by their names) and a function that builds the kind from the whole `Fractal`. The texts are in `Fractal::text`, beside `params`, and `Spec::text` reads one with its default |
+| Curves | `fractal/geometric/mod.rs`, `Lines` | A kind that is a curve (`kleinian`, `l_system`) builds its line segments once, on one thread, and hands them to `Lines`, the `Orbit` that keeps those that reach the view and spreads the points of every run evenly along their length, one at a random place in each equal stretch. `Orbit::gain`, 1 for a cloud of points, is what a density is multiplied by: the histogram is scaled by the zoom squared, which is right for points spread over an area, and `Lines` answers with the length drawn over the zoom, so a line is as bright at every zoom and for every length |
 | Probes for randomizers | `pixel::probe`, `density::probe` | A 48 × 48 grid of samples over the middle of a view, and the 30 000 points of one orbit with the camera that frames them, on the grid the flame randomizer judges by |
 
 A per-pixel layer is not a density, so `render_density` refuses it and `render_layer` draws it; a caller that
@@ -168,6 +170,10 @@ for a fractal layer. The limits below were chosen by looking at the pictures of 
 | `nova` | Degree 3 (55 in 100) or 2 to 6; a relaxation of 1 (half) or between 0.6 and 1.8. Six times in ten the map of the first form, with a walk of 1 to 6 steps; otherwise the Julia form of the constant where a walk of 2 to 5 steps ends, whole or a part of it | As `burning_ship`; a Nova does not fade, so it is always lit |
 | `clifford` | `a` and `b` between 1.1 and 2.6 of either sign, `c` and `d` between −1.6 and 1.6 | The orbit is framed as a flame must be, covers 22 % of the grid, holds half of its points in 20 cells or more and has contrast between neighbouring cells |
 | `de_jong`, `gumowski_mira`, `hopalong`, `lorenz`, `buddhabrot` | The ranges are in [usage.md](usage.md#fractals-of-other-kinds). 30 000 points are taken from 8 walks, one of every few points where an orbit is long, and framed with a part of them left outside on each side: none for `lorenz`, 0.5 % for `de_jong` and `gumowski_mira`, 2 % for `buddhabrot`, 4 % for `hopalong` | The share of the 48 × 48 grid covered, the cells that hold half of the points and the contrast between neighbouring cells, as hundredths of the points, are at least: `de_jong` 15 %, 40, 30; `gumowski_mira` 12 %, 16, 85; `hopalong` 30 %, 15, 60; `lorenz` 14 %, 40, 30; `buddhabrot` 22 %, 20, 50. A `buddhabrot` tries 8 candidates, the others 40, and the first candidate that could be framed is taken when none passes. These limits were chosen on the pictures of seeds 1 to 40 and of the presets |
+| `apollonian` | A first circle of radius 0.25 to 0.75, a balance of 1 three times in ten and 0.35 to 1 otherwise, any style and coloring, turned by a multiple of 30°. Half of the seeds show the whole gasket; the other half walk 1 to 3 steps into the gaps, each to a cell of the probe with four neighbours or more in other circles, magnifying 2 to 3.5 times | At most 40 % of the probe is outside the gasket, no circle fills more than 55 % of it, and 8 % of neighbouring cells lie in different circles |
+| `kleinian` | A straight way from traces whose group is surely discrete (3, or 3 and 2) toward traces whose group is surely not (1.5 to 1.6, with an imaginary part up to ±0.6), for both traces alike, as conjugates, with the second fixed at 2 or at a random value; Maskit's recipe is tried one time in five and passes more often, so about four seeds in ten show its band. The way is halved eight times to find where the search stops ending, and the group is taken 0 to 12 % short of that edge | The search ends within 2 500 000 words at the picture's fineness; with Grandma's recipe the curve covers 8 to 55 % of the grid of its probe, which frames it; Maskit's band is framed by its height |
+| `l_system` | One of 26 systems from "The Algorithmic Beauty of Plants" and its kin, with its own angle or, more than half of the time, one up to 18 % off (a plant: 10° less to 14° more), iterated while the steps stay a 110th of the drawing's span (a plant: a 500th) and under 200 000 | The drawing covers 9 to 70 % of the grid of its probe, has contrast between neighbouring cells, and, if it is not a plant, its usual cell holds at most 3.2 lines side by side: more is a blot |
+| `lyapunov` | A sequence of 2 to 10 random letters with both A and B, a view magnified 1.6 to 16 times whose longer side stays where both rates are under 4 | At most 5 % of the probe runs away, 12 to 70 % of it is chaos, and 12 to 60 % of neighbouring cells differ by more than 0.08 in their exponents |
 
 The three checks the later escape-time kinds add (`judged` in `fractal/escape/mod.rs`), chosen by looking at the
 pictures of seeds 1 to 40 of each:
@@ -203,8 +209,11 @@ and `GET /fractals` take the kind from the registry. The rules of [determinism.m
 kind as for the rest of the core: `math.rs` for every transcendental function, `fractal::stream` or the `Rng`
 it is handed for every random number, no state shared between samples or walks.
 
-A kind whose parameters are not numbers (the rules of an L-system) needs a field beside `params` in `Fractal`:
-add it as an optional field with a default, so that scenes written before keep loading, and document it.
+A kind whose parameters are not all numbers (the rules of an L-system, the sequence of a Lyapunov fractal) lists
+them as `Text`s in `Draw::PixelText` or `Draw::DensityText`, and its builder is handed the whole `Fractal`; a
+scene holds them in `text`, beside `params`. Their names go into the locale file as `p_<name>` like those of the
+numbers, and the app shows a field for each under the sliders: what is typed is kept while it cannot be read, in
+another color, and reaches the scene once it can.
 
 ### The ray-marched kinds
 
@@ -482,6 +491,9 @@ every preset, for 20 seeds of each random generator and for every variation, and
 | Transforms per flame | 1 to 64 |
 | Iterations of an escape-time fractal | 16 to 100 000, and at most 4 000 000 steps a point after the zoom has raised them |
 | Samples a pixel of a per-pixel fractal | 1, and 4 to 64 where the picture is not smooth |
+| A text of a fractal | at most 2000 bytes |
+| Steps of an `l_system` | at most 1 048 576 drawn and 16 000 000 symbols: iterations past that are not applied |
+| The search of a `kleinian` | at most 1200 letters a word, 12 000 000 words and 2 000 000 segments |
 | Sheets per scene | 1 to 48 |
 | Shapes per sheet | 1 to 32 |
 | Magnification of a view in the app | 0.0001 to 10 000 000 000; for a fractal, together with the zoom of its scene |

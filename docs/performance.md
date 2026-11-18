@@ -109,6 +109,36 @@ A step of `magnet` costs two complex divisions and one of `multibrot` a multipli
 power, so they are slower than `mandelbrot` at the same depth; a power that is not whole costs a logarithm, a
 sine and a cosine a step. `newton` measures the distance to every root at every step.
 
+### Geometric kinds
+
+These were measured on the same machine with three threads (`RAYON_NUM_THREADS=3`) while other work ran on it,
+so they are not to be read against the table above: `clifford-classic` and `mandelbrot-whole`, measured the same
+way in the same run, are the scale.
+
+| Preset | 1920×1080, `standard` | 3840×2160, `standard` |
+| --- | --- | --- |
+| `apollonian-classic` | 0.4 s | 1.9 s |
+| `apollonian-gap` | 0.6 s | 2.2 s |
+| `lyapunov-ribbons` (400 iterations) | 4.4 s | 12.4 s |
+| `lyapunov-lattice` (800 iterations) | 10.5 s | 34.5 s |
+| `l_system-dragon` | 2.7 s | 25.0 s |
+| `l_system-plant` | 2.3 s | 18.3 s |
+| `kleinian-pearls` | 3.2 s | 24.8 s |
+| `kleinian-lace` | 11.1 s | 53.0 s |
+| `mandelbrot-whole`, for scale | 0.8 s | 3.4 s |
+| `clifford-classic`, for scale | 6.1 s | 41.6 s |
+
+At `high` and 1920×1080, in the same run: `apollonian-classic` 0.6 s, `lyapunov-ribbons` 13.7 s,
+`kleinian-pearls` 14.8 s, `l_system-dragon` 20.2 s. At `mobile` and 1080×2400: 0.6 s, 3.7 s, 3.3 s and 2.2 s.
+
+An Apollonian gasket is the cheapest picture of all: a point needs a few inversions. A Lyapunov fractal costs
+its `warmup` and `iterations` at every sample, and its chaotic part is all edges, which are drawn from nine
+samples a pixel at `standard`. The curves cost what a density costs, and more where they light more of the
+picture (`kleinian-lace`). Before its points are drawn a curve is built on one thread: the search of a
+`kleinian` preset takes under 0.2 s, an `l_system` of a million steps about as long, and the segments are held
+in memory while the layer renders, 56 bytes each (at most 2 000 000 for a `kleinian`, 1 048 576 for an
+`l_system`, which holds as much again while it is built: 110 MB at its largest).
+
 ### Solids
 
 The solid kinds were measured otherwise than the rest of this page: on **3 threads** of a Ryzen 7 5700X

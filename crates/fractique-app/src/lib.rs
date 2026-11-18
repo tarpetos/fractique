@@ -718,6 +718,8 @@ struct App {
     languages_open: bool,
     picture: Option<[u32; 2]>,
     custom: [String; 2],
+    // A text of a fractal while it is typed, by its layer and name: what is typed need not be valid yet.
+    typed: Option<(String, String)>,
     sizes_open: bool,
     presets_open: bool,
     listing: Listing,
@@ -1161,6 +1163,7 @@ impl App {
             language_anchor: egui::Pos2::ZERO,
             picture: stored("picture").and_then(|text| parsed_size(&text)),
             custom: Default::default(),
+            typed: None,
             sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
             presets_open: ["presets", "layouts", "kinds"].into_iter().any(shows),
             listing: if shows("layouts") {
@@ -2219,15 +2222,23 @@ impl App {
         }
     }
 
-    // The sliders of the chosen layer's fractal: one for each parameter of its kind.
+    // The controls of the chosen layer's fractal: a slider for each number of its kind, a field for each text.
     fn fractal_controls(&mut self, ui: &mut egui::Ui) {
         let at = self.layer.min(self.base.layers.len().saturating_sub(1));
-        let Some((spec, values)) = self
-            .base
-            .layers
-            .get(at)
-            .and_then(|layer| layer.fractal())
-            .and_then(|shown| fractal::spec(&shown.kind).map(|spec| (spec, spec.values(shown))))
+        let Some((spec, values, texts)) =
+            self.base
+                .layers
+                .get(at)
+                .and_then(|layer| layer.fractal())
+                .and_then(|shown| {
+                    let spec = fractal::spec(&shown.kind)?;
+                    let texts: Vec<String> = spec
+                        .texts()
+                        .iter()
+                        .map(|text| spec.text(shown, text.name).to_owned())
+                        .collect();
+                    Some((spec, spec.values(shown), texts))
+                })
         else {
             return;
         };
@@ -2258,12 +2269,34 @@ impl App {
                 changed.push((param.name, value.clamp(param.min, param.max)));
             }
         }
-        if !changed.is_empty()
+        let mut written = Vec::new();
+        for (text, before) in spec.texts().iter().zip(texts) {
+            let key = format!("{at} {}", text.name);
+            let mut value = match &self.typed {
+                Some((of, typed)) if *of == key => typed.clone(),
+                _ => before.clone(),
+            };
+            let label = self.t(&format!("p_{}", text.name));
+            let valid = (text.check)(&value).is_ok();
+            let field = widgets::text_field(ui, &label, &mut value, fractique_core::scene::MAX_TEXT, valid);
+            if field.changed() {
+                if (text.check)(&value).is_ok() && value != before {
+                    written.push((text.name, value.clone()));
+                }
+                self.typed = Some((key, value));
+            } else if field.lost_focus() && self.typed.as_ref().is_some_and(|(of, _)| *of == key) {
+                self.typed = None;
+            }
+        }
+        if (!changed.is_empty() || !written.is_empty())
             && let Some(shown) = self.base.layers[at].fractal_mut()
         {
             shown
                 .params
                 .extend(changed.into_iter().map(|(name, value)| (name.to_owned(), value)));
+            shown
+                .text
+                .extend(written.into_iter().map(|(name, value)| (name.to_owned(), value)));
             self.requested = None;
         }
     }

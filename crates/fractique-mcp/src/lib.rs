@@ -186,6 +186,11 @@ pub fn fractals() -> Value {
                     })
                 })
                 .collect();
+            let texts: Vec<Value> = spec
+                .texts()
+                .iter()
+                .map(|text| json!({ "name": text.name, "default": text.default }))
+                .collect();
             let presets: Vec<String> = spec
                 .presets
                 .iter()
@@ -196,6 +201,7 @@ pub fn fractals() -> Value {
                 "family": spec.family.name(),
                 "drawn": if spec.is_density() { "density" } else { "per pixel" },
                 "params": params,
+                "texts": texts,
                 "presets": presets,
             })
         })
@@ -216,6 +222,13 @@ pub fn fractal_list() -> String {
                 param["default"],
                 param["min"],
                 param["max"]
+            ));
+        }
+        for text in kind["texts"].as_array().into_iter().flatten() {
+            lines.push(format!(
+                "  {}={} (text)",
+                text["name"].as_str().unwrap_or_default(),
+                text["default"]
             ));
         }
         let presets: Vec<&str> = kind["presets"]

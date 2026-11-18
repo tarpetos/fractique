@@ -57,6 +57,13 @@ Fractique створює зображення трьох видів. Фракт�
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
 | `gumowski_mira-feathers` | `hopalong-web` | |
 
+Геометричні фрактали: сітка Аполлонія, гранична множина кляйнової групи, L-система і фрактал Ляпунова:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
+| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+
 Тіла у трьох вимірах: мандельбалб, мандельбокс і губка Менгера:
 
 | | | |

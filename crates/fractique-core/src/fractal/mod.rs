@@ -126,6 +126,12 @@ pub trait Orbit: Sync {
     fn colors(&self) -> Option<palette::Lut> {
         None
     }
+
+    /// What the density is multiplied by. The histogram is scaled by the zoom squared, which keeps a cloud of
+    /// points as bright at every zoom; a kind whose points lie on lines gives the factor that does it for them.
+    fn gain(&self) -> f64 {
+        1.0
+    }
 }
 
 pub trait Walk {
@@ -136,6 +142,17 @@ pub trait Walk {
 pub enum Draw {
     Pixel(fn(&[f64], &Camera) -> Box<dyn Field>),
     Density(fn(&[f64], &Camera) -> Box<dyn Orbit>),
+    PixelText(&'static [Text], fn(&Fractal) -> Box<dyn Field>),
+    DensityText(&'static [Text], fn(&Fractal) -> Box<dyn Orbit>),
+}
+
+/// A parameter that is text. `check` refuses a value the kind cannot draw, and `presets` holds the value of
+/// each preset of the kind that does not take the default, by the preset's name.
+pub struct Text {
+    pub name: &'static str,
+    pub default: &'static str,
+    pub check: fn(&str) -> Result<(), String>,
+    pub presets: &'static [(&'static str, &'static str)],
 }
 
 pub struct Preset {
@@ -168,6 +185,7 @@ impl Spec {
                 .iter()
                 .map(|(name, value)| ((*name).to_owned(), *value))
                 .collect::<BTreeMap<_, _>>(),
+            text: BTreeMap::new(),
         }
     }
 
@@ -179,7 +197,41 @@ impl Spec {
     }
 
     pub fn is_density(&self) -> bool {
-        matches!(self.draw, Draw::Density(_))
+        matches!(self.draw, Draw::Density(_) | Draw::DensityText(..))
+    }
+
+    pub fn texts(&self) -> &'static [Text] {
+        match self.draw {
+            Draw::PixelText(texts, _) | Draw::DensityText(texts, _) => texts,
+            Draw::Pixel(_) | Draw::Density(_) => &[],
+        }
+    }
+
+    pub fn text<'a>(&self, fractal: &'a Fractal, name: &str) -> &'a str {
+        match fractal.text.get(name) {
+            Some(value) => value,
+            None => self
+                .texts()
+                .iter()
+                .find(|text| text.name == name)
+                .map_or("", |text| text.default),
+        }
+    }
+
+    pub(crate) fn field(&self, fractal: &Fractal) -> Option<Box<dyn Field>> {
+        match self.draw {
+            Draw::Pixel(make) => Some(make(&self.values(fractal), &fractal.camera)),
+            Draw::PixelText(_, make) => Some(make(fractal)),
+            Draw::Density(_) | Draw::DensityText(..) => None,
+        }
+    }
+
+    pub(crate) fn orbit(&self, fractal: &Fractal) -> Option<Box<dyn Orbit>> {
+        match self.draw {
+            Draw::Density(make) => Some(make(&self.values(fractal), &fractal.camera)),
+            Draw::DensityText(_, make) => Some(make(fractal)),
+            Draw::Pixel(_) | Draw::PixelText(..) => None,
+        }
     }
 
     fn preset(&self, preset: &Preset) -> Scene {
@@ -188,11 +240,13 @@ impl Spec {
             zoom: preset.zoom,
             ..Camera::default()
         };
-        scene_of(
-            self.fractal(preset.palette, camera, preset.params),
-            format!("{}-{}", self.name, preset.name),
-            0,
-        )
+        let mut fractal = self.fractal(preset.palette, camera, preset.params);
+        for text in self.texts() {
+            if let Some((_, value)) = text.presets.iter().find(|(name, _)| *name == preset.name) {
+                fractal.text.insert(text.name.to_owned(), (*value).to_owned());
+            }
+        }
+        scene_of(fractal, format!("{}-{}", self.name, preset.name), 0)
     }
 }
 
