@@ -5,44 +5,14 @@ use std::sync::{Arc, mpsc};
 use eframe::egui;
 use fractique_core::{Control, RenderError, RenderOptions, Scene, render};
 
-pub const SIZES: [(&str, [u32; 2]); 13] = [
-    ("HD", [1280, 720]),
-    ("Full HD", [1920, 1080]),
-    ("QHD", [2560, 1440]),
-    ("Ultrawide", [3440, 1440]),
-    ("4K", [3840, 2160]),
-    ("HD+", [720, 1600]),
-    ("Full HD", [1080, 1920]),
-    ("Full HD+", [1080, 2400]),
-    ("iPhone", [1179, 2556]),
-    ("iPhone Pro Max", [1290, 2796]),
-    ("QHD+", [1440, 3200]),
-    ("iPad", [1640, 2360]),
-    ("iPad Pro", [2048, 2732]),
-];
-pub const LARGEST_SIDE: u32 = 16384;
 pub const QUALITIES: [(&str, u32, u32); 3] = [("q_standard", 100, 1), ("q_high", 300, 2), ("q_ultra", 1000, 2)];
 
 #[derive(Default)]
 pub struct Sheet {
     pub open: bool,
-    pub size: usize,
     pub quality: usize,
-    pub custom: [String; 2],
     pub job: Option<Job>,
     pub note: String,
-}
-
-impl Sheet {
-    pub fn custom_size(&self) -> Option<[u32; 2]> {
-        let side = |text: &String| {
-            text.trim()
-                .parse::<u32>()
-                .ok()
-                .filter(|side| (16..=LARGEST_SIDE).contains(side))
-        };
-        Some([side(&self.custom[0])?, side(&self.custom[1])?])
-    }
 }
 
 pub enum Outcome {

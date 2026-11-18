@@ -59,6 +59,34 @@ struct Adjust {
     zoom: f64,
 }
 
+const SIZES: [(&str, [u32; 2]); 13] = [
+    ("HD", [1280, 720]),
+    ("Full HD", [1920, 1080]),
+    ("QHD", [2560, 1440]),
+    ("Ultrawide", [3440, 1440]),
+    ("4K", [3840, 2160]),
+    ("HD+", [720, 1600]),
+    ("Full HD", [1080, 1920]),
+    ("Full HD+", [1080, 2400]),
+    ("iPhone", [1179, 2556]),
+    ("iPhone Pro Max", [1290, 2796]),
+    ("QHD+", [1440, 3200]),
+    ("iPad", [1640, 2360]),
+    ("iPad Pro", [2048, 2732]),
+];
+const LARGEST_SIDE: u32 = 16384;
+
+fn parsed_size(text: &str) -> Option<[u32; 2]> {
+    let (width, height) = text.split_once('x')?;
+    let side = |text: &str| {
+        text.trim()
+            .parse::<u32>()
+            .ok()
+            .filter(|side| (16..=LARGEST_SIDE).contains(side))
+    };
+    Some([side(width)?, side(height)?])
+}
+
 const MAX_MAGNIFICATION: f32 = 12.0;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 const BAR: f32 = 44.0;
@@ -120,6 +148,9 @@ struct App {
     panes: Vec<(egui::Rect, f32, bool)>,
     toolbar_size: egui::Vec2,
     languages_open: bool,
+    picture: Option<[u32; 2]>,
+    custom: [String; 2],
+    sizes_open: bool,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     maximize_again: bool,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -212,6 +243,9 @@ impl App {
             toolbar_size: egui::Vec2::ZERO,
             languages_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "languages"),
             language_anchor: egui::Pos2::ZERO,
+            picture: stored("picture").and_then(|text| parsed_size(&text)),
+            custom: Default::default(),
+            sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             maximize_again: false,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -233,11 +267,6 @@ impl App {
             #[cfg(not(target_arch = "wasm32"))]
             export: export::Sheet {
                 open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.starts_with("export")),
-                size: if std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "export-custom") {
-                    export::SIZES.len() + 1
-                } else {
-                    0
-                },
                 ..Default::default()
             },
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -333,13 +362,82 @@ impl App {
         }
     }
 
+    fn size_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
+        ui.set_width(300.0);
+        ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+        widgets::section(ui, &self.t("size"));
+        let own = format!("{} · {} × {}", self.t("size_window"), window[0], window[1]);
+        if widgets::row(ui, &own, self.picture.is_none()) {
+            self.picture = None;
+            self.sizes_open = false;
+        }
+        let listed = SIZES.iter().any(|(_, size)| Some(*size) == self.picture);
+        let mut bar = egui::style::ScrollStyle::floating();
+        bar.bar_width = 5.0;
+        ui.spacing_mut().scroll = bar;
+        egui::ScrollArea::vertical()
+            .max_height((room - 230.0).clamp(64.0, 420.0))
+            .show(ui, |ui| {
+                for (name, size) in SIZES {
+                    let label = format!("{} × {}  ·  {name}", size[0], size[1]);
+                    if widgets::row(ui, &label, self.picture == Some(size)) {
+                        self.picture = Some(size);
+                        self.sizes_open = false;
+                    }
+                }
+            });
+        let custom = self.picture.is_some() && !listed;
+        if self.custom[0].is_empty() {
+            let [width, height] = self.picture.unwrap_or(window);
+            self.custom = [width.to_string(), height.to_string()];
+        }
+        ui.add_space(6.0);
+        widgets::row(ui, &self.t("size_custom"), custom);
+        ui.add_space(4.0);
+        let mut entered = false;
+        ui.horizontal(|ui| {
+            for side in 0..2 {
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(96.0, 34.0), egui::Sense::hover());
+                ui.painter()
+                    .rect_filled(rect, egui::CornerRadius::same(10), egui::Color32::from_white_alpha(30));
+                let field = egui::TextEdit::singleline(&mut self.custom[side])
+                    .frame(egui::Frame::NONE)
+                    .font(font(14.0, MEDIUM))
+                    .text_color(egui::Color32::WHITE)
+                    .char_limit(5);
+                let typed = ui.put(rect.shrink2(egui::vec2(12.0, 5.0)), field);
+                entered |= typed.lost_focus() && ui.input(|input| input.key_pressed(egui::Key::Enter));
+                self.custom[side].retain(|c| c.is_ascii_digit());
+                if side == 0 {
+                    ui.label(
+                        egui::RichText::new("×")
+                            .size(14.0)
+                            .color(egui::Color32::from_white_alpha(170)),
+                    );
+                }
+            }
+        });
+        ui.add_space(8.0);
+        entered |= widgets::pill(ui, &self.t("apply"), true, ui.available_width());
+        if entered {
+            match parsed_size(&format!("{}x{}", self.custom[0], self.custom[1])) {
+                Some(size) => {
+                    self.picture = Some(size);
+                    self.sizes_open = false;
+                }
+                None => self.custom = Default::default(),
+            }
+        }
+    }
+
     fn explore(&mut self, ui: &mut egui::Ui, screen: egui::Rect) {
         let picture = ui.interact(screen, egui::Id::unique("picture"), egui::Sense::click_and_drag());
         if picture.dragged() {
             self.view.moved(picture.drag_delta(), screen.size());
         }
-        if picture.clicked() && self.languages_open {
+        if picture.clicked() && (self.languages_open || self.sizes_open) {
             self.languages_open = false;
+            self.sizes_open = false;
         } else if picture.double_clicked() {
             self.view = WHOLE;
         } else if picture.clicked() && (self.bare || cfg!(any(target_os = "android", target_os = "ios"))) {
@@ -378,8 +476,9 @@ impl App {
             self.full_screen(ctx, !is_full);
         }
         if leave {
-            if self.languages_open {
+            if self.languages_open || self.sizes_open {
                 self.languages_open = false;
+                self.sizes_open = false;
             } else if self.bare {
                 self.bare = false;
             } else if is_full {
@@ -691,6 +790,24 @@ impl App {
             }
         }
 
+        widgets::section(ui, &self.t("size"));
+        let label = match self.picture {
+            Some([width, height]) => format!("{width} × {height}"),
+            None => self.t("size_window"),
+        };
+        let mark = egui::pos2(
+            ui.cursor().min.x + ui.available_width() - 16.0,
+            ui.cursor().min.y + 15.0,
+        );
+        if widgets::row(ui, &label, true) {
+            self.sizes_open = !self.sizes_open;
+        }
+        let ink = egui::Stroke::new(1.4, egui::Color32::from_white_alpha(210));
+        ui.painter()
+            .line_segment([mark + egui::vec2(-4.5, -2.5), mark + egui::vec2(0.0, 2.5)], ink);
+        ui.painter()
+            .line_segment([mark + egui::vec2(4.5, -2.5), mark + egui::vec2(0.0, 2.5)], ink);
+
         widgets::section(ui, &self.t("tone"));
         let before = self.adjust;
         widgets::slider(ui, &self.t("brightness"), &mut self.adjust.brightness, (0.3, 2.5), true);
@@ -837,7 +954,7 @@ impl App {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
+    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2]) {
         ui.set_width(300.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         ui.label(
@@ -864,55 +981,13 @@ impl App {
             return;
         }
 
-        widgets::section(ui, &self.t("size"));
-        let own = format!("{} · {} × {}", self.t("size_window"), window[0], window[1]);
-        if widgets::row(ui, &own, self.export.size == 0) {
-            self.export.size = 0;
-        }
-        let custom = export::SIZES.len() + 1;
-        let mut bar = egui::style::ScrollStyle::floating();
-        bar.bar_width = 5.0;
-        ui.spacing_mut().scroll = bar;
-        egui::ScrollArea::vertical()
-            .max_height((room - 350.0).clamp(64.0, 300.0))
-            .show(ui, |ui| {
-                for (index, (name, [width, height])) in export::SIZES.into_iter().enumerate() {
-                    let label = format!("{width} × {height}  ·  {name}");
-                    if widgets::row(ui, &label, self.export.size == index + 1) {
-                        self.export.size = index + 1;
-                    }
-                }
-            });
-        if widgets::row(ui, &self.t("size_custom"), self.export.size == custom) {
-            self.export.size = custom;
-        }
-        if self.export.size == custom {
-            if self.export.custom[0].is_empty() {
-                self.export.custom = [window[0].to_string(), window[1].to_string()];
-            }
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                for side in 0..2 {
-                    let (rect, _) = ui.allocate_exact_size(egui::vec2(108.0, 34.0), egui::Sense::hover());
-                    ui.painter()
-                        .rect_filled(rect, egui::CornerRadius::same(10), egui::Color32::from_white_alpha(30));
-                    let field = egui::TextEdit::singleline(&mut self.export.custom[side])
-                        .frame(egui::Frame::NONE)
-                        .font(font(14.0, MEDIUM))
-                        .text_color(egui::Color32::WHITE)
-                        .char_limit(5);
-                    ui.put(rect.shrink2(egui::vec2(12.0, 5.0)), field);
-                    self.export.custom[side].retain(|c| c.is_ascii_digit());
-                    if side == 0 {
-                        ui.label(
-                            egui::RichText::new("×")
-                                .size(14.0)
-                                .color(egui::Color32::from_white_alpha(170)),
-                        );
-                    }
-                }
-            });
-        }
+        let [width, height] = self.picture.unwrap_or(window);
+        ui.add_space(6.0);
+        ui.label(
+            egui::RichText::new(format!("{width} × {height}"))
+                .size(13.5)
+                .color(egui::Color32::from_white_alpha(200)),
+        );
         widgets::section(ui, &self.t("quality"));
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
@@ -946,15 +1021,6 @@ impl App {
             self.export.open = false;
         }
         if clicked.1 {
-            let chosen = match self.export.size {
-                0 => Some(window),
-                index if index <= export::SIZES.len() => Some(export::SIZES[index - 1].1),
-                _ => self.export.custom_size(),
-            };
-            let Some([width, height]) = chosen else {
-                self.export.note = format!("16 – {}", export::LARGEST_SIDE);
-                return;
-            };
             let (_, samples_per_pixel, supersample) = export::QUALITIES[self.export.quality];
             let options = RenderOptions {
                 width,
@@ -1086,9 +1152,12 @@ impl eframe::App for App {
             (screen.width() * scale).round() as u32,
             (screen.height() * scale).round() as u32,
         ];
-        if size[0] > 0 && size[1] > 0 && self.requested != Some(size) {
+        let window = size;
+        let size = self.picture.unwrap_or(window);
+        if window[0] > 0 && window[1] > 0 && self.requested != Some(size) {
             self.start_render(&ctx, size);
         }
+        let stretch = (size[0] as f32 / size[1] as f32) / (screen.width() / screen.height()).max(0.001);
 
         let painter = ctx.layer_painter(egui::LayerId::background()).with_clip_rect(screen);
         if std::env::var_os("FRACTIQUE_DEBUG_LAYOUT").is_some() {
@@ -1115,7 +1184,7 @@ impl eframe::App for App {
         let mut glass = glass::Frame::new(
             &painter,
             screen,
-            [self.view.center.x, self.view.center.y, self.view.zoom],
+            [self.view.center.x, self.view.center.y, self.view.zoom, stretch],
         );
         for (rect, radius, dark) in &self.panes {
             let mut optics = Optics {
@@ -1195,6 +1264,7 @@ impl eframe::App for App {
         let covered = false;
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         let covered = covered || self.updates.open;
+        let covered = covered || self.sizes_open;
         if !covered {
             let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
                 .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
@@ -1249,7 +1319,7 @@ impl eframe::App for App {
                 .show(&ctx, |ui| {
                     egui::Frame::NONE
                         .inner_margin(egui::Margin::same(22))
-                        .show(ui, |ui| self.export_sheet(ui, size, content.height()));
+                        .show(ui, |ui| self.export_sheet(ui, window));
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }
@@ -1265,6 +1335,19 @@ impl eframe::App for App {
                     egui::Frame::NONE
                         .inner_margin(egui::Margin::same(22))
                         .show(ui, |ui| self.updates.ui(ui, &self.texts, width));
+                });
+            panes.push((sheet.response.rect, self.optics.radius, true));
+        }
+
+        if self.sizes_open {
+            let sheet = egui::Area::new(egui::Id::unique("sizes"))
+                .fixed_pos(content.center())
+                .pivot(egui::Align2::CENTER_CENTER)
+                .order(egui::Order::Foreground)
+                .show(&ctx, |ui| {
+                    egui::Frame::NONE
+                        .inner_margin(egui::Margin::same(22))
+                        .show(ui, |ui| self.size_sheet(ui, window, content.height()));
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }
@@ -1332,6 +1415,10 @@ impl eframe::App for App {
         storage.set_string("language", self.texts.lang.code().to_owned());
         storage.set_string("glass_opacity", self.optics.tint.to_string());
         storage.set_string("glass_blur", self.optics.blur.to_string());
+        let picture = self
+            .picture
+            .map_or("auto".to_owned(), |[width, height]| format!("{width}x{height}"));
+        storage.set_string("picture", picture);
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]

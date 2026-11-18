@@ -3,11 +3,24 @@ struct Uniforms {
     rect: vec4<f32>,   // panel: left, top, right, bottom (pixels)
     shape: vec4<f32>,  // corner radius, bezel width, shadow reach (pixels), shadow strength
     optics: vec4<f32>, // refraction (pixels), blur (0..1), opacity (0..1), depth (0..1)
-    view: vec4<f32>,   // the picture point at the middle of the screen (0..1, 0..1), magnification, unused
+    view: vec4<f32>,   // the picture point at the middle of the screen (0..1, 0..1), magnification, picture aspect / screen aspect
 };
 
 fn picture(p: vec2<f32>) -> vec2<f32> {
-    return (p / u.screen.xy - vec2<f32>(0.5)) / u.view.z + u.view.xy;
+    var from_middle = p / u.screen.xy - vec2<f32>(0.5);
+    if (u.view.w > 1.0) {
+        from_middle.y = from_middle.y * u.view.w;
+    } else {
+        from_middle.x = from_middle.x / u.view.w;
+    }
+    return from_middle / u.view.z + u.view.xy;
+}
+
+const AROUND: vec3<f32> = vec3<f32>(0.012, 0.014, 0.045);
+
+fn on_picture(uv: vec2<f32>) -> f32 {
+    let inside = step(vec2<f32>(0.0), uv) * step(uv, vec2<f32>(1.0));
+    return inside.x * inside.y;
 }
 
 @group(0) @binding(0) var<uniform> u: Uniforms;
@@ -24,13 +37,14 @@ fn vs_main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
 
 @fragment
 fn fs_background(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
-    let color = textureSample(flame, smp, picture(pos.xy)).rgb;
+    let uv = picture(pos.xy);
+    let color = mix(AROUND, textureSample(flame, smp, uv).rgb, on_picture(uv));
     return vec4<f32>(color, 1.0);
 }
 
 fn look(p: vec2<f32>, blur: f32) -> vec3<f32> {
     let uv = picture(p);
-    return mix(textureSample(flame, smp, uv).rgb, textureSample(soft, smp, uv).rgb, blur);
+    return mix(AROUND, mix(textureSample(flame, smp, uv).rgb, textureSample(soft, smp, uv).rgb, blur), on_picture(uv));
 }
 
 @fragment

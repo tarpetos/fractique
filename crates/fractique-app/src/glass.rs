@@ -218,7 +218,7 @@ enum Kind {
 struct Draw {
     slot: usize,
     kind: Kind,
-    view: [f32; 3],
+    view: [f32; 4],
 }
 
 const SHADOW_REACH: f32 = 28.0;
@@ -246,7 +246,7 @@ impl egui_wgpu::CallbackTrait for Draw {
             rect: [0.0; 4],
             shape: [0.0; 4],
             optics: [0.0; 4],
-            view: [self.view[0], self.view[1], self.view[2], 0.0],
+            view: self.view,
         };
         if let Kind::Pane { rect, optics } = self.kind {
             uniforms.rect = [
@@ -284,11 +284,11 @@ impl egui_wgpu::CallbackTrait for Draw {
 pub struct Frame<'a> {
     painter: &'a egui::Painter,
     next: usize,
-    view: [f32; 3],
+    view: [f32; 4],
 }
 
 impl<'a> Frame<'a> {
-    pub fn new(painter: &'a egui::Painter, screen: egui::Rect, view: [f32; 3]) -> Self {
+    pub fn new(painter: &'a egui::Painter, screen: egui::Rect, view: [f32; 4]) -> Self {
         painter.add(egui_wgpu::Callback::new_paint_callback(
             screen,
             Draw {
