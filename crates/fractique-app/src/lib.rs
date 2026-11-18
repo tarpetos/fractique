@@ -563,7 +563,7 @@ enum Verdict {
 // when no other render ran beside it.
 struct Trial {
     card: Option<f32>,
-    processor: Option<(mpsc::Receiver<f32>, bool)>,
+    processor: Option<(mpsc::Receiver<f32>, Arc<AtomicBool>)>,
     runs: u8,
     best: f32,
 }
@@ -571,6 +571,9 @@ struct Trial {
 // The card's best of this many runs counts: one run is a few hundredths of a second, and anything else the
 // machine does at that moment would decide it.
 const TRIAL_RUNS: u8 = 3;
+// A run this long is not noise, and is not repeated; a card that needs longer than the second number is slow.
+const TRIAL_QUICK: f32 = 0.25;
+const TRIAL_LONGEST: f32 = 3.0;
 
 // A smaller picture is over before the card's fixed costs stop counting: a phone's card then looks slower than it is.
 const TRIAL_SIZE: [u32; 2] = [1280, 720];
@@ -683,6 +686,7 @@ struct App {
     card: String,
     card_key: String,
     verdict: Verdict,
+    measured_slow: bool,
     trial: Option<Trial>,
     held: Option<Held>,
     previewing: bool,
@@ -966,8 +970,12 @@ fn lightness(rgba: &[u8], step: usize) -> f32 {
 
 // The verdict kept for a graphics card, if it is this card's and this version's. Only a fast one is believed:
 // a trial run at a bad moment must not leave the card out for good.
+// Not "slow": that was kept by trials that asked a card to be twice as fast on a smaller picture.
+const SLOW: &str = "slow2";
+
 fn verdict_of(text: &str, card: &str) -> Verdict {
     match text.strip_prefix(card).and_then(|rest| rest.strip_prefix('|')) {
+        Some(SLOW) => Verdict::Slow,
         Some(rest) => match rest.strip_prefix("fast|").and_then(|rate| rate.parse().ok()) {
             Some(rate) => Verdict::Fast(Some(rate)),
             None => Verdict::Unknown,
@@ -1055,7 +1063,7 @@ impl App {
         let discrete = info
             .as_ref()
             .is_some_and(|card| card.device_type == wgpu::DeviceType::DiscreteGpu);
-        let verdict = if verdict == Verdict::Unknown && discrete && forced.is_none() {
+        let verdict = if discrete && forced.is_none() && preview.is_some() {
             Verdict::Fast(None)
         } else {
             verdict
@@ -1097,6 +1105,7 @@ impl App {
             card,
             card_key,
             verdict,
+            measured_slow: false,
             trial: None,
             held: None,
             previewing: false,
@@ -1614,7 +1623,15 @@ impl App {
             return;
         };
         let Some(card) = trial.card else {
-            if chaos.advance(ctx) == Step::Refused {
+            // The owner asked for a picture: the trial gives way and begins again when the app rests.
+            if self.rendering {
+                chaos.end();
+                self.trial = None;
+            } else if chaos.advance(ctx) == Step::Refused {
+                self.decide(None);
+            } else if chaos.spent() > TRIAL_LONGEST {
+                chaos.end();
+                self.measured_slow = true;
                 self.decide(None);
             } else if chaos.finished() {
                 let slowed = std::env::var("FRACTIQUE_GPU").is_ok_and(|choice| choice == "slow");
@@ -1622,6 +1639,7 @@ impl App {
                 trial.runs += 1;
                 chaos.end();
                 let again = trial.runs < TRIAL_RUNS
+                    && trial.best < TRIAL_QUICK
                     && presets::get("aurora-spiral").is_some_and(|scene| {
                         chaos.begin(
                             &scene,
@@ -1644,30 +1662,42 @@ impl App {
             None => {
                 let (sender, done) = mpsc::channel();
                 let ctx = ctx.clone();
+                let stop = Arc::new(AtomicBool::new(false));
+                let stopped = stop.clone();
                 let work = move || {
                     let Some(scene) = presets::get("aurora-spiral") else {
                         return;
                     };
                     let started = Instant::now();
-                    let _ = fractique_core::render(&scene, &trial_options(), &Control::default());
-                    let _ = sender.send(started.elapsed().as_secs_f32());
+                    let control = Control {
+                        cancel: Some(&stopped),
+                        progress: None,
+                    };
+                    if fractique_core::render(&scene, &trial_options(), &control).is_ok() {
+                        let _ = sender.send(started.elapsed().as_secs_f32());
+                    }
                     ctx.request_repaint();
                 };
                 #[cfg(not(target_arch = "wasm32"))]
                 std::thread::spawn(move || render_pool().install(work));
                 #[cfg(target_arch = "wasm32")]
                 work();
-                trial.processor = Some((done, true));
+                trial.processor = Some((done, stop));
             }
-            Some((done, alone)) => {
-                *alone &= !self.rendering;
-                match done.try_recv() {
-                    Ok(seconds) if *alone => self.decide(Some((card, seconds))),
-                    Ok(_) => trial.processor = None,
-                    Err(mpsc::TryRecvError::Empty) => {}
-                    Err(mpsc::TryRecvError::Disconnected) => self.decide(None),
+            // A render of the owner's beside it would make the processor look slow: the trial's render stops
+            // and is made again when the app rests.
+            Some((_, stop)) if self.rendering => {
+                stop.store(true, Ordering::Relaxed);
+                trial.processor = None;
+            }
+            Some((done, _)) => match done.try_recv() {
+                Ok(seconds) => {
+                    self.measured_slow = true;
+                    self.decide(Some((card, seconds)));
                 }
-            }
+                Err(mpsc::TryRecvError::Empty) => {}
+                Err(mpsc::TryRecvError::Disconnected) => self.decide(None),
+            },
         }
     }
 
@@ -4105,7 +4135,7 @@ impl eframe::App for App {
             storage.set_string("gpu", if self.gpu { "on" } else { "off" }.to_owned());
             let verdict = match self.verdict {
                 Verdict::Fast(Some(rate)) => Some(format!("fast|{rate}")),
-                Verdict::Slow if !self.card_key.is_empty() => Some("slow".to_owned()),
+                Verdict::Slow if !self.card_key.is_empty() && self.measured_slow => Some(SLOW.to_owned()),
                 _ => None,
             };
             if let Some(verdict) = verdict {
@@ -4402,6 +4432,7 @@ mod tests {
     fn a_verdict_is_kept_for_its_card_and_version() {
         let card = "Adreno 610|V@0502.0|0.1.0";
         assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow", card), Verdict::Unknown);
+        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow2", card), Verdict::Slow);
         assert_eq!(
             verdict_of("Adreno 610|V@0502.0|0.1.0|fast|1500000.5", card),
             Verdict::Fast(Some(1_500_000.5))
