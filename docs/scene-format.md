@@ -1,5 +1,8 @@
 # Scene format
 
+A scene file is JSON. The app saves scenes as `.frcq` files; inside they are the same JSON, so `fractique render scene.frcq`
+and every other command read them, and a `.json` scene opens in the app.
+
 A scene is one JSON document. It holds everything a render depends on, so the same scene always renders to the
 same image (see [determinism.md](determinism.md)). This file is the contract: it changes together with
 `crates/fractique-core/src/scene.rs` and `variation.rs`.

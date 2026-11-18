@@ -244,6 +244,17 @@ const WHOLE: View = View {
 };
 
 // Past this the numbers of the renderer run out of digits.
+// The app's own scene files. Inside is the scene as JSON, so every other Fractique tool reads them too.
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+const SCENE_FILE: &str = "frcq";
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+static OPEN_FIRST: OnceLock<PathBuf> = OnceLock::new();
+
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+pub fn open_at_start(path: PathBuf) {
+    let _ = OPEN_FIRST.set(path);
+}
+
 const MAX_MAGNIFICATION: f64 = 1e10;
 const MIN_MAGNIFICATION: f64 = 1e-4;
 // A new picture is drawn once the view has stood still this long.
@@ -592,6 +603,10 @@ impl App {
         };
         if let Some(session) = session {
             let _ = app.restore(&session);
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        if let Some(path) = OPEN_FIRST.get() {
+            app.load_scene(path);
         }
         app
     }
@@ -1733,9 +1748,17 @@ impl App {
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn open_scene(&mut self) {
         let picked = rfd::FileDialog::new()
-            .add_filter("Fractique, flam3", &["json", "flame"])
+            .add_filter("Fractique, flam3", &[SCENE_FILE, "json", "flame"])
+            .add_filter("Fractique", &[SCENE_FILE, "json"])
+            .add_filter("flam3", &["flame"])
             .pick_file();
-        let Some(path) = picked else { return };
+        if let Some(path) = picked {
+            self.load_scene(&path);
+        }
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn load_scene(&mut self, path: &std::path::Path) {
         let name = path
             .file_stem()
             .map(|stem| stem.to_string_lossy().into_owned())
@@ -1743,7 +1766,7 @@ impl App {
         let is_flame = path
             .extension()
             .is_some_and(|extension| extension.eq_ignore_ascii_case("flame"));
-        let loaded = std::fs::read_to_string(&path)
+        let loaded = std::fs::read_to_string(path)
             .map_err(|error| error.to_string())
             .and_then(|text| {
                 if is_flame {
@@ -1764,10 +1787,11 @@ impl App {
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn save_scene(&mut self) {
-        let name = format!("{}.json", self.title.replace(' ', "-"));
+        let name = format!("{}.{SCENE_FILE}", self.title.replace(' ', "-"));
         let Some(path) = rfd::FileDialog::new()
             .set_file_name(name)
-            .add_filter("Fractique", &["json"])
+            .add_filter("Fractique", &[SCENE_FILE])
+            .add_filter("JSON", &["json"])
             .save_file()
         else {
             return;
