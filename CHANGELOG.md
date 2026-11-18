@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+* **GPU acceleration:** a graphics card of its own (not one built into the processor) is used without a trial.
+  Elsewhere the card's best of three trial runs counts, and a verdict that it is slow is not kept between launches,
+  so one trial at a bad moment no longer hides the switch for good.
 * **App:** with GPU acceleration on, the graphics card's picture of a flame is the screen's picture, and the
   processor no longer renders it a second time: a new flame at 3840×2160 took the processor 45 to 155 s of core
   time before and takes it 2 to 3 s now, the start of the app included, and the whole picture is there after 0.2

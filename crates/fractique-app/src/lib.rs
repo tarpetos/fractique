@@ -564,7 +564,13 @@ enum Verdict {
 struct Trial {
     card: Option<f32>,
     processor: Option<(mpsc::Receiver<f32>, bool)>,
+    runs: u8,
+    best: f32,
 }
+
+// The card's best of this many runs counts: one run is a few hundredths of a second, and anything else the
+// machine does at that moment would decide it.
+const TRIAL_RUNS: u8 = 3;
 
 const TRIAL_SIZE: [u32; 2] = [800, 450];
 // The card is used where it ends the trial at least this many times sooner than the processor.
@@ -956,10 +962,10 @@ fn lightness(rgba: &[u8], step: usize) -> f32 {
     sum as f32 / (count.max(1) as f32 * 255.0)
 }
 
-// The verdict kept for a graphics card, if it is this card's and this version's.
+// The verdict kept for a graphics card, if it is this card's and this version's. Only a fast one is believed:
+// a trial run at a bad moment must not leave the card out for good.
 fn verdict_of(text: &str, card: &str) -> Verdict {
     match text.strip_prefix(card).and_then(|rest| rest.strip_prefix('|')) {
-        Some("slow") => Verdict::Slow,
         Some(rest) => match rest.strip_prefix("fast|").and_then(|rate| rate.parse().ok()) {
             Some(rate) => Verdict::Fast(Some(rate)),
             None => Verdict::Unknown,
@@ -1042,6 +1048,15 @@ impl App {
             Some("fast") => Verdict::Fast(None),
             Some("slow" | "measure") => Verdict::Unknown,
             _ => stored("card").map_or(Verdict::Unknown, |text| verdict_of(&text, &card_key)),
+        };
+        // A card of its own, not one that shares the processor's chip, is faster without asking.
+        let discrete = info
+            .as_ref()
+            .is_some_and(|card| card.device_type == wgpu::DeviceType::DiscreteGpu);
+        let verdict = if verdict == Verdict::Unknown && discrete && forced.is_none() {
+            Verdict::Fast(None)
+        } else {
+            verdict
         };
         if verdict == Verdict::Slow {
             preview = None;
@@ -1584,6 +1599,8 @@ impl App {
             self.trial = Some(Trial {
                 card: None,
                 processor: None,
+                runs: 0,
+                best: f32::INFINITY,
             });
         } else {
             self.decide(None);
@@ -1599,8 +1616,23 @@ impl App {
                 self.decide(None);
             } else if chaos.finished() {
                 let slowed = std::env::var("FRACTIQUE_GPU").is_ok_and(|choice| choice == "slow");
-                trial.card = Some(chaos.spent() * if slowed { 1.0e4 } else { 1.0 });
+                trial.best = trial.best.min(chaos.spent() * if slowed { 1.0e4 } else { 1.0 });
+                trial.runs += 1;
                 chaos.end();
+                let again = trial.runs < TRIAL_RUNS
+                    && presets::get("aurora-spiral").is_some_and(|scene| {
+                        chaos.begin(
+                            &scene,
+                            &trial_options(),
+                            &["trial".to_owned()],
+                            Instant::now(),
+                            None,
+                            ctx,
+                        )
+                    });
+                if !again {
+                    trial.card = Some(trial.best);
+                }
                 ctx.request_repaint();
             }
             return;
@@ -4367,7 +4399,7 @@ mod tests {
     #[test]
     fn a_verdict_is_kept_for_its_card_and_version() {
         let card = "Adreno 610|V@0502.0|0.1.0";
-        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow", card), Verdict::Slow);
+        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow", card), Verdict::Unknown);
         assert_eq!(
             verdict_of("Adreno 610|V@0502.0|0.1.0|fast|1500000.5", card),
             Verdict::Fast(Some(1_500_000.5))
