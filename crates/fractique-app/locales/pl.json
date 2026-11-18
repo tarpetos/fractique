@@ -107,5 +107,6 @@
   "allow_storage": "Zezwól na dostęp do pamięci, aby zapisać obraz.",
   "color": "KOLOR",
   "graphics": "GRAFIKA",
+  "gpu_note": "Szybki obraz może się nieznacznie różnić między urządzeniami. Eksport jest zawsze dokładny.",
   "gpu": "Akceleracja GPU"
 }

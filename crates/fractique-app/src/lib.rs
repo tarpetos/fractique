@@ -1897,6 +1897,14 @@ impl App {
                     kept.sources.clear();
                 }
             }
+            if self.gpu {
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new(self.t("gpu_note"))
+                        .size(12.0)
+                        .color(egui::Color32::from_white_alpha(150)),
+                );
+            }
         }
 
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]

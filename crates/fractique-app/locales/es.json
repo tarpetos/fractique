@@ -107,5 +107,6 @@
   "allow_storage": "Permite el acceso al almacenamiento para guardar la imagen.",
   "color": "COLOR",
   "graphics": "GRÁFICOS",
+  "gpu_note": "La imagen rápida puede variar ligeramente entre dispositivos. Las exportaciones son siempre exactas.",
   "gpu": "Aceleración por GPU"
 }
