@@ -3,6 +3,7 @@ mod android;
 #[cfg(any(windows, test))]
 mod association;
 mod blur;
+mod chaos;
 #[cfg(not(target_arch = "wasm32"))]
 mod export;
 mod glass;
@@ -39,6 +40,7 @@ use fractique_core::{
     render_layer,
 };
 
+use chaos::{Chaos, Step};
 use glass::{Gfx, Optics};
 use i18n::{Lang, Texts};
 use preview::{Preview, Source};
@@ -392,6 +394,15 @@ fn shows(what: &str) -> bool {
     std::env::var("FRACTIQUE_SHOW").is_ok_and(|shown| shown == what)
 }
 
+// A test run that keeps the picture of the graphics card: all of its samples, or those of its first batch.
+fn chaos_only() -> bool {
+    shows("gpu") || shows("gpu-first")
+}
+
+fn timed() -> bool {
+    std::env::var_os("FRACTIQUE_DEBUG_TIMES").is_some()
+}
+
 impl Adjust {
     // A test run's tone: FRACTIQUE_ADJUST=brightness,gamma,glow,zoom. With FRACTIQUE_SHOW=preview it is set once
     // the picture is rendered and stays the graphics card's.
@@ -467,6 +478,14 @@ struct App {
     preview: Option<Preview>,
     held: Option<Held>,
     previewing: bool,
+    chaos: Option<Chaos>,
+    chaos_tried: bool,
+    compiling: bool,
+    chaotic: bool,
+    chaos_at: (View, f64),
+    quick: (Option<f32>, Option<f32>),
+    look: String,
+    asked: Instant,
     frozen: bool,
     bare: bool,
     optics: Optics,
@@ -697,6 +716,31 @@ fn list_height(rows: usize, room: f32) -> f32 {
     (rows as f32 * 32.0 - 2.0).clamp(30.0, (room - 110.0).max(90.0))
 }
 
+fn chaos_keys(scene: &Scene, options: &RenderOptions) -> Vec<String> {
+    let size = size_key(options);
+    (0..scene.layers.len())
+        .map(|index| source_key(scene, index, &size))
+        .collect()
+}
+
+// What a picture drawn from the layers' levels depends on besides the levels.
+fn look_key(scene: &Scene) -> String {
+    let layers: Vec<_> = scene
+        .layers
+        .iter()
+        .map(|layer| (layer.blend, layer.opacity, &layer.flame.tone))
+        .collect();
+    format!("{:?} {layers:?}", scene.background)
+}
+
+fn status_of(size: [u32; 2], seconds: f32, view: View) -> String {
+    let mut status = format!("{} × {}  ·  {seconds:.2} s", size[0], size[1]);
+    if view.zoom != 1.0 {
+        status += &format!("  ·  {}×", view.label());
+    }
+    status
+}
+
 fn fitted(size: [u32; 2], side: f32, samples: u32) -> RenderOptions {
     let shrink = (size[0].max(size[1]) as f32 / side).max(1.0);
     RenderOptions {
@@ -725,13 +769,17 @@ impl App {
         cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
         if let Some(state) = &cc.wgpu_render_state {
             note(&format!("graphics: {:?}", state.adapter.get_info()));
+            if timed() {
+                let card = state.adapter.get_info();
+                eprintln!("times: {} on {:?}", card.name, card.backend);
+            }
             let gfx = Gfx::new(&state.device, state.target_format);
             state.renderer.write().callback_resources.insert(gfx);
         }
         let preview = cc
             .wgpu_render_state
             .as_ref()
-            .and_then(|state| Preview::new(state, &cc.egui_ctx));
+            .and_then(|state| Preview::new(&state.adapter, &state.device, &state.queue, &cc.egui_ctx));
         let gpu = match std::env::var("FRACTIQUE_GPU") {
             Ok(choice) => choice != "off",
             Err(_) => stored("gpu").is_none_or(|choice| choice != "off"),
@@ -765,8 +813,16 @@ impl App {
             preview,
             held: None,
             previewing: false,
+            chaos: None,
+            chaos_tried: false,
+            compiling: false,
+            chaotic: false,
+            chaos_at: (WHOLE, 1.0),
+            quick: (None, None),
+            look: String::new(),
+            asked: Instant::now(),
             frozen: false,
-            bare: false,
+            bare: chaos_only() || shows("picture"),
             optics: Optics {
                 refraction: 38.0,
                 blur,
@@ -937,10 +993,18 @@ impl App {
             return false;
         }
         let scene = self.scene_in(self.shown, self.shown_zoom);
+        if scene.sheets.is_some() || scene.validate().is_err() {
+            return false;
+        }
+        // The picture of the chaos game on the graphics card is drawn again with the new tone by `chaos_frame`.
+        if self.chaotic {
+            let keys = chaos_keys(&scene, &fitted(size, FULL_SIDE, FULL_SAMPLES));
+            return self.chaos.as_ref().is_some_and(|chaos| chaos.keys() == Some(&keys));
+        }
         let (Some(preview), Some(held)) = (&mut self.preview, &self.held) else {
             return false;
         };
-        if held.size != size || scene.sheets.is_some() || scene.validate().is_err() {
+        if held.size != size {
             return false;
         }
         let prefix = size_key(&held.options);
@@ -996,6 +1060,7 @@ impl App {
         self.requested = Some(size);
         self.drawn = Some((self.view, self.adjust.zoom));
         self.rendering = true;
+        self.asked = Instant::now();
 
         let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
         let mut passes = vec![(true, fitted(size, DRAFT_SIDE, DRAFT_SAMPLES)), (false, full)];
@@ -1016,6 +1081,14 @@ impl App {
             passes.retain(|(draft, options)| !draft || options.width >= held.options.width);
         }
         let (scene, cancel, generation) = (self.scene_at(size), self.cancel.clone(), self.generation);
+        // The graphics card shows the full picture before a draft would be ready.
+        let quick = self.begin_chaos(ctx, &scene, &full);
+        if quick {
+            passes.retain(|(draft, _)| !draft);
+        }
+        if chaos_only() && (quick || self.gpu_on() && self.chaos.as_ref().is_some_and(Chaos::pending)) {
+            return;
+        }
         let (view, zoom) = (self.view, self.adjust.zoom);
         let sources = self.gpu_on() && scene.sheets.is_none();
         let home = view == WHOLE;
@@ -1066,8 +1139,9 @@ impl App {
     }
 
     fn receive(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
-        if self.previewing && !self.gpu_on() {
+        if (self.previewing || self.chaotic) && !self.gpu_on() {
             self.previewing = false;
+            self.chaotic = false;
             self.requested = None;
         }
         while let Ok(done) = self.results.1.try_recv() {
@@ -1075,6 +1149,20 @@ impl App {
                 continue;
             }
             self.previewing = false;
+            let first = self.quick.0.filter(|_| self.chaotic && !done.draft);
+            self.chaotic = false;
+            if let Some(chaos) = &mut self.chaos {
+                chaos.end();
+            }
+            if timed() {
+                let pass = if done.draft { "a draft" } else { "the picture" };
+                eprintln!(
+                    "times: {pass} of {} × {} from the processor after {:.3} s",
+                    done.image.width,
+                    done.image.height,
+                    self.asked.elapsed().as_secs_f32()
+                );
+            }
             self.held = done.held.clone().filter(|held| {
                 self.gpu_on()
                     && self
@@ -1111,10 +1199,8 @@ impl App {
             if !done.draft {
                 self.rendering = false;
                 self.shown_frames = self.shown_frames.max(1);
-                self.status = format!("{} × {}  ·  {:.2} s", done.image.width, done.image.height, done.seconds);
-                if done.view.zoom != 1.0 {
-                    self.status += &format!("  ·  {}×", done.view.label());
-                }
+                let seconds = first.unwrap_or(done.seconds);
+                self.status = status_of([done.image.width, done.image.height], seconds, done.view);
                 if shows("preview")
                     && !self.frozen
                     && let Some(adjust) = Adjust::asked()
@@ -1125,6 +1211,128 @@ impl App {
                 }
                 self.latest = Some(done);
             }
+        }
+    }
+
+    fn begin_chaos(&mut self, ctx: &egui::Context, scene: &Scene, full: &RenderOptions) -> bool {
+        let drawn = self.gpu_on() && !self.wall.live && scene.sheets.is_none();
+        let Some(chaos) = &mut self.chaos else {
+            return false;
+        };
+        let keys = chaos_keys(scene, full);
+        // The processor develops a layer whose density it kept faster than the chaos game is played again.
+        let kept = {
+            let kept = self.kept.lock().unwrap_or_else(|e| e.into_inner());
+            keys.iter().all(|key| kept.sources.contains_key(key))
+        };
+        if !drawn || kept {
+            chaos.end();
+            return false;
+        }
+        let goes_on = chaos.keys() == Some(&keys);
+        let wanted = RenderOptions {
+            samples_per_pixel: if shows("gpu-first") {
+                chaos::FIRST_SAMPLES
+            } else {
+                full.samples_per_pixel
+            },
+            ..*full
+        };
+        if !chaos.begin(scene, &wanted, &keys, self.asked, ctx) {
+            if timed() && !chaos.pending() {
+                eprintln!("times: the graphics card does not draw this scene");
+            }
+            return false;
+        }
+        if !goes_on {
+            self.quick = (None, None);
+            self.chaos_at = (self.view, self.adjust.zoom);
+        }
+        true
+    }
+
+    // The chaos game on the graphics card: takes in the batch that has finished, sends the next and shows the
+    // picture, with the tone as it is now.
+    fn chaos_frame(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
+        let Some(mut chaos) = self.chaos.take() else {
+            return;
+        };
+        let pending = chaos.pending();
+        // The shaders are compiled, or refused: a render that began without them begins again.
+        if self.compiling && !pending && self.rendering && !self.chaotic {
+            self.requested = None;
+        }
+        self.compiling = pending;
+        if chaos.keys().is_some() {
+            self.chaos_step(&mut chaos, ctx, frame);
+        }
+        self.chaos = Some(chaos);
+    }
+
+    fn chaos_step(&mut self, chaos: &mut Chaos, ctx: &egui::Context, frame: &eframe::Frame) {
+        let step = chaos.advance(ctx);
+        if step == Step::Refused {
+            if timed() {
+                eprintln!("times: the graphics card gave the scene up");
+            }
+            self.requested = None;
+            return;
+        }
+        let times = chaos.times();
+        if times != self.quick {
+            if let (Some((size, _)), Some(first)) = (chaos.levels(), times.0) {
+                self.status = status_of(size, first, self.chaos_at.0);
+                if timed() && self.quick.0.is_none() {
+                    eprintln!(
+                        "times: the first picture of {} × {} from the graphics card after {first:.3} s",
+                        size[0], size[1]
+                    );
+                }
+            }
+            if let Some(full) = times.1 {
+                if timed() {
+                    eprintln!("times: all samples from the graphics card after {full:.3} s");
+                }
+                if chaos_only() {
+                    self.rendering = false;
+                    self.shown_frames = self.shown_frames.max(1);
+                }
+            }
+            self.quick = times;
+        }
+        if step != Step::Drawn && !self.chaotic {
+            return;
+        }
+        let scene = self.scene_in(self.chaos_at.0, self.chaos_at.1);
+        let look = look_key(&scene);
+        if step != Step::Drawn && look == self.look {
+            return;
+        }
+        let (Some(preview), Some((size, levels))) = (&mut self.preview, chaos.levels()) else {
+            return;
+        };
+        if !preview.draw_levels(&scene, size, &levels, ctx) {
+            return;
+        }
+        let Some(state) = frame.wgpu_render_state() else {
+            return;
+        };
+        let mut renderer = state.renderer.write();
+        let (Some(gfx), Some((picture, soft))) = (renderer.callback_resources.get_mut::<Gfx>(), preview.views()) else {
+            return;
+        };
+        gfx.show(&state.device, picture, soft);
+        self.chaotic = true;
+        self.previewing = false;
+        self.look = look;
+        (self.shown, self.shown_zoom) = self.chaos_at;
+    }
+
+    fn detail(&self) -> String {
+        if self.rendering && !self.chaotic {
+            self.t("rendering")
+        } else {
+            self.status.clone()
         }
     }
 
@@ -1901,6 +2109,10 @@ impl App {
             if widgets::toggle(ui, &self.t("gpu"), &mut self.gpu) {
                 self.held = None;
                 self.requested = None;
+                self.chaotic = false;
+                if let Some(chaos) = &mut self.chaos {
+                    chaos.end();
+                }
                 let mut kept = self.kept.lock().unwrap_or_else(|e| e.into_inner());
                 if self.gpu {
                     kept.layers.clear();
@@ -2719,6 +2931,14 @@ impl eframe::App for App {
         ];
         let window = size;
         let size = self.picture.unwrap_or(window);
+        // A browser page renders on the thread that draws: there the picture of the graphics card would wait for it.
+        if self.gpu && !self.chaos_tried && self.preview.is_some() && cfg!(not(target_arch = "wasm32")) {
+            self.chaos_tried = true;
+            self.chaos = frame
+                .wgpu_render_state()
+                .and_then(|state| Chaos::new(&state.adapter, &state.device, &state.queue, &ctx));
+            self.compiling = self.chaos.as_ref().is_some_and(Chaos::pending);
+        }
         if window[0] > 0 && window[1] > 0 {
             if self.requested != Some(size) {
                 if self.preview_now(&ctx, frame, size) {
@@ -2736,6 +2956,7 @@ impl eframe::App for App {
                 }
             }
         }
+        self.chaos_frame(&ctx, frame);
         let stretch = (size[0] as f32 / size[1] as f32) / (screen.width() / screen.height()).max(0.001);
 
         let painter = ctx.layer_painter(egui::LayerId::background()).with_clip_rect(screen);
@@ -2885,11 +3106,7 @@ impl eframe::App for App {
                     .pivot(egui::Align2::CENTER_BOTTOM)
                     .show(&ctx, |ui| {
                         egui::Frame::NONE.inner_margin(egui::Margin::same(9)).show(ui, |ui| {
-                            let detail = if self.rendering {
-                                self.t("rendering")
-                            } else {
-                                self.status.clone()
-                            };
+                            let detail = self.detail();
                             let name = ui.painter().layout_no_wrap(
                                 shown(&self.title),
                                 font(13.5, MEDIUM),

@@ -6,7 +6,7 @@ use eframe::egui;
 use eframe::egui_wgpu::wgpu;
 use fractique_core::{Blend, Density, Scene};
 
-const LEVELS: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+pub(crate) const LEVELS: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
 // Not an sRGB format, like the picture the processor renders: the panes blend in gamma space.
 const PICTURE: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 // A blur reaches three sigmas; above this sigma it is run on a smaller picture instead.
@@ -87,8 +87,13 @@ pub struct Preview {
     glows: HashMap<[u32; 2], [Target; 2]>,
 }
 
-// An error of the graphics card inside `run` marks the preview as failed instead of ending the app.
-fn guarded<T>(device: &wgpu::Device, failed: &Arc<AtomicBool>, ctx: &egui::Context, run: impl FnOnce() -> T) -> T {
+// An error of the graphics card inside `run` sets `failed` instead of ending the app.
+pub(crate) fn guarded<T>(
+    device: &wgpu::Device,
+    failed: &Arc<AtomicBool>,
+    ctx: &egui::Context,
+    run: impl FnOnce() -> T,
+) -> T {
     let scopes =
         [wgpu::ErrorFilter::OutOfMemory, wgpu::ErrorFilter::Validation].map(|filter| device.push_error_scope(filter));
     let out = run();
@@ -98,7 +103,7 @@ fn guarded<T>(device: &wgpu::Device, failed: &Arc<AtomicBool>, ctx: &egui::Conte
         match error.as_mut().poll(&mut context) {
             std::task::Poll::Ready(None) => {}
             std::task::Poll::Ready(Some(error)) => {
-                log::warn!("the preview on the graphics card is off: {error}");
+                log::warn!("the graphics card refused its work: {error}");
                 failed.store(true, Ordering::Relaxed);
             }
             std::task::Poll::Pending => {
@@ -107,7 +112,7 @@ fn guarded<T>(device: &wgpu::Device, failed: &Arc<AtomicBool>, ctx: &egui::Conte
                     let (failed, ctx) = (failed.clone(), ctx.clone());
                     wasm_bindgen_futures::spawn_local(async move {
                         if let Some(error) = error.await {
-                            log::warn!("the preview on the graphics card is off: {error}");
+                            log::warn!("the graphics card refused its work: {error}");
                             failed.store(true, Ordering::Relaxed);
                             ctx.request_repaint();
                         }
@@ -133,7 +138,9 @@ fn target(device: &wgpu::Device, size: [u32; 2]) -> Target {
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: PICTURE,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::COPY_SRC,
         view_formats: &[],
     });
     Target {
@@ -152,20 +159,24 @@ struct Pass<'a> {
 }
 
 impl Preview {
-    pub fn new(state: &eframe::egui_wgpu::RenderState, ctx: &egui::Context) -> Option<Self> {
+    pub fn new(
+        adapter: &wgpu::Adapter,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        ctx: &egui::Context,
+    ) -> Option<Self> {
         let needed = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
         let drawn = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT;
-        let allowed = |format| state.adapter.get_texture_format_features(format).allowed_usages;
+        let allowed = |format| adapter.get_texture_format_features(format).allowed_usages;
         if !allowed(LEVELS).contains(needed) || !allowed(PICTURE).contains(drawn) {
             return None;
         }
         let failed = Arc::new(AtomicBool::new(false));
-        let preview = guarded(&state.device, &failed, ctx, || Self::build(state, failed.clone()));
+        let preview = guarded(device, &failed, ctx, || Self::build(device, queue, failed.clone()));
         (!failed.load(Ordering::Relaxed)).then_some(preview)
     }
 
-    fn build(state: &eframe::egui_wgpu::RenderState, failed: Arc<AtomicBool>) -> Self {
-        let device = &state.device;
+    fn build(device: &wgpu::Device, queue: &wgpu::Queue, failed: Arc<AtomicBool>) -> Self {
         let texture = |binding, filterable| wgpu::BindGroupLayoutEntry {
             binding,
             visibility: wgpu::ShaderStages::FRAGMENT,
@@ -266,7 +277,7 @@ impl Preview {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
-        state.queue.write_texture(
+        queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &nothing,
                 mip_level: 0,
@@ -287,7 +298,7 @@ impl Preview {
         );
         Self {
             device: device.clone(),
-            queue: state.queue.clone(),
+            queue: queue.clone(),
             largest: device.limits().max_texture_dimension_2d,
             failed,
             layer: [
@@ -378,15 +389,31 @@ impl Preview {
     // Draws the scene's layers with their tone, opacity and blend as they are now. The layers' places and the
     // smoothing stay those the sources were rendered with.
     pub fn draw(&mut self, scene: &Scene, sources: &[Arc<Source>], ctx: &egui::Context) -> bool {
+        let Some(size) = sources.first().map(|source| source.density.size()) else {
+            return false;
+        };
+        let levels: Option<Vec<&wgpu::TextureView>> = sources
+            .iter()
+            .map(|source| source.levels.get().filter(|_| source.density.size() == size))
+            .collect();
+        levels.is_some_and(|levels| self.draw_levels(scene, size, &levels, ctx))
+    }
+
+    // The same from levels that are on the graphics card already, one texture of this size a layer.
+    pub fn draw_levels(
+        &mut self,
+        scene: &Scene,
+        size: [u32; 2],
+        levels: &[&wgpu::TextureView],
+        ctx: &egui::Context,
+    ) -> bool {
         let (device, failed) = (self.device.clone(), self.failed.clone());
-        let drawn = guarded(&device, &failed, ctx, || self.passes(scene, sources).is_some());
+        let drawn = guarded(&device, &failed, ctx, || self.passes(scene, size, levels).is_some());
         drawn && self.works()
     }
 
-    fn passes(&mut self, scene: &Scene, sources: &[Arc<Source>]) -> Option<()> {
-        let size = sources.first()?.density.size();
-        let fits = |source: &Arc<Source>| source.density.size() == size && source.levels.get().is_some();
-        if sources.len() != scene.layers.len() || !sources.iter().all(fits) {
+    fn passes(&mut self, scene: &Scene, size: [u32; 2], sources: &[&wgpu::TextureView]) -> Option<()> {
+        if sources.len() != scene.layers.len() {
             return None;
         }
         if self.picture.as_ref().is_none_or(|picture| picture.size != size) {
@@ -427,9 +454,9 @@ impl Preview {
         let picture = self.picture.as_ref()?;
         let soft = self.soft.as_ref()?;
         let mut passes = Vec::new();
-        for (index, ((layer, source), glow)) in scene.layers.iter().zip(sources).zip(&glowing).enumerate() {
+        for (index, ((layer, levels), glow)) in scene.layers.iter().zip(sources).zip(&glowing).enumerate() {
             let tone = &layer.flame.tone;
-            let levels = source.levels.get()?;
+            let levels = *levels;
             let mut uniforms = Uniforms {
                 tone: [
                     tone.brightness as f32,
