@@ -200,6 +200,18 @@ fn shown(name: &str) -> String {
     out
 }
 
+fn file_name(title: &str) -> String {
+    let mut out = String::with_capacity(title.len());
+    for word in title.split(|letter: char| !letter.is_alphanumeric()) {
+        let mut letters = word.chars();
+        if let Some(first) = letters.next() {
+            out.extend(first.to_uppercase());
+            out.push_str(letters.as_str());
+        }
+    }
+    out
+}
+
 fn named(mut scene: Scene, title: &str) -> Scene {
     let several = scene.layers.len() > 1;
     for (index, layer) in scene.layers.iter_mut().enumerate() {
@@ -1828,7 +1840,7 @@ impl App {
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn save_scene(&mut self) {
-        let name = format!("{}.{SCENE_FILE}", self.title.replace(' ', "-"));
+        let name = format!("{}.{SCENE_FILE}", file_name(&self.title));
         let Some(path) = rfd::FileDialog::new()
             .set_file_name(name)
             .add_filter("Fractique", &[SCENE_FILE])
@@ -1940,7 +1952,7 @@ impl App {
                 samples_per_pixel,
                 supersample,
             };
-            let name = format!("{}-{width}x{height}.png", self.title.replace(' ', "-"));
+            let name = format!("{}-{width}x{height}.png", file_name(&self.title));
             if let Some(path) = export::target(&name) {
                 self.export.job = Some(export::Job::start(
                     self.scene_at([width, height]),
@@ -2639,6 +2651,13 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn file_names_are_words_joined() {
+        assert_eq!(file_name("aurora-spiral"), "AuroraSpiral");
+        assert_eq!(file_name("Random 12"), "Random12");
+        assert_eq!(file_name("my scene.v2"), "MySceneV2");
+    }
 
     #[test]
     fn kept_layers_give_the_same_picture() {
