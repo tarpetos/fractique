@@ -117,7 +117,9 @@ struct App {
     optics: Optics,
     tuning: bool,
     inspector_open: Option<bool>,
-    panes: Vec<(egui::Rect, f32)>,
+    panes: Vec<(egui::Rect, f32, bool)>,
+    toolbar_size: egui::Vec2,
+    languages_open: bool,
     results: (mpsc::Sender<Rendered>, mpsc::Receiver<Rendered>),
     cancel: Arc<AtomicBool>,
     generation: u64,
@@ -195,6 +197,8 @@ impl App {
             tuning: false,
             inspector_open: None,
             panes: Vec::new(),
+            toolbar_size: egui::Vec2::ZERO,
+            languages_open: false,
             results: mpsc::channel(),
             cancel: Arc::new(AtomicBool::new(false)),
             generation: 0,
@@ -564,14 +568,27 @@ impl App {
 
         widgets::section(ui, &self.t("language"));
         let mut chosen = self.texts.lang;
-        egui::ComboBox::from_id_salt("language")
-            .width(ui.available_width())
-            .selected_text(chosen.name())
-            .show_ui(ui, |ui| {
-                for lang in Lang::ALL {
-                    ui.selectable_value(&mut chosen, lang, lang.name());
+        let mark = egui::pos2(
+            ui.cursor().min.x + ui.available_width() - 16.0,
+            ui.cursor().min.y + 15.0,
+        );
+        if widgets::row(ui, chosen.name(), true) {
+            self.languages_open = !self.languages_open;
+        }
+        let tip = if self.languages_open { -2.5 } else { 2.5 };
+        let ink = egui::Stroke::new(1.4, egui::Color32::from_white_alpha(210));
+        ui.painter()
+            .line_segment([mark + egui::vec2(-4.5, -tip), mark + egui::vec2(0.0, tip)], ink);
+        ui.painter()
+            .line_segment([mark + egui::vec2(4.5, -tip), mark + egui::vec2(0.0, tip)], ink);
+        if self.languages_open {
+            for lang in Lang::ALL {
+                if lang != chosen && widgets::row(ui, lang.name(), false) {
+                    chosen = lang;
+                    self.languages_open = false;
                 }
-            });
+            }
+        }
         if chosen != self.texts.lang {
             self.texts = Texts::new(chosen);
             widgets::install_fonts(ui.ctx(), chosen);
@@ -911,14 +928,16 @@ impl eframe::App for App {
             screen,
             [self.view.center.x, self.view.center.y, self.view.zoom],
         );
-        for (rect, radius) in &self.panes {
-            glass.pane(
-                *rect,
-                Optics {
-                    radius: *radius,
-                    ..self.optics
-                },
-            );
+        for (rect, radius, dark) in &self.panes {
+            let mut optics = Optics {
+                radius: *radius,
+                ..self.optics
+            };
+            if *dark {
+                optics.tint = optics.tint.max(0.82);
+                optics.blur = 1.0;
+            }
+            glass.pane(*rect, optics);
         }
 
         if self.bare {
@@ -936,34 +955,72 @@ impl eframe::App for App {
         let open = *self.inspector_open.get_or_insert(wide);
         #[cfg(not(target_arch = "wasm32"))]
         let open = open && (wide || !self.export.open);
+        let column = (content.width() - 84.0).min(248.0);
+        let beside = content.left() + 20.0 + column + 44.0 + 16.0;
+        let fits = wide && open && content.right() - 20.0 - beside >= self.toolbar_size.x;
+        let under = if wide && (fits || !open) {
+            0.0
+        } else {
+            self.toolbar_size.y.max(60.0) + 12.0
+        };
         let mut panes = Vec::new();
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        panes.push((self.title_bar(&ctx, screen), BAR * 0.5));
+        panes.push((self.title_bar(&ctx, screen), BAR * 0.5, false));
         if open {
             let corner = content.min + egui::vec2(20.0, 20.0);
             let inspector = egui::Area::new(egui::Id::unique("inspector"))
                 .fixed_pos(corner)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
-                        let room = content.height() - 40.0 - 44.0 - if wide { 0.0 } else { 80.0 };
+                    let margin = egui::Margin {
+                        left: 22,
+                        right: 8,
+                        top: 22,
+                        bottom: 22,
+                    };
+                    egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
+                        let room = content.height() - 40.0 - 44.0 - under;
+                        let mut bar = egui::style::ScrollStyle::floating();
+                        bar.bar_width = 5.0;
+                        bar.floating_allocated_width = 0.0;
+                        ui.spacing_mut().scroll = bar;
                         egui::ScrollArea::vertical()
                             .max_height(room)
                             .min_scrolled_height(room)
-                            .show(ui, |ui| self.inspector(ui, (content.width() - 84.0).min(248.0)));
+                            .show(ui, |ui| {
+                                let gutter = egui::Margin {
+                                    right: 14,
+                                    ..Default::default()
+                                };
+                                egui::Frame::NONE
+                                    .inner_margin(gutter)
+                                    .show(ui, |ui| self.inspector(ui, column));
+                            });
                     });
                 });
-            panes.push((inspector.response.rect, self.optics.radius));
+            panes.push((inspector.response.rect, self.optics.radius, false));
         }
 
         let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
-            .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
+            .fixed_pos(egui::pos2(
+                if fits {
+                    (beside + content.right() - 20.0) * 0.5
+                } else {
+                    content.center().x
+                },
+                content.bottom() - 20.0,
+            ))
             .pivot(egui::Align2::CENTER_BOTTOM)
             .show(&ctx, |ui| {
                 egui::Frame::NONE
                     .inner_margin(egui::Margin::same(9))
                     .show(ui, |ui| self.toolbar(ui, wide, content.width() - 58.0));
             });
-        panes.push((toolbar.response.rect, (toolbar.response.rect.height() * 0.5).min(28.0)));
+        self.toolbar_size = toolbar.response.rect.size();
+        panes.push((
+            toolbar.response.rect,
+            (toolbar.response.rect.height() * 0.5).min(28.0),
+            false,
+        ));
 
         if wide || !open {
             let status = egui::Area::new(egui::Id::unique("status"))
@@ -990,7 +1047,7 @@ impl eframe::App for App {
                             });
                         });
                 });
-            panes.push((status.response.rect, status.response.rect.height() * 0.5));
+            panes.push((status.response.rect, status.response.rect.height() * 0.5, false));
         }
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -1004,7 +1061,7 @@ impl eframe::App for App {
                         .inner_margin(egui::Margin::same(22))
                         .show(ui, |ui| self.export_sheet(ui, size));
                 });
-            panes.push((sheet.response.rect, self.optics.radius));
+            panes.push((sheet.response.rect, self.optics.radius, true));
         }
 
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -1019,7 +1076,7 @@ impl eframe::App for App {
                         .inner_margin(egui::Margin::same(22))
                         .show(ui, |ui| self.updates.ui(ui, &self.texts, width));
                 });
-            panes.push((sheet.response.rect, self.optics.radius));
+            panes.push((sheet.response.rect, self.optics.radius, true));
         }
 
         if self.tuning {
@@ -1031,7 +1088,7 @@ impl eframe::App for App {
                         .inner_margin(egui::Margin::same(20))
                         .show(ui, |ui| self.tuning(ui));
                 });
-            panes.push((tuning.response.rect, self.optics.radius));
+            panes.push((tuning.response.rect, self.optics.radius, false));
         }
 
         // The panes are drawn under the widgets, so they use the places measured one frame earlier.
