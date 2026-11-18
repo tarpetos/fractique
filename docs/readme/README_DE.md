@@ -47,6 +47,15 @@ Fraktale anderer Art: die Mandelbrot-Menge, eine Julia-Menge und der Clifford-At
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
+Als Dichte gezeichnete Bahnen: das Buddhabrot und die Attraktoren von De Jong, Lorenz, Gumowski-Mira und Hopalong:
+
+| | | |
+| --- | --- | --- |
+| ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
+| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
+| `gumowski_mira-feathers` | `hopalong-web` | |
+
 Hintergrundbilder, hell und dunkel, jedes mit seinem Layout und Material:
 
 | | | | |

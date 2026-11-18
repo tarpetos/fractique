@@ -49,6 +49,30 @@ the samples per pixel as a flame does: the quality level only sets how many samp
 | `clifford-classic` | `standard` | 1.9 s | 9.2 s |
 | `clifford-classic` | `high` | 6.6 s | 39.0 s |
 
+The other kinds of the `orbit` family are densities too and cost about what `clifford` does. They were measured
+apart, at `standard`, on 3 of the machine's 12 threads (`RAYON_NUM_THREADS=3`) while other work kept the rest
+busy, so `clifford-classic` is given again as the yardstick, and the times moved by a third from one run to the
+next:
+
+| Preset | 1920×1080 | 3840×2160 |
+| --- | --- | --- |
+| `clifford-classic` | 7.4 s | 52.8 s |
+| `de_jong-classic` | 11.4 s | 51.9 s |
+| `gumowski_mira-feathers` | 4.7 s | 18.6 s |
+| `hopalong-web` | 4.9 s | 28.6 s |
+| `lorenz-butterfly` | 5.1 s | 35.9 s |
+| `lorenz-veil` | 6.6 s | 36.5 s |
+| `buddhabrot-classic` | 5.1 s | 53.7 s |
+| `buddhabrot-nebula` | 12.3 s | 56.7 s |
+| `buddhabrot-filigree` | 8.2 s | 41.6 s |
+| `buddhabrot-anti` | 6.7 s | 29.6 s |
+
+A `buddhabrot` plots as many points as any density, so its time does not grow with its iterations: what it adds
+is the orbits it starts and does not draw. Dividing the plane into cells takes 2 to 8 ms before a render. Of the
+starting points the cells leave, about one in 10 is drawn at 1000 iterations with `shortest` 10, and about one in 750 for
+`buddhabrot-filigree` (20 000 iterations, `shortest` 2000), where blind sampling over the disc would draw one in
+10 000. The random scene of a seed takes 0.03 to 0.15 s to make, a `buddhabrot` the longest.
+
 At `mobile` and 1080×2400, `mandelbrot-seahorse-valley` took 1.3 s and `clifford-classic` 1.0 s. A Mandelbrot
 view magnified 10¹⁰ times with 1500 iterations (9000 steps a point after the zoom) took 4.1 s at 1920×1080 and
 `standard`. Phones were not measured, and in the app these kinds are always the processor's.

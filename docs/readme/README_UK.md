@@ -47,6 +47,15 @@ Fractique створює зображення трьох видів. Фракт�
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
+Орбіти, намальовані як густини: Буддаброт і атрактори Де Йонга, Лоренца, Гумовського–Міри та Хопалонг:
+
+| | | |
+| --- | --- | --- |
+| ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
+| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
+| `gumowski_mira-feathers` | `hopalong-web` | |
+
 Шпалери, світлі й темні, кожні зі своєю композицією й матеріалом:
 
 | | | | |

@@ -103,6 +103,11 @@ pub trait Field: Sync {
 /// A kind drawn as the density of the points of orbits. Each of the 64 streams of a render gets one walk.
 pub trait Orbit: Sync {
     fn walk(&self, rng: &mut Rng) -> Box<dyn Walk + '_>;
+
+    /// The colors of the places a walk plots, for a kind that brings its own in place of the layer's palette.
+    fn colors(&self) -> Option<palette::Lut> {
+        None
+    }
 }
 
 pub trait Walk {

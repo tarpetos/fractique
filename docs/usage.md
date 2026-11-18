@@ -301,6 +301,11 @@ fractique randomize 7 --fractal clifford -o attractor.json
 | `newton` | zⁿ − 1 with n from 3 to 8 or one of the named polynomials, often with a relaxation that curls the borders, and a view of the roots or of a border between their basins. Views with too little or too much border, or too dark, are skipped |
 | `nova` | A degree and a relaxation, then a view of the map of the constants or the Julia form of a constant from its edge |
 | `clifford` | An attractor of four random numbers. Those that settle on a few points or a curve, a dot in a dust or an even fog are skipped, and the camera frames the rest |
+| `de_jong` | An attractor of four random numbers between −3.2 and 3.2, colored by one of its three colorings, judged and framed the same way |
+| `gumowski_mira` | `mu` between −0.95 and 0.6, `a` between 0.003 and 0.02, `b` between 0.01 and 0.2, with any of the colorings. Those that fall onto a few points are skipped, as are the even blobs of a map that barely loses area |
+| `hopalong` | `a` and `c` between −12 and 12, `b` between 0.05 and 6, orbits of 30 000 to 600 000 steps, with any of the colorings; the camera frames the middle 92 % of the points, since the lace thins out far from its middle |
+| `lorenz` | `sigma` between 4 and 20, `rho` between 25 and 120, `beta` between 0.5 and 4, seen from any side, followed for 60 to 1800 units of time. Systems that come to rest, single closed curves and views along the attractor's edge are skipped |
+| `buddhabrot` | 300 to 9000 iterations, with the shortest orbits drawn 5 steps long or a 4th to a 40th of the iterations, any of the three colorings; a third of the pictures are turned towards the plane of the starting points, and one in seven is an Anti-Buddhabrot of 20 to 200 iterations |
 
 The random fractal of a seed may change from one version of Fractique to the next, as a wallpaper's does; a scene
 kept in a file does not. `--generator` is for flames and is refused with `--fractal`.
@@ -397,7 +402,8 @@ The number picks the variant; the same number always gives the same one. `--stre
 view: lower `camera.zoom` then, or run `fractique fit`. A fractal of another kind changes its own way: a
 `mandelbrot` moves, turns and zooms its view a little and shifts its colors, a `julia` gets a nearby constant, a
 `clifford` nearby numbers and a camera that frames it again. `fractique fit` leaves a fractal's view as it is. The
-sheets of a wallpaper stay as they are.
+sheets of a wallpaper stay as they are. The other attractors change as `clifford` does, a `lorenz` is also turned
+a little, and a `buddhabrot` gets other limits and a small turn; none of them changes its coloring.
 
 ## 10. Flames from other programs
 
@@ -474,6 +480,11 @@ fractique render --preset phoenix-galaxy --size 640x360 --quality high -o docs/s
 fractique render --preset magnet-pearls --size 640x360 --quality high -o docs/samples/fractal-magnet.png
 fractique render --preset newton-seven --size 640x360 --quality high -o docs/samples/fractal-newton.png
 fractique render --preset nova-star --size 640x360 --quality high -o docs/samples/fractal-nova.png
+fractique render --preset buddhabrot-nebula --size 640x360 --quality high -o docs/samples/fractal-buddhabrot.png
+fractique render --preset de_jong-classic --size 640x360 --quality high -o docs/samples/fractal-de_jong.png
+fractique render --preset lorenz-butterfly --size 640x360 --quality high -o docs/samples/fractal-lorenz.png
+fractique render --preset gumowski_mira-feathers --size 640x360 --quality high -o docs/samples/fractal-gumowski_mira.png
+fractique render --preset hopalong-web --size 640x360 --quality high -o docs/samples/fractal-hopalong.png
 fractique render --wallpaper 3 --layout waves --material glass --size 360x780 -o docs/samples/wallpaper-waves-light.png
 fractique render --wallpaper 5 --layout burst --material glow --size 360x780 -o docs/samples/wallpaper-burst-light.png
 fractique render --wallpaper 7 --layout tiles --material relief --size 360x780 -o docs/samples/wallpaper-tiles-light.png

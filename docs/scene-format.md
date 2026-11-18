@@ -262,7 +262,7 @@ The kinds, by family:
 | --- | --- | --- |
 | Escape-time | per pixel | `burning_ship`, `julia`, `magnet`, `mandelbrot`, `multibrot`, `phoenix`, `tricorn` |
 | Root-finding | per pixel | `newton`, `nova` |
-| Orbit | density | `clifford` |
+| Orbit | density | `buddhabrot`, `clifford`, `de_jong`, `gumowski_mira`, `hopalong`, `lorenz` |
 | Geometric | either | |
 | Solid | per pixel | |
 
@@ -362,15 +362,107 @@ The polynomials of `newton`:
 
 ### Orbit kinds
 
-Each of the 64 streams of a render follows one orbit from a random starting point and plots every point of it.
+Each of the 64 streams of a render follows orbits from its own random numbers and plots their points.
 
 | Kind | Map | Parameters | Place on the palette |
 | --- | --- | --- | --- |
 | `clifford` | x′ = sin(a y) + c cos(a x), y′ = sin(b x) + d cos(b y); the start is within ±0.5 and the first 32 steps are not plotted | `a` (−1.4), `b` (1.6), `c` (1), `d` (0.7), each from −3 to 3 | (1 + sin(a y)) / 2 |
+| `de_jong` | x′ = sin(a y) − cos(b x), y′ = sin(c x) − cos(d y); the start is within ±0.5 and the first 32 steps are not plotted | `a` (1.4), `b` (−2.3), `c` (2.4), `d` (−2.1), each from −4 to 4 | `color_by` |
+| `gumowski_mira` | x′ = y + a (1 − b y²) y + f(x), y′ = f(x′) − x, with f(x) = μ x + 2 (1 − μ) x² / (1 + x²). An orbit starts within ±`scatter` in x and in y, its first 2000 steps are not plotted and the next 200 000 are; then another starts | `mu` (−1 to 1, −0.496), `a` (0 to 0.1, 0.008), `b` (0 to 1, 0.05), `scatter` (0.1 to 20, 4) | `color_by` |
+| `hopalong` | x′ = y − sgn(x) √\|b x − c\|, y′ = a − x, with sgn(0) = 0. An orbit starts within ±0.1 in x and in y and is plotted for `orbit_length` steps; then another starts | `a` (−100 to 100, 0.4), `b` (0 to 10, 1), `c` (−100 to 100, 0), `orbit_length` (1000 to 10 000 000, whole, 300 000) | `color_by` |
+| `lorenz` | dx/dt = σ (y − x), dy/dt = x (ρ − z) − y, dz/dt = x y − β z, by the fourth-order Runge-Kutta method in steps of 0.005. The orbit starts at (1, 1, ρ), its first 4000 steps are not plotted, and it is followed for `duration` units of time; then the same orbit is followed again, so every stream draws the same lines. A point is plotted at a random place between two steps | `sigma` (1 to 40, 10), `rho` (1 to 250, 28), `beta` (0.1 to 10, 8/3), `turn` (−180 to 180 degrees, 0), `tilt` (−90 to 90 degrees, 0), `duration` (5 to 100 000, 150) | `color_by` |
 
-The default tone of `clifford` is `brightness` 1.1, `gamma` 2.8, `highlight` 0.2, `glow_radius` 0.006 and
-`glow_strength` 0.5. An orbit kind has no deep views as a flame has: a view that holds little of the attractor is
-drawn from the few points that land in it.
+`lorenz` is seen from the side, turned about its upright axis by `turn` and tipped towards the viewer by `tilt`:
+the picture's x is x cos(turn) − y sin(turn), and its y is (z − ρ + 1) cos(tilt) + (x sin(turn) + y cos(turn))
+sin(tilt). `tilt` 0 is the view along the y axis, the butterfly; 90 is the view from above. A short `duration`
+shows the orbit's separate lines, a long one the density of the attractor.
+
+`color_by` (0, 1 or 2) chooses what the palette shows. It is a choice, as `anti` and `colored_by` of
+`buddhabrot` are: the app shows the names of the values in place of a slider.
+
+| `color_by` | The place on the palette |
+| --- | --- |
+| 0 | The speed: the distance from a point to the next (for `lorenz`, in its three dimensions) |
+| 1 | The direction of the step in the picture: \|angle\| / π |
+| 2 | The position: the distance from the middle of the picture; for `lorenz`, the height z |
+
+A speed and a position are not used as they are, but by their rank: before the render a kind measures 4096 points
+spread over the first steps of 8 orbits of its own (at most 500 000 steps in all), and a value's place is the
+share of the measured values under it. So the palette is used evenly whatever the numbers are.
+
+The points of `gumowski_mira`, `hopalong` and `lorenz` are moved and scaled before they are plotted, because
+their own sizes run from 1 to several hundred: the middle between the 2nd and the 98th percentile of the measured
+points, in x and in y, becomes the origin, and half of the larger of the two spans becomes 1. A camera at the
+origin with a zoom near 1.5 therefore frames any of them, and the picture stays framed while a parameter changes.
+`clifford` and `de_jong` are plotted in their own coordinates.
+
+#### Buddhabrot
+
+`buddhabrot` plots the orbits of z → z² + c from z = 0 that leave the circle |z| = 2, for starting points c spread
+evenly over the disc |c| ≤ 2. The picture is turned a quarter, as it is usually shown: its x is Im z and its y is
+−Re z, so the real axis points down and the figure sits upright.
+
+| Parameter | Range | Default | Meaning |
+| --- | --- | --- | --- |
+| `iterations` | 20 to 100 000, whole | 1000 | The steps an orbit is given. One that has not left by then is not drawn. |
+| `shortest` | 1 to 10 000, whole | 10 | Orbits that leave in fewer steps are not drawn; at most half of `iterations`. A low value keeps the haze of short orbits, a high one leaves the long orbits that hold the detail. |
+| `anti` | 0 or 1 | 0 | 1 draws the orbits that do not leave within `iterations` instead: the Anti-Buddhabrot. `shortest` is not used. |
+| `turn` | −180 to 180 degrees | 0 | Turns the picture's x from Im z towards Im c: x = Im z cos(turn) + Im c sin(turn). |
+| `tilt` | −180 to 180 degrees | 0 | Turns the picture's y from Re z towards Re c: y = −(Re z cos(tilt) + Re c sin(tilt)). With both at 90 the picture is the set of starting points, shaped like the Mandelbrot set. |
+| `colored_by` | 0, 1 or 2 | 0 | See below. |
+
+| `colored_by` | The place on the palette |
+| --- | --- |
+| 0 | The length n of the orbit the point belongs to: ln(n / `shortest`) / ln(`iterations` / `shortest`). With `anti`, the step k the point is: ln k / ln `iterations` |
+| 1 | Where the orbit started: (Re c + 1.8) / 2.25, from the tip of the antenna to the cusp of the cardioid |
+| 2 | The Nebulabrot: three iteration limits in place of the palette |
+
+The Nebulabrot is the picture made of three Buddhabrots with iteration limits L₁ < L₂ < L₃, one in each of blue,
+green and red. Here L₃ is `iterations` and the two others divide the range from `shortest` to `iterations` in
+equal ratios (`shortest` 5 and `iterations` 5000 give the usual 50, 500 and 5000). An orbit of length up to L₁
+counts in all three channels, one up to L₂ in green and red, a longer one in red alone, and each channel is
+weighted by the share of the points it holds, which is close to 1 : 2 : 3. So the three classes are plotted in
+the colors (85, 128, 255), (170, 255, 0) and (255, 0, 0), and the layer's palette is not used. With `anti` the
+class is that of the step k in place of the length.
+
+An orbit is plotted from z₁ = c to the first point outside the circle, and each point together with its mirror
+image in the real axis, which the set of orbits has. The first point outside is plotted so that no rim shows at
+|z| = 2.
+
+Most starting points give nothing to draw, so they are not chosen blindly. The upper half of the disc is divided
+into square cells, from a side of 0.25 down to 1/128 where it matters, and a cell is left out only when no point
+of it can start an orbit that is drawn:
+
+- all four corners lie in the main cardioid, or all four in the disc of period 2: both are convex above the real
+  axis, so the cell lies inside the set;
+- all four corners lie outside |c| = 2;
+- for the Buddhabrot, every corner leaves at least 8 steps sooner than `shortest` and is, by the distance
+  estimate, at least 1.4 sides of the cell away from the set. The potential of the set is a positive harmonic
+  function, so by Harnack's inequality it falls to no less than a third within half of that distance, which is
+  log₂ 3 steps; the rest of the 8 allows for counting the steps at radius 2;
+- for the Anti-Buddhabrot, every corner leaves at least 8 steps sooner than `iterations` and is as far from the
+  set.
+
+The cells that remain are visited in a fixed order that returns to each in proportion to its area (a stride of
+the golden ratio through their areas, from a starting place of the stream's own), and the point inside the cell
+is random. A point in the cardioid or the disc of period 2 is refused by their formulas, and one whose orbit
+comes back to a value it had is given up. The sampling stays even over the starting points that count, so the
+picture is the same Buddhabrot as from blind sampling. With `shortest` 10 the cells cover 39 % of the half disc,
+with `shortest` 200 or more 7 %.
+
+#### Tone and views
+
+The default tone of `clifford`, `de_jong`, `gumowski_mira`, `hopalong` and `lorenz` is `brightness` 1.1,
+`gamma` 2.8, `highlight` 0.2, `glow_radius` 0.006 and `glow_strength` 0.5; that of `buddhabrot` is `brightness`
+2.2, `gamma` 1.7, `highlight` 0.2, `glow_radius` 0.004 and `glow_strength` 0.3.
+
+An orbit kind has no deep views as a flame has: a view that holds little of the picture is drawn from the few
+points that land in it. A view magnified z times gets 1 / z² of them, so at 100 samples per pixel an attractor
+that is smooth whole is grainy from about 8 times and falls apart into single points past 20 times; a
+`buddhabrot`, whose points are spread over the whole disc, is grainy from about 4 times and noise at 20. More
+samples per pixel push that out by their square root; the coordinates themselves, 64-bit numbers, would last to
+a zoom of about 10¹³. A long orbit of the Lorenz system is not the orbit a more exact method would give, since its errors
+double about every 0.8 units of time; it stays on the attractor, which is what the picture shows.
 
 ### Geometric kinds
 

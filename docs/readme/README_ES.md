@@ -47,6 +47,15 @@ Fractales de otros tipos: el conjunto de Mandelbrot, un conjunto de Julia y el a
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
 
+Órbitas dibujadas como densidades: el Buddhabrot y los atractores de De Jong, Lorenz, Gumowski-Mira y Hopalong:
+
+| | | |
+| --- | --- | --- |
+| ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
+| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
+| `gumowski_mira-feathers` | `hopalong-web` | |
+
 Fondos de pantalla, claros y oscuros, cada uno con su diseño y su material:
 
 | | | | |

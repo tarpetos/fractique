@@ -20,6 +20,7 @@ that what it saw is what you get. It holds for wallpapers and for fractals of ot
 | Wallpapers | The sheets are drawn pixel by pixel, each pixel from the scene alone, with the same `math.rs` functions; rows run on several threads, and no value crosses from one pixel to another. The generator that makes a wallpaper for a seed uses `rng.rs` and `math.rs` only. |
 | Fractals drawn per pixel (`mandelbrot`, `julia`) | Every sample is computed from its point alone, with exact arithmetic and the `math.rs` functions, in a fixed order; rows run on several threads and no value crosses from one sample to another. Which pixels get more samples is decided from the finished first pass, which is the same on every machine. |
 | Fractals drawn as a density (`clifford`) | The points of the orbits go through the same 64 streams and the same integer histogram as a flame's. |
+| The other kinds of the `orbit` family | What a kind measures before a render (the ranks its colors go by, the size it is scaled to, the cells a `buddhabrot` takes its starting points from) is computed on one thread, in a fixed order, from the parameters alone, with a generator of its own. A `lorenz` is integrated with a fixed step. |
 | Deep views | The particles a magnified view is drawn from are moved in fixed groups of 128, each with its own generator, so the threads cannot change the result. |
 | Hash map order, the clock, the locale | None of them is used on the way to a pixel. |
 
