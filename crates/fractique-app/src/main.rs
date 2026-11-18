@@ -22,14 +22,19 @@ fn main() -> eframe::Result {
             open = Some(std::path::absolute(&arg).unwrap_or_else(|_| PathBuf::from(arg)));
         }
     }
-    let test = screenshot.is_some() || std::env::var_os("FRACTIQUE_DEBUG_FULL").is_some();
-    let many = cfg!(debug_assertions) || std::env::var_os("FRACTIQUE_MANY").is_some();
-    if !test && !many && !fractique_app::first_instance(open.as_deref()) {
-        return Ok(());
+    #[cfg(not(target_os = "ios"))]
+    {
+        let test = screenshot.is_some() || std::env::var_os("FRACTIQUE_DEBUG_FULL").is_some();
+        let many = cfg!(debug_assertions) || std::env::var_os("FRACTIQUE_MANY").is_some();
+        if !test && !many && !fractique_app::first_instance(open.as_deref()) {
+            return Ok(());
+        }
+        if let Some(path) = open {
+            fractique_app::open_at_start(path);
+        }
     }
-    if let Some(path) = open {
-        fractique_app::open_at_start(path);
-    }
+    #[cfg(target_os = "ios")]
+    let _ = open;
     #[cfg(windows)]
     if screenshot.is_none() {
         fractique_app::register_scene_files();
