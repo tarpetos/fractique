@@ -152,8 +152,9 @@ view: lower `camera.zoom` then.
 | The version next to the name in the title bar | Every released version with its notes; update, or install an older one |
 
 On a phone the picture is saved into the app's own folder (`exports`), and the app has no updates window:
-[releasing.md](releasing.md) says what updates itself and what does not. The language and the glass settings are
-kept between launches.
+[releasing.md](releasing.md) says what updates itself and what does not. The language, the glass settings and the window (its place, size and screen) are kept between launches, in the
+app's data folder: `%APPDATA%\Fractique` on Windows, `~/.local/share/fractique` on Linux,
+`~/Library/Application Support/Fractique` on macOS. The window never reopens in full screen.
 
 ## 8. Flames from other programs
 
