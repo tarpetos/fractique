@@ -5,6 +5,8 @@ mod blur;
 mod export;
 mod glass;
 mod i18n;
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+mod instance;
 #[cfg(target_os = "ios")]
 mod ios;
 mod phone;
@@ -269,6 +271,11 @@ pub fn open_at_start(path: PathBuf) {
     let _ = OPEN_FIRST.set(path);
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+pub fn first_instance(open: Option<&std::path::Path>) -> bool {
+    instance::first(open)
+}
+
 const GLASS: (f32, f32) = (0.4, 0.7);
 const MAX_MAGNIFICATION: f64 = 1e10;
 const MIN_MAGNIFICATION: f64 = 1e-4;
@@ -415,6 +422,8 @@ struct App {
     export: export::Sheet,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     updates: updates::Updates,
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    arrivals: Option<mpsc::Receiver<Option<PathBuf>>>,
 }
 
 // Two cores stay free for the window: a render on every core makes it stutter.
@@ -624,6 +633,8 @@ impl App {
             },
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             updates: updates::Updates::new(),
+            #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+            arrivals: instance::watch(&cc.egui_ctx),
         };
         if let Some(session) = session {
             let _ = app.restore(&session);
@@ -1787,6 +1798,21 @@ impl App {
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn arrive(&mut self, ctx: &egui::Context) {
+        let Some(arrivals) = &self.arrivals else {
+            return;
+        };
+        let arrived: Vec<Option<PathBuf>> = arrivals.try_iter().collect();
+        for path in arrived {
+            if let Some(path) = path {
+                self.load_scene(&path);
+            }
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn open_scene(&mut self) {
         let picked = rfd::FileDialog::new()
             .add_filter("Fractique, flam3", &[SCENE_FILE, "json", "flame"])
@@ -2164,6 +2190,8 @@ fn save_png(path: &std::path::Path, rgba: &[u8], size: [usize; 2]) -> Result<(),
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        self.arrive(&ctx);
         // Every mouse move asks for a redraw; at a 240 Hz screen's pace that makes a graphics card whine.
         #[cfg(not(target_arch = "wasm32"))]
         {

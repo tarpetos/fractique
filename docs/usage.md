@@ -184,6 +184,7 @@ view: lower `camera.zoom` then.
 | **Layers** (inspector) | The scene's flames, one over another: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity |
 | **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back. On a phone a tap hides and shows them |
 | **F11** | Full screen; **Esc** leaves it |
+| Starting the app a second time | Brings the window that is already open to the front instead of opening another; a file given to the second start opens in the first |
 | The version next to the name in the title bar | Every released version with its notes; update, or install an older one |
 
 On a phone the picture is saved into the app's own folder (`exports`), and the app has no updates window:
