@@ -159,6 +159,90 @@ fn offer(env: &mut Env<'_>, activity: &JObject<'_>, picture: &JObject<'_>) -> Ca
     Ok(())
 }
 
+fn system_insets(env: &mut Env<'_>, activity: &JObject<'_>) -> Call<[i32; 4]> {
+    let window = env
+        .call_method(
+            activity,
+            jni_str!("getWindow"),
+            jni_sig!("()Landroid/view/Window;"),
+            &[],
+        )?
+        .l()?;
+    let view = env
+        .call_method(
+            &window,
+            jni_str!("getDecorView"),
+            jni_sig!("()Landroid/view/View;"),
+            &[],
+        )?
+        .l()?;
+    let insets = env
+        .call_method(
+            &view,
+            jni_str!("getRootWindowInsets"),
+            jni_sig!("()Landroid/view/WindowInsets;"),
+            &[],
+        )?
+        .l()?;
+    if insets.is_null() {
+        return Ok([0; 4]);
+    }
+    let mut sides = [
+        env.call_method(&insets, jni_str!("getSystemWindowInsetLeft"), jni_sig!("()I"), &[])?
+            .i()?,
+        env.call_method(&insets, jni_str!("getSystemWindowInsetTop"), jni_sig!("()I"), &[])?
+            .i()?,
+        env.call_method(&insets, jni_str!("getSystemWindowInsetRight"), jni_sig!("()I"), &[])?
+            .i()?,
+        env.call_method(&insets, jni_str!("getSystemWindowInsetBottom"), jni_sig!("()I"), &[])?
+            .i()?,
+    ];
+    if AndroidApp::sdk_version() >= 28 {
+        let cutout = env
+            .call_method(
+                &insets,
+                jni_str!("getDisplayCutout"),
+                jni_sig!("()Landroid/view/DisplayCutout;"),
+                &[],
+            )?
+            .l()?;
+        if !cutout.is_null() {
+            let safe = [
+                env.call_method(&cutout, jni_str!("getSafeInsetLeft"), jni_sig!("()I"), &[])?
+                    .i()?,
+                env.call_method(&cutout, jni_str!("getSafeInsetTop"), jni_sig!("()I"), &[])?
+                    .i()?,
+                env.call_method(&cutout, jni_str!("getSafeInsetRight"), jni_sig!("()I"), &[])?
+                    .i()?,
+                env.call_method(&cutout, jni_str!("getSafeInsetBottom"), jni_sig!("()I"), &[])?
+                    .i()?,
+            ];
+            for (side, safe) in sides.iter_mut().zip(safe) {
+                *side = (*side).max(safe);
+            }
+        }
+    }
+    Ok(sides)
+}
+
+pub fn insets() -> [i32; 4] {
+    let Some(app) = crate::ANDROID.get() else {
+        return [0; 4];
+    };
+    // SAFETY: as in `keep`.
+    let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) };
+    let sides: Call<[i32; 4]> = vm.attach_current_thread(|env| {
+        // SAFETY: as in `keep`.
+        let activity = unsafe { JObject::from_raw(env, app.activity_as_ptr().cast()) };
+        let sides = system_insets(env, &activity);
+        if sides.is_err() {
+            env.exception_clear();
+        }
+        sides
+    });
+    sides.unwrap_or([0; 4])
+}
+
 pub fn granted() -> bool {
     let Some(app) = crate::ANDROID.get() else {
         return false;
