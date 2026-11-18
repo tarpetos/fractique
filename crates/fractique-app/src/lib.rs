@@ -113,62 +113,86 @@ const SIZES: &[(&str, [u32; 2], Family)] = &[
     ("Pixel Pro XL", [1344, 2992], Family::Android),
     ("Galaxy S Ultra", [1440, 3120], Family::Android),
     ("Android QHD+", [1440, 3200], Family::Android),
-    ("iPhone", [1179, 2556], Family::AppleFew),
-    ("iPhone Pro Max", [1290, 2796], Family::AppleFew),
-    ("iPad", [1640, 2360], Family::AppleFew),
-    ("iPad Pro", [2048, 2732], Family::AppleFew),
     ("Android tablet", [1600, 2560], Family::Android),
     // Native pixels from Apple's Tech Specs pages (support.apple.com), read in November 2026: docs/usage.md.
-    ("iPhone SE", [750, 1334], Family::Apple),
-    ("iPhone 11", [828, 1792], Family::Apple),
-    ("iPhone mini", [1080, 2340], Family::Apple),
-    ("iPhone 11 Pro", [1125, 2436], Family::Apple),
-    ("iPhone 11 Pro Max", [1242, 2688], Family::Apple),
-    ("iPhone 12–14, 17e", [1170, 2532], Family::Apple),
-    ("iPhone 14 Plus", [1284, 2778], Family::Apple),
-    ("iPhone 15, 16", [1179, 2556], Family::Apple),
-    ("iPhone 15–16 Plus", [1290, 2796], Family::Apple),
-    ("iPhone 17, 18 Pro", [1206, 2622], Family::Apple),
-    ("iPhone Air", [1260, 2736], Family::Apple),
-    ("iPhone 18 Pro Max", [1320, 2868], Family::Apple),
-    ("iPhone Duo 5.4″", [1398, 2034], Family::Apple),
-    ("iPhone Duo 7.6″", [1878, 2670], Family::Apple),
-    ("iPad mini", [1488, 2266], Family::Apple),
-    ("iPad mini (A20 Pro)", [1512, 2316], Family::Apple),
-    ("iPad 10.2″", [1620, 2160], Family::Apple),
-    ("iPad, iPad Air 11″", [1640, 2360], Family::Apple),
-    ("iPad Pro 10.5″", [1668, 2224], Family::Apple),
-    ("iPad Pro 11″ 2018–22", [1668, 2388], Family::Apple),
-    ("iPad Pro 11″", [1668, 2420], Family::Apple),
-    ("iPad Air 13″", [2048, 2732], Family::Apple),
-    ("iPad Pro 13″", [2064, 2752], Family::Apple),
-    ("MacBook Neo", [2408, 1506], Family::Apple),
-    ("MacBook Air 13″ M1", [2560, 1600], Family::Apple),
-    ("MacBook Air 13″", [2560, 1664], Family::Apple),
-    ("MacBook Air 15″", [2880, 1864], Family::Apple),
-    ("MacBook Pro 14″", [3024, 1964], Family::Apple),
-    ("MacBook 14″ OLED", [3024, 1986], Family::Apple),
-    ("MacBook Pro 16″", [3456, 2234], Family::Apple),
-    ("MacBook 16″ OLED", [3472, 2266], Family::Apple),
-    ("iMac 24″", [4480, 2520], Family::Apple),
-    ("Studio Display, 5K", [5120, 2880], Family::Apple),
-    ("Pro Display XDR", [6016, 3384], Family::Apple),
+    ("iPhone SE", [750, 1334], Family::IPhone),
+    ("iPhone 11", [828, 1792], Family::IPhone),
+    ("iPhone mini", [1080, 2340], Family::IPhone),
+    ("iPhone 11 Pro", [1125, 2436], Family::IPhone),
+    ("iPhone 11 Pro Max", [1242, 2688], Family::IPhone),
+    ("iPhone 12–14, 17e", [1170, 2532], Family::IPhone),
+    ("iPhone 14 Plus", [1284, 2778], Family::IPhone),
+    ("iPhone 15, 16", [1179, 2556], Family::IPhone),
+    ("iPhone 15–16 Plus", [1290, 2796], Family::IPhone),
+    ("iPhone 17, 18 Pro", [1206, 2622], Family::IPhone),
+    ("iPhone Air", [1260, 2736], Family::IPhone),
+    ("iPhone 18 Pro Max", [1320, 2868], Family::IPhone),
+    ("iPhone Duo 5.4″", [1398, 2034], Family::IPhone),
+    ("iPhone Duo 7.6″", [1878, 2670], Family::IPhone),
+    ("iPad mini", [1488, 2266], Family::IPad),
+    ("iPad mini (A20 Pro)", [1512, 2316], Family::IPad),
+    ("iPad 10.2″", [1620, 2160], Family::IPad),
+    ("iPad, iPad Air 11″", [1640, 2360], Family::IPad),
+    ("iPad Pro 10.5″", [1668, 2224], Family::IPad),
+    ("iPad Pro 11″ 2018–22", [1668, 2388], Family::IPad),
+    ("iPad Pro 11″", [1668, 2420], Family::IPad),
+    ("iPad Air 13″", [2048, 2732], Family::IPad),
+    ("iPad Pro 13″", [2064, 2752], Family::IPad),
+    ("MacBook Neo", [2408, 1506], Family::Mac),
+    ("MacBook Air 13″ M1", [2560, 1600], Family::Mac),
+    ("MacBook Air 13″", [2560, 1664], Family::Mac),
+    ("MacBook Air 15″", [2880, 1864], Family::Mac),
+    ("MacBook Pro 14″", [3024, 1964], Family::Mac),
+    ("MacBook 14″ OLED", [3024, 1986], Family::Mac),
+    ("MacBook Pro 16″", [3456, 2234], Family::Mac),
+    ("MacBook 16″ OLED", [3472, 2266], Family::Mac),
+    ("iMac 24″", [4480, 2520], Family::Mac),
+    ("Studio Display, 5K", [5120, 2880], Family::Mac),
+    ("Pro Display XDR", [6016, 3384], Family::Mac),
+    ("Watch 40 mm", [324, 394], Family::Watch),
+    ("Watch 41 mm", [352, 430], Family::Watch),
+    ("Watch 42 mm", [374, 446], Family::Watch),
+    ("Watch 44 mm", [368, 448], Family::Watch),
+    ("Watch 45 mm", [396, 484], Family::Watch),
+    ("Watch 46 mm", [416, 496], Family::Watch),
+    ("Watch Ultra", [410, 502], Family::Watch),
+    ("Watch Ultra 3", [422, 514], Family::Watch),
 ];
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Family {
     Screen,
+    IPhone,
+    IPad,
+    Mac,
+    Watch,
     Android,
-    AppleFew,
-    Apple,
+}
+
+impl Family {
+    const ALL: [Family; 6] = [
+        Family::Screen,
+        Family::IPhone,
+        Family::IPad,
+        Family::Mac,
+        Family::Watch,
+        Family::Android,
+    ];
+
+    fn label(self, texts: &Texts) -> String {
+        match self {
+            Family::Screen => texts.get("size_screens"),
+            Family::IPhone => "iPhone".to_owned(),
+            Family::IPad => "iPad".to_owned(),
+            Family::Mac => "Mac".to_owned(),
+            Family::Watch => "Watch".to_owned(),
+            Family::Android => "Android".to_owned(),
+        }
+    }
 }
 
 fn offered(family: Family, store: bool) -> bool {
-    match family {
-        Family::Screen => true,
-        Family::Android | Family::AppleFew => !store,
-        Family::Apple => store,
-    }
+    family != Family::Android || !store
 }
 
 fn sizes() -> impl Iterator<Item = (&'static str, [u32; 2])> {
@@ -195,11 +219,46 @@ fn size_list(
         picked = Pick::Chosen;
     }
     let listed = chosen.is_some_and(is_listed);
+    let groups: Vec<Family> = Family::ALL
+        .into_iter()
+        .filter(|family| offered(*family, cfg!(feature = "store")))
+        .collect();
+    let remembered = egui::Id::unique("size_group");
+    let of_chosen = || {
+        let size = (*chosen)?;
+        let family = SIZES.iter().find(|(_, listed, _)| *listed == size)?.2;
+        groups.iter().position(|group| *group == family)
+    };
+    let mut group = ui
+        .data(|data| data.get_temp::<usize>(remembered))
+        .or_else(of_chosen)
+        .unwrap_or(0)
+        .min(groups.len() - 1);
+    ui.add_space(4.0);
+    for (row, part) in groups.chunks(3).enumerate() {
+        let labels: Vec<String> = part.iter().map(|family| family.label(texts)).collect();
+        let at = group
+            .checked_sub(row * 3)
+            .filter(|at| *at < part.len())
+            .unwrap_or(usize::MAX);
+        if let Some(at) = widgets::segments(ui, &labels, at) {
+            group = row * 3 + at;
+        }
+        ui.add_space(2.0);
+    }
+    ui.data_mut(|data| data.insert_temp(remembered, group));
+    let family = groups[group];
+    let height = (height - 76.0).max(64.0);
     let mut bar = egui::style::ScrollStyle::floating();
     bar.bar_width = 5.0;
     ui.spacing_mut().scroll = bar;
-    egui::ScrollArea::vertical().max_height(height).show(ui, |ui| {
-        for (name, size) in sizes() {
+    let scroll = egui::ScrollArea::vertical()
+        .id_salt(("sizes", group))
+        .max_height(height)
+        .min_scrolled_height(height);
+    scroll.show(ui, |ui| {
+        for (name, size, _) in SIZES.iter().filter(|(_, _, of)| *of == family) {
+            let (name, size) = (*name, *size);
             let label = format!("{} × {}  ·  {name}", size[0], size[1]);
             if widgets::locked_row(ui, &label, *chosen == Some(size), locked(Some(size))) {
                 *chosen = Some(size);
@@ -2906,6 +2965,8 @@ impl App {
             custom,
         };
         let mut picked = Pick::None;
+        #[cfg(feature = "store")]
+        let size_before = self.export.size;
         let clicked = if wide.is_some() {
             // A low, wide screen: the sizes at the left, the rest at the right.
             ui.spacing_mut().item_spacing.x = 24.0;
@@ -2946,6 +3007,17 @@ impl App {
         #[cfg(feature = "store")]
         if let Pick::Custom(size) = picked {
             self.want(Wanted::ExportSize(size));
+            return;
+        }
+        #[cfg(feature = "store")]
+        if picked == Pick::Chosen
+            && self.export.size != size_before
+            && self.pro_missing()
+            && store::needs_pro([width, height], self.export.size.is_none_or(is_listed))
+        {
+            let asked = self.export.size;
+            self.export.size = size_before;
+            self.want(Wanted::ExportSize(asked));
             return;
         }
         #[cfg(not(feature = "store"))]
@@ -3892,13 +3964,17 @@ mod tests {
     #[test]
     fn the_store_builds_offer_screens_and_apple_devices() {
         let of = |store: bool| SIZES.iter().filter(move |(_, _, family)| offered(*family, store));
-        assert!(of(true).all(|(_, _, family)| matches!(family, Family::Screen | Family::Apple)));
+        assert!(of(true).all(|(_, _, family)| *family != Family::Android));
         assert!(of(true).any(|(_, size, _)| store::is_large(*size)));
         assert!(of(true).any(|(_, size, _)| !store::is_large(*size)));
         assert!(of(false).any(|(_, _, family)| *family == Family::Android));
-        assert_eq!(of(false).count(), 21);
-        for store in [true, false] {
-            let listed: Vec<[u32; 2]> = of(store).map(|(_, size, _)| *size).collect();
+        for group in Family::ALL {
+            let listed: Vec<[u32; 2]> = SIZES
+                .iter()
+                .filter(|(_, _, family)| *family == group)
+                .map(|(_, size, _)| *size)
+                .collect();
+            assert!(!listed.is_empty(), "{group:?} is empty");
             for (at, size) in listed.iter().enumerate() {
                 assert!(!listed[..at].contains(size), "{size:?} is listed twice");
                 assert!(parsed_size(&format!("{}x{}", size[0], size[1])).is_some());

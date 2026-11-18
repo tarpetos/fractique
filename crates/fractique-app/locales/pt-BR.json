@@ -26,6 +26,7 @@
   "size": "TAMANHO",
   "quality": "QUALIDADE",
   "size_window": "Auto",
+  "size_screens": "Telas",
   "size_custom": "Personalizado",
   "apply": "Aplicar",
   "reset_view": "Redefinir vista",

@@ -26,6 +26,7 @@
   "size": "ROZMIAR",
   "quality": "JAKOŚĆ",
   "size_window": "Auto",
+  "size_screens": "Ekrany",
   "size_custom": "Własny",
   "apply": "Zastosuj",
   "reset_view": "Resetuj widok",

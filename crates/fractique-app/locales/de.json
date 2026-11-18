@@ -26,6 +26,7 @@
   "size": "GRÖSSE",
   "quality": "QUALITÄT",
   "size_window": "Auto",
+  "size_screens": "Monitore",
   "size_custom": "Eigene",
   "apply": "Anwenden",
   "reset_view": "Ansicht zurücksetzen",

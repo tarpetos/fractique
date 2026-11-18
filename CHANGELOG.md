@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+* **Sizes:** the size list is in groups with tabs over it: Screens, iPhone, iPad, Mac, Watch and Android. Every
+  build has the full Apple list now (59 sizes in all), with the Apple Watch screens for a picture to use as a
+  watch face; the App Store builds leave the Android group out.
+* **App Store builds:** a locked size in the export list opens the Fractique Pro sheet when it is chosen, not at
+  Save.
 * **App Store builds (iPhone, iPad, Mac):** one purchase, **Fractique Pro**, paid once. Without it an export of
   2560 × 1440 pixels or more by pixel count (width × height of 3 686 400 or more) and a size typed into
   **Custom** are locked; smaller listed sizes, the picture on the screen at any size and every other feature stay

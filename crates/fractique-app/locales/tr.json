@@ -26,6 +26,7 @@
   "size": "BOYUT",
   "quality": "KALİTE",
   "size_window": "Otomatik",
+  "size_screens": "Ekranlar",
   "size_custom": "Özel",
   "apply": "Uygula",
   "reset_view": "Görünümü sıfırla",
