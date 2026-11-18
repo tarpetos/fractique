@@ -16,7 +16,7 @@ Fractique crea dos tipos de imágenes. Llamas fractales: esos fractales luminoso
 
 ## Qué hace Fractique
 
-- **Llamas:** 28 variaciones, capas con modos de fusión, simetría rotacional y de espejo, estimación de densidad, resplandor y 21 preajustes integrados.
+- **Llamas:** 49 variaciones, capas con modos de fusión, simetría rotacional y de espejo, estimación de densidad, resplandor y 29 preajustes integrados.
 - **Fondos de pantalla:** uno para cada semilla, a partir de 14 diseños y 6 materiales, cada uno en versión clara y oscura, dispuesto para el tamaño de la pantalla.
 - **La aplicación:** una sola base de código para Windows, macOS, Linux, Android, iOS y la web. La imagen llena la ventana y sobre ella flotan paneles de vidrio; en el escritorio la aplicación tiene su propia barra de título de vidrio. En 15 idiomas.
 - **Randomize y Mutate:** cada semilla es una imagen; las llamas que serían un punto o un cuadrado relleno se descartan. Mutate crea una variante de la que te gusta.
@@ -30,6 +30,7 @@ Fractique crea dos tipos de imágenes. Llamas fractales: esos fractales luminoso
 - **Repetibilidad exacta:** la misma escena da los mismos píxeles en cualquier máquina, comprobado con pruebas en Linux, Windows y macOS ([docs/determinism.md](../determinism.md)).
 - **La herramienta de línea de comandos** (`fractique`): renderiza llamas y fondos de pantalla a PNG, crea escenas aleatorias y variantes, convierte archivos `.flame`.
 - **Servidor MCP** (`fractique mcp`): un agente de IA crea, modifica y renderiza escenas ([docs/mcp.md](../mcp.md)).
+- **Servidor HTTP** (`fractique-server`): una API HTTP con cola de renderizado y límites, sirve la aplicación web, se distribuye como imagen de Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -91,6 +92,7 @@ La documentación está en inglés.
 | [docs/usage.md](../usage.md) | La aplicación, los comandos, los niveles de calidad, cómo editar una escena |
 | [docs/scene-format.md](../scene-format.md) | Cada campo de un archivo de escena, cada variación, las láminas, el archivo `.frcq` |
 | [docs/mcp.md](../mcp.md) | El servidor MCP: conectar un agente de IA, las herramientas |
+| [docs/server.md](../server.md) | El servidor HTTP: endpoints, límites, Docker |
 | [docs/ios.md](../ios.md) | Compilar y ejecutar en un iPhone o en el simulador de iOS |
 | [docs/releasing.md](../releasing.md) | Cómo se publica una versión y cómo se actualiza la aplicación |
 | [docs/architecture.md](../architecture.md) | Cómo encajan las partes, cómo funciona un renderizado |

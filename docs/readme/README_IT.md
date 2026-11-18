@@ -16,7 +16,7 @@ Fractique crea due tipi di immagini. Fiamme frattali: frattali luminosi ed etere
 
 ## Che cosa fa Fractique
 
-- **Fiamme:** 28 variazioni, livelli con metodi di fusione, simmetria rotazionale e speculare, stima della densità, bagliore e 21 preset integrati.
+- **Fiamme:** 49 variazioni, livelli con metodi di fusione, simmetria rotazionale e speculare, stima della densità, bagliore e 29 preset integrati.
 - **Sfondi:** uno per ogni seme, da 14 disposizioni e 6 materiali, ciascuno in versione chiara e scura, disposto per la dimensione dello schermo.
 - **L’app:** un’unica base di codice per Windows, macOS, Linux, Android, iOS e il web. L’immagine riempie la finestra e sopra fluttuano pannelli di vetro; sul desktop l’app ha una propria barra del titolo di vetro. In 15 lingue.
 - **Randomize e Mutate:** ogni seme è un’immagine; le fiamme che sarebbero un punto o un quadrato pieno vengono scartate. Mutate crea una variante di quella che ti piace.
@@ -30,6 +30,7 @@ Fractique crea due tipi di immagini. Fiamme frattali: frattali luminosi ed etere
 - **Ripetibilità esatta:** la stessa scena dà gli stessi pixel su ogni macchina, come verificano i test su Linux, Windows e macOS ([docs/determinism.md](../determinism.md)).
 - **Lo strumento da riga di comando** (`fractique`): renderizza fiamme e sfondi in PNG, crea scene casuali e varianti, converte i file `.flame`.
 - **Server MCP** (`fractique mcp`): un agente IA crea, modifica e renderizza scene ([docs/mcp.md](../mcp.md)).
+- **Server HTTP** (`fractique-server`): un’API HTTP con coda di rendering e limiti, serve l’app web, distribuito come immagine Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -91,6 +92,7 @@ La documentazione è in inglese.
 | [docs/usage.md](../usage.md) | L’app, i comandi, i livelli di qualità, come modificare una scena |
 | [docs/scene-format.md](../scene-format.md) | Ogni campo di un file di scena, ogni variazione, i fogli, il file `.frcq` |
 | [docs/mcp.md](../mcp.md) | Il server MCP: collegare un agente IA, gli strumenti |
+| [docs/server.md](../server.md) | Il server HTTP: endpoint, limiti, Docker |
 | [docs/ios.md](../ios.md) | Compilare ed eseguire su un iPhone o nel simulatore iOS |
 | [docs/releasing.md](../releasing.md) | Come si pubblica una versione e come l’app si aggiorna |
 | [docs/architecture.md](../architecture.md) | Come si combinano le parti, come funziona un rendering |

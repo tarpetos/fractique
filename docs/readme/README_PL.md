@@ -16,7 +16,7 @@ Fractique tworzy obrazy dwóch rodzajów. Fraktalne płomienie: świetliste, zwi
 
 ## Co potrafi Fractique
 
-- **Płomienie:** 28 wariacji, warstwy z trybami mieszania, symetria obrotowa i lustrzana, estymacja gęstości, poświata oraz 21 wbudowanych presetów.
+- **Płomienie:** 49 wariacji, warstwy z trybami mieszania, symetria obrotowa i lustrzana, estymacja gęstości, poświata oraz 29 wbudowanych presetów.
 - **Tapety:** osobna dla każdego ziarna, z 14 układów i 6 materiałów, każda w wersji jasnej i ciemnej, rozłożona pod rozmiar ekranu.
 - **Aplikacja:** jedna baza kodu dla systemów Windows, macOS, Linux, Android, iOS i dla przeglądarki. Obraz wypełnia okno, a nad nim unoszą się szklane panele; na komputerze aplikacja ma własny szklany pasek tytułu. W 15 językach.
 - **Randomize i Mutate:** każde ziarno to obraz; płomienie, które byłyby kropką albo wypełnionym kwadratem, są pomijane. Mutate tworzy wariant tego, który ci się podoba.
@@ -30,6 +30,7 @@ Fractique tworzy obrazy dwóch rodzajów. Fraktalne płomienie: świetliste, zwi
 - **Dokładna powtarzalność:** ta sama scena daje te same piksele na każdej maszynie, co sprawdzają testy w systemach Linux, Windows i macOS ([docs/determinism.md](../determinism.md)).
 - **Narzędzie wiersza poleceń** (`fractique`): renderuje płomienie i tapety do PNG, tworzy losowe sceny i warianty, konwertuje pliki `.flame`.
 - **Serwer MCP** (`fractique mcp`): agent AI tworzy, zmienia i renderuje sceny ([docs/mcp.md](../mcp.md)).
+- **Serwer HTTP** (`fractique-server`): API HTTP z kolejką renderowania i limitami, udostępnia aplikację webową, dostępny jako obraz Dockera ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -91,6 +92,7 @@ Dokumentacja jest po angielsku.
 | [docs/usage.md](../usage.md) | Aplikacja, polecenia, poziomy jakości, jak edytować scenę |
 | [docs/scene-format.md](../scene-format.md) | Każde pole pliku sceny, każda wariacja, arkusze, plik `.frcq` |
 | [docs/mcp.md](../mcp.md) | Serwer MCP: podłączanie agenta AI, narzędzia |
+| [docs/server.md](../server.md) | Serwer HTTP: punkty końcowe, limity, Docker |
 | [docs/ios.md](../ios.md) | Budowanie i uruchamianie na iPhonie lub w symulatorze iOS |
 | [docs/releasing.md](../releasing.md) | Jak powstaje wydanie i jak aplikacja sama się aktualizuje |
 | [docs/architecture.md](../architecture.md) | Jak części do siebie pasują, jak działa renderowanie |

@@ -16,7 +16,7 @@ Fractique は 2 種類の画像を作ります。ひとつはフラクタルフ�
 
 ## できること
 
-- **フレーム：** 28 種類のバリエーション、ブレンドモード付きレイヤー、回転対称と鏡像対称、密度推定、グロー、そして 21 種類の組み込みプリセット。
+- **フレーム：** 49 種類のバリエーション、ブレンドモード付きレイヤー、回転対称と鏡像対称、密度推定、グロー、そして 29 種類の組み込みプリセット。
 - **壁紙：** シードごとに 1 枚。14 種類のレイアウトと 6 種類のマテリアルから作られ、それぞれにライト版とダーク版があり、画面のサイズに合わせて配置されます。
 - **アプリ：** Windows、macOS、Linux、Android、iOS、Web を 1 つのコードベースで。画像がウィンドウいっぱいに広がり、その上にガラスのパネルが浮かびます。デスクトップでは独自のガラスのタイトルバーを備えます。15 言語に対応。
 - **Randomize と Mutate：** すべてのシードが 1 枚の画像になります。点や塗りつぶされた四角形になるフレームは除外されます。Mutate は気に入った画像の変種を作ります。
@@ -30,6 +30,7 @@ Fractique は 2 種類の画像を作ります。ひとつはフラクタルフ�
 - **完全な再現性：** 同じシーンはどのマシンでも同じピクセルになります。Linux、Windows、macOS のテストで確認しています（[docs/determinism.md](../determinism.md)）。
 - **コマンドラインツール**（`fractique`）：フレームと壁紙を PNG にレンダリングし、ランダムなシーンや変種を作り、`.flame` ファイルを変換します。
 - **MCP サーバー**（`fractique mcp`）：AI エージェントがシーンを作成、変更、レンダリング（[docs/mcp.md](../mcp.md)）。
+- **HTTP サーバー**（`fractique-server`）：レンダリングのキューと上限を備えた HTTP API。Web アプリも配信し、Docker イメージとして提供（[docs/server.md](../server.md)）。
 
 | | |
 | --- | --- |
@@ -91,6 +92,7 @@ Windows ではプログラムは `target\release\fractique-gui.exe` と `target\
 | [docs/usage.md](../usage.md) | アプリ、コマンド、品質レベル、シーンの編集方法 |
 | [docs/scene-format.md](../scene-format.md) | シーンファイルの全フィールド、全バリエーション、シート、`.frcq` ファイル |
 | [docs/mcp.md](../mcp.md) | MCP サーバー：AI エージェントの接続、ツール |
+| [docs/server.md](../server.md) | HTTP サーバー：エンドポイント、上限、Docker |
 | [docs/ios.md](../ios.md) | iPhone または iOS シミュレーターでのビルドと実行 |
 | [docs/releasing.md](../releasing.md) | リリースの作り方、アプリが自分を更新する仕組み |
 | [docs/architecture.md](../architecture.md) | 各部分のつながり、レンダリングの仕組み |

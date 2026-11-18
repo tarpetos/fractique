@@ -16,7 +16,7 @@ Fractique iki tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumu
 
 ## Fractique neler yapar
 
-- **Alevler:** 28 varyasyon, karıştırma modlu katmanlar, dönme ve ayna simetrisi, yoğunluk kestirimi, parıltı ve 21 yerleşik ön ayar.
+- **Alevler:** 49 varyasyon, karıştırma modlu katmanlar, dönme ve ayna simetrisi, yoğunluk kestirimi, parıltı ve 29 yerleşik ön ayar.
 - **Duvar kâğıtları:** her tohum için bir tane; 14 düzen ve 6 malzemeden, her biri açık ve koyu sürümüyle, ekranın boyutuna göre yerleştirilir.
 - **Uygulama:** Windows, macOS, Linux, Android, iOS ve web için tek kod tabanı. Görüntü pencereyi doldurur, üzerinde cam paneller süzülür; masaüstünde uygulamanın kendi cam başlık çubuğu vardır. 15 dilde.
 - **Randomize ve Mutate:** her tohum bir görüntüdür; bir nokta ya da dolu bir kare olacak alevler atlanır. Mutate, beğendiğinizin bir varyantını üretir.
@@ -30,6 +30,7 @@ Fractique iki tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumu
 - **Tam yinelenebilirlik:** aynı sahne her makinede aynı pikselleri verir; bunu Linux, Windows ve macOS’taki testler doğrular ([docs/determinism.md](../determinism.md)).
 - **Komut satırı aracı** (`fractique`): alevleri ve duvar kâğıtlarını PNG olarak işler, rastgele sahneler ve varyantlar üretir, `.flame` dosyalarını dönüştürür.
 - **MCP sunucusu** (`fractique mcp`): bir yapay zekâ ajanı sahneler oluşturur, değiştirir ve işler ([docs/mcp.md](../mcp.md)).
+- **HTTP sunucusu** (`fractique-server`): işleme kuyruğu ve sınırları olan bir HTTP API’si; web uygulamasını sunar, Docker imajı olarak gelir ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -91,6 +92,7 @@ Belgeler İngilizcedir.
 | [docs/usage.md](../usage.md) | Uygulama, komutlar, kalite düzeyleri, bir sahnenin nasıl düzenleneceği |
 | [docs/scene-format.md](../scene-format.md) | Sahne dosyasının her alanı, her varyasyon, levhalar, `.frcq` dosyası |
 | [docs/mcp.md](../mcp.md) | MCP sunucusu: bir yapay zekâ ajanını bağlama, araçlar |
+| [docs/server.md](../server.md) | HTTP sunucusu: uç noktalar, sınırlar, Docker |
 | [docs/ios.md](../ios.md) | iPhone’da ya da iOS Simülatörü’nde derleme ve çalıştırma |
 | [docs/releasing.md](../releasing.md) | Bir sürümün nasıl yayımlandığı, uygulamanın kendini nasıl güncellediği |
 | [docs/architecture.md](../architecture.md) | Parçaların nasıl bir araya geldiği, bir işlemenin nasıl çalıştığı |

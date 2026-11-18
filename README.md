@@ -16,7 +16,7 @@ Fractique makes two kinds of pictures. Fractal flames: the glowing, wispy kind o
 
 ## What it does
 
-- **Flames:** 28 variations, layers with blend modes, rotational and mirror symmetry, density estimation, glow, and 21 built-in presets.
+- **Flames:** 49 variations, layers with blend modes, rotational and mirror symmetry, density estimation, glow, and 29 built-in presets.
 - **Wallpapers:** one for every seed, out of 14 layouts and 6 materials, each in a light and a dark version, laid out for the size of the screen.
 - **The app:** one codebase for Windows, macOS, Linux, Android, iOS and the web. The picture fills the window and glass panels float over it; on the desktop the app has a glass title bar of its own. In 15 languages.
 - **Randomize and Mutate:** every seed is a picture; flames that would be a dot or a filled square are skipped. Mutate makes a variant of the one you like.
@@ -30,6 +30,7 @@ Fractique makes two kinds of pictures. Fractal flames: the glowing, wispy kind o
 - **Exact repeatability:** the same scene gives the same pixels on every machine, checked by tests on Linux, Windows and macOS ([docs/determinism.md](docs/determinism.md)).
 - **The command line tool** (`fractique`): renders flames and wallpapers to PNG, makes random scenes and variants, converts `.flame` files.
 - **MCP server** (`fractique mcp`): an AI agent makes, changes and renders scenes ([docs/mcp.md](docs/mcp.md)).
+- **HTTP server** (`fractique-server`): an HTTP API with a render queue and limits, serves the web app, ships as a Docker image ([docs/server.md](docs/server.md)).
 
 | | |
 | --- | --- |
@@ -89,6 +90,7 @@ On Windows the programs are `target\release\fractique-gui.exe` and `target\relea
 | [docs/usage.md](docs/usage.md) | The app, the commands, the quality levels, how to edit a scene |
 | [docs/scene-format.md](docs/scene-format.md) | Every field of a scene file, every variation, sheets, the `.frcq` file |
 | [docs/mcp.md](docs/mcp.md) | The MCP server: connecting an AI agent, the tools |
+| [docs/server.md](docs/server.md) | The HTTP server: endpoints, limits, Docker |
 | [docs/ios.md](docs/ios.md) | Building and running on an iPhone or in the iOS Simulator |
 | [docs/releasing.md](docs/releasing.md) | How a release is made, how the app updates itself |
 | [docs/architecture.md](docs/architecture.md) | How the parts fit together, how a render works |

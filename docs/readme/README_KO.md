@@ -16,7 +16,7 @@ Fractique는 두 가지 이미지를 만듭니다. 하나는 프랙탈 플레임
 
 ## 기능
 
-- **플레임:** 28가지 변형, 블렌드 모드가 있는 레이어, 회전 대칭과 거울 대칭, 밀도 추정, 글로우, 그리고 21개의 내장 프리셋.
+- **플레임:** 49가지 변형, 블렌드 모드가 있는 레이어, 회전 대칭과 거울 대칭, 밀도 추정, 글로우, 그리고 29개의 내장 프리셋.
 - **배경화면:** 시드마다 하나씩, 14가지 레이아웃과 6가지 재질로 만들어지며, 각각 밝은 버전과 어두운 버전이 있고 화면 크기에 맞게 배치됩니다.
 - **앱:** Windows, macOS, Linux, Android, iOS, 웹을 하나의 코드베이스로 지원합니다. 이미지가 창을 가득 채우고 그 위에 유리 패널이 떠 있으며, 데스크톱에서는 앱 고유의 유리 제목 표시줄이 있습니다. 15개 언어 지원.
 - **Randomize와 Mutate:** 모든 시드가 하나의 이미지입니다. 점이나 꽉 찬 사각형이 될 플레임은 건너뜁니다. Mutate는 마음에 드는 이미지의 변형을 만듭니다.
@@ -30,6 +30,7 @@ Fractique는 두 가지 이미지를 만듭니다. 하나는 프랙탈 플레임
 - **정확한 재현성:** 같은 장면은 어느 기기에서나 같은 픽셀을 만들며, Linux, Windows, macOS의 테스트로 확인합니다([docs/determinism.md](../determinism.md)).
 - **명령줄 도구**(`fractique`): 플레임과 배경화면을 PNG로 렌더링하고, 무작위 장면과 변형을 만들고, `.flame` 파일을 변환합니다.
 - **MCP 서버**(`fractique mcp`): AI 에이전트가 장면을 만들고, 수정하고, 렌더링합니다([docs/mcp.md](../mcp.md)).
+- **HTTP 서버**(`fractique-server`): 렌더링 대기열과 제한을 갖춘 HTTP API이며, 웹 앱을 제공하고 Docker 이미지로 배포됩니다([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -91,6 +92,7 @@ Windows에서 프로그램은 `target\release\fractique-gui.exe`와 `target\rele
 | [docs/usage.md](../usage.md) | 앱, 명령, 품질 수준, 장면 편집 방법 |
 | [docs/scene-format.md](../scene-format.md) | 장면 파일의 모든 필드, 모든 변형, 시트, `.frcq` 파일 |
 | [docs/mcp.md](../mcp.md) | MCP 서버: AI 에이전트 연결, 도구 |
+| [docs/server.md](../server.md) | HTTP 서버: 엔드포인트, 제한, Docker |
 | [docs/ios.md](../ios.md) | iPhone 또는 iOS 시뮬레이터에서 빌드하고 실행하기 |
 | [docs/releasing.md](../releasing.md) | 릴리스를 만드는 방법, 앱이 스스로 업데이트하는 방식 |
 | [docs/architecture.md](../architecture.md) | 각 부분이 맞물리는 방식, 렌더링의 동작 원리 |

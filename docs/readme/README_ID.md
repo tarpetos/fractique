@@ -16,7 +16,7 @@ Fractique membuat dua jenis gambar. Fractal flame: fraktal bercahaya dan halus y
 
 ## Yang dilakukan Fractique
 
-- **Flame:** 28 variasi, layer dengan mode blend, simetri putar dan cermin, estimasi kerapatan, glow, dan 21 preset bawaan.
+- **Flame:** 49 variasi, layer dengan mode blend, simetri putar dan cermin, estimasi kerapatan, glow, dan 29 preset bawaan.
 - **Wallpaper:** satu untuk setiap seed, dari 14 tata letak dan 6 material, masing-masing dalam versi terang dan gelap, ditata sesuai ukuran layar.
 - **Aplikasi:** satu basis kode untuk Windows, macOS, Linux, Android, iOS, dan web. Gambar memenuhi jendela dan panel kaca melayang di atasnya; di desktop aplikasi memiliki bilah judul kaca sendiri. Dalam 15 bahasa.
 - **Randomize dan Mutate:** setiap seed adalah sebuah gambar; flame yang hanya akan menjadi titik atau kotak penuh dilewati. Mutate membuat varian dari gambar yang Anda sukai.
@@ -30,6 +30,7 @@ Fractique membuat dua jenis gambar. Fractal flame: fraktal bercahaya dan halus y
 - **Keterulangan yang persis:** scene yang sama menghasilkan piksel yang sama di semua mesin, diperiksa oleh pengujian di Linux, Windows, dan macOS ([docs/determinism.md](../determinism.md)).
 - **Alat baris perintah** (`fractique`): merender flame dan wallpaper ke PNG, membuat scene acak dan varian, mengonversi berkas `.flame`.
 - **Server MCP** (`fractique mcp`): agen AI membuat, mengubah, dan merender scene ([docs/mcp.md](../mcp.md)).
+- **Server HTTP** (`fractique-server`): API HTTP dengan antrean render dan batasan, menyajikan aplikasi web, tersedia sebagai image Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -91,6 +92,7 @@ Dokumentasi ditulis dalam bahasa Inggris.
 | [docs/usage.md](../usage.md) | Aplikasi, perintah, tingkat kualitas, cara menyunting scene |
 | [docs/scene-format.md](../scene-format.md) | Setiap field berkas scene, setiap variasi, lembaran, berkas `.frcq` |
 | [docs/mcp.md](../mcp.md) | Server MCP: menghubungkan agen AI, daftar alat |
+| [docs/server.md](../server.md) | Server HTTP: endpoint, batasan, Docker |
 | [docs/ios.md](../ios.md) | Membangun dan menjalankan di iPhone atau di iOS Simulator |
 | [docs/releasing.md](../releasing.md) | Cara rilis dibuat, cara aplikasi memperbarui dirinya |
 | [docs/architecture.md](../architecture.md) | Bagaimana bagian-bagiannya saling terhubung, cara kerja render |

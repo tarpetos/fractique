@@ -16,7 +16,7 @@ Fractique erzeugt zwei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fr
 
 ## Was Fractique kann
 
-- **Flammen:** 28 Variationen, Ebenen mit Mischmodi, Dreh- und Spiegelsymmetrie, Dichteschätzung, Leuchten und 21 eingebaute Presets.
+- **Flammen:** 49 Variationen, Ebenen mit Mischmodi, Dreh- und Spiegelsymmetrie, Dichteschätzung, Leuchten und 29 eingebaute Presets.
 - **Hintergrundbilder:** eines für jeden Seed, aus 14 Layouts und 6 Materialien, jedes in einer hellen und einer dunklen Fassung, passend zur Größe des Bildschirms angeordnet.
 - **Die App:** eine Codebasis für Windows, macOS, Linux, Android, iOS und das Web. Das Bild füllt das Fenster, darüber schweben Glasflächen; auf dem Desktop hat die App eine eigene gläserne Titelleiste. In 15 Sprachen.
 - **Randomize und Mutate:** jeder Seed ist ein Bild; Flammen, die nur ein Punkt oder ein gefülltes Quadrat wären, werden übersprungen. Mutate erzeugt eine Variante des Bildes, das dir gefällt.
@@ -30,6 +30,7 @@ Fractique erzeugt zwei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fr
 - **Exakte Wiederholbarkeit:** dieselbe Szene ergibt auf jedem Rechner dieselben Pixel, geprüft durch Tests unter Linux, Windows und macOS ([docs/determinism.md](../determinism.md)).
 - **Das Kommandozeilenwerkzeug** (`fractique`): rendert Flammen und Hintergrundbilder als PNG, erzeugt zufällige Szenen und Varianten, konvertiert `.flame`-Dateien.
 - **MCP-Server** (`fractique mcp`): ein KI-Agent erstellt, ändert und rendert Szenen ([docs/mcp.md](../mcp.md)).
+- **HTTP-Server** (`fractique-server`): eine HTTP-API mit Render-Warteschlange und Grenzen, liefert die Web-App aus, gibt es als Docker-Image ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -91,6 +92,7 @@ Die Dokumentation ist auf Englisch.
 | [docs/usage.md](../usage.md) | Die App, die Befehle, die Qualitätsstufen, wie man eine Szene bearbeitet |
 | [docs/scene-format.md](../scene-format.md) | Jedes Feld einer Szenendatei, jede Variation, Blätter, die `.frcq`-Datei |
 | [docs/mcp.md](../mcp.md) | Der MCP-Server: einen KI-Agenten anbinden, die Werkzeuge |
+| [docs/server.md](../server.md) | Der HTTP-Server: Endpunkte, Grenzen, Docker |
 | [docs/ios.md](../ios.md) | Bauen und Ausführen auf einem iPhone oder im iOS-Simulator |
 | [docs/releasing.md](../releasing.md) | Wie ein Release entsteht und wie sich die App selbst aktualisiert |
 | [docs/architecture.md](../architecture.md) | Wie die Teile zusammenpassen, wie ein Rendering abläuft |

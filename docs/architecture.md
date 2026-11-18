@@ -29,14 +29,14 @@ flowchart LR
 
     CLI["fractique-cli<br/>the fractique command"]
     MCP["fractique mcp<br/>MCP server over stdio"]
-    SRV["fractique-server<br/>HTTP API, web UI, Docker (planned)"]
+    SRV["fractique-server<br/>HTTP API, web UI, Docker"]
     APP["fractique-app<br/>Windows, macOS, Linux, Android, iOS, web"]
 
     SCENE --> VAL
     TON -- "RGBA pixels" --> CLI
     SHE -- "under the layers" --> TON
     TON -- "PNG, inline" --> MCP
-    TON -.-> SRV
+    TON -- "PNG over HTTP" --> SRV
     TON -- "RGBA pixels" --> APP
     CLI -- "PNG" --> OUT[("image file")]
     APP -- "PNG, .frcq" --> OUT
@@ -45,9 +45,9 @@ flowchart LR
 | Crate | State | What it is |
 | --- | --- | --- |
 | `fractique-core` | works | The renderer, the scene format, presets, the randomizer, the wallpapers, the `.frcq` packing |
-| `fractique-cli` | works | The `fractique` command: renders scenes and wallpapers to PNG, converts `.flame` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts |
+| `fractique-cli` | works | The `fractique` command: renders scenes and wallpapers to PNG, converts `.flame` files and the app's `.frcq` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts |
 | `fractique-app` | works | The app, `fractique-gui`: one codebase for Windows, macOS, Linux, Android, iOS and the web ([The app](#the-app)) |
-| `fractique-server` | planned | HTTP API with a job queue, the web UI, the Docker image |
+| `fractique-server` | works | The `fractique-server` command: an HTTP API with a render queue and limits, which also serves the web build of the app; the Docker image ([server.md](server.md)) |
 
 `vendor/` holds `eframe` and `egui-wgpu` with the fix the iOS drawing surface needs; the workspace patches them
 in.
@@ -135,6 +135,8 @@ which layout and material a seed gives, without building the scene.
 sometimes a symmetry and a second layer. It then probes the flame with 30 000 points to place the camera, and
 rejects flames that are a dot, dust or a filled square, trying up to 40 candidates per layer. All of it is driven by
 the seed alone, so a seed is a scene. `mutate(scene, seed, strength)` nudges the transforms of an existing scene.
+The list does not hold the 21 variations added after the first version (`waves` to `twintrian`): a new entry
+would change the scene of every seed.
 
 ## The app
 
@@ -152,6 +154,8 @@ itself is always rendered by `fractique-core` on the processor, in a thread of i
 | `i18n.rs`, `locales/` | The texts, in 15 languages |
 | `android.rs`, `ios.rs` | The gallery, Photos and sharing |
 | `main.rs` | The start on a computer and in a browser; a file given at start |
+| `instance.rs` | One window at a time on a computer: a second start gives its file to the window that is open and ends |
+| `association.rs` | Windows: the program registers itself as the one that opens `.frcq` files ([releasing.md](releasing.md#files-of-the-app-frcq)) |
 
 How the picture reaches the screen:
 

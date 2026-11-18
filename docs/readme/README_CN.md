@@ -16,7 +16,7 @@ Fractique 生成两类图像。一类是分形火焰：由纤细曲线和柔和�
 
 ## 功能
 
-- **火焰：** 28 种变体、带混合模式的图层、旋转对称与镜像对称、密度估计、辉光，以及 21 个内置预设。
+- **火焰：** 49 种变体、带混合模式的图层、旋转对称与镜像对称、密度估计、辉光，以及 29 个内置预设。
 - **壁纸：** 每个种子对应一张，由 14 种布局和 6 种材质组合而成，每张都有浅色和深色版本，并按屏幕尺寸排布。
 - **应用：** 一套代码支持 Windows、macOS、Linux、Android、iOS 和 Web。图像铺满窗口，玻璃面板浮在其上；在桌面端，应用有自己的玻璃标题栏。支持 15 种语言。
 - **Randomize 与 Mutate：** 每个种子都是一幅图像；会变成一个点或一块实心方形的火焰会被跳过。Mutate 为你喜欢的图像生成变体。
@@ -30,6 +30,7 @@ Fractique 生成两类图像。一类是分形火焰：由纤细曲线和柔和�
 - **精确可重复：** 同一个场景在任何机器上都得到相同的像素，并由 Linux、Windows 和 macOS 上的测试验证（[docs/determinism.md](../determinism.md)）。
 - **命令行工具**（`fractique`）：将火焰和壁纸渲染为 PNG，生成随机场景和变体，转换 `.flame` 文件。
 - **MCP 服务器**（`fractique mcp`）：AI 智能体创建、修改并渲染场景（[docs/mcp.md](../mcp.md)）。
+- **HTTP 服务器**（`fractique-server`）：带渲染队列和限制的 HTTP API，同时提供网页版应用，并以 Docker 镜像发布（[docs/server.md](../server.md)）。
 
 | | |
 | --- | --- |
@@ -91,6 +92,7 @@ Fractique 生成两类图像。一类是分形火焰：由纤细曲线和柔和�
 | [docs/usage.md](../usage.md) | 应用、命令、质量等级、如何编辑场景 |
 | [docs/scene-format.md](../scene-format.md) | 场景文件的每个字段、每种变体、薄片、`.frcq` 文件 |
 | [docs/mcp.md](../mcp.md) | MCP 服务器：连接 AI 智能体、工具列表 |
+| [docs/server.md](../server.md) | HTTP 服务器：接口、限制、Docker |
 | [docs/ios.md](../ios.md) | 在 iPhone 或 iOS 模拟器上构建和运行 |
 | [docs/releasing.md](../releasing.md) | 如何发布版本，应用如何自我更新 |
 | [docs/architecture.md](../architecture.md) | 各部分如何配合，渲染如何工作 |

@@ -10,7 +10,6 @@ use serde_json::{Value, json};
 use crate::widgets::{self, MEDIUM, SEMIBOLD, font};
 use crate::{App, WHOLE, named, shown};
 
-const HINTED: u32 = 6;
 pub const SWIPE: f32 = 56.0;
 const TILE_RATIO: f32 = 1.6;
 const MOST_KEPT: usize = 48;
@@ -93,7 +92,6 @@ pub struct Phone {
     pub on: bool,
     pub sheet: bool,
     pub tune: bool,
-    pub hints: u32,
     pub swipe: egui::Vec2,
     pub preview: bool,
     pub previewed: bool,
@@ -118,7 +116,7 @@ impl Phone {
         Value::Array(self.kept.iter().map(Piece::to_value).collect()).to_string()
     }
 
-    pub fn new(hints: u32, kept: Option<String>) -> Self {
+    pub fn new(kept: Option<String>) -> Self {
         let kept = kept
             .and_then(|text| serde_json::from_str::<Value>(&text).ok())
             .and_then(|value| value.as_array().cloned())
@@ -129,7 +127,6 @@ impl Phone {
             on: cfg!(any(target_os = "android", target_os = "ios")) || show.contains("phone"),
             sheet: show.contains("sheet"),
             tune: show.contains("tune"),
-            hints,
             swipe: egui::Vec2::ZERO,
             preview: false,
             previewed: false,
@@ -376,7 +373,8 @@ impl App {
             (Icon::Similar, similar),
             (Icon::Keep(is_kept), "keep"),
         ];
-        let hinted = self.phone.hints < HINTED;
+        // Upright the labels would run into the scene's name; on its side a phone has the room for them.
+        let hinted = content.width() > content.height();
         let mut pressed = None;
         for (index, (which, key)) in rail.into_iter().enumerate() {
             let at = shutter - vec2(0.0, 66.0 + 56.0 * index as f32);
@@ -449,7 +447,6 @@ impl App {
             }
             Some("randomize") => {
                 crate::tick(false);
-                self.phone.hints = self.phone.hints.saturating_add(1);
                 self.act("randomize");
             }
             Some(key) => self.act(key),

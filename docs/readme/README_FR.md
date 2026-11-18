@@ -16,7 +16,7 @@ Fractique crée deux sortes d’images. Des flammes fractales : ces fractales lu
 
 ## Ce que fait Fractique
 
-- **Flammes :** 28 variations, des calques avec modes de fusion, symétrie de rotation et en miroir, estimation de densité, halo, et 21 préréglages intégrés.
+- **Flammes :** 49 variations, des calques avec modes de fusion, symétrie de rotation et en miroir, estimation de densité, halo, et 29 préréglages intégrés.
 - **Fonds d’écran :** un pour chaque graine, parmi 14 dispositions et 6 matières, chacun en version claire et en version sombre, disposé pour la taille de l’écran.
 - **L’application :** une seule base de code pour Windows, macOS, Linux, Android, iOS et le web. L’image remplit la fenêtre et des panneaux de verre flottent au-dessus ; sur ordinateur, l’application a sa propre barre de titre en verre. En 15 langues.
 - **Randomize et Mutate :** chaque graine est une image ; les flammes qui ne seraient qu’un point ou un carré plein sont écartées. Mutate crée une variante de celle qui vous plaît.
@@ -30,6 +30,7 @@ Fractique crée deux sortes d’images. Des flammes fractales : ces fractales lu
 - **Répétabilité exacte :** la même scène donne les mêmes pixels sur toutes les machines, ce que vérifient des tests sous Linux, Windows et macOS ([docs/determinism.md](../determinism.md)).
 - **L’outil en ligne de commande** (`fractique`) : rend les flammes et les fonds d’écran en PNG, crée des scènes aléatoires et des variantes, convertit les fichiers `.flame`.
 - **Serveur MCP** (`fractique mcp`) : un agent d’IA crée, modifie et rend des scènes ([docs/mcp.md](../mcp.md)).
+- **Serveur HTTP** (`fractique-server`) : une API HTTP avec une file d’attente de rendus et des limites, sert l’application web, livré comme image Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -91,6 +92,7 @@ La documentation est en anglais.
 | [docs/usage.md](../usage.md) | L’application, les commandes, les niveaux de qualité, comment modifier une scène |
 | [docs/scene-format.md](../scene-format.md) | Chaque champ d’un fichier de scène, chaque variation, les feuilles, le fichier `.frcq` |
 | [docs/mcp.md](../mcp.md) | Le serveur MCP : connecter un agent d’IA, les outils |
+| [docs/server.md](../server.md) | Le serveur HTTP : points d’accès, limites, Docker |
 | [docs/ios.md](../ios.md) | Compiler et lancer sur un iPhone ou dans le simulateur iOS |
 | [docs/releasing.md](../releasing.md) | Comment une version est publiée et comment l’application se met à jour |
 | [docs/architecture.md](../architecture.md) | Comment les parties s’assemblent, comment fonctionne un rendu |
