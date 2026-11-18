@@ -293,6 +293,13 @@ fractique randomize 7 --fractal clifford -o attractor.json
 | --- | --- |
 | `mandelbrot` | A view along the edge of the set, magnified from a few times to about a million: a walk of one to nine steps from the whole set, each into one of the busiest parts of the view before it. Views that are more than 28 % set, flat or noise are skipped; the colors are spread over what the view shows and the iterations set for its depth |
 | `julia` | The Julia set of a point on the edge of the Mandelbrot set, whole or a part of it, judged the same way |
+| `burning_ship` | A view found as for `mandelbrot`, most often along the mast on the real axis, where the small ships are. Views that are stripes, noise or dark all over are skipped as well |
+| `tricorn` | A view along the edge of the set, found and judged as for `burning_ship` |
+| `multibrot` | A power of 3, 4, 5 or 6 and a view along the edge of its set |
+| `phoenix` | A feedback, then most often the Julia form of a constant from the edge of the map, or a view of the map itself |
+| `magnet` | The first or the second type and a view along the edge of its set, where the bubbles are |
+| `newton` | zⁿ − 1 with n from 3 to 8 or one of the named polynomials, often with a relaxation that curls the borders, and a view of the roots or of a border between their basins. Views with too little or too much border, or too dark, are skipped |
+| `nova` | A degree and a relaxation, then a view of the map of the constants or the Julia form of a constant from its edge |
 | `clifford` | An attractor of four random numbers. Those that settle on a few points or a curve, a dot in a dust or an even fog are skipped, and the camera frames the rest |
 
 The random fractal of a seed may change from one version of Fractique to the next, as a wallpaper's does; a scene
@@ -460,6 +467,13 @@ fractique render --preset solar-mandala --size 640x360 --quality high -o docs/sa
 fractique render --preset mandelbrot-spiral --size 640x360 --quality high -o docs/samples/fractal-mandelbrot.png
 fractique render --preset julia-spirals --size 640x360 --quality high -o docs/samples/fractal-julia.png
 fractique render --preset clifford-wings --size 640x360 --quality high -o docs/samples/fractal-clifford.png
+fractique render --preset burning_ship-ship --size 640x360 --quality high -o docs/samples/fractal-burning_ship.png
+fractique render --preset tricorn-island --size 640x360 --quality high -o docs/samples/fractal-tricorn.png
+fractique render --preset multibrot-spirals --size 640x360 --quality high -o docs/samples/fractal-multibrot.png
+fractique render --preset phoenix-galaxy --size 640x360 --quality high -o docs/samples/fractal-phoenix.png
+fractique render --preset magnet-pearls --size 640x360 --quality high -o docs/samples/fractal-magnet.png
+fractique render --preset newton-seven --size 640x360 --quality high -o docs/samples/fractal-newton.png
+fractique render --preset nova-star --size 640x360 --quality high -o docs/samples/fractal-nova.png
 fractique render --wallpaper 3 --layout waves --material glass --size 360x780 -o docs/samples/wallpaper-waves-light.png
 fractique render --wallpaper 5 --layout burst --material glow --size 360x780 -o docs/samples/wallpaper-burst-light.png
 fractique render --wallpaper 7 --layout tiles --material relief --size 360x780 -o docs/samples/wallpaper-tiles-light.png

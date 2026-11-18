@@ -212,7 +212,7 @@ between two stops are interpolated.
 ## Fractal
 
 A layer with `fractal` in place of `flame` shows a fractal of another kind: the Mandelbrot set, a Julia set, a
-strange attractor. It blends with the layers around it as a flame does.
+Newton fractal, a strange attractor. It blends with the layers around it as a flame does.
 
 ```json
 {
@@ -260,8 +260,8 @@ The kinds, by family:
 
 | Family | Drawn | Kinds |
 | --- | --- | --- |
-| Escape-time | per pixel | `julia`, `mandelbrot` |
-| Root-finding | per pixel | |
+| Escape-time | per pixel | `burning_ship`, `julia`, `magnet`, `mandelbrot`, `multibrot`, `phoenix`, `tricorn` |
+| Root-finding | per pixel | `newton`, `nova` |
 | Orbit | density | `clifford` |
 | Geometric | either | |
 | Solid | per pixel | |
@@ -291,12 +291,74 @@ R = 0.02 / `fade`², which lets the colors fade to dark away from the set. `edge
 | --- | --- | --- |
 | `mandelbrot` | z → z² + c from z = 0, with c the point | none |
 | `julia` | z → z² + c from z the point, with c = `real` + i × `imaginary` | `real` (−2 to 2, default −0.8), `imaginary` (−2 to 2, default 0.156) |
+| `burning_ship` | z → (\|Re z\| + i \|Im z\|)² + c from z = 0. The picture shows the imaginary axis pointing down, so that the ship stands mast up: the point x + i y is c = x − i y | none |
+| `tricorn` | z → z̄² + c from z = 0, with z̄ the conjugate of z and c the point | none |
+| `multibrot` | z → z^d + c from z = 0, with c the point and d = `power` | `power` (2 to 8, default 3) |
+| `phoenix` | z → z² + c + p z₋₁, with z₋₁ the value one step before (0 at the start) and p = `feedback`. `form` 1 is the Julia form: z starts at the point and c = `real` + i × `imaginary`. `form` 0 is the map of the constants: c is the point and z starts at 0. The plane is turned a quarter, as the phoenix is always shown: the point x + i y stands for y − i x | `form` (0 or 1, default 1), `real` (−2 to 2, default 0.56667), `imaginary` (−2 to 2, default 0), `feedback` (−1.5 to 1.5, default −0.5) |
+| `magnet` | `type` 1: z → ((z² + c − 1) / (2z + c − 2))². `type` 2: z → ((z³ + 3(c − 1)z + (c − 1)(c − 2)) / (3z² + 3(c − 2)z + (c − 1)(c − 2) + 1))². Both from z = 0, with c the point | `type` (1 or 2, default 1) |
 
-The default tone of both is `brightness` 0.92, `glow_radius` 0.006 and `glow_strength` 0.12.
+The default tone of all of them is `brightness` 0.92, `glow_radius` 0.006 and `glow_strength` 0.12.
+
+Where a kind differs from the two above:
+
+- **`burning_ship`, `tricorn`:** the step is not an analytic function, so z has no derivative by the point. The
+  distance is d = |z| ln |z| / |∇|z||, with ∇|z| the gradient of |z| by the two coordinates of the point; for an
+  analytic step it is the same number as above.
+- **`multibrot`:** the smooth count is ν = n + 1 − log_d ln |z|. A whole `power` is computed by multiplying. Any
+  other is z^d = |z|^d (cos(d θ) + i sin(d θ)) with θ the angle of z from −π to π: the picture then has seams,
+  thin straight cuts through the colors where an orbit crosses the negative real axis. They belong to such a power.
+- **`phoenix`:** the derivative follows the step: z′ → 2 z z′ + p z′₋₁, plus 1 in `form` 0. With `feedback` 0 the
+  two forms are the Mandelbrot set and the Julia sets, turned. With another `feedback` the map of `form` 0 is a
+  guide to the constants, not the exact set of the connected Julia forms: the step then has no critical point.
+- **`magnet`:** an orbit ends in one of two ways. It leaves the circle |z| = 256: far out the step is z² / 4
+  (`type` 2: z² / 9), so the count and the distance take |z| / 4 (|z| / 9) in place of |z|. Or it comes within
+  10⁻⁴ of 1, the point both maps hold still: next to 1 the step is 1 + 2(z − 1)² / c (`type` 2:
+  1 + 2(z − 1)³ / c²), so with e = 2|z − 1| / |c| (`type` 2: √2 |z − 1| / |c|) the smooth count is
+  ν = n + 1 − log₂(−ln e) (`type` 2: log₃) and the distance to the edge of that region is
+  |z − 1| (−ln e) / |z′|. Both endings are colored, darkened at the rim and faded in the same way; a point whose
+  orbit does neither belongs to the set and stays clear. Far from the set the orbits settle on 1.
+
+`form`, `type` and the `polynomial` of `newton` are whole numbers that stand for a choice. The app shows the names
+of the choices in place of a slider.
 
 ### Root-finding kinds
 
-The family has no kind yet.
+A point is moved by Newton's method, relaxed: z → z − a p(z) / p′(z), until it has arrived or the steps run out.
+The steps allowed are `iterations`, times 1 + log₁₀(zoom) / 2 where the camera's zoom is above 1. A point that
+never arrives stays clear, and so does one where p′ is 0.
+
+The smooth count ν of a point that arrives at step n is n − 1 plus the part of the last step it needed: with d₋₁
+the distance before the step, d the distance after it and t the distance that counts as arrived, the part is
+ln(ln t / ln d₋₁) / ln(ln d / ln d₋₁) where the distance is squared at every step (a = 1), and
+(ln t − ln d₋₁) / (ln d − ln d₋₁) where it shrinks by a factor (any other a). The light of a point is
+1 / (1 + (`shade` × ν / h)²): the more steps a point took, the darker it is.
+
+| Parameter | Range | Default | Meaning |
+| --- | --- | --- | --- |
+| `iterations` | 8 to 10 000, whole | 200 | The steps a point is given at zoom 1. |
+| `color_density` | 0.01 to 100 | 1 | How far the count moves the color along the palette. |
+| `color_shift` | 0 to 2 | 0 | Where on the palette the colors start. |
+| `relaxation` | 0.1 to 1.9 | 1 | The real part of a: 1 is Newton's method itself. |
+| `shade` | 0 to 1 | 0.5 | How much the count darkens a point; 0 leaves the colors flat. |
+
+| Kind | What it draws | Own parameters |
+| --- | --- | --- |
+| `newton` | The roots of a polynomial and which of them every point of the plane is led to. a = `relaxation` + i × `twist`; the roots attract only while \|1 − a\| is under 1. A point has arrived within 10⁻³ of a root. Its place on the palette is the fractional part of `color_shift` + k / m, plus 0.05 × `color_density` × ln(1 + ν): k counts the m roots from 0 in the order of their angles, from the positive real axis round. h is 6, times −2 / ln \|1 − a\| where that is more than 1 | `polynomial` (0 to 5, default 0), `degree` (2 to 12, default 3), `twist` (−1 to 1, default 0) |
+| `nova` | The step of `newton` for p = zⁿ − 1 with a constant added: z → z − a (zⁿ − 1) / (n zⁿ⁻¹) + c, with n = `degree` and a = `relaxation`. `form` 0 is the map of the constants: c is the point and z starts at (a (n − 1) / (n − a))^(1/n), where the derivative of the step is 0 (at 1 for a = 1). `form` 1 is the Julia form: z starts at the point and c = `real` + i × `imaginary`. A point has arrived when a step moves it less than 10⁻⁵; an orbit that ends in a cycle never does. The place on the palette is `color_shift` + `color_density` × ln(1 + ν), with ν = n plus the part of the last step, and h is 40 | `form` (0 or 1, default 0), `degree` (2 to 8, default 3), `real` (−2 to 2, default 0.3), `imaginary` (−2 to 2, default 0) |
+
+The polynomials of `newton`:
+
+| `polynomial` | p(z) | Roots |
+| --- | --- | --- |
+| 0 | zⁿ − 1, with n = `degree` | n, on the unit circle |
+| 1 | z³ − 2z + 2 | 3; the points around 0 and 1 swap for ever and stay clear |
+| 2 | z⁸ + 15z⁴ − 16 | 8 |
+| 3 | z⁶ + z³ − 1 | 6 |
+| 4 | z⁵ − 3i z³ − (5 + 2i) z² + 3z + 1 | 5, with no symmetry |
+| 5 | z⁴ + 3z² − 4 | 4: ±1 and ±2i |
+
+`degree` is used by polynomial 0 only. The default tone of both kinds is `glow_radius` 0.004 and `glow_strength`
+0.06.
 
 ### Orbit kinds
 
@@ -323,7 +385,9 @@ The family has no kind yet.
 A per-pixel kind computes every point with 64-bit numbers. Two neighbouring pixels stay different points while
 the zoom times the picture's shorter side in pixels is under about 10¹⁶ near the origin: a zoom of 10¹³ at 1080
 pixels. Past that neighbouring pixels get the same point and the picture turns into blocks; nothing is refused.
-The app stops where a fractal's own zoom times the view's reaches 10¹⁰.
+The app stops where a fractal's own zoom times the view's reaches 10¹⁰. It is the same for every per-pixel kind:
+the distances at which `magnet`, `newton` and `nova` take an orbit to have arrived are measured in the plane of
+z and do not shrink with the view.
 
 ## Sheets
 

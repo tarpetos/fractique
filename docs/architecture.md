@@ -141,7 +141,8 @@ tools, the HTTP server and the app read the kinds from the registry, so none of 
 | Registry | `fractal/mod.rs` | `Spec`, `Param`, `Preset`, the two traits a kind implements, `all`, `spec`, `random_scene`, `preset`. The kinds of a family are one sorted list in the family's `mod.rs`: `escape`, `root`, `orbit`, `geometric`, `solid` |
 | Per pixel | `fractal/pixel.rs` | A kind that is a `Field` answers for a point of the plane: a place on the palette and a light, or nothing. `pixel::draw` maps pixels to points through the camera, takes one sample a pixel on all cores, a row at a time, then draws the pixels that differ from a neighbour again from a grid of samples, and applies brightness and glow. Progress counts rows, and the cancel flag is read at every row |
 | Density | `render.rs`, `gather_orbit` | A kind that is an `Orbit` gives each of the 64 streams a `Walk`, which plots points with a place on the palette. They land in the flame's histogram through the same camera, as integer adds, and the layer is developed by `tone.rs` like a flame: `render_density` and `develop` work for it |
-| Escape-time helpers | `fractal/escape/mod.rs` | The parameters the family shares, the smooth count, the distance estimate with the dark rim and the fade, the step limit that grows with the zoom, and `Seen`, which measures a probe |
+| Escape-time helpers | `fractal/escape/mod.rs` | The parameters the family shares, the smooth count, the distance estimate with the dark rim and the fade, the step limit that grows with the zoom, `Seen`, which measures a probe, and what the randomizers share: the walk toward the edge of a set (`descend`), the judging of a view (`fitted`, `judged`) and the move of a mutation (`moved`). The root-finding kinds use them too |
+| Root-finding helpers | `fractal/root/mod.rs` | The parameters the family shares, the part of the last step in the smooth count, and the light by the count |
 | Probes for randomizers | `pixel::probe`, `density::probe` | A 48 × 48 grid of samples over the middle of a view, and the 30 000 points of one orbit with the camera that frames them, on the grid the flame randomizer judges by |
 
 A per-pixel layer is not a density, so `render_density` refuses it and `render_layer` draws it; a caller that
@@ -157,7 +158,23 @@ for a fractal layer. The limits below were chosen by looking at the pictures of 
 | --- | --- | --- |
 | `mandelbrot` | A walk of 1 to 9 steps from the whole set: each step probes the view, weighs every cell by what its 3 × 3 neighbourhood holds (the edge of the set most, filaments by their spread of counts, flat cells nothing), moves into a cell drawn by weight and magnifies 2 to 5 times. Four views in ten are turned | At most 28 % of the probe is inside the set, 16 to 80 % of neighbouring cells differ by more than a tenth of the spread of counts, and the counts have a spread. The colors are then spread over the counts between the 10th and the 95th percentile, and the iterations set to three times the deepest count seen |
 | `julia` | The constant is where a walk of 2 to 5 steps on the Mandelbrot set ends; the view is the whole Julia set, or three times in ten a part of it | As for `mandelbrot` |
+| `burning_ship` | As `mandelbrot`, with a walk of 1 to 6 steps. Six walks in ten start at the long mast on the real axis (around −1.78, magnified 7 times), where the ships are; the others at the whole set | As `mandelbrot`, and three more checks (below): no stripes, not noise, lit |
+| `tricorn` | As `mandelbrot`, with a walk of 1 to 8 steps | As `burning_ship` |
+| `multibrot` | A whole power from 3 to 6, then as `mandelbrot` with a walk of 1 to 7 steps | As `burning_ship` |
+| `phoenix` | A feedback between −0.75 and 0.75. Three times in ten the map of the first form, with a walk of 1 to 6 steps. Otherwise the Julia form of the constant where a walk of 2 to 5 steps on that map ends, whole or, three times in ten, a part of it | As `burning_ship` |
+| `magnet` | The second type four times in ten, then as `mandelbrot` with a walk of 1 to 7 steps | As `burning_ship` |
+| `newton` | zⁿ − 1 with n from 3 to 8 (45 in 100) or one of the five named polynomials; a relaxation of 1 (45 in 100) or one within 0.15 to 0.75 of 1 in any direction of the complex plane; a view that frames the roots, then a walk of 0 to 3 steps toward the borders between basins. Four views in ten are turned | At most 25 % of the probe never arrives, 8 to 60 % of neighbouring cells lie in different basins, and half of the probe or more has a light above 0.4 at shade 0.5 |
+| `nova` | Degree 3 (55 in 100) or 2 to 6; a relaxation of 1 (half) or between 0.6 and 1.8. Six times in ten the map of the first form, with a walk of 1 to 6 steps; otherwise the Julia form of the constant where a walk of 2 to 5 steps ends, whole or a part of it | As `burning_ship`; a Nova does not fade, so it is always lit |
 | `clifford` | `a` and `b` between 1.1 and 2.6 of either sign, `c` and `d` between −1.6 and 1.6 | The orbit is framed as a flame must be, covers 22 % of the grid, holds half of its points in 20 cells or more and has contrast between neighbouring cells |
+
+The three checks the later escape-time kinds add (`judged` in `fractal/escape/mod.rs`), chosen by looking at the
+pictures of seeds 1 to 40 of each:
+
+| Check | What is measured | Refused |
+| --- | --- | --- |
+| Stripes | At every cell of the probe, the direction in which the place on the palette changes, from two more samples an eighth of a cell away. The directions, doubled in angle, are averaged: 0 is no direction, 1 is one direction everywhere. Views of `tricorn` and `burning_ship` are often stretched into stripes, since their maps are not conformal | 0.5 and more |
+| Noise | The share of neighbouring cells that differ by more than a tenth of the spread of counts | More than 65 % |
+| Lit | The share of the probe with a light above 0.2 at the default `edge` and `fade`: a view full of the dust of a set is dark all over | Less than an eighth |
 
 ### How to add a fractal type
 

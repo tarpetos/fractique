@@ -369,7 +369,7 @@ enum Listing {
 
 fn shown(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
-    for word in name.split('-') {
+    for word in name.split(['-', '_']) {
         if !out.is_empty() {
             out.push(' ');
         }
@@ -2236,10 +2236,23 @@ impl App {
         for (param, before) in spec.params.iter().zip(values) {
             let mut value = before;
             let label = self.t(&format!("p_{}", param.name));
-            let digits = if param.whole { 0 } else { 3 };
-            widgets::slider_to(ui, &label, &mut value, (param.min, param.max), param.log, digits);
-            if param.whole {
-                value = value.round();
+            // A whole parameter whose every value has a name, `c_<parameter>_<value>` in the texts, is a choice.
+            let names: Vec<String> = (param.min as i64..=param.max as i64)
+                .map(|value| format!("c_{}_{value}", param.name))
+                .map(|key| (self.t(&key), key))
+                .take_while(|(name, key)| param.whole && name != key)
+                .map(|(name, _)| name)
+                .collect();
+            if names.len() as f64 == param.max - param.min + 1.0 {
+                if let Some(index) = widgets::choice(ui, &label, &names, (before - param.min) as usize) {
+                    value = param.min + index as f64;
+                }
+            } else {
+                let digits = if param.whole { 0 } else { 3 };
+                widgets::slider_to(ui, &label, &mut value, (param.min, param.max), param.log, digits);
+                if param.whole {
+                    value = value.round();
+                }
             }
             if value != before {
                 changed.push((param.name, value.clamp(param.min, param.max)));
