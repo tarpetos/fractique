@@ -25,7 +25,7 @@
   "export_title": "Export image",
   "size": "SIZE",
   "quality": "QUALITY",
-  "size_window": "This window",
+  "size_window": "Auto",
   "size_custom": "Custom",
   "apply": "Apply",
   "q_standard": "Standard",
