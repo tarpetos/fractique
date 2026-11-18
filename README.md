@@ -24,7 +24,7 @@ Fractique makes two kinds of pictures. Fractal flames: the glowing, wispy kind o
 - **Picture size:** the window's own, one of 21 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels.
 - **Deep zoom:** drag, wheel and pinch move the view and magnify it up to ten thousand million times. The picture follows at once and is redrawn sharp when the view rests.
 - **Phones:** a screen of its own. One round button makes a new picture, a swipe goes to the next wallpaper, a sheet of small live pictures chooses the style, and the pictures you keep form a collection.
-- **Export:** a PNG at any size, in three quality levels, rendered in the background. On a phone it is saved to Photos or the gallery, or shared.
+- **Export:** a PNG at any size: at once, as it is on the screen, or rendered in the background at three higher quality levels. On a phone it is saved to Photos or the gallery, or shared.
 - **Project files:** a `.frcq` file keeps the scene with its view, tone and size, so it opens as it was saved ([docs/scene-format.md](docs/scene-format.md)). Plain `.json` scenes and `.flame` files of flam3 and Apophysis open too. Between launches the app comes back to the session it was left with.
 - **Updates:** a window lists every released version with its notes and installs any of them. On Windows the app is one portable `.exe` that replaces itself.
 - **Exact repeatability:** the same scene gives the same pixels on every machine, checked by tests on Linux, Windows and macOS ([docs/determinism.md](docs/determinism.md)).

@@ -243,6 +243,24 @@ pub fn insets() -> [i32; 4] {
     sides.unwrap_or([0; 4])
 }
 
+pub fn ask() {
+    let Some(app) = crate::ANDROID.get() else {
+        return;
+    };
+    // SAFETY: as in `keep`.
+    let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) };
+    let asked: Call<bool> = vm.attach_current_thread(|env| {
+        // SAFETY: as in `keep`.
+        let activity = unsafe { JObject::from_raw(env, app.activity_as_ptr().cast()) };
+        let asked = allowed(env, &activity);
+        if asked.is_err() {
+            env.exception_clear();
+        }
+        asked
+    });
+    let _ = asked;
+}
+
 pub fn granted() -> bool {
     let Some(app) = crate::ANDROID.get() else {
         return false;

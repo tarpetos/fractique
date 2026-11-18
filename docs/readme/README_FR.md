@@ -16,21 +16,21 @@ Fractique crée deux sortes d’images. Des flammes fractales : ces fractales lu
 
 ## Ce que fait Fractique
 
-- **Flammes :** 49 variations, des calques avec modes de fusion, symétrie de rotation et en miroir, estimation de densité, halo, et 29 préréglages intégrés.
+- **Flammes :** 49 variations, des calques avec modes de fusion, symétrie de rotation et en miroir, estimation de densité, lueur, et 29 préréglages intégrés.
 - **Fonds d’écran :** un pour chaque graine, parmi 14 dispositions et 6 matières, chacun en version claire et en version sombre, disposé pour la taille de l’écran.
 - **L’application :** une seule base de code pour Windows, macOS, Linux, Android, iOS et le web. L’image remplit la fenêtre et des panneaux de verre flottent au-dessus ; sur ordinateur, l’application a sa propre barre de titre en verre. En 15 langues.
-- **Randomize et Mutate :** chaque graine est une image ; les flammes qui ne seraient qu’un point ou un carré plein sont écartées. Mutate crée une variante de celle qui vous plaît.
-- **Calques :** ajoutez une flamme tirée des préréglages ou au hasard, supprimez-la, changez l’ordre, et réglez pour chacune la fusion (add, screen, over) et l’opacité. Jusqu’à 16 calques.
+- **« Aléatoire » et « Muter » :** chaque graine est une image ; les flammes qui ne seraient qu’un point ou un carré plein sont écartées. « Muter » crée une variante de celle qui vous plaît.
+- **Calques :** ajoutez une flamme tirée des préréglages ou au hasard, supprimez-la, changez l’ordre, et réglez pour chacune la fusion (« Somme », « Écran », « Dessus ») et l’opacité. Jusqu’à 16 calques.
 - **Taille de l’image :** celle de la fenêtre, l’un des 21 écrans (ordinateurs jusqu’à la 4K, téléphones et tablettes Android, iPhone et iPad), ou toute largeur et hauteur de 16 à 16384 pixels.
 - **Zoom profond :** le glisser, la molette et le pincement déplacent la vue et l’agrandissent jusqu’à dix milliards de fois. L’image suit aussitôt et est redessinée nette dès que la vue s’immobilise.
 - **Téléphones :** un écran à part. Un bouton rond crée une nouvelle image, un balayage passe au fond d’écran suivant, une feuille de petites images vivantes choisit le style, et les images que vous gardez forment une collection.
-- **Export :** un PNG de n’importe quelle taille, en trois niveaux de qualité, rendu en arrière-plan. Sur un téléphone, il est enregistré dans Photos ou la galerie, ou partagé.
-- **Fichiers de projet :** un fichier `.frcq` garde la scène avec sa vue, son ton et sa taille, et s’ouvre donc telle qu’elle a été enregistrée ([docs/scene-format.md](../scene-format.md)). Les scènes `.json` simples et les fichiers `.flame` de flam3 et d’Apophysis s’ouvrent aussi. D’un lancement à l’autre, l’application retrouve la session où elle a été quittée.
+- **Export :** un PNG de n’importe quelle taille : tout de suite, tel qu’il est à l’écran, ou rendu en arrière-plan en trois niveaux de qualité supérieurs. Sur un téléphone, il est enregistré dans Photos ou dans la galerie, ou partagé.
+- **Fichiers de projet :** un fichier `.frcq` garde la scène avec sa vue, son ton et sa taille, si bien qu’elle s’ouvre telle qu’elle a été enregistrée ([docs/scene-format.md](../scene-format.md)). Les scènes `.json` simples et les fichiers `.flame` de flam3 et d’Apophysis s’ouvrent aussi. D’un lancement à l’autre, l’application retrouve la session où elle a été quittée.
 - **Mises à jour :** une fenêtre liste chaque version publiée avec ses notes et installe n’importe laquelle. Sous Windows, l’application est un seul `.exe` portable qui se remplace lui-même.
 - **Répétabilité exacte :** la même scène donne les mêmes pixels sur toutes les machines, ce que vérifient des tests sous Linux, Windows et macOS ([docs/determinism.md](../determinism.md)).
-- **L’outil en ligne de commande** (`fractique`) : rend les flammes et les fonds d’écran en PNG, crée des scènes aléatoires et des variantes, convertit les fichiers `.flame`.
-- **Serveur MCP** (`fractique mcp`) : un agent d’IA crée, modifie et rend des scènes ([docs/mcp.md](../mcp.md)).
-- **Serveur HTTP** (`fractique-server`) : une API HTTP avec une file d’attente de rendus et des limites, MCP pour les agents IA sur `/mcp`, sert l’application web, livré comme image Docker ([docs/server.md](../server.md)).
+- **L’outil en ligne de commande** (`fractique`) : fait le rendu des flammes et des fonds d’écran en PNG, crée des scènes aléatoires et des variantes, convertit les fichiers `.flame`.
+- **Serveur MCP** (`fractique mcp`) : un agent d’IA crée et modifie des scènes, et en fait le rendu ([docs/mcp.md](../mcp.md)).
+- **Serveur HTTP** (`fractique-server`) : une API HTTP avec une file d’attente de rendus et des limites, MCP pour les agents d’IA sur `/mcp`, sert l’application web, livré comme image Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
@@ -76,7 +76,7 @@ Ou faites un rendu en ligne de commande :
 ./target/release/fractique render --wallpaper 7 --size 1290x2796 -o wallpaper.png
 ./target/release/fractique render --wallpaper 7 --dark --size 1290x2796 -o wallpaper-dark.png
 
-# garder une scène aléatoire dans un fichier, la modifier, la rendre
+# garder une scène aléatoire dans un fichier, la modifier, en faire le rendu
 ./target/release/fractique randomize 42 -o scene.json
 ./target/release/fractique render scene.json -o mine.png
 ```

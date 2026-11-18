@@ -1,9 +1,9 @@
 # Using Fractique
 
-Fractique is two programs over one renderer: the app, `fractique-gui`, and the command line tool, `fractique`.
-This guide covers both, with examples. For the fields of a scene file see [scene-format.md](scene-format.md); for
-render times see [performance.md](performance.md); for the HTTP server, `fractique-server`, see
-[server.md](server.md); for AI agents, over stdio or HTTP, see [mcp.md](mcp.md).
+Fractique is three programs over one renderer: the app, `fractique-gui`, the command line tool, `fractique`, and
+the HTTP server, `fractique-server`. This guide covers the first two, with examples. For the fields of a scene
+file see [scene-format.md](scene-format.md); for render times see [performance.md](performance.md); for the HTTP
+server see [server.md](server.md); for AI agents, over stdio or HTTP, see [mcp.md](mcp.md).
 
 ## Contents
 
@@ -71,7 +71,7 @@ flames and wallpapers; a switch in the controls goes from one to the other.
 | **Glass** (inspector) | Opacity and blur of the panels. **F2** opens the fine tuning of the glass: refraction, depth, bezel |
 | Drag, wheel or pinch on the picture | Moves the view and zooms in and out, from 10,000 times smaller to 10,000,000,000 times larger. The picture follows at once and is drawn anew, sharp, when the view rests; the toolbar shows the magnification. **Export** and **Save** take the view as it is. A double click shows the whole scene again |
 | **Reset view** (appears once the picture is moved or zoomed) | Shows the whole scene again, as a double click does |
-| **Export** | A PNG at the picture's size, or at another size chosen in the same list there, in one of three qualities; rendered in the background with a progress bar and **Cancel** |
+| **Export** | A PNG at the picture's size, or at another size chosen in the same list there, in one of four qualities. **Instant** saves the picture that is on the screen, at once; the others render it anew in the background with a progress bar and **Cancel** |
 | **Scene: Open, Save** | **Save** writes a `.frcq` file, the app's own: the scene together with the tone, the view, the size and the flames or wallpapers choices, so it opens as it was saved, in a compact form that is not text. It can also write a plain `.json` scene, which is. **Open** reads `.frcq`, `.json` and `.flame`. A file given to the app when it starts (dropped on its icon, or "Open with") opens in it |
 | **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back |
 | **F11**, or the four corners in the title bar | Full screen; **Esc** leaves it |
@@ -82,6 +82,7 @@ The qualities of **Export**:
 
 | Quality | Samples per pixel | Supersample | The same as |
 | --- | --- | --- | --- |
+| Instant | as on the screen: 32 on a computer, 18 on a phone | 1 | The picture as shown; rendered anew only when another size is chosen |
 | Standard | 100 | 1 | `--quality standard` |
 | High | 300 | 2 | `--quality high` |
 | Ultra | 1000 | 2 | `--quality ultra` |
@@ -109,7 +110,7 @@ On Android and iOS the picture fills the screen and the controls are a few round
 | --- | --- |
 | **Flames**, **Wallpapers** (top) | What the app makes |
 | The large round button | A new picture: a random flame, or the next wallpaper |
-| The four small buttons above it | **Keep** puts the picture into the collection, or takes it out (it holds 48). **Similar** makes another wallpaper of the same layout and material; for a flame it is **Mutate**, a variant of it. **Style** opens the styles. **Export** saves the picture. Their names stand beside them until the round button has been pressed six times |
+| The four small buttons above it | **Keep** puts the picture into the collection, or takes it out (it holds 48). **Similar** makes another wallpaper of the same layout and material; for a flame it is **Mutate**, a variant of it. **Style** opens the styles. **Export** saves the picture. Their names stand beside them when the phone is on its side |
 | The placard (bottom left) | A wallpaper's layout, material and number, or a flame's name; under it the size and the time |
 | Swipe left or right (wallpapers) | The next or the previous wallpaper |
 | Drag and pinch (flames) | Move the view and zoom, as on a computer; **Reset view** appears |
@@ -117,7 +118,7 @@ On Android and iOS the picture fills the screen and the controls are a few round
 | Press and hold | Shows the picture as a lock screen, with a clock, for as long as the finger rests |
 | **Style** | A sheet that slides up, with small live pictures to choose from. First the **collection**, the pictures kept. For wallpapers: every layout, every material, a row of colors (any, or one of eight) and **Light** or **Dark**. For flames: every preset, and a random one. Its handle drags it taller or away |
 | **Fine-tune** (at the end of the styles) | The controls of the computer's inspector, over the whole screen: language, size, layers, tone, glass. The cross closes them |
-| **Export** | The size and the quality, then **Save to Photos** or **Share**. On an iPhone the picture goes to Photos or to the share sheet. On Android it goes to the gallery, into `Pictures/Fractique`, and **Share** then offers it to other apps. Android 9 and older ask for storage access first: allow it, then save again |
+| **Export** | The size and the quality, then **Save to Photos** or **Share**. On an iPhone the picture goes to Photos or to the share sheet. On Android it goes to the gallery, into `Pictures/Fractique`, and **Share** then offers it to other apps. Android 9 and older ask for storage access when **Save** is pressed, before the picture is made; once allowed, the export goes on by itself |
 
 A phone has no **Scene: Open, Save** and no updates window: [releasing.md](releasing.md) says what updates itself
 and what does not. In a browser the app has no export, no scene files and no updates window.
