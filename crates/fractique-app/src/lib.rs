@@ -692,6 +692,11 @@ fn rendered(
     Ok((image, held))
 }
 
+// A scroll area left to itself starts two rows tall and can stay so.
+fn list_height(rows: usize, room: f32) -> f32 {
+    (rows as f32 * 32.0 - 2.0).clamp(30.0, (room - 110.0).max(90.0))
+}
+
 fn fitted(size: [u32; 2], side: f32, samples: u32) -> RenderOptions {
     let shrink = (size[0].max(size[1]) as f32 / side).max(1.0);
     RenderOptions {
@@ -1257,8 +1262,10 @@ impl App {
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
         let mut chosen = None;
+        let tall = list_height(presets::names().len() + usize::from(adding), room);
         egui::ScrollArea::vertical()
-            .max_height((room - 110.0).max(90.0))
+            .max_height(tall)
+            .min_scrolled_height(tall)
             .show(ui, |ui| {
                 if adding && widgets::row(ui, &shown(&self.t("random")), false) {
                     let title = self.next_random();
@@ -1296,8 +1303,10 @@ impl App {
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
         let mut chosen = None;
+        let tall = list_height(self.phone.recent.len(), room);
         egui::ScrollArea::vertical()
-            .max_height((room - 110.0).max(90.0))
+            .max_height(tall)
+            .min_scrolled_height(tall)
             .show(ui, |ui| {
                 for (index, piece) in self.phone.recent.iter().enumerate() {
                     if widgets::row(ui, &piece.title, index == 0) {
@@ -2074,8 +2083,17 @@ impl App {
         ui.spacing_mut().scroll = bar;
         let before = (self.wall.layout, self.wall.material);
         let mut picked = false;
+        let tall = list_height(
+            1 + if layouts {
+                Layout::ALL.len()
+            } else {
+                Material::ALL.len()
+            },
+            room,
+        );
         egui::ScrollArea::vertical()
-            .max_height((room - 110.0).max(90.0))
+            .max_height(tall)
+            .min_scrolled_height(tall)
             .show(ui, |ui| {
                 if layouts {
                     if widgets::row(ui, &self.t("any"), self.wall.layout.is_none()) {
