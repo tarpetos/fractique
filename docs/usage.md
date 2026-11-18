@@ -148,8 +148,8 @@ view: lower `camera.zoom` then.
 | **Scene: Open, Save** | Scenes as `.json`; **Open** also reads `.flame` files |
 | Drag, wheel or pinch on the picture | Moves and magnifies the picture as it is, up to 12 times, without a new render; a double click shows all of it again |
 | **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back. On a phone a tap hides and shows them |
-| **F11**, or the corners in the title bar | Full screen; **Esc** leaves it |
-| **Updates** (last row of the inspector) | Every released version with its notes; update, or install an older one |
+| **F11** | Full screen; **Esc** leaves it |
+| The version next to the name in the title bar | Every released version with its notes; update, or install an older one |
 
 On a phone the picture is saved into the app's own folder (`exports`), and the app has no updates window:
 [releasing.md](releasing.md) says what updates itself and what does not. The language and the glass settings are

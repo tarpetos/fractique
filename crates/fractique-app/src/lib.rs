@@ -61,7 +61,9 @@ struct Adjust {
 
 const MAX_MAGNIFICATION: f32 = 12.0;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-const BAR: f32 = 38.0;
+const BAR: f32 = 44.0;
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+const BAR_GAP: f32 = 10.0;
 
 #[derive(Clone, Copy, PartialEq)]
 struct View {
@@ -386,13 +388,11 @@ impl App {
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn title_bar(&mut self, ctx: &egui::Context, screen: egui::Rect) -> egui::Rect {
-        let bar = egui::Rect::from_min_size(screen.min, egui::vec2(screen.width(), BAR));
-        let (maximized, is_full) = ctx.input(|input| {
-            (
-                input.viewport().maximized.unwrap_or(false),
-                input.viewport().fullscreen.unwrap_or(false),
-            )
-        });
+        let bar = egui::Rect::from_min_max(
+            screen.min + egui::vec2(BAR_GAP, BAR_GAP),
+            egui::pos2(screen.right() - BAR_GAP, screen.top() + BAR_GAP + BAR),
+        );
+        let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
         egui::Area::new(egui::Id::unique("title bar"))
             .fixed_pos(bar.min)
             .show(ctx, |ui| {
@@ -403,29 +403,54 @@ impl App {
                     ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                 }
                 let painter = ui.painter().clone();
-                painter.text(
-                    rect.left_center() + egui::vec2(16.0, 0.0),
+                let name = painter.text(
+                    rect.left_center() + egui::vec2(20.0, 0.0),
                     egui::Align2::LEFT_CENTER,
                     "Fractique",
-                    font(13.5, MEDIUM),
-                    egui::Color32::from_white_alpha(225),
+                    font(14.5, SEMIBOLD),
+                    egui::Color32::WHITE,
                 );
 
-                let ink = egui::Stroke::new(1.3, egui::Color32::from_white_alpha(225));
-                let mut slot =
-                    egui::Rect::from_min_size(egui::pos2(rect.right() - 46.0, rect.top()), egui::vec2(46.0, BAR));
-                for button in ["close", "maximize", "minimize", "full", "hide"] {
+                let newer = self.updates.newer().map(str::to_owned);
+                let (label, ink) = match &newer {
+                    Some(version) => (format!("v{version} ↑"), egui::Color32::from_rgb(14, 18, 34)),
+                    None => (format!("v{}", update::current()), egui::Color32::from_white_alpha(235)),
+                };
+                let galley = painter.layout_no_wrap(label, font(12.5, MEDIUM), ink);
+                let chip = egui::Rect::from_min_size(
+                    egui::pos2(name.right() + 12.0, rect.center().y - 13.0),
+                    egui::vec2(galley.size().x + 22.0, 26.0),
+                );
+                let version = ui.interact(chip, egui::Id::unique("title bar version"), egui::Sense::click());
+                let lift = if version.hovered() { 22 } else { 0 };
+                let fill = if newer.is_some() { 225 } else { 30 + lift };
+                painter.rect_filled(
+                    chip,
+                    egui::CornerRadius::same(13),
+                    egui::Color32::from_white_alpha(fill),
+                );
+                painter.galley(chip.center() - galley.size() * 0.5, galley, ink);
+                if version.clicked() {
+                    self.updates.show(ctx);
+                }
+
+                let ink = egui::Stroke::new(1.4, egui::Color32::from_white_alpha(235));
+                let mut slot = egui::Rect::from_center_size(
+                    egui::pos2(rect.right() - 7.0 - 15.0, rect.center().y),
+                    egui::Vec2::splat(30.0),
+                );
+                for button in ["close", "maximize", "minimize", "hide"] {
                     let pressed = ui.interact(slot, egui::Id::unique(("title bar", button)), egui::Sense::click());
-                    if pressed.hovered() {
-                        let fill = if button == "close" {
-                            egui::Color32::from_rgb(196, 43, 28)
-                        } else {
-                            egui::Color32::from_white_alpha(28)
-                        };
-                        painter.rect_filled(slot, egui::CornerRadius::ZERO, fill);
-                    }
-                    let (c, r) = (slot.center(), 5.0);
-                    let line = |from: egui::Vec2, to: egui::Vec2| painter.line_segment([c + from, c + to], ink);
+                    let fill = match (pressed.hovered(), button) {
+                        (true, "close") => egui::Color32::from_rgb(214, 58, 44),
+                        (true, _) => egui::Color32::from_white_alpha(56),
+                        _ => egui::Color32::from_white_alpha(30),
+                    };
+                    painter.circle_filled(slot.center(), 15.0, fill);
+                    let (c, r) = (slot.center(), 4.5);
+                    let line = |from: egui::Vec2, to: egui::Vec2| {
+                        painter.line_segment([c + from, c + to], ink);
+                    };
                     match button {
                         "close" => {
                             line(egui::vec2(-r, -r), egui::vec2(r, r));
@@ -433,22 +458,13 @@ impl App {
                         }
                         "maximize" => {
                             let square = egui::Rect::from_center_size(c, egui::Vec2::splat(2.0 * r));
-                            painter.rect_stroke(square, egui::CornerRadius::same(1), ink, egui::StrokeKind::Middle);
+                            painter.rect_stroke(square, egui::CornerRadius::same(2), ink, egui::StrokeKind::Middle);
                         }
-                        "minimize" => {
-                            line(egui::vec2(-r, 0.0), egui::vec2(r, 0.0));
-                        }
-                        "full" => {
-                            for (x, y) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
-                                let corner = egui::vec2(x * (r + 1.0), y * (r + 1.0));
-                                line(corner, corner - egui::vec2(x * 4.0, 0.0));
-                                line(corner, corner - egui::vec2(0.0, y * 4.0));
-                            }
-                        }
+                        "minimize" => line(egui::vec2(-r, 0.0), egui::vec2(r, 0.0)),
                         _ => {
-                            let pane = egui::Rect::from_center_size(c, egui::vec2(2.0 * r + 4.0, 2.0 * r));
+                            let pane = egui::Rect::from_center_size(c, egui::vec2(2.0 * r + 3.0, 2.0 * r - 1.0));
                             painter.rect_stroke(pane, egui::CornerRadius::same(3), ink, egui::StrokeKind::Middle);
-                            line(egui::vec2(-r - 4.0, r + 2.0), egui::vec2(r + 4.0, -r - 2.0));
+                            line(egui::vec2(-r - 2.5, r + 1.5), egui::vec2(r + 2.5, -r - 1.5));
                         }
                     }
                     if pressed.clicked() {
@@ -456,15 +472,13 @@ impl App {
                             "close" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
                             "maximize" => ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized)),
                             "minimize" => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
-                            "full" => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!is_full)),
                             _ => self.bare = true,
                         }
                     }
-                    slot = slot.translate(egui::vec2(-46.0, 0.0));
+                    slot = slot.translate(egui::vec2(-36.0, 0.0));
                 }
             });
-        // Only the lower edge of this pane is on the screen: the bar runs from side to side.
-        egui::Rect::from_min_max(bar.min - egui::vec2(60.0, 60.0), bar.max + egui::vec2(60.0, 0.0))
+        bar
     }
 
     fn pick(&mut self, scene: Scene, title: String, is_random: bool) {
@@ -561,18 +575,6 @@ impl App {
         if chosen != self.texts.lang {
             self.texts = Texts::new(chosen);
             widgets::install_fonts(ui.ctx(), chosen);
-        }
-
-        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        {
-            ui.add_space(10.0);
-            let label = match self.updates.newer() {
-                Some(version) => self.t("available").replace("{v}", version),
-                None => format!("{} · v{}", self.t("updates"), update::current()),
-            };
-            if widgets::row(ui, &label, self.updates.newer().is_some()) {
-                self.updates.show(ui.ctx());
-            }
         }
     }
 
@@ -867,7 +869,7 @@ impl eframe::App for App {
             self.window_keys(&ctx);
             let mut content = safe_content(&ctx);
             if !self.bare {
-                content.min.y += BAR;
+                content.min.y += BAR + BAR_GAP;
             }
             content
         };
@@ -936,7 +938,7 @@ impl eframe::App for App {
         let open = open && (wide || !self.export.open);
         let mut panes = Vec::new();
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        panes.push((self.title_bar(&ctx, screen), 0.0));
+        panes.push((self.title_bar(&ctx, screen), BAR * 0.5));
         if open {
             let corner = content.min + egui::vec2(20.0, 20.0);
             let inspector = egui::Area::new(egui::Id::unique("inspector"))
