@@ -366,6 +366,9 @@ impl Transform {
             if v.kind == Kind::Julian && v.kind.resolve(&v.params)[0] == 0.0 {
                 return fail(format!("{what}: julian power must not be 0"));
             }
+            if matches!(v.kind, Kind::Juliascope | Kind::Pie | Kind::Ngon) && v.kind.resolve(&v.params)[0] == 0.0 {
+                return fail(format!("{what}: {name} {} must not be 0", v.kind.params()[0].0));
+            }
         }
         Ok(())
     }

@@ -5,6 +5,8 @@ mod blur;
 mod export;
 mod glass;
 mod i18n;
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+mod instance;
 #[cfg(target_os = "ios")]
 mod ios;
 mod phone;
@@ -269,6 +271,11 @@ pub fn open_at_start(path: PathBuf) {
     let _ = OPEN_FIRST.set(path);
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+pub fn first_instance(open: Option<&std::path::Path>) -> bool {
+    instance::first(open)
+}
+
 const GLASS: (f32, f32) = (0.4, 0.7);
 const MAX_MAGNIFICATION: f64 = 1e10;
 const MIN_MAGNIFICATION: f64 = 1e-4;
@@ -404,11 +411,19 @@ struct App {
     screenshot_done: Arc<AtomicBool>,
     saved: String,
     light: f32,
+    #[cfg(target_os = "android")]
+    keeping: Option<(PathBuf, bool, u8)>,
+    #[cfg(target_os = "android")]
+    waiting: Option<(PathBuf, bool)>,
+    #[cfg(target_os = "android")]
+    focused: bool,
     last_frame: Instant,
     #[cfg(not(target_arch = "wasm32"))]
     export: export::Sheet,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     updates: updates::Updates,
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    arrivals: Option<mpsc::Receiver<Option<PathBuf>>>,
 }
 
 // Two cores stay free for the window: a render on every core makes it stutter.
@@ -549,10 +564,7 @@ impl App {
                 live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall") || what == "layouts"),
                 ..Default::default()
             },
-            phone: phone::Phone::new(
-                stored("hints").and_then(|text| text.parse().ok()).unwrap_or(0),
-                stored("kept"),
-            ),
+            phone: phone::Phone::new(stored("kept")),
             title,
             is_random: false,
             seed: 0,
@@ -607,6 +619,12 @@ impl App {
             screenshot_done: Arc::new(AtomicBool::new(false)),
             saved: String::new(),
             light: 0.0,
+            #[cfg(target_os = "android")]
+            keeping: None,
+            #[cfg(target_os = "android")]
+            waiting: None,
+            #[cfg(target_os = "android")]
+            focused: true,
             last_frame: Instant::now(),
             #[cfg(not(target_arch = "wasm32"))]
             export: export::Sheet {
@@ -615,6 +633,8 @@ impl App {
             },
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             updates: updates::Updates::new(),
+            #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+            arrivals: instance::watch(&cc.egui_ctx),
         };
         if let Some(session) = session {
             let _ = app.restore(&session);
@@ -1778,6 +1798,21 @@ impl App {
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn arrive(&mut self, ctx: &egui::Context) {
+        let Some(arrivals) = &self.arrivals else {
+            return;
+        };
+        let arrived: Vec<Option<PathBuf>> = arrivals.try_iter().collect();
+        for path in arrived {
+            if let Some(path) = path {
+                self.load_scene(&path);
+            }
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn open_scene(&mut self) {
         let picked = rfd::FileDialog::new()
             .add_filter("Fractique, flam3", &[SCENE_FILE, "json", "flame"])
@@ -1893,8 +1928,8 @@ impl App {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
-        ui.set_width(300.0);
+    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32, wide: Option<f32>) {
+        ui.set_width(wide.unwrap_or(300.0));
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         ui.label(
             egui::RichText::new(self.t("export_title"))
@@ -1921,19 +1956,71 @@ impl App {
         }
 
         let shown = self.picture.unwrap_or(window);
-        widgets::section(ui, &self.t("size"));
         let own = format!("{} × {}", shown[0], shown[1]);
-        let height = (room - 400.0).clamp(34.0, 230.0);
-        size_list(
-            ui,
-            &self.texts,
-            &own,
-            shown,
-            &mut self.export.size,
-            &mut self.export.custom,
-            height,
-        );
+        let size = self.t("size");
+        let clicked = if wide.is_some() {
+            // A low, wide screen: the sizes at the left, the rest at the right.
+            ui.spacing_mut().item_spacing.x = 24.0;
+            let mut clicked = (false, false);
+            ui.columns(2, |columns| {
+                let ui = &mut columns[0];
+                ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+                widgets::section(ui, &size);
+                let height = (room - 250.0).clamp(34.0, 230.0);
+                size_list(
+                    ui,
+                    &self.texts,
+                    &own,
+                    shown,
+                    &mut self.export.size,
+                    &mut self.export.custom,
+                    height,
+                );
+                columns[1].spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+                clicked = self.export_choices(&mut columns[1]);
+            });
+            clicked
+        } else {
+            widgets::section(ui, &size);
+            let height = (room - 400.0).clamp(34.0, 230.0);
+            size_list(
+                ui,
+                &self.texts,
+                &own,
+                shown,
+                &mut self.export.size,
+                &mut self.export.custom,
+                height,
+            );
+            self.export_choices(ui)
+        };
         let [width, height] = self.export.size.unwrap_or(shown);
+        if clicked.0 {
+            self.export.open = false;
+        }
+        if clicked.1 {
+            let (_, samples_per_pixel, supersample) = export::QUALITIES[self.export.quality];
+            let options = RenderOptions {
+                width,
+                height,
+                samples_per_pixel,
+                supersample,
+            };
+            let name = format!("{}-{width}x{height}.png", file_name(&self.title));
+            if let Some(path) = export::target(&name) {
+                self.export.job = Some(export::Job::start(
+                    self.scene_at([width, height]),
+                    options,
+                    path,
+                    ui.ctx().clone(),
+                    render_pool(),
+                ));
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn export_choices(&mut self, ui: &mut egui::Ui) -> (bool, bool) {
         widgets::section(ui, &self.t("quality"));
         ui.add_space(2.0);
         let qualities = export::QUALITIES.map(|(key, _, _)| self.t(key));
@@ -1970,27 +2057,40 @@ impl App {
                 clicked.1 = true;
             }
         }
-        if clicked.0 {
+        clicked
+    }
+
+    #[cfg(target_os = "android")]
+    fn keep_on_android(&mut self, ctx: &egui::Context) {
+        // The permission dialog takes the screen; the app has it back once the owner has answered.
+        let focused = ctx.input(|input| input.focused);
+        if focused
+            && !self.focused
+            && let Some((path, share)) = self.waiting.take()
+            && android::granted()
+        {
             self.export.open = false;
+            self.keeping = Some((path, share, 3));
         }
-        if clicked.1 {
-            let (_, samples_per_pixel, supersample) = export::QUALITIES[self.export.quality];
-            let options = RenderOptions {
-                width,
-                height,
-                samples_per_pixel,
-                supersample,
-            };
-            let name = format!("{}-{width}x{height}.png", file_name(&self.title));
-            if let Some(path) = export::target(&name) {
-                self.export.job = Some(export::Job::start(
-                    self.scene_at([width, height]),
-                    options,
-                    path,
-                    ui.ctx().clone(),
-                    render_pool(),
-                ));
+        self.focused = focused;
+
+        let Some((path, share, frames)) = self.keeping.take() else {
+            return;
+        };
+        // The share menu covers the app and stops its frames: the sheet must be gone from the screen first.
+        if frames > 0 {
+            self.keeping = Some((path, share, frames - 1));
+            ctx.request_repaint();
+            return;
+        }
+        match android::keep(&path, share) {
+            android::Kept::Done => self.export.note = self.t("saved"),
+            android::Kept::Asked => {
+                self.waiting = Some((path, share));
+                self.export.note = self.t("allow_storage");
+                self.export.open = true;
             }
+            android::Kept::Failed => {}
         }
     }
 
@@ -2018,13 +2118,9 @@ impl App {
                     self.export.open = false;
                 }
                 #[cfg(target_os = "android")]
-                match android::keep(&path, self.export.share) {
-                    android::Kept::Done => {
-                        self.export.note = self.t("saved");
-                        self.export.open = false;
-                    }
-                    android::Kept::Asked => self.export.note = self.t("allow_storage"),
-                    android::Kept::Failed => {}
+                {
+                    self.export.open = false;
+                    self.keeping = Some((path, self.export.share, 3));
                 }
             }
             export::Outcome::Cancelled => self.export.note.clear(),
@@ -2094,6 +2190,8 @@ fn save_png(path: &std::path::Path, rgba: &[u8], size: [usize; 2]) -> Result<(),
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        self.arrive(&ctx);
         // Every mouse move asks for a redraw; at a 240 Hz screen's pace that makes a graphics card whine.
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -2107,6 +2205,8 @@ impl eframe::App for App {
         self.receive(frame);
         #[cfg(not(target_arch = "wasm32"))]
         self.finish_export();
+        #[cfg(target_os = "android")]
+        self.keep_on_android(&ctx);
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         self.updates.settle(&ctx);
         if ctx.input(|input| input.key_pressed(egui::Key::F2)) {
@@ -2343,10 +2443,9 @@ impl eframe::App for App {
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
                     egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
-                        // A phone on its side is lower than the sheet: it scrolls there.
-                        egui::ScrollArea::vertical()
-                            .max_height(content.height() - 56.0)
-                            .show(ui, |ui| self.export_sheet(ui, window, content.height()));
+                        let low = content.width() > content.height() && content.height() < 560.0;
+                        let wide = low.then(|| (content.width() - 60.0).min(604.0));
+                        self.export_sheet(ui, window, content.height(), wide);
                     });
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
@@ -2457,8 +2556,7 @@ impl eframe::App for App {
             && let Some(storage) = frame.storage_mut()
         {
             let settings = format!(
-                "{} {} {} {} {} {:?} {}",
-                self.phone.hints,
+                "{} {} {} {} {:?} {}",
                 self.phone.kept.len(),
                 self.texts.lang.code(),
                 self.optics.tint,
@@ -2484,7 +2582,6 @@ impl eframe::App for App {
             .map_or("auto".to_owned(), |[width, height]| format!("{width}x{height}"));
         storage.set_string("picture", picture);
         storage.set_string("session", self.session());
-        storage.set_string("hints", self.phone.hints.to_string());
         storage.set_string("kept", self.phone.kept_text());
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         if let Some(path) = std::env::var_os("FRACTIQUE_DOCUMENT") {

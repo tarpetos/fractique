@@ -275,7 +275,11 @@ One step of the flame: an affine map, then a weighted sum of variations, then an
 `{ "type": name, "weight": number, "params": [numbers] }`. `weight` defaults to 1. `params` is positional, only
 for the variations that have parameters, and missing ones take their defaults.
 
-In the formulas `r` is the distance from the origin, `θ = atan2(x, y)` and `φ = atan2(y, x)`.
+In the formulas `r` is the distance from the origin, `θ = atan2(x, y)` and `φ = atan2(y, x)`. `ψ`, `ψ₁`, `ψ₂` … are
+random numbers from 0 to 1, new for every point. `a` to `f` are the numbers of the transform's `affine` (of the
+`final_transform`'s own when the variation is in it), and `w` is the variation's own `weight`. The result is then
+multiplied by the weight like any other, so `radial_blur`, `arch`, `rays`, `blade`, `secant2` and `twintrian`
+change shape with their weight and not only size.
 
 | Type | Result (x, y) | Parameters |
 | --- | --- | --- |
@@ -307,6 +311,32 @@ In the formulas `r` is the distance from the origin, `θ = atan2(x, y)` and `φ 
 | `gaussian_blur` | a random point, denser near the origin |  |
 | `julian` | r^(dist / power) (cos t, sin t), t = (φ + 2π k) / power, k random | `power` = 2, `dist` = 1 |
 | `curl` | (x, y) divided by the complex number 1 + c1 z + c2 z² | `c1` = 0.5, `c2` = 0.2 |
+| `waves` | x + b sin(y / c²), y + e sin(x / f²) |  |
+| `popcorn` | x + c sin(tan 3y), y + f sin(tan 3x) |  |
+| `rings` | k (cos θ, sin θ), k = ((r + c²) mod 2c²) − c² + r (1 − c²) |  |
+| `fan` | r (cos(θ ∓ t/2), sin(θ ∓ t/2)) with t = π c²: minus where (θ + f) mod t is above t/2 |  |
+| `blob` | r (low + (high − low) (sin(waves θ) + 1) / 2) (cos θ, sin θ) | `low` = 0.5, `high` = 1, `waves` = 5 |
+| `pdj` | sin(a y) − cos(b x), sin(c x) − cos(d y), with the parameters and not the transform's coefficients | `a` = 1.5, `b` = 1.8, `c` = 1.2, `d` = 2 |
+| `fan2` | r (sin(θ ∓ t/2), cos(θ ∓ t/2)) with t = π x²: minus where θ + y − t trunc(2 θ y / t) is above t/2 | `x` = 0.5, `y` = 0.3 |
+| `rings2` | k (sin θ, cos θ), k = r − 2p trunc((r + p) / 2p) + r (1 − p), p = val² | `val` = 0.5 |
+| `perspective` | dist (x, y cos α) / (dist − y sin α), α = angle · π/2 | `angle` = 0.5, `dist` = 2 |
+| `noise` | ψ₁ (x cos 2πψ₂, y sin 2πψ₂) |  |
+| `juliascope` | r^(dist / power) (cos t, sin t), t = (±φ + 2π k) / power, k random, minus where k is odd | `power` = 2, `dist` = 1 |
+| `radial_blur` | (r cos(φ + g sin α) + (g cos α − 1) x, r sin(φ + g sin α) + (g cos α − 1) y) / w, α = angle · π/2, g = w (ψ₁ + ψ₂ + ψ₃ + ψ₄ − 2) | `angle` = 0.5 |
+| `pie` | ψ₃ (cos t, sin t), t = rotation + 2π (k + ψ₂ thickness) / slices, k = trunc(ψ₁ slices + 0.5) | `slices` = 6, `rotation` = 0, `thickness` = 0.5 |
+| `ngon` | (x, y) (corners (1 / cos t − 1) + circle) / r^power, t = φ folded into ±π / sides | `sides` = 5, `power` = 2, `circle` = 1, `corners` = 1 |
+| `rectangles` | (2 floor(x / p) + 1) p − x with p = `x`, the same for y with `y`; a size of 0 leaves that coordinate as it is | `x` = 0.5, `y` = 0.5 |
+| `arch` | sin(ψ π w), sin²(ψ π w) / cos(ψ π w) |  |
+| `square` | ψ₁ − 0.5, ψ₂ − 0.5 |  |
+| `rays` | w tan(ψ π w) (cos x, sin y) / r² |  |
+| `blade` | x (cos(ψ r w) + sin(ψ r w)), x (cos(ψ r w) − sin(ψ r w)) |  |
+| `secant2` | x, 1 / cos(w r) moved by 1 toward 0 |  |
+| `twintrian` | x t, x (t − π sin(ψ r w)), t = log₁₀(sin²(ψ r w)) + cos(ψ r w) |  |
+
+`julian`, `juliascope` (`power`), `pie` (`slices`) and `ngon` (`sides`) refuse a first parameter of 0.
+
+The `.flame` import reads a variation by its name in this table and a parameter as `name_parameter`
+(`blob_low`, `pdj_a`, `ngon_sides`, `perspective_angle`), as flam3 and Apophysis write them.
 
 `fractique variations` prints this list from the build you run.
 

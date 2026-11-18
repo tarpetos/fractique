@@ -185,6 +185,7 @@ view: lower `camera.zoom` then.
 | **Layers** (inspector) | The scene's flames, one over another: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity |
 | **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back. On a phone a tap hides and shows them |
 | **F11** | Full screen; **Esc** leaves it |
+| Starting the app a second time | Brings the window that is already open to the front instead of opening another; a file given to the second start opens in the first |
 | The version next to the name in the title bar | Every released version with its notes; update, or install an older one |
 
 On a phone the picture is saved into the app's own folder (`exports`), and the app has no updates window:
@@ -205,7 +206,7 @@ fractique render scene.json -o imported.png
 
 The transforms, their colors, the palette, the camera, the symmetry and the tone settings are read. What the file
 uses and Fractique does not have is listed while it converts: variations outside the
-[28 built in](scene-format.md#variation), xaos, and flam3's numbered palettes (a file that names one by number gets
+[49 built in](scene-format.md#variation), xaos, and flam3's numbered palettes (a file that names one by number gets
 the `aurora` palette). An imported flame shows the same structure as in its own program; brightness and color are
 close, not identical, because the tone mapping differs.
 
