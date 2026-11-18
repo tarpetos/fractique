@@ -16,7 +16,7 @@ Fractique rendert Fraktalflammen: leuchtende, hauchzarte Fraktale aus feinen Kur
 
 ## Was heute funktioniert
 
-- **Der Renderer** (`fractique-core`): Fraktalflammen mit 28 Variationen, Ebenen mit Mischmodi, Dreh- und Spiegelsymmetrie, Dichteschätzung, Leuchten, jede Auflösung.
+- **Der Renderer** (`fractique-core`): Fraktalflammen mit 49 Variationen, Ebenen mit Mischmodi, Dreh- und Spiegelsymmetrie, Dichteschätzung, Leuchten, jede Auflösung.
 - **Die App:** eine Codebasis für Windows, Linux, Android, iOS und das Web, mit Glasflächen über der Flamme, in 15 Sprachen.
 - **Vorlagen:** 9 eingebaute Szenen.
 - **Zufallsgenerator:** jeder Startwert ist eine Szene; Szenen, die nur ein Punkt oder ein gefülltes Quadrat wären, werden übersprungen.

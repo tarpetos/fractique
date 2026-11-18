@@ -338,6 +338,41 @@ mod tests {
     }
 
     #[test]
+    fn reads_the_parameters_of_every_variation_that_has_them() {
+        let xml = r#"<flame><xform waves="0.5" popcorn="0.25" blob="1" blob_low="0.1" blob_high="0.9" blob_waves="7"
+            pdj="1" pdj_a="1" pdj_b="2" pdj_c="3" pdj_d="4" fan2="1" fan2_x="0.2" fan2_y="0.4" rings2="1"
+            rings2_val="0.3" perspective="1" perspective_angle="0.25" perspective_dist="3" juliascope="1"
+            juliascope_power="-3" juliascope_dist="2" radial_blur="1" radial_blur_angle="0.75" pie="1"
+            pie_slices="8" pie_rotation="0.5" pie_thickness="0.25" ngon="1" ngon_sides="6" ngon_power="3"
+            ngon_circle="0.5" ngon_corners="2" rectangles="1" rectangles_x="0.3" rectangles_y="0.6" secant2="1"
+            twintrian="1" coefs="1 0 0 1 0 0"/></flame>"#;
+        let flames = import_flames(xml).unwrap();
+        assert!(
+            flames[0].warnings.iter().all(|w| !w.contains("ignored")),
+            "{:?}",
+            flames[0].warnings
+        );
+        let variations = &flames[0].scene.layers[0].flame.transforms[0].variations;
+        let expected = [
+            Variation::new(Kind::Waves, 0.5),
+            Variation::new(Kind::Popcorn, 0.25),
+            Variation::with_params(Kind::Blob, 1.0, &[0.1, 0.9, 7.0]),
+            Variation::with_params(Kind::Pdj, 1.0, &[1.0, 2.0, 3.0, 4.0]),
+            Variation::with_params(Kind::Fan2, 1.0, &[0.2, 0.4]),
+            Variation::with_params(Kind::Rings2, 1.0, &[0.3]),
+            Variation::with_params(Kind::Perspective, 1.0, &[0.25, 3.0]),
+            Variation::with_params(Kind::Juliascope, 1.0, &[-3.0, 2.0]),
+            Variation::with_params(Kind::RadialBlur, 1.0, &[0.75]),
+            Variation::with_params(Kind::Pie, 1.0, &[8.0, 0.5, 0.25]),
+            Variation::with_params(Kind::Ngon, 1.0, &[6.0, 3.0, 0.5, 2.0]),
+            Variation::with_params(Kind::Rectangles, 1.0, &[0.3, 0.6]),
+            Variation::new(Kind::Secant2, 1.0),
+            Variation::new(Kind::Twintrian, 1.0),
+        ];
+        assert_eq!(variations.as_slice(), expected.as_slice());
+    }
+
+    #[test]
     fn reads_flames_without_a_root() {
         let flames = import_flames(
             "<?xml version=\"1.0\"?><flame><xform linear=\"1\"/></flame><flame><xform linear=\"1\"/></flame>",

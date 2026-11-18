@@ -16,7 +16,7 @@ O Fractique desenha chamas fractais: fractais luminosos e etéreos feitos de cur
 
 ## O que funciona hoje
 
-- **O renderizador** (`fractique-core`): chamas fractais com 28 variações, camadas com modos de mesclagem, simetria rotacional e espelhada, estimativa de densidade, brilho, qualquer resolução.
+- **O renderizador** (`fractique-core`): chamas fractais com 49 variações, camadas com modos de mesclagem, simetria rotacional e espelhada, estimativa de densidade, brilho, qualquer resolução.
 - **O aplicativo:** um único código para Windows, Linux, Android, iOS e web, com painéis de vidro sobre a chama, em 15 idiomas.
 - **Predefinições:** 9 cenas integradas.
 - **Gerador aleatório:** cada semente é uma cena; cenas que seriam um ponto ou um quadrado preenchido são descartadas.
