@@ -1463,7 +1463,7 @@ impl App {
             return;
         }
         // The shaders are not compiled yet: a draft stands in, and the render begins again when they are.
-        let soon = self.gpu_on() && scene.sheets.is_none() && self.chaos.as_ref().is_some_and(Chaos::pending);
+        let soon = self.gpu_on() && all_flames(&scene) && self.chaos.as_ref().is_some_and(Chaos::pending);
         if soon && chaos_only() {
             return;
         }
@@ -1756,7 +1756,8 @@ impl App {
         };
         let pending = chaos.pending();
         // The shaders are compiled, or refused: a render that began without them begins again.
-        if self.compiling && !pending && self.rendering && !self.chaotic && self.gpu_on() {
+        let flames = self.wall.live || all_flames(&self.base);
+        if self.compiling && !pending && self.rendering && !self.chaotic && self.gpu_on() && flames {
             self.requested = None;
         }
         self.compiling = pending;
