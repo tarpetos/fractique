@@ -97,6 +97,91 @@ pub fn row(ui: &mut Ui, text: &str, selected: bool) -> bool {
     response.clicked()
 }
 
+pub fn round(ui: &mut Ui, kind: &str, enabled: bool) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
+    let lift = if enabled && response.hovered() { 24 } else { 0 };
+    ui.painter().circle_filled(rect.center(), 14.0, white(26 + lift));
+    let ink = egui::Stroke::new(1.4, white(if enabled { 235 } else { 70 }));
+    let (c, r) = (rect.center(), 4.5);
+    let line = |from: egui::Vec2, to: egui::Vec2| {
+        ui.painter().line_segment([c + from, c + to], ink);
+    };
+    match kind {
+        "add" => {
+            line(vec2(-r, 0.0), vec2(r, 0.0));
+            line(vec2(0.0, -r), vec2(0.0, r));
+        }
+        "remove" => {
+            line(vec2(-r + 1.0, -r + 1.0), vec2(r - 1.0, r - 1.0));
+            line(vec2(-r + 1.0, r - 1.0), vec2(r - 1.0, -r + 1.0));
+        }
+        "up" => {
+            line(vec2(-r, 2.5), vec2(0.0, -2.5));
+            line(vec2(r, 2.5), vec2(0.0, -2.5));
+        }
+        _ => {
+            line(vec2(-r, -2.5), vec2(0.0, 2.5));
+            line(vec2(r, -2.5), vec2(0.0, 2.5));
+        }
+    }
+    enabled && response.clicked()
+}
+
+pub fn dropdown(ui: &mut Ui, text: &str) -> bool {
+    let mark = egui::pos2(
+        ui.cursor().min.x + ui.available_width() - 16.0,
+        ui.cursor().min.y + 15.0,
+    );
+    let clicked = row(ui, text, true);
+    let ink = egui::Stroke::new(1.4, white(210));
+    ui.painter()
+        .line_segment([mark + vec2(-4.5, -2.5), mark + vec2(0.0, 2.5)], ink);
+    ui.painter()
+        .line_segment([mark + vec2(4.5, -2.5), mark + vec2(0.0, 2.5)], ink);
+    clicked
+}
+
+pub fn segments(ui: &mut Ui, labels: &[String], chosen: usize) -> Option<usize> {
+    let (track, _) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
+    ui.painter().rect_filled(track, CornerRadius::same(10), white(18));
+    let each = track.width() / labels.len() as f32;
+    let mut picked = None;
+    for (index, label) in labels.iter().enumerate() {
+        let cell = egui::Rect::from_min_size(track.min + vec2(each * index as f32, 0.0), vec2(each, track.height()));
+        let response = ui.interact(cell, ui.scope_id().with(("segment", index)), Sense::click());
+        let selected = index == chosen;
+        if selected {
+            ui.painter()
+                .rect_filled(cell.shrink(2.0), CornerRadius::same(8), white(52));
+        } else if response.hovered() {
+            ui.painter()
+                .rect_filled(cell.shrink(2.0), CornerRadius::same(8), white(16));
+        }
+        let (font, color) = if selected {
+            (font(13.5, MEDIUM), white(255))
+        } else {
+            (FontId::proportional(13.5), white(190))
+        };
+        ui.painter()
+            .text(cell.center(), Align2::CENTER_CENTER, label, font, color);
+        if response.clicked() {
+            picked = Some(index);
+        }
+    }
+    picked
+}
+
+pub fn add_row(ui: &mut Ui, enabled: bool) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+    let lift = if enabled && response.hovered() { 18 } else { 0 };
+    ui.painter().rect_filled(rect, CornerRadius::same(9), white(12 + lift));
+    let ink = egui::Stroke::new(1.5, white(if enabled { 220 } else { 70 }));
+    let c = rect.center();
+    ui.painter().line_segment([c - vec2(5.0, 0.0), c + vec2(5.0, 0.0)], ink);
+    ui.painter().line_segment([c - vec2(0.0, 5.0), c + vec2(0.0, 5.0)], ink);
+    enabled && response.clicked()
+}
+
 pub fn pill_width(ui: &Ui, text: &str) -> f32 {
     let galley = ui
         .painter()

@@ -20,6 +20,7 @@ use web_time::Instant;
 use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
 use fractique_core::random::{mutate, random_scene};
+use fractique_core::scene::{Blend, MAX_LAYERS};
 use fractique_core::{Control, Image, RenderOptions, Scene, presets, render};
 
 use glass::{Gfx, Optics};
@@ -166,6 +167,39 @@ fn size_list(
     picked
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Sheet {
+    Presets,
+    Sizes,
+}
+
+fn shown(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    for word in name.split('-') {
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        let mut letters = word.chars();
+        if let Some(first) = letters.next() {
+            out.extend(first.to_uppercase());
+            out.push_str(letters.as_str());
+        }
+    }
+    out
+}
+
+fn named(mut scene: Scene, title: &str) -> Scene {
+    let several = scene.layers.len() > 1;
+    for (index, layer) in scene.layers.iter_mut().enumerate() {
+        layer.name = if several {
+            format!("{title} {}", index + 1)
+        } else {
+            title.to_owned()
+        };
+    }
+    scene
+}
+
 fn parsed_size(text: &str) -> Option<[u32; 2]> {
     let (width, height) = text.split_once('x')?;
     let side = |text: &str| {
@@ -282,6 +316,9 @@ struct App {
     picture: Option<[u32; 2]>,
     custom: [String; 2],
     sizes_open: bool,
+    presets_open: bool,
+    adding_layer: bool,
+    layer: usize,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     maximize_again: bool,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -300,6 +337,7 @@ struct App {
     shown_frames: u32,
     screenshot: Option<PathBuf>,
     screenshot_done: Arc<AtomicBool>,
+    saved: String,
     last_frame: Instant,
     #[cfg(not(target_arch = "wasm32"))]
     export: export::Sheet,
@@ -355,12 +393,20 @@ impl App {
         let title = "aurora-spiral".to_owned();
         Self {
             texts,
-            base: presets::get(&title).unwrap_or_else(|| random_scene(1)),
+            base: named(presets::get(&title).unwrap_or_else(|| random_scene(1)), &shown(&title)),
             title,
             is_random: false,
             seed: 0,
             adjust: NEUTRAL,
-            view: WHOLE,
+            view: if std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.starts_with("redraw")) {
+                View {
+                    right: 0.12,
+                    down: -0.1,
+                    zoom: 3.0,
+                }
+            } else {
+                WHOLE
+            },
             shown: WHOLE,
             drawn: None,
             touched: Instant::now(),
@@ -382,6 +428,9 @@ impl App {
             picture: stored("picture").and_then(|text| parsed_size(&text)),
             custom: Default::default(),
             sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
+            presets_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "presets"),
+            adding_layer: false,
+            layer: 0,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             maximize_again: false,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -399,6 +448,7 @@ impl App {
             shown_frames: 0,
             screenshot,
             screenshot_done: Arc::new(AtomicBool::new(false)),
+            saved: String::new(),
             last_frame: Instant::now(),
             #[cfg(not(target_arch = "wasm32"))]
             export: export::Sheet {
@@ -514,12 +564,70 @@ impl App {
         }
     }
 
+    fn open_sheet(&mut self, which: Sheet) {
+        let (presets, sizes) = (self.presets_open, self.sizes_open);
+        self.presets_open = which == Sheet::Presets && !presets;
+        self.adding_layer = false;
+        self.sizes_open = which == Sheet::Sizes && !sizes;
+        self.languages_open = false;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.export.open = false;
+        }
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        {
+            self.updates.open = false;
+        }
+    }
+
+    fn preset_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
+        ui.set_width(260.0);
+        ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+        let adding = self.adding_layer;
+        widgets::section(ui, &self.t(if adding { "layers" } else { "presets" }));
+        let mut bar = egui::style::ScrollStyle::floating();
+        bar.bar_width = 5.0;
+        ui.spacing_mut().scroll = bar;
+        let mut chosen = None;
+        egui::ScrollArea::vertical()
+            .max_height((room - 110.0).max(90.0))
+            .show(ui, |ui| {
+                if adding && widgets::row(ui, &shown(&self.t("random")), false) {
+                    self.seed += 1;
+                    let title = format!("{} {}", shown(&self.t("random")), self.seed);
+                    chosen = Some((named(random_scene(self.seed), &title), title));
+                }
+                for name in presets::names() {
+                    let current = !adding && !self.is_random && self.title == name;
+                    if widgets::row(ui, &shown(name), current)
+                        && let Some(scene) = presets::get(name)
+                    {
+                        chosen = Some((named(scene, &shown(name)), name.to_owned()));
+                    }
+                }
+            });
+        let Some((scene, title)) = chosen else { return };
+        self.presets_open = false;
+        if adding {
+            for mut layer in scene.layers {
+                if self.base.layers.len() < MAX_LAYERS {
+                    layer.blend = Blend::Screen;
+                    self.base.layers.push(layer);
+                }
+            }
+            self.layer = self.base.layers.len() - 1;
+            self.requested = None;
+        } else {
+            self.pick(scene, title, false);
+        }
+    }
+
     fn size_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
         ui.set_width(300.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         widgets::section(ui, &self.t("size"));
         let own = format!("{} · {} × {}", self.t("size_window"), window[0], window[1]);
-        let height = (room - 230.0).clamp(64.0, 420.0);
+        let height = (room - 230.0).clamp(34.0, 420.0);
         if size_list(
             ui,
             &self.texts,
@@ -531,6 +639,61 @@ impl App {
         ) {
             self.sizes_open = false;
         }
+    }
+
+    fn redraw_button(&mut self, ctx: &egui::Context, at: egui::Pos2) -> egui::Rect {
+        let area = egui::Area::new(egui::Id::unique("redraw"))
+            .fixed_pos(at)
+            .pivot(egui::Align2::CENTER_BOTTOM)
+            .show(ctx, |ui| {
+                let ink = egui::Color32::WHITE;
+                let galley = ui.painter().layout_no_wrap(self.t("redraw"), font(14.0, MEDIUM), ink);
+                let (rect, response) =
+                    ui.allocate_exact_size(egui::vec2(galley.size().x + 62.0, 42.0), egui::Sense::click());
+                if response.hovered() {
+                    ui.painter()
+                        .rect_filled(rect, egui::CornerRadius::same(21), egui::Color32::from_white_alpha(22));
+                }
+                let middle = egui::pos2(rect.left() + 26.0, rect.center().y);
+                let turn: Vec<egui::Pos2> = (0..=20)
+                    .map(|step| {
+                        let (sin, cos) = (-0.9 + step as f32 * 0.25).sin_cos();
+                        middle + egui::vec2(cos, sin) * 6.5
+                    })
+                    .collect();
+                let (tip, stroke) = (turn[0], egui::Stroke::new(1.5, ink));
+                ui.painter().line(turn, stroke);
+                ui.painter().line_segment([tip, tip + egui::vec2(-4.5, -0.5)], stroke);
+                ui.painter().line_segment([tip, tip + egui::vec2(0.5, -4.5)], stroke);
+                ui.painter().galley(
+                    egui::pos2(rect.left() + 42.0, rect.center().y - galley.size().y * 0.5),
+                    galley,
+                    ink,
+                );
+                if response.clicked() {
+                    self.redraw_here();
+                }
+            });
+        area.response.rect
+    }
+
+    // The view becomes the scene's own camera: a double click comes back to it from then on.
+    fn redraw_here(&mut self) {
+        let view = self.view;
+        for layer in &mut self.base.layers {
+            let mut camera = layer.flame.camera.clone();
+            camera.zoom *= self.adjust.zoom;
+            camera = camera.looking_at(view.right, view.down, view.zoom);
+            camera.zoom /= self.adjust.zoom;
+            layer.flame.camera = camera;
+        }
+        self.shown = View {
+            right: (self.shown.right - view.right) * view.zoom,
+            down: (self.shown.down - view.down) * view.zoom,
+            zoom: self.shown.zoom / view.zoom,
+        };
+        self.view = WHOLE;
+        self.requested = None;
     }
 
     fn explore(&mut self, ui: &mut egui::Ui, screen: egui::Rect) {
@@ -550,9 +713,10 @@ impl App {
             self.view
                 .moved(sides(picture.drag_delta() / screen.size(), size, stretch));
         }
-        if picture.clicked() && (self.languages_open || self.sizes_open) {
+        if picture.clicked() && (self.languages_open || self.sizes_open || self.presets_open) {
             self.languages_open = false;
             self.sizes_open = false;
+            self.presets_open = false;
         } else if picture.double_clicked() {
             self.view = WHOLE;
         } else if picture.clicked() && (self.bare || cfg!(any(target_os = "android", target_os = "ios"))) {
@@ -594,9 +758,10 @@ impl App {
             self.full_screen(ctx, !is_full);
         }
         if leave {
-            if self.languages_open || self.sizes_open {
+            if self.languages_open || self.sizes_open || self.presets_open {
                 self.languages_open = false;
                 self.sizes_open = false;
+                self.presets_open = false;
             } else if self.bare {
                 self.bare = false;
             } else if is_full {
@@ -772,7 +937,9 @@ impl App {
                 );
                 painter.galley(chip.center() - galley.size() * 0.5, galley, ink);
                 if version.clicked() {
+                    self.languages_open = false;
                     self.sizes_open = false;
+                    self.presets_open = false;
                     self.export.open = false;
                     self.updates.show(ctx);
                 }
@@ -859,6 +1026,10 @@ impl App {
                 self.language_anchor = chip.right_bottom();
                 if language.clicked() {
                     self.languages_open = !self.languages_open;
+                    self.sizes_open = false;
+                    self.presets_open = false;
+                    self.export.open = false;
+                    self.updates.open = false;
                 }
             });
         bar
@@ -870,6 +1041,7 @@ impl App {
         self.is_random = is_random;
         self.requested = None;
         self.view = WHOLE;
+        self.layer = 0;
     }
 
     fn t(&self, key: &str) -> String {
@@ -895,19 +1067,14 @@ impl App {
             widgets::section(ui, &self.t("language"));
             if widgets::row(ui, self.texts.lang.name(), true) {
                 self.languages_open = !self.languages_open;
+                self.sizes_open = false;
+                self.presets_open = false;
             }
         }
 
         widgets::section(ui, &self.t("presets"));
-        if self.is_random {
-            widgets::row(ui, &self.title.clone(), true);
-        }
-        for name in presets::names() {
-            if widgets::row(ui, name, self.title == name)
-                && let Some(scene) = presets::get(name)
-            {
-                self.pick(scene, name.to_owned(), false);
-            }
+        if widgets::dropdown(ui, &shown(&self.title)) {
+            self.open_sheet(Sheet::Presets);
         }
 
         widgets::section(ui, &self.t("size"));
@@ -915,26 +1082,11 @@ impl App {
             Some([width, height]) => format!("{width} × {height}"),
             None => self.t("size_window"),
         };
-        let mark = egui::pos2(
-            ui.cursor().min.x + ui.available_width() - 16.0,
-            ui.cursor().min.y + 15.0,
-        );
-        if widgets::row(ui, &label, true) {
-            self.sizes_open = !self.sizes_open;
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                self.export.open = false;
-            }
-            #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-            {
-                self.updates.open = false;
-            }
+        if widgets::dropdown(ui, &label) {
+            self.open_sheet(Sheet::Sizes);
         }
-        let ink = egui::Stroke::new(1.4, egui::Color32::from_white_alpha(210));
-        ui.painter()
-            .line_segment([mark + egui::vec2(-4.5, -2.5), mark + egui::vec2(0.0, 2.5)], ink);
-        ui.painter()
-            .line_segment([mark + egui::vec2(4.5, -2.5), mark + egui::vec2(0.0, 2.5)], ink);
+
+        self.layers(ui);
 
         widgets::section(ui, &self.t("tone"));
         let before = self.adjust;
@@ -945,7 +1097,7 @@ impl App {
         widgets::slider(ui, &self.t("zoom"), &mut self.adjust.zoom, (0.4, 2.5), true);
 
         ui.add_space(8.0);
-        if widgets::pill(ui, &self.t("reset"), false, 0.0) {
+        if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
             self.adjust = NEUTRAL;
         }
 
@@ -980,6 +1132,110 @@ impl App {
         }
     }
 
+    fn layers(&mut self, ui: &mut egui::Ui) {
+        widgets::section(ui, &self.t("layers"));
+        ui.add_space(2.0);
+        let before = self.base.layers.clone();
+        let count = self.base.layers.len();
+        self.layer = self.layer.min(count - 1);
+        let blends = ["blend_add", "blend_screen", "blend_over"].map(|key| self.t(key));
+        let (opacity, word) = (self.t("opacity"), self.t("layer"));
+        let (chosen, mut pick, mut act) = (self.layer, None, None);
+        let layers = &mut self.base.layers;
+
+        egui::Frame::NONE
+            .fill(egui::Color32::from_white_alpha(10))
+            .corner_radius(14)
+            .inner_margin(egui::Margin::same(6))
+            .show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 4.0;
+                for (index, layer) in layers.iter_mut().enumerate() {
+                    let label = if layer.name.is_empty() {
+                        format!("{word} {}", index + 1)
+                    } else {
+                        layer.name.clone()
+                    };
+                    if index != chosen {
+                        if widgets::row(ui, &label, false) {
+                            pick = Some(index);
+                        }
+                        continue;
+                    }
+                    let card = egui::Margin {
+                        left: 12,
+                        right: 8,
+                        top: 6,
+                        bottom: 8,
+                    };
+                    egui::Frame::NONE
+                        .fill(egui::Color32::from_white_alpha(26))
+                        .corner_radius(10)
+                        .inner_margin(card)
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let name = egui::RichText::new(&label)
+                                    .font(font(14.0, MEDIUM))
+                                    .color(egui::Color32::WHITE);
+                                ui.add(egui::Label::new(name).truncate());
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.spacing_mut().item_spacing.x = 4.0;
+                                    for (kind, enabled) in
+                                        [("remove", count > 1), ("down", index + 1 < count), ("up", index > 0)]
+                                    {
+                                        if widgets::round(ui, kind, enabled) {
+                                            act = Some(kind);
+                                        }
+                                    }
+                                });
+                            });
+                            ui.add_space(6.0);
+                            ui.scope(|ui| {
+                                ui.set_width(ui.available_width() - 4.0);
+                                let current = [Blend::Add, Blend::Screen, Blend::Over]
+                                    .iter()
+                                    .position(|blend| *blend == layer.blend)
+                                    .unwrap_or(0);
+                                if let Some(index) = widgets::segments(ui, &blends, current) {
+                                    layer.blend = [Blend::Add, Blend::Screen, Blend::Over][index];
+                                }
+                                widgets::slider(ui, &opacity, &mut layer.opacity, (0.0, 1.0), false);
+                            });
+                        });
+                }
+                if widgets::add_row(ui, count < MAX_LAYERS) {
+                    act = Some("add");
+                }
+            });
+
+        if let Some(index) = pick {
+            self.layer = index;
+        }
+        let at = self.layer;
+        match act {
+            Some("add") => {
+                self.open_sheet(Sheet::Presets);
+                self.presets_open = true;
+                self.adding_layer = true;
+            }
+            Some("remove") => {
+                self.base.layers.remove(at);
+                self.layer = at.min(count - 2);
+            }
+            Some("up") => {
+                self.base.layers.swap(at, at - 1);
+                self.layer = at - 1;
+            }
+            Some("down") => {
+                self.base.layers.swap(at, at + 1);
+                self.layer = at + 1;
+            }
+            _ => {}
+        }
+        if self.base.layers != before {
+            self.requested = None;
+        }
+    }
+
     fn toolbar(&mut self, ui: &mut egui::Ui, wide: bool, room: f32) {
         let gap = if wide { 8.0 } else { 6.0 };
         ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
@@ -998,7 +1254,7 @@ impl App {
         let mut row = |ui: &mut egui::Ui, buttons: std::ops::Range<usize>| {
             ui.horizontal(|ui| {
                 for index in buttons {
-                    if widgets::pill(ui, &labels[index], index == 0, width) {
+                    if widgets::pill(ui, &labels[index], false, width) {
                         clicked = Some(keys[index]);
                     }
                 }
@@ -1015,7 +1271,7 @@ impl App {
             Some("randomize") => {
                 self.seed += 1;
                 let title = format!("{} {}", self.t("random"), self.seed);
-                self.pick(random_scene(self.seed), title, true);
+                self.pick(named(random_scene(self.seed), &shown(&title)), title, true);
             }
             Some("mutate") => {
                 self.seed += 1;
@@ -1025,7 +1281,9 @@ impl App {
             }
             #[cfg(not(target_arch = "wasm32"))]
             Some("export") => {
+                self.presets_open = false;
                 self.sizes_open = false;
+                self.languages_open = false;
                 self.export.open = !self.export.open;
                 self.export.note.clear();
             }
@@ -1113,7 +1371,7 @@ impl App {
         let shown = self.picture.unwrap_or(window);
         widgets::section(ui, &self.t("size"));
         let own = format!("{} × {}", shown[0], shown[1]);
-        let height = (room - 400.0).clamp(64.0, 230.0);
+        let height = (room - 400.0).clamp(34.0, 230.0);
         size_list(
             ui,
             &self.texts,
@@ -1125,17 +1383,11 @@ impl App {
         );
         let [width, height] = self.export.size.unwrap_or(shown);
         widgets::section(ui, &self.t("quality"));
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 4.0;
-            let each = (ui.available_width() - 8.0) / 3.0;
-            for (index, (key, _, _)) in export::QUALITIES.into_iter().enumerate() {
-                ui.allocate_ui(egui::vec2(each, 30.0), |ui| {
-                    if widgets::row(ui, &self.t(key), self.export.quality == index) {
-                        self.export.quality = index;
-                    }
-                });
-            }
-        });
+        ui.add_space(2.0);
+        let qualities = export::QUALITIES.map(|(key, _, _)| self.t(key));
+        if let Some(index) = widgets::segments(ui, &qualities, self.export.quality) {
+            self.export.quality = index;
+        }
         if !self.export.note.is_empty() {
             ui.add_space(8.0);
             ui.label(
@@ -1282,7 +1534,14 @@ impl eframe::App for App {
             content
         };
         #[cfg(any(target_os = "android", target_os = "ios", target_arch = "wasm32"))]
-        let content = safe_content(&ctx);
+        let content = {
+            let mut content = safe_content(&ctx);
+            // The on-screen keyboard covers the lower part of a phone's screen and does not report its size.
+            if cfg!(any(target_os = "android", target_os = "ios")) && ctx.egui_wants_keyboard_input() {
+                content.max.y = content.min.y + content.height() * 0.56;
+            }
+            content
+        };
         let scale = ctx.pixels_per_point();
         let size = [
             (screen.width() * scale).round() as u32,
@@ -1290,6 +1549,12 @@ impl eframe::App for App {
         ];
         let window = size;
         let size = self.picture.unwrap_or(window);
+        if self.requested.is_none()
+            && self.view != WHOLE
+            && std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "redrawn")
+        {
+            self.redraw_here();
+        }
         if window[0] > 0 && window[1] > 0 {
             if self.requested != Some(size) {
                 self.start_render(&ctx, size);
@@ -1343,8 +1608,13 @@ impl eframe::App for App {
         }
 
         if self.bare {
-            if !self.panes.is_empty() {
-                self.panes.clear();
+            let mut panes = Vec::new();
+            if self.view != WHOLE {
+                let rect = self.redraw_button(&ctx, egui::pos2(content.center().x, content.bottom() - 20.0));
+                panes.push((rect, rect.height() * 0.5, false));
+            }
+            if panes != self.panes {
+                self.panes = panes;
                 ctx.request_repaint();
             }
             if self.screenshot.is_some() {
@@ -1355,15 +1625,24 @@ impl eframe::App for App {
 
         let wide = content.width() >= 700.0;
         let open = *self.inspector_open.get_or_insert(wide);
+        // A sheet's glass is drawn under every text, so a panel it would cover hides while the sheet is open.
         #[cfg(not(target_arch = "wasm32"))]
-        let open = open && (wide || !self.export.open);
+        let sheet = self.export.open || self.sizes_open || self.presets_open;
+        #[cfg(target_arch = "wasm32")]
+        let sheet = self.sizes_open || self.presets_open;
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        let sheet = sheet || self.updates.open;
+        let sheet = sheet
+            || (self.languages_open && cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")));
+        let open = open && !(sheet && content.width() < 1320.0);
         let column = (content.width() - 84.0).min(248.0);
         let beside = content.left() + 20.0 + column + 44.0 + 16.0;
         let fits = wide && open && content.center().x - self.toolbar_size.x * 0.5 >= beside;
+        let lifted = if self.view != WHOLE { 56.0 } else { 0.0 };
         let under = if wide && (fits || !open) {
             0.0
         } else {
-            self.toolbar_size.y.max(60.0) + 12.0
+            self.toolbar_size.y.max(60.0) + 12.0 + lifted
         };
         let mut panes = Vec::new();
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -1402,13 +1681,7 @@ impl eframe::App for App {
             panes.push((inspector.response.rect, self.optics.radius, false));
         }
 
-        #[cfg(not(target_arch = "wasm32"))]
-        let covered = self.export.open;
-        #[cfg(target_arch = "wasm32")]
-        let covered = false;
-        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        let covered = covered || self.updates.open;
-        let covered = covered || self.sizes_open;
+        let covered = sheet || self.languages_open;
         if !covered {
             let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
                 .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
@@ -1422,7 +1695,7 @@ impl eframe::App for App {
                         };
                         let name =
                             ui.painter()
-                                .layout_no_wrap(self.title.clone(), font(13.5, MEDIUM), egui::Color32::WHITE);
+                                .layout_no_wrap(shown(&self.title), font(13.5, MEDIUM), egui::Color32::WHITE);
                         let detail = ui.painter().layout_no_wrap(
                             detail,
                             egui::FontId::proportional(13.0),
@@ -1454,6 +1727,12 @@ impl eframe::App for App {
             ));
         }
 
+        if self.view != WHOLE && !covered {
+            let above = content.bottom() - 20.0 - self.toolbar_size.y - 10.0;
+            let rect = self.redraw_button(&ctx, egui::pos2(content.center().x, above));
+            panes.push((rect, rect.height() * 0.5, false));
+        }
+
         #[cfg(not(target_arch = "wasm32"))]
         if self.export.open {
             let sheet = egui::Area::new(egui::Id::unique("export"))
@@ -1479,6 +1758,19 @@ impl eframe::App for App {
                     egui::Frame::NONE
                         .inner_margin(egui::Margin::same(22))
                         .show(ui, |ui| self.updates.ui(ui, &self.texts, width));
+                });
+            panes.push((sheet.response.rect, self.optics.radius, true));
+        }
+
+        if self.presets_open {
+            let sheet = egui::Area::new(egui::Id::unique("presets"))
+                .fixed_pos(content.center())
+                .pivot(egui::Align2::CENTER_CENTER)
+                .order(egui::Order::Foreground)
+                .show(&ctx, |ui| {
+                    egui::Frame::NONE
+                        .inner_margin(egui::Margin::same(22))
+                        .show(ui, |ui| self.preset_sheet(ui, content.height()));
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }
@@ -1552,6 +1844,23 @@ impl eframe::App for App {
         }
         if self.screenshot.is_some() {
             self.take_screenshot(&ctx);
+        }
+
+        // A phone ends an app without telling it, so settings are written when they change, not at exit.
+        let settings = format!(
+            "{} {} {} {:?}",
+            self.texts.lang.code(),
+            self.optics.tint,
+            self.optics.blur,
+            self.picture
+        );
+        if settings != self.saved
+            && !ctx.input(|input| input.pointer.any_down())
+            && let Some(storage) = frame.storage_mut()
+        {
+            self.saved = settings;
+            eframe::App::save(self, storage);
+            storage.flush();
         }
     }
 
@@ -1657,6 +1966,14 @@ pub fn run(mut options: eframe::NativeOptions, screenshot: Option<PathBuf>) -> e
         log::set_max_level(log::LevelFilter::Warn);
     }
     offered_limits(&mut options.wgpu_options);
+    // eframe finds no settings folder of its own on a phone.
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    if options.persistence_path.is_none()
+        && let Some(folder) = own_folder()
+    {
+        let _ = std::fs::create_dir_all(&folder);
+        options.persistence_path = Some(folder.join("settings.ron"));
+    }
     eframe::run_native(
         "Fractique",
         options,

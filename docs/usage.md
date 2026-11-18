@@ -141,7 +141,7 @@ view: lower `camera.zoom` then.
 
 | Where | What |
 | --- | --- |
-| Inspector (left; **Controls** in the toolbar shows and hides it) | Presets, tone, zoom, glass, scene |
+| Inspector (left; **Controls** in the toolbar shows and hides it) | Preset (a list of 21), size, layers, tone, zoom, glass, scene |
 | Title bar (desktop) | The version (opens the updates), the language, hide panels, minimize, maximize, close |
 | **Randomize** | The next random scene |
 | **Mutate** | A variant of the current scene |
@@ -149,6 +149,8 @@ view: lower `camera.zoom` then.
 | **Export** | A PNG at the picture's size, or at another size chosen in the same list there, and at the quality you choose; rendered in the background with a progress bar |
 | **Scene: Open, Save** | Scenes as `.json`; **Open** also reads `.flame` files |
 | Drag, wheel or pinch on the picture | Moves the view and zooms in and out, from 10,000 times smaller to 10,000,000,000 times larger. The picture follows at once and is drawn anew, sharp, when the view rests; the bar shows the magnification. **Export** and **Save** take the view as it is. A double click shows the whole scene again |
+| **Redraw here** (appears once the picture is moved or magnified) | Makes that view the scene's own camera: a double click comes back to it from then on |
+| **Layers** (inspector) | The scene's flames, one over another: **+** adds one from the presets or a random one, **×** removes, the arrows reorder; each has a blend (add, screen, over) and an opacity |
 | **H**, or the crossed pane in the title bar | Hides every panel; **H**, **Esc** or a click brings them back. On a phone a tap hides and shows them |
 | **F11** | Full screen; **Esc** leaves it |
 | The version next to the name in the title bar | Every released version with its notes; update, or install an older one |

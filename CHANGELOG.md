@@ -11,7 +11,8 @@ First version: the renderer and the command line tool.
   A scene whose view holds less than an eighth of its flame renders differently from before this.
 * **Exact repeatability:** the same scene and options give the same pixels on every platform and thread count.
 * **Presets:** `aurora-spiral`, `emerald-star`, `emerald-burst`, `emerald-mandala`, `ember-vortex`, `azure-rings`, `golden-bloom`,
-  `solar-mandala`, `jade-orb`.
+  `solar-mandala`, `jade-orb`, `violet-whirl`, `radiant-star`, `teal-lattice`, `amber-tree`, `silk-current`,
+  `tide-curl`, `orchid-knot`, `frost-crown`, `green-comet`, `moss-nebula`, `lilac-cloud`, `ice-crystal`.
 * **Randomizer and mutation:** a scene for every seed, and variants of a scene.
 * **Command line tool:** `render`, `presets`, `preset`, `randomize`, `mutate`, `fit`, `import`, `variations`, `mcp`.
 * **Import:** `.flame` files of flam3 and Apophysis convert to scenes.
