@@ -55,6 +55,36 @@ view magnified 10¹⁰ times with 1500 iterations (9000 steps a point after the 
 
 A per-pixel layer has no histogram: it holds about 32 bytes a pixel while it is drawn, and 64 while its glow is added.
 
+### The later escape-time kinds and the root-finding kinds
+
+Measured at `standard` with the PNG written, but on **3 threads** of the same processor while other work ran on
+the rest of it, so these are not to be read against the table above: `mandelbrot-seahorse-valley`, measured in
+the same run, took about twice its time there. For each kind the first row is its whole picture and the others
+are magnified views, where most pixels lie along an edge and are drawn from 9 samples.
+
+| Preset | 1920×1080 | 3840×2160 |
+| --- | --- | --- |
+| `mandelbrot-seahorse-valley` (for scale) | 2.1 s | 8.3 s |
+| `burning_ship-whole` | 0.8 s | 3.0 s |
+| `burning_ship-ship` | 1.5 s | 6.0 s |
+| `burning_ship-towers` | 2.3 s | 9.1 s |
+| `tricorn-whole` | 0.8 s | 3.2 s |
+| `tricorn-spiral` | 6.2 s | 30.8 s |
+| `multibrot-cubic` | 0.9 s | 3.5 s |
+| `multibrot-sunflower` (power 6) | 9.6 s | 37.6 s |
+| `phoenix-ushiki` | 1.1 s | 4.5 s |
+| `phoenix-feathers` | 7.4 s | 28.0 s |
+| `magnet-first` | 1.7 s | 7.3 s |
+| `magnet-pearls` | 4.6 s | 18.1 s |
+| `newton-cubic` | 0.8 s | 3.4 s |
+| `newton-swirl` | 1.8 s | 6.3 s |
+| `nova-whole` | 2.2 s | 7.7 s |
+| `nova-sapphire` | 6.7 s | 26.1 s |
+
+A step of `magnet` costs two complex divisions and one of `multibrot` a multiplication for every unit of its
+power, so they are slower than `mandelbrot` at the same depth; a power that is not whole costs a logarithm, a
+sine and a cosine a step. `newton` measures the distance to every root at every step.
+
 ## Wallpapers
 
 A wallpaper is drawn exactly, so the quality level and the samples do not change its time. It grows with the

@@ -25,6 +25,15 @@
     `fractal()`, `camera()`, `tone()` and `palette()` to reach into either.
   * The kinds live in a registry, one file each ([docs/architecture.md](docs/architecture.md#how-to-add-a-fractal-type)).
     The golden hashes of the three kinds were produced on Linux.
+  * **Seven more kinds**, each with six presets, a random picture for every seed and a mutation. Escape-time:
+    **Burning Ship** (`burning_ship`), **Tricorn** (`tricorn`), **Multibrot** (`multibrot`, z^d + c with the
+    power from 2 to 8; a power that is not whole shows the seams of its branch cut), **Phoenix** (`phoenix`, the
+    Julia form and the map of its constants) and **Magnet** (`magnet`, both types, with the orbits that settle
+    on 1 colored like those that escape). Root-finding, the first two of that family: **Newton** (`newton`,
+    zⁿ − 1 with n from 2 to 12 and five named polynomials, a complex relaxation, the basins colored by root and
+    shaded by a smooth count) and **Nova** (`nova`, Newton's step plus a constant, as the map of the constants
+    and as its Julia form). In the app a parameter that is a choice (the form, the type, the polynomial) shows
+    the names of its values in place of a slider. The Mandelbrot and Julia sets render as before.
 
 * **GPU acceleration:** the trial of a built-in graphics chip gives way when a picture is asked for and begins
   again when the app rests; its verdict is kept again, so a slow phone is tried once, not at every start. The

@@ -1,7 +1,6 @@
-use super::{COLOR_DENSITY, COLOR_SHIFT, Coloring, EDGE, ESCAPE, FADE, ITERATIONS, Seen, limit};
-use crate::fractal::pixel::{self, PROBE};
+use super::{COLOR_DENSITY, COLOR_SHIFT, Coloring, EDGE, ESCAPE, FADE, ITERATIONS, Seen, descend, fitted, limit, moved};
+use crate::fractal::pixel;
 use crate::fractal::{Draw, Family, Field, Preset, Sample, Spec, random_palette, stream};
-use crate::math::{exp, fmod};
 use crate::rng::Rng;
 use crate::scene::{Camera, Fractal, Tone};
 
@@ -114,75 +113,15 @@ impl Field for Mandelbrot {
     }
 }
 
-// How much a cell of a probe is worth a closer look: the edge of the set, or filaments beside it.
-fn worth(seen: &Seen, x: usize, y: usize) -> f64 {
-    let (mut inside, mut low, mut high) = (0, f64::INFINITY, f64::NEG_INFINITY);
-    for ny in y - 1..=y + 1 {
-        for nx in x - 1..=x + 1 {
-            match seen.places[ny * PROBE + nx] {
-                None => inside += 1,
-                Some(place) => (low, high) = (low.min(place), high.max(place)),
-            }
-        }
-    }
-    match inside {
-        9 => 0.0,
-        0 if high - low < 0.25 => 0.0,
-        0 => high - low,
-        1..=6 => 3.0,
-        _ => 1.0,
-    }
-}
+pub(super) const WHOLE: Camera = Camera {
+    center: [-0.65, 0.0],
+    zoom: 1.3,
+    rotation: 0.0,
+    flip_y: false,
+};
 
-// A walk toward the edge of the set: each step looks at the view and moves into one of its busiest cells.
-pub(super) fn descend(rng: &mut Rng, steps: u64) -> Camera {
-    let mut camera = Camera {
-        center: [-0.65, 0.0],
-        zoom: 1.3,
-        ..Camera::default()
-    };
-    for _ in 0..steps {
-        let field = Mandelbrot::new(&[400.0, 1.0, 0.0, 0.0, 0.0], &camera);
-        let seen = Seen::of(&pixel::probe(&field, &camera));
-        let cells: Vec<(usize, usize, f64)> = (4..PROBE - 4)
-            .flat_map(|y| (4..PROBE - 4).map(move |x| (x, y)))
-            .map(|(x, y)| (x, y, worth(&seen, x, y)))
-            .filter(|(_, _, worth)| *worth > 0.0)
-            .collect();
-        let total: f64 = cells.iter().map(|(_, _, worth)| worth).sum();
-        if cells.is_empty() {
-            break;
-        }
-        let mut roll = rng.next_f64() * total;
-        let (x, y, _) = *cells
-            .iter()
-            .find(|(_, _, worth)| {
-                roll -= worth;
-                roll < 0.0
-            })
-            .unwrap_or(&cells[0]);
-        let place = |cell: usize| (cell as f64 + 0.5) / PROBE as f64 - 0.5;
-        camera = camera.looking_at(place(x), place(y), rng.range(2.0, 5.0));
-    }
-    camera
-}
-
-// The colors spread over what the view shows, and enough steps for it: `None` for a view not worth a picture.
-pub(super) fn fitted(seen: &Seen, zoom: f64, rng: &mut Rng) -> Option<[(&'static str, f64); 3]> {
-    let (low, high) = seen.span()?;
-    let busy = seen.busy(PROBE, 0.1);
-    if seen.inside > 0.28 || !(0.16..=0.8).contains(&busy) || high - low < 0.05 {
-        return None;
-    }
-    let density = (rng.range(1.2, 2.8) / (high - low)).clamp(0.05, 60.0);
-    let shift = fmod(rng.range(0.0, 2.0) - density * low, 2.0);
-    let deepest = seen.places.iter().flatten().fold(0.0f64, |a, b| a.max(*b));
-    let steps = (3.0 * exp(deepest)).max(300.0) / (f64::from(limit(1000.0, zoom)) / 1000.0);
-    Some([
-        ("iterations", (steps / 10.0).ceil() * 10.0),
-        ("color_density", density),
-        ("color_shift", if shift < 0.0 { shift + 2.0 } else { shift }),
-    ])
+pub(super) fn walk(rng: &mut Rng, steps: u64) -> Camera {
+    descend(rng, steps, &WHOLE, &|shared, camera| Box::new(Mandelbrot::new(shared, camera)))
 }
 
 fn random(seed: u64) -> Fractal {
@@ -190,7 +129,7 @@ fn random(seed: u64) -> Fractal {
     for attempt in 0..ATTEMPTS {
         let mut rng = stream(NAME, seed, attempt);
         let steps = 1 + rng.below(9);
-        let mut camera = descend(&mut rng, steps);
+        let mut camera = walk(&mut rng, steps);
         if rng.next_f64() < 0.4 {
             camera.rotation = rng.range(0.0, 360.0).round();
         }
@@ -203,19 +142,6 @@ fn random(seed: u64) -> Fractal {
         };
     }
     fallback.unwrap_or_else(|| SPEC.fractal("ice", Camera::default(), &[]))
-}
-
-pub(super) fn moved(fractal: &Fractal, rng: &mut Rng, strength: f64) -> Fractal {
-    let mut out = fractal.clone();
-    let (right, down) = (rng.range(-0.5, 0.5) * strength, rng.range(-0.5, 0.5) * strength);
-    out.camera = out
-        .camera
-        .looking_at(right, down, exp(rng.range(-0.8, 1.0) * strength));
-    out.camera.rotation = (out.camera.rotation + rng.range(-40.0, 40.0) * strength).round();
-    let shift = out.params.get("color_shift").copied().unwrap_or(COLOR_SHIFT.default);
-    let shifted = fmod(shift + rng.range(0.2, 0.8) * strength, 2.0);
-    out.params.insert("color_shift".to_owned(), shifted);
-    out
 }
 
 fn mutate(fractal: &Fractal, rng: &mut Rng, strength: f64) -> Fractal {

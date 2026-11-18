@@ -1,5 +1,5 @@
-use super::mandelbrot::{descend, fitted, moved};
-use super::{COLOR_DENSITY, COLOR_SHIFT, Coloring, EDGE, ESCAPE, FADE, ITERATIONS, Seen, limit};
+use super::mandelbrot::walk;
+use super::{COLOR_DENSITY, COLOR_SHIFT, Coloring, EDGE, ESCAPE, FADE, ITERATIONS, Seen, fitted, limit, moved};
 use crate::fractal::pixel;
 use crate::fractal::{Draw, Family, Field, Param, Preset, Sample, Spec, random_palette, stream};
 use crate::rng::Rng;
@@ -126,7 +126,7 @@ fn random(seed: u64) -> Fractal {
         let mut rng = stream(NAME, seed, attempt);
         // The Julia sets worth a picture belong to the points along the edge of the Mandelbrot set.
         let steps = 2 + rng.below(4);
-        let [real, imaginary] = descend(&mut rng, steps).center.map(|part| (part * 1e4).round() / 1e4);
+        let [real, imaginary] = walk(&mut rng, steps).center.map(|part| (part * 1e4).round() / 1e4);
         let mut camera = Camera {
             zoom: rng.range(1.3, 1.8),
             rotation: if rng.next_f64() < 0.5 { 90.0 } else { 0.0 },

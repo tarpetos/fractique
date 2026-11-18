@@ -206,6 +206,33 @@ pub fn segments(ui: &mut Ui, labels: &[String], chosen: usize) -> Option<usize> 
     picked
 }
 
+// A choice among named values, under the name of what is chosen: a switch for up to three, a list for more.
+pub fn choice(ui: &mut Ui, label: &str, names: &[String], chosen: usize) -> Option<usize> {
+    ui.add_space(4.0);
+    let (header, _) = ui.allocate_exact_size(vec2(ui.available_width(), 16.0), Sense::hover());
+    ui.painter().text(
+        header.left_center(),
+        Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(13.0),
+        white(190),
+    );
+    ui.add_space(4.0);
+    let picked = if names.len() <= 3 {
+        segments(ui, names, chosen)
+    } else {
+        (0..names.len()).fold(None, |picked, index| {
+            if row(ui, &names[index], index == chosen) {
+                Some(index)
+            } else {
+                picked
+            }
+        })
+    };
+    ui.add_space(4.0);
+    picked.filter(|index| *index != chosen)
+}
+
 pub fn add_row(ui: &mut Ui, enabled: bool) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
     let lift = if enabled && response.hovered() { 18 } else { 0 };
