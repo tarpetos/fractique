@@ -186,14 +186,12 @@ impl Gfx {
         gfx
     }
 
-    pub fn set_images(
-        &mut self,
+    pub fn upload(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         flame: (&[u8], u32, u32),
         soft: (&[u8], u32, u32),
-        fresh: bool,
-    ) {
+    ) -> (wgpu::TextureView, wgpu::TextureView) {
         let upload = |(bytes, width, height): (&[u8], u32, u32)| {
             let size = wgpu::Extent3d {
                 width,
@@ -228,8 +226,7 @@ impl Gfx {
             );
             texture.create_view(&wgpu::TextureViewDescriptor::default())
         };
-        let (flame, soft) = (upload(flame), upload(soft));
-        self.show(device, &flame, &soft, fresh);
+        (upload(flame), upload(soft))
     }
 
     // `fresh`: another picture than the one shown, which stays as the one it fades from.
@@ -240,19 +237,6 @@ impl Gfx {
         } else {
             self.now = next;
         }
-        self.bind(device);
-    }
-
-    // The picture is drawn anew into the textures it is in: a copy of what they held is what it fades from.
-    pub fn show_over(
-        &mut self,
-        device: &wgpu::Device,
-        flame: &wgpu::TextureView,
-        soft: &wgpu::TextureView,
-        past: (wgpu::TextureView, wgpu::TextureView),
-    ) {
-        self.now = (flame.clone(), soft.clone());
-        self.past = Some(past);
         self.bind(device);
     }
 

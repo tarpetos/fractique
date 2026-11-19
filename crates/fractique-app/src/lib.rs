@@ -573,6 +573,16 @@ fn lock_screen_texts() -> (String, String) {
     (String::new(), "9:41".to_owned())
 }
 
+// A picture ready for the screen, which takes it when its turn comes (`motion::turn`).
+struct Offer {
+    flame: wgpu::TextureView,
+    soft: wgpu::TextureView,
+    at: Picture,
+    light: Option<f32>,
+    // The textures are the ones the card goes on drawing into.
+    card: bool,
+}
+
 // A sheet on its way in or out: the name its height is kept under, the point it hangs from and how far it is shown.
 struct Leaf {
     height: &'static str,
@@ -886,7 +896,14 @@ struct App {
     resizing: bool,
     moved_only: bool,
     pictures: u32,
-    snap_due: bool,
+    offered: [Option<Offer>; 2],
+    drafted: bool,
+    handing: bool,
+    live_card: bool,
+    veil_level: f32,
+    shown_eye: Option<(View, f64)>,
+    past_eye: Option<(View, f64)>,
+    last_eye: (View, f64),
     past: Option<Picture>,
     shown_size: Option<[u32; 2]>,
     aimed_size: [u32; 2],
@@ -1462,7 +1479,14 @@ impl App {
             resizing: false,
             moved_only: false,
             pictures: 0,
-            snap_due: false,
+            offered: [None, None],
+            drafted: false,
+            handing: false,
+            live_card: false,
+            veil_level: 0.0,
+            shown_eye: None,
+            past_eye: None,
+            last_eye: (WHOLE, 1.0),
             past: None,
             shown_size: None,
             aimed_size: [0; 2],
@@ -1762,12 +1786,14 @@ impl App {
         let (Some(gfx), Some((picture, soft))) = (renderer.callback_resources.get_mut::<Gfx>(), preview.views()) else {
             return false;
         };
-        let turn = !self.previewing && !self.chaotic && !self.fresh.moving(self.stage.now);
+        let turn = !self.live_card && !self.fresh.moving(self.stage.now);
         gfx.show(&state.device, picture, soft, turn);
         drop(renderer);
         if turn {
             self.turn_picture();
         }
+        self.live_card = true;
+        self.pictures += 1;
         self.previewing = true;
         true
     }
@@ -1986,6 +2012,38 @@ impl App {
         work();
     }
 
+    // Whether a first, small picture of the one awaited would be shown: of a new scene, once while the blur stands.
+    // A view that moved and a window that changed size have the picture on the screen for that.
+    fn takes_first(&self) -> bool {
+        !self.moved_only && !self.drafted && self.offered[1].is_none()
+    }
+
+    fn offer(&mut self, offer: Offer, last: bool) {
+        if last {
+            self.offered = [None, Some(offer)];
+        } else {
+            self.offered[0] = Some(offer);
+            self.drafted = true;
+        }
+    }
+
+    fn present(&mut self, offer: Offer, frame: &eframe::Frame) {
+        let Some(state) = frame.wgpu_render_state() else {
+            return;
+        };
+        self.turn_picture();
+        self.past_eye = self.shown_eye.take();
+        if let Some(gfx) = state.renderer.write().callback_resources.get_mut::<Gfx>() {
+            gfx.show(&state.device, &offer.flame, &offer.soft, true);
+        }
+        (self.shown, self.shown_zoom, self.shown_size) = (offer.at.view, offer.at.zoom, Some(offer.at.size));
+        if let Some(light) = offer.light {
+            self.light = light;
+        }
+        self.live_card = offer.card;
+        self.pictures += 1;
+    }
+
     // Another picture takes the screen: the one shown fades into it, unless it is itself still fading in, when
     // the new one takes its place in that fade.
     fn turn_picture(&mut self) -> bool {
@@ -2054,26 +2112,27 @@ impl App {
                         .as_ref()
                         .is_some_and(|preview| preview.take(&held.sources, ctx))
             });
-            let fresh = self.turn_picture();
-            self.shown_zoom = done.zoom;
-            if let Some(state) = frame.wgpu_render_state()
-                && let Some(gfx) = state.renderer.write().callback_resources.get_mut::<Gfx>()
+            if (!done.draft || self.takes_first())
+                && let Some(state) = frame.wgpu_render_state()
             {
                 let image = &done.image;
                 let soft = (done.soft.0.as_slice(), done.soft.1, done.soft.2);
-                gfx.set_images(
-                    &state.device,
-                    &state.queue,
-                    (&image.rgba, image.width, image.height),
+                let picture = (image.rgba.as_slice(), image.width, image.height);
+                let (flame, soft) = Gfx::upload(&state.device, &state.queue, picture, soft);
+                let offer = Offer {
+                    flame,
                     soft,
-                    fresh,
-                );
+                    at: Picture {
+                        view: done.view,
+                        zoom: done.zoom,
+                        size: self.aimed_size,
+                    },
+                    light: Some(lightness(&image.rgba, 97)),
+                    card: false,
+                };
+                self.offer(offer, !done.draft);
             }
-            self.shown_size = Some(self.aimed_size);
-            self.pictures += 1;
             self.trace.stage(if done.draft { "draft" } else { "picture" });
-            self.shown = done.view;
-            self.light = lightness(&done.image.rgba, 97);
             self.last = (!done.draft).then(|| (done.generation, Arc::new(done.image.clone())));
             if !done.draft {
                 self.remember(self.requested.unwrap_or([done.image.width, done.image.height]));
@@ -2135,7 +2194,6 @@ impl App {
             return false;
         }
         if !goes_on {
-            self.snap_due = true;
             self.quick = (None, None);
             self.chaos_at = (self.view, self.adjust.zoom);
         } else if self.wall.live && self.chaotic {
@@ -2417,7 +2475,7 @@ impl App {
             }
             self.quick = times;
         }
-        self.chaos_draw(chaos, step == Step::Drawn, ctx, frame);
+        self.chaos_draw(chaos, step == Step::Drawn, whole, ctx, frame);
         if whole && self.chaotic {
             self.rendering = false;
             self.shown_frames = self.shown_frames.max(1);
@@ -2437,8 +2495,21 @@ impl App {
 
     // Draws the picture from the graphics card's levels when they are new or the tone has changed, and has its
     // lightness measured.
-    fn chaos_draw(&mut self, chaos: &Chaos, fresh: bool, ctx: &egui::Context, frame: &eframe::Frame) {
-        if !fresh && !self.chaotic {
+    fn chaos_draw(&mut self, chaos: &Chaos, fresh: bool, last: bool, ctx: &egui::Context, frame: &eframe::Frame) {
+        if !fresh && !last && !self.chaotic {
+            return;
+        }
+        // While a picture is awaited the screen stands still: of the card's batches only the first is drawn, for
+        // the first picture of a new scene, and the last. The others would be seen changing behind the blur.
+        // A moved view of a kind the card draws within a frame is shown as it is drawn, and so is a tone that
+        // changes once the picture is whole.
+        let staged = self.rendering && !(self.swift && self.moved_only);
+        let first = staged && fresh && !last && self.takes_first();
+        if staged && !last && !first {
+            if fresh {
+                (self.chaotic, self.previewing) = (true, false);
+                (self.latest, self.last) = (None, None);
+            }
             return;
         }
         let scene = match self.requested.filter(|_| self.wall.live) {
@@ -2446,52 +2517,73 @@ impl App {
             None => self.scene_in(self.chaos_at.0, self.chaos_at.1),
         };
         let look = look_key(&scene);
-        if !fresh && look == self.look {
+        if !fresh && !last && look == self.look {
             return;
         }
         let (Some(preview), Some((size, levels))) = (&mut self.preview, chaos.levels()) else {
             return;
         };
-        let settled = !self.fresh.moving(self.stage.now);
-        let on_card = self.chaotic || self.previewing;
-        let before = (std::mem::take(&mut self.snap_due) && on_card && settled)
-            .then(|| preview.snapshot())
-            .flatten();
+        // The screen may show these very textures: it gets a copy of them before they are drawn into.
+        let kept = (staged && self.live_card).then(|| preview.snapshot()).flatten();
         if !preview.draw_levels(&scene, size, &levels, ctx) {
             return;
         }
         let Some(state) = frame.wgpu_render_state() else {
             return;
         };
-        let mut renderer = state.renderer.write();
-        let (Some(gfx), Some((picture, soft))) = (renderer.callback_resources.get_mut::<Gfx>(), preview.views()) else {
-            return;
+        let at = Picture {
+            view: self.chaos_at.0,
+            zoom: self.chaos_at.1,
+            size: self.aimed_size,
         };
-        let turn = before.is_some() || (!self.chaotic && settled);
-        match before {
-            Some(before) => gfx.show_over(&state.device, picture, soft, before),
-            None => gfx.show(&state.device, picture, soft, turn),
-        }
-        self.pictures += u32::from(fresh);
-        self.trace.stage("card");
-        let (measured, wake) = (self.measured.clone(), ctx.clone());
-        let read = preview.read(true, ctx, move |pixels| {
-            if let Some((rgba, _)) = pixels {
-                measured.store(lightness(&rgba, 1).to_bits(), Ordering::Relaxed);
-                wake.request_repaint();
+        let mut offer = None;
+        {
+            let mut renderer = state.renderer.write();
+            let (Some(gfx), Some((picture, soft))) = (renderer.callback_resources.get_mut::<Gfx>(), preview.views())
+            else {
+                return;
+            };
+            if let Some((flame, soft)) = &kept {
+                gfx.show(&state.device, flame, soft, false);
+                self.live_card = false;
             }
-        });
-        if let Some(index) = read {
-            chaos.watch(index);
+            if first {
+                offer = preview.snapshot().map(|(flame, soft)| (flame, soft, false));
+            } else if !self.live_card {
+                offer = Some((picture.clone(), soft.clone(), true));
+            } else {
+                gfx.show(&state.device, picture, soft, false);
+                (self.shown, self.shown_zoom) = self.chaos_at;
+                self.shown_size = Some(self.aimed_size);
+                self.pictures += 1;
+            }
+        }
+        self.trace.stage("card");
+        if !first {
+            let (measured, wake) = (self.measured.clone(), ctx.clone());
+            let read = preview.read(true, ctx, move |pixels| {
+                if let Some((rgba, _)) = pixels {
+                    measured.store(lightness(&rgba, 1).to_bits(), Ordering::Relaxed);
+                    wake.request_repaint();
+                }
+            });
+            if let Some(index) = read {
+                chaos.watch(index);
+            }
+        }
+        if let Some((flame, soft, card)) = offer {
+            let offer = Offer {
+                flame,
+                soft,
+                at,
+                light: None,
+                card,
+            };
+            self.offer(offer, !first);
         }
         self.chaotic = true;
         self.previewing = false;
         self.look = look;
-        if turn {
-            self.turn_picture();
-        }
-        (self.shown, self.shown_zoom) = self.chaos_at;
-        self.shown_size = Some(self.aimed_size);
         (self.latest, self.last) = (None, None);
     }
 
@@ -3233,8 +3325,36 @@ impl App {
     ) -> glass::Shown {
         let now = self.stage.now;
         let awaited = self.awaited(size);
+        // The picture of another scene has no place in the new one's view: it stays where it was last seen.
+        if awaited && (self.requested.is_none() || !self.moved_only) && self.shown_eye.is_none() {
+            self.shown_eye = Some(self.last_eye);
+        }
+        let offered = [self.offered[0].is_some(), self.offered[1].is_some()];
+        let fading = self.fresh.moving(now);
+        match motion::turn(self.veil_level, awaited, fading, offered[0], offered[1]) {
+            motion::Turn::Last => {
+                self.handing = false;
+                self.offered[0] = None;
+                if let Some(offer) = self.offered[1].take() {
+                    self.present(offer, frame);
+                }
+            }
+            motion::Turn::First => {
+                self.handing = true;
+                if let Some(offer) = self.offered[0].take() {
+                    self.present(offer, frame);
+                }
+            }
+            motion::Turn::Stay => {}
+        }
+        if self.veil_level <= 0.0 && !awaited {
+            (self.offered[0], self.drafted, self.handing) = (None, false, false);
+        }
+        // The blur stands until the finished picture has taken the screen, and while a first one fades in.
+        let standing = awaited || self.offered[1].is_some() || (self.handing && self.fresh.moving(now));
         let held = ctx.input(|input| input.pointer.any_down());
-        let (veil, moving) = self.veil.step(awaited, held, now);
+        let (veil, moving) = self.veil.step(standing, held, now);
+        self.veil_level = veil;
         let fresh = self.fresh.value(now);
         if moving || self.fresh.moving(now) {
             ctx.request_repaint();
@@ -3247,20 +3367,25 @@ impl App {
         self.veiled = veil > 0.0;
         if self.trace.on() {
             self.trace.note = format!(
-                "veil {veil:.3} fresh {fresh:.3} awaited {} picture {} rendering {}",
+                "veil {veil:.3} fresh {fresh:.3} awaited {} picture {} rendering {} first {} view {:.5}:{:.5}:{:.5}",
                 u8::from(awaited),
                 self.pictures,
-                u8::from(self.rendering)
+                u8::from(self.rendering),
+                u8::from(self.handing),
+                self.view.zoom,
+                self.view.right,
+                self.view.down
             );
         }
         let fixed = self.picture.is_some();
-        let lay = |shown: &Picture| {
-            let [across, along, larger] = if self.adjust.zoom == shown.zoom || !self.gpu_on() {
-                self.view.within(&shown.view, shown.size)
+        let now_eye = (self.view, self.adjust.zoom);
+        self.last_eye = now_eye;
+        let lay = |shown: &Picture, eye: Option<(View, f64)>| {
+            let (view, zoom) = eye.unwrap_or(now_eye);
+            let [across, along, larger] = if zoom == shown.zoom || !self.gpu_on() {
+                view.within(&shown.view, shown.size)
             } else {
-                self.view
-                    .scaled(self.adjust.zoom)
-                    .within(&shown.view.scaled(shown.zoom), shown.size)
+                view.scaled(zoom).within(&shown.view.scaled(shown.zoom), shown.size)
             };
             let (stretch, closer) = laid(shown.size, size, fixed, screen.size());
             [across, along, larger * closer, stretch]
@@ -3271,8 +3396,8 @@ impl App {
             size: self.shown_size.unwrap_or(size),
         };
         glass::Shown {
-            view: lay(&shown),
-            past: lay(&self.past.unwrap_or(shown)),
+            view: lay(&shown, self.shown_eye),
+            past: lay(&self.past.unwrap_or(shown), self.past_eye.or(self.shown_eye)),
             fresh,
             veil: veil * self.trace.veil.unwrap_or(motion::VEIL),
         }
@@ -3788,6 +3913,21 @@ impl App {
         self.inspector_look(ui);
     }
 
+    fn gpu_turned(&mut self) {
+        self.held = None;
+        self.requested = None;
+        self.chaotic = false;
+        if let Some(chaos) = &mut self.chaos {
+            chaos.end();
+        }
+        let mut kept = self.kept.lock().unwrap_or_else(|e| e.into_inner());
+        if self.gpu {
+            kept.layers.clear();
+        } else {
+            kept.sources.clear();
+        }
+    }
+
     fn inspector_head(&mut self, ui: &mut egui::Ui) {
         ui.label(
             egui::RichText::new("Fractique")
@@ -3904,18 +4044,7 @@ impl App {
         if self.card_used() {
             widgets::section(ui, &self.t("graphics"));
             if widgets::toggle(ui, &self.t("gpu"), &mut self.gpu) {
-                self.held = None;
-                self.requested = None;
-                self.chaotic = false;
-                if let Some(chaos) = &mut self.chaos {
-                    chaos.end();
-                }
-                let mut kept = self.kept.lock().unwrap_or_else(|e| e.into_inner());
-                if self.gpu {
-                    kept.layers.clear();
-                } else {
-                    kept.sources.clear();
-                }
+                self.gpu_turned();
             }
             if self.gpu {
                 ui.add_space(4.0);
@@ -4862,6 +4991,18 @@ impl App {
             self.shown_frames = 0;
             return;
         }
+        if step == "gpu" {
+            self.gpu = !self.gpu;
+            self.gpu_turned();
+            self.shown_frames = 1;
+            return;
+        }
+        if let Some(name) = step.strip_prefix("preset:") {
+            self.show_preset(name);
+            self.asked = Instant::now();
+            self.shown_frames = 0;
+            return;
+        }
         if step.starts_with("drag:")
             && let [x, y, to_x, to_y, frames] = numbers[..]
         {
@@ -5101,11 +5242,11 @@ impl App {
         }
         if window[0] > 0 && window[1] > 0 && !resizing {
             if self.requested != Some(size) {
-                self.moved_only = false;
+                self.moved_only = self.requested.is_some();
                 if self.card_shows(size) {
                     self.requested = Some(size);
                     self.drawn = Some((self.view, self.adjust.zoom));
-                } else if self.preview_now(&ctx, frame, size) {
+                } else if self.latest.is_some() && self.preview_now(&ctx, frame, size) {
                     self.hold_render(&ctx, size);
                 } else {
                     self.previewing = false;

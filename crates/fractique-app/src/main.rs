@@ -48,8 +48,13 @@ fn main() -> eframe::Result {
         .with_decorations(false)
         .with_icon(fractique_app::window_icon());
     if screenshot.is_some() {
-        // A screenshot run is a test: it draws into a window nobody sees.
-        viewport = viewport.with_visible(false).with_taskbar(false).with_active(false);
+        // A screenshot run is a test: it draws into a window nobody sees. eframe shows every window after its
+        // first frame and draws nothing into a hidden one, so the window stands far outside every screen.
+        viewport = viewport
+            .with_visible(false)
+            .with_taskbar(false)
+            .with_active(false)
+            .with_position([-30000.0, -30000.0]);
     }
     let mut options = eframe::NativeOptions {
         viewport,

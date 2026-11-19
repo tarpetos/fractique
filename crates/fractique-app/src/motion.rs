@@ -274,9 +274,59 @@ impl Veil {
     }
 }
 
+// What the screen takes of the pictures offered to it. While a picture is awaited the screen shows two things
+// only: one still picture under the whole blur, then the finished one. A first, small picture of the new one may
+// take the place of the old one once, under the whole blur; nothing else changes until the finished picture
+// fades in as the blur leaves. Without a blur, the finished picture is taken as it comes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Turn {
+    Stay,
+    First,
+    Last,
+}
+
+pub fn turn(veil: f32, awaited: bool, fading: bool, first: bool, last: bool) -> Turn {
+    if fading {
+        Turn::Stay
+    } else if veil <= 0.0 && !awaited {
+        if last { Turn::Last } else { Turn::Stay }
+    } else if veil < 1.0 {
+        Turn::Stay
+    } else if last {
+        Turn::Last
+    } else if first {
+        Turn::First
+    } else {
+        Turn::Stay
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn under_the_blur_the_screen_changes_once_at_most_before_the_finished_picture() {
+        // Nothing is taken while the blur comes, nor while one picture fades into another.
+        assert_eq!(turn(0.5, true, false, true, true), Turn::Stay);
+        assert_eq!(turn(1.0, true, true, true, true), Turn::Stay);
+        // Under the whole blur the first picture is taken, and the finished one before it when both are there.
+        assert_eq!(turn(1.0, true, false, true, false), Turn::First);
+        assert_eq!(turn(1.0, true, false, true, true), Turn::Last);
+        assert_eq!(turn(1.0, false, false, false, true), Turn::Last);
+        assert_eq!(turn(1.0, true, false, false, false), Turn::Stay);
+        // The blur leaving is no time for a first picture.
+        assert_eq!(turn(0.4, false, false, true, false), Turn::Stay);
+    }
+
+    #[test]
+    fn without_a_blur_only_the_finished_picture_is_shown() {
+        assert_eq!(turn(0.0, false, false, true, false), Turn::Stay);
+        assert_eq!(turn(0.0, false, false, true, true), Turn::Last);
+        assert_eq!(turn(0.0, false, true, false, true), Turn::Stay);
+        // Asked for in this frame: the blur is about to come, and the picture waits for it.
+        assert_eq!(turn(0.0, true, false, false, true), Turn::Stay);
+    }
 
     #[test]
     fn easing_starts_fast_ends_at_rest_and_never_goes_back() {
