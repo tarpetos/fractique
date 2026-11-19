@@ -620,6 +620,11 @@ fn shows(what: &str) -> bool {
     std::env::var("FRACTIQUE_SHOW").is_ok_and(|shown| shown == what)
 }
 
+// A test run with a list open, alone or over something else: kinds, phone-tune-kinds, phone-tune-sizes.
+fn opens(what: &str) -> bool {
+    std::env::var("FRACTIQUE_SHOW").is_ok_and(|shown| shown.split('-').any(|part| part == what))
+}
+
 // A test run with the list of recent pictures open: recent, fractals-recent, wall-recent.
 fn shows_recent() -> bool {
     std::env::var("FRACTIQUE_SHOW").is_ok_and(|shown| shown.contains("recent"))
@@ -1248,12 +1253,13 @@ impl App {
         let session = if restore { stored("session") } else { None };
         let title = "aurora-spiral".to_owned();
         let first = displayed(&texts, &title);
+        let walls = opens("layouts") || opens("materials");
         let mut app = Self {
             texts,
             base: named(presets::get(&title).unwrap_or_else(|| random_scene(1)), &first),
             wall: Wall {
-                on: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall") || what == "layouts"),
-                live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall") || what == "layouts"),
+                on: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall")) || walls,
+                live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall")) || walls,
                 ..Default::default()
             },
             rest: [None, None, None],
@@ -1323,7 +1329,7 @@ impl App {
             inspector_open: None,
             panes: Vec::new(),
             toolbar_size: egui::Vec2::ZERO,
-            languages_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "languages"),
+            languages_open: opens("languages"),
             language_anchor: egui::Pos2::ZERO,
             picture: std::env::var("FRACTIQUE_PICTURE")
                 .ok()
@@ -1339,11 +1345,13 @@ impl App {
             ),
             custom: Default::default(),
             typed: None,
-            sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
-            presets_open: ["presets", "layouts", "kinds"].into_iter().any(shows) || shows_recent(),
-            listing: if shows("layouts") {
+            sizes_open: opens("sizes"),
+            presets_open: ["presets", "layouts", "materials", "kinds"].into_iter().any(opens) || shows_recent(),
+            listing: if opens("layouts") {
                 Listing::Layouts
-            } else if shows("kinds") {
+            } else if opens("materials") {
+                Listing::Materials
+            } else if opens("kinds") {
                 Listing::Kinds
             } else if shows_recent() {
                 Listing::Recent
@@ -1403,7 +1411,7 @@ impl App {
         }
         // A test run in the Fractals tab: FRACTIQUE_SHOW=fractals (also kinds, fractals-phone, fractals-phone-sheet),
         // with FRACTIQUE_FRACTAL=julia for a kind other than the first.
-        if std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("fractals") || what == "kinds") {
+        if std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("fractals")) || opens("kinds") {
             app.wall.on = false;
             app.fractals = true;
             let kind = std::env::var("FRACTIQUE_FRACTAL").unwrap_or_else(|_| app.kind.clone());
@@ -2629,7 +2637,7 @@ impl App {
     }
 
     fn recent_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
-        ui.set_width(380.0);
+        ui.set_width((ui.ctx().content_rect().width() - 60.0).min(380.0));
         widgets::section(ui, &self.t("recent"));
         let mut bar = egui::style::ScrollStyle::floating();
         bar.bar_width = 5.0;
@@ -2955,13 +2963,13 @@ impl App {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(60));
         }
         if picture.clicked() && std::mem::take(&mut self.phone.previewed) {
-        } else if picture.clicked() && (self.phone.sheet || self.phone.tune) {
-            self.phone.sheet = false;
-            self.phone.tune = false;
         } else if picture.clicked() && (self.languages_open || self.sizes_open || self.presets_open) {
             self.languages_open = false;
             self.sizes_open = false;
             self.presets_open = false;
+        } else if picture.clicked() && (self.phone.sheet || self.phone.tune) {
+            self.phone.sheet = false;
+            self.phone.tune = false;
         } else if blocked {
         } else if picture.double_clicked() {
             self.view = WHOLE;
@@ -4760,11 +4768,12 @@ impl eframe::App for App {
         }
 
         if self.languages_open {
-            let (at, pivot) = if cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
-                (content.center(), egui::Align2::CENTER_CENTER)
-            } else {
-                (self.language_anchor + egui::vec2(0.0, 12.0), egui::Align2::RIGHT_TOP)
-            };
+            let (at, pivot) =
+                if self.phone.on || cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
+                    (content.center(), egui::Align2::CENTER_CENTER)
+                } else {
+                    (self.language_anchor + egui::vec2(0.0, 12.0), egui::Align2::RIGHT_TOP)
+                };
             let mut chosen = self.texts.lang;
             let menu = egui::Area::new(egui::Id::unique("languages"))
                 .fixed_pos(at)
@@ -4779,8 +4788,10 @@ impl eframe::App for App {
                         let mut bar = egui::style::ScrollStyle::floating();
                         bar.bar_width = 5.0;
                         ui.spacing_mut().scroll = bar;
+                        let tall = list_height(Lang::ALL.len(), content.height());
                         egui::ScrollArea::vertical()
-                            .max_height(content.height() - 150.0)
+                            .max_height(tall)
+                            .min_scrolled_height(tall)
                             .show(ui, |ui| {
                                 for lang in Lang::ALL {
                                     if widgets::row(ui, lang.name(), lang == chosen) {
