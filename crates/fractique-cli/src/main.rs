@@ -36,7 +36,7 @@ enum Command {
         /// Render the random scene of this seed
         #[arg(long, conflicts_with_all = ["scene", "preset"])]
         random: Option<u64>,
-        /// Which random generator makes the scene of --random: 1 (the first 27 variations, the default) or 2 (all 49)
+        /// Which random generator makes the scene of --random: 1 (the first 27 variations, the default) or 2 (48 of the 49)
         #[arg(long)]
         generator: Option<u64>,
         /// With --random: the random fractal of this kind instead of a flame (see `fractique fractals`)
@@ -79,7 +79,7 @@ enum Command {
     /// Print the random scene of a seed as JSON
     Randomize {
         seed: u64,
-        /// 1 (the first 27 variations) or 2 (all 49); the same seed is a different scene in each
+        /// 1 (the first 27 variations) or 2 (48 of the 49); the same seed is a different scene in each
         #[arg(long)]
         generator: Option<u64>,
         /// The random fractal of this kind instead of a flame (see `fractique fractals`)
