@@ -46,7 +46,7 @@ const MOST_IN_ALL: u64 = 1 << 22;
 const HEAVY: u64 = 4;
 // The cells the density estimation of one submission may look at, all layers together: for every cell of a layer
 // those its widest kernel reaches.
-const MOST_TAPS: u64 = 3 << 29;
+const MOST_TAPS: u64 = 1 << 34;
 // An orbit whose walkers would take more steps than this many a pixel in all is the processor's.
 const MOST_WORK: u64 = 512;
 // A submission that takes longer than this many milliseconds ends the card's part for the session.

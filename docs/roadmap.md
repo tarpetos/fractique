@@ -40,9 +40,9 @@ What the app does not do yet:
   root-finding kinds ([architecture.md](architecture.md#fractals-drawn-pixel-by-pixel-on-the-graphics-card)); a
   scene with a geometric kind or a solid in it, or with a flame beside a kind drawn pixel by pixel, is rendered
   by the processor alone.
-- The density estimation of the graphics card in bands, a few rows a submission: its work for a picture of
-  3840 × 2160 is more than [one submission may do](architecture.md#the-work-of-one-submission), so such a picture
-  is the processor's.
+- The density estimation of the graphics card in bands, a few rows a submission: for a picture of 3840 × 2160 its
+  work in [one submission](architecture.md#the-work-of-one-submission) is bounded only loosely, and the 0.5 s limit
+  is what stops a card too slow for it.
 - Editing the colors of a fractal beyond the eight palettes, and typing a parameter in as a number.
 - A build for the Mac App Store: the purchase code is shared with iOS, and no script signs, sandboxes and packs
   the app for it ([ios.md](ios.md#a-mac-app-store-build)).
