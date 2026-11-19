@@ -400,8 +400,27 @@ fn file_name(title: &str) -> String {
     out
 }
 
+fn is_seed(text: &str) -> bool {
+    !text.is_empty() && text.chars().all(|letter| letter.is_ascii_digit())
+}
+
+// A random picture's title is its word in the language it was made in and its seed.
+fn seeded_words() -> &'static [(&'static str, String)] {
+    static WORDS: std::sync::OnceLock<Vec<(&'static str, String)>> = std::sync::OnceLock::new();
+    WORDS.get_or_init(|| {
+        Lang::ALL
+            .into_iter()
+            .flat_map(|lang| {
+                let texts = Texts::new(lang);
+                ["random", "wallpaper"].map(|key| (key, file_name(&texts.get(key))))
+            })
+            .collect()
+    })
+}
+
 // A title as the app shows it. A fractal's is the name of a preset or a kind and a seed, spelled as the files
-// spell it or as an older build showed it: its words are given in the language, and the file names stay as they are.
+// spell it or as an older build showed it: its words are given in the language, the seed is left out, and the file
+// names stay as they are.
 fn displayed(texts: &i18n::Texts, title: &str) -> String {
     let joined = file_name(title);
     if let Some(name) = presets::names().into_iter().find(|name| file_name(name) == joined) {
@@ -417,9 +436,13 @@ fn displayed(texts: &i18n::Texts, title: &str) -> String {
         if let Some(preset) = spec.presets.iter().find(|preset| file_name(preset.name) == rest) {
             return format!("{kind} {}", preset_name(texts, spec.name, preset.name));
         }
-        if !rest.is_empty() && rest.chars().all(|letter| letter.is_ascii_digit()) {
-            return format!("{kind} {rest}");
+        if is_seed(rest) {
+            return kind;
         }
+    }
+    let word = |(_, word): &&(&str, String)| joined.strip_prefix(word.as_str()).is_some_and(is_seed);
+    if let Some((key, _)) = seeded_words().iter().find(word) {
+        return shown(&texts.get(key));
     }
     shown(title)
 }
@@ -595,6 +618,11 @@ const NEUTRAL: Adjust = Adjust {
 
 fn shows(what: &str) -> bool {
     std::env::var("FRACTIQUE_SHOW").is_ok_and(|shown| shown == what)
+}
+
+// A test run with the list of recent pictures open: recent, fractals-recent, wall-recent.
+fn shows_recent() -> bool {
+    std::env::var("FRACTIQUE_SHOW").is_ok_and(|shown| shown.contains("recent"))
 }
 
 // Whether the graphics card is used. It is where a trial has shown it clearly faster than the processor.
@@ -775,6 +803,7 @@ struct App {
     languages_open: bool,
     picture: Option<[u32; 2]>,
     then: Vec<View>,
+    steps: Vec<String>,
     custom: [String; 2],
     // A text of a fractal while it is typed, by its layer and name: what is typed need not be valid yet.
     typed: Option<(String, String)>,
@@ -1304,14 +1333,20 @@ impl App {
                 |_| Vec::new(),
                 |views| views.split(',').rev().filter_map(View::asked).collect(),
             ),
+            steps: std::env::var("FRACTIQUE_STEPS").map_or_else(
+                |_| Vec::new(),
+                |steps| steps.split(',').rev().map(str::to_owned).collect(),
+            ),
             custom: Default::default(),
             typed: None,
             sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
-            presets_open: ["presets", "layouts", "kinds"].into_iter().any(shows),
+            presets_open: ["presets", "layouts", "kinds"].into_iter().any(shows) || shows_recent(),
             listing: if shows("layouts") {
                 Listing::Layouts
             } else if shows("kinds") {
                 Listing::Kinds
+            } else if shows_recent() {
+                Listing::Recent
             } else {
                 Listing::Presets
             },
@@ -1494,6 +1529,7 @@ impl App {
         self.wall.held = rest.held.or(self.wall.held);
         (self.title, self.is_random, self.seed) = (rest.title, rest.is_random, rest.seed);
         (self.view, self.layer) = (rest.view, rest.layer);
+        self.phone.origin = phone::Origin::default();
         self.cancel.store(true, Ordering::Relaxed);
         self.cancel = Arc::new(AtomicBool::new(false));
         self.generation += 1;
@@ -1604,6 +1640,7 @@ impl App {
         self.wall.live = true;
         self.requested = None;
         self.view = WHOLE;
+        self.begin();
     }
 
     // Whether the picture of the view is expected soon enough to be rendered: the graphics card draws it, or the
@@ -2481,7 +2518,10 @@ impl App {
             }
         }
         let title = self.next_random();
-        (named(random_scene_of(self.generator, self.seed), &title), title)
+        (
+            named(random_scene_of(self.generator, self.seed), &self.display(&title)),
+            title,
+        )
     }
 
     fn kind_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
@@ -2589,22 +2629,32 @@ impl App {
     }
 
     fn recent_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
+        ui.set_width(380.0);
         widgets::section(ui, &self.t("recent"));
         let mut bar = egui::style::ScrollStyle::floating();
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
         let mut chosen = None;
-        let (tab, own) = (self.tab(), shown(&self.title));
-        let mine: Vec<&phone::Piece> = self.phone.recent.iter().filter(|piece| piece.tab() == tab).collect();
-        let current = mine.iter().position(|piece| piece.title == own);
-        let tall = list_height(mine.len(), room);
+        let mine = self.recent_here();
+        let current = self.phone.at[self.tab()];
+        let (ctx, now) = (ui.ctx().clone(), phone::now());
+        let side = widgets::PICTURE * ctx.pixels_per_point();
+        let pixels = [side.x as usize, side.y as usize];
+        let ratio = f64::from(widgets::PICTURE.y / widgets::PICTURE.x);
+        let mut budget = 2;
+        let each = widgets::PICTURE.y + 10.0;
+        let tall = (mine.len() as f32 * each - 2.0).clamp(each - 2.0, (room - 110.0).max(2.0 * each));
         egui::ScrollArea::vertical()
             .max_height(tall)
             .min_scrolled_height(tall)
             .show(ui, |ui| {
                 for (index, piece) in mine.iter().enumerate() {
-                    if widgets::row(ui, &self.display(&piece.title), Some(index) == current) {
-                        chosen = Some((*piece).clone());
+                    let key = format!("r {}", piece.key());
+                    let picture = self.thumb(&ctx, key, pixels, 40, &mut budget, || Some(piece.scene(ratio)));
+                    let made = piece.origin.made.map(|made| phone::clock(made, now));
+                    let label = self.label(&piece.title, piece.origin);
+                    if widgets::picture_row(ui, &label, made.as_deref(), picture, index == current) {
+                        chosen = Some(piece.clone());
                     }
                 }
             });
@@ -2940,14 +2990,22 @@ impl App {
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn window_keys(&mut self, ctx: &egui::Context) {
-        let (hide, full, leave, is_full) = ctx.input(|input| {
+        let typing = ctx.egui_wants_keyboard_input();
+        let (hide, full, leave, is_full, back, forward) = ctx.input(|input| {
+            let arrow = |key| input.modifiers.alt && input.key_pressed(key) && !typing;
+            let side = |button| input.pointer.button_pressed(button);
             (
-                input.key_pressed(egui::Key::H) && !ctx.egui_wants_keyboard_input(),
+                input.key_pressed(egui::Key::H) && !typing,
                 input.key_pressed(egui::Key::F11),
                 input.key_pressed(egui::Key::Escape),
                 input.viewport().fullscreen.unwrap_or(false),
+                arrow(egui::Key::ArrowLeft) || side(egui::PointerButton::Extra1),
+                arrow(egui::Key::ArrowRight) || side(egui::PointerButton::Extra2),
             )
         });
+        if back != forward {
+            self.travel(back);
+        }
         if hide {
             self.bare = !self.bare;
         }
@@ -3239,6 +3297,7 @@ impl App {
     }
 
     fn pick(&mut self, scene: Scene, title: String, is_random: bool) {
+        self.begin();
         self.base = scene;
         self.title = title;
         self.is_random = is_random;
@@ -3306,13 +3365,11 @@ impl App {
             }
         }
         // Each tab has its own recent pictures: the one before the picture shown, or that picture when it is alone.
-        let (tab, own) = (self.tab(), shown(&self.title));
-        let mut mine = self.phone.recent.iter().filter(|piece| piece.tab() == tab);
-        let first = mine.next();
-        let earlier = first
-            .filter(|piece| piece.title != own)
-            .or_else(|| mine.find(|piece| piece.title != own));
-        if let Some(label) = earlier.or(first).map(|piece| self.display(&piece.title)) {
+        let tab = self.tab();
+        let mine: Vec<&phone::Piece> = self.phone.recent.iter().filter(|piece| piece.tab() == tab).collect();
+        let at = self.phone.at[tab];
+        let earlier = mine.get(at + 1).or(mine.get(at)).or(mine.first());
+        if let Some(label) = earlier.map(|piece| self.label(&piece.title, piece.origin)) {
             widgets::section(ui, &self.t("recent"));
             if widgets::dropdown(ui, &label) {
                 self.open_listing(Listing::Recent);
@@ -3437,6 +3494,7 @@ impl App {
         let blends = ["blend_add", "blend_screen", "blend_over"].map(|key| self.t(key));
         let (opacity, word) = (self.t("opacity"), self.t("layer"));
         let (chosen, mut pick, mut act) = (self.layer, None, None);
+        let title = self.display(&self.title);
         let layers = &mut self.base.layers;
 
         egui::Frame::NONE
@@ -3448,6 +3506,13 @@ impl App {
                 for (index, layer) in layers.iter_mut().enumerate() {
                     let label = if layer.name.is_empty() {
                         format!("{word} {}", index + 1)
+                    } else if count == 1
+                        && layer
+                            .name
+                            .rsplit_once(' ')
+                            .is_some_and(|(word, seed)| word == title && is_seed(seed))
+                    {
+                        title.clone()
                     } else {
                         layer.name.clone()
                     };
@@ -3649,12 +3714,22 @@ impl App {
         };
         let labels: Vec<String> = keys.iter().map(|key| self.t(key)).collect();
         let natural: f32 = labels.iter().map(|label| widgets::pill_width(ui, label)).sum();
-        let one_row = natural + (labels.len() - 1) as f32 * gap <= room;
-        let width = if one_row { 0.0 } else { (room - gap) * 0.5 };
+        let arrow = widgets::BACK + gap;
+        let one_row = arrow + natural + (labels.len() - 1) as f32 * gap <= room;
+        let (older, hint) = (self.has_older(), self.t("back"));
 
-        let mut clicked = None;
+        let (mut clicked, mut back) = (None, false);
         let mut row = |ui: &mut egui::Ui, buttons: std::ops::Range<usize>| {
             ui.horizontal(|ui| {
+                let first = buttons.start == 0;
+                if first {
+                    back = widgets::back(ui, older, &hint);
+                }
+                let width = match (one_row, first) {
+                    (true, _) => 0.0,
+                    (false, true) => (room - arrow - gap) * 0.5,
+                    (false, false) => (room - gap) * 0.5,
+                };
                 for index in buttons {
                     if widgets::pill(ui, &labels[index], false, width) {
                         clicked = Some(keys[index]);
@@ -3669,6 +3744,9 @@ impl App {
             row(ui, 2..labels.len());
         }
 
+        if back {
+            self.travel(true);
+        }
         if let Some(key) = clicked {
             self.act(key);
         }
@@ -3681,9 +3759,13 @@ impl App {
                 self.new_wallpaper();
             }
             Some("mutate") if self.wall.live => {
-                let size = self.requested.unwrap_or([1, 2]);
+                let settled = self.settle();
+                let (size, origin) = (self.requested.unwrap_or([1, 2]), self.phone.origin);
                 self.wall.held = Some(wallpaper_choice(self.seed, &self.wall.request(size)));
                 self.new_wallpaper();
+                if settled {
+                    (self.phone.step, self.phone.origin) = (phone::Step::Mutated, origin);
+                }
             }
             Some("randomize") if self.base.layers.is_empty() => {
                 let (scene, title) = self.fresh();
@@ -3695,15 +3777,18 @@ impl App {
                 let at = self.layer.min(self.base.layers.len() - 1);
                 let fresh = scene.layers.swap_remove(0);
                 self.base.layers[at].content = fresh.content;
-                self.base.layers[at].name = title.clone();
+                self.base.layers[at].name = self.display(&title);
                 if self.base.layers.len() == 1 {
                     self.title = title;
                     self.is_random = true;
                 }
                 self.view = WHOLE;
                 self.requested = None;
+                self.begin();
             }
             Some("mutate") => {
+                self.settle();
+                self.phone.step = phone::Step::Mutated;
                 self.seed += 1;
                 let at = self.layer.min(self.base.layers.len() - 1);
                 let mut alone = self.base.clone();
@@ -3786,6 +3871,7 @@ impl App {
             self.view = WHOLE;
             self.adjust = NEUTRAL;
             if self.restore(&text).is_some() {
+                self.begin();
                 let size = serde_json::from_str::<serde_json::Value>(&text).ok();
                 let side = |index: usize| {
                     size.as_ref()?
@@ -4245,6 +4331,24 @@ impl App {
         if tired {
             return;
         }
+        // FRACTIQUE_STEPS: the buttons a test run presses, each when the picture of the one before is whole
+        // (randomize, mutate, back, forward).
+        if self.shown_frames == 5
+            && let Some(step) = self.steps.pop()
+        {
+            match step.as_str() {
+                "back" | "forward" => self.travel(step == "back"),
+                key => self.act(key),
+            }
+            self.asked = Instant::now();
+            self.shown_frames = 0;
+            ctx.request_repaint();
+            return;
+        }
+        if self.phone.busy() {
+            ctx.request_repaint();
+            return;
+        }
         self.shown_frames += 1;
         ctx.request_repaint();
         if self.shown_frames == 6
@@ -4526,7 +4630,7 @@ impl eframe::App for App {
                         egui::Frame::NONE.inner_margin(egui::Margin::same(9)).show(ui, |ui| {
                             let detail = self.detail();
                             let name = ui.painter().layout_no_wrap(
-                                self.display(&self.title),
+                                self.label(&self.title, self.phone.origin),
                                 font(13.5, MEDIUM),
                                 egui::Color32::WHITE,
                             );
@@ -5053,8 +5157,10 @@ mod tests {
         }
         assert_eq!(displayed(&english, "mandelbox-station"), "Mandelbox Station");
         assert_eq!(file_name("mandelbox-station"), "MandelboxStation");
-        let random = displayed(&ukrainian, "burning_ship 42");
-        assert!(random.ends_with(" 42") && !random.contains("Burning"), "{random}");
+        assert_eq!(
+            displayed(&ukrainian, "burning_ship 42"),
+            ukrainian.get("f_burning_ship")
+        );
         assert_eq!(file_name("burning_ship 42"), "BurningShip42");
         assert_eq!(
             displayed(&ukrainian, "Gumowski-Mira 7"),
@@ -5067,6 +5173,46 @@ mod tests {
         }
         assert_eq!(file_name("aurora-spiral"), "AuroraSpiral");
         assert_eq!(displayed(&ukrainian, "my scene"), "My scene");
+    }
+
+    #[test]
+    fn a_seed_is_kept_in_the_title_and_the_file_name_and_not_shown() {
+        let english = i18n::Texts::new(i18n::Lang::En);
+        let ukrainian = i18n::Texts::new(i18n::Lang::Uk);
+        for (title, file) in [
+            ("Random 12", "Random12"),
+            ("Випадковий 354", "Випадковий354"),
+            ("random 7", "Random7"),
+        ] {
+            assert_eq!(displayed(&ukrainian, title), "Випадковий");
+            assert_eq!(displayed(&english, title), "Random");
+            assert_eq!(file_name(title), file);
+        }
+        for (title, file) in [("Шпалери 40", "Шпалери40"), ("wallpaper 57", "Wallpaper57")] {
+            assert_eq!(displayed(&ukrainian, title), "Шпалери");
+            assert_eq!(displayed(&english, title), "Wallpaper");
+            assert_eq!(file_name(title), file);
+        }
+        for title in ["Mandelbrot 42", "mandelbrot 42", "Mandelbrot42"] {
+            assert_eq!(displayed(&ukrainian, title), ukrainian.get("f_mandelbrot"));
+            assert_eq!(displayed(&english, title), "Mandelbrot");
+            assert_eq!(file_name(title), "Mandelbrot42");
+        }
+        assert_eq!(displayed(&english, "Burning ship 42"), english.get("f_burning_ship"));
+        assert_eq!(displayed(&english, "My scene 2"), "My scene 2");
+        assert_eq!(displayed(&english, "Random"), "Random");
+        for lang in i18n::Lang::ALL {
+            let texts = i18n::Texts::new(lang);
+            for key in ["random", "wallpaper"] {
+                let word = shown(&texts.get(key));
+                assert_eq!(
+                    displayed(&english, &format!("{word} 9")),
+                    shown(&english.get(key)),
+                    "{word}"
+                );
+                assert_eq!(displayed(&texts, &format!("{word} 9")), word);
+            }
+        }
     }
 
     #[test]

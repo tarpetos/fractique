@@ -48,6 +48,7 @@ license texts are in each crate's repository and in its package on [crates.io](h
 | cfg_aliases | 0.2.2 | MIT |
 | cgl | 0.3.2 | MIT / Apache-2.0 |
 | chacha20 | 0.10.2 | MIT OR Apache-2.0 |
+| chrono | 0.4.45 | MIT OR Apache-2.0 |
 | clap | 4.6.8 | MIT OR Apache-2.0 |
 | clap_builder | 4.6.7 | MIT OR Apache-2.0 |
 | clap_derive | 4.6.8 | MIT OR Apache-2.0 |
@@ -150,6 +151,8 @@ license texts are in each crate's repository and in its package on [crates.io](h
 | hyper | 1.12.0 | MIT |
 | hyper-rustls | 0.27.10 | Apache-2.0 OR ISC OR MIT |
 | hyper-util | 0.1.21 | MIT |
+| iana-time-zone | 0.1.65 | MIT OR Apache-2.0 |
+| iana-time-zone-haiku | 0.1.2 | MIT OR Apache-2.0 |
 | icu_collections | 2.4.0 | Unicode-3.0 |
 | icu_locale_core | 2.4.0 | Unicode-3.0 |
 | icu_normalizer | 2.4.0 | Unicode-3.0 |

@@ -25,6 +25,7 @@ eframe = { version = "0.37", default-features = false, features = ["wgpu", "defa
 png = "0.18.1"
 log = "0.4.35"
 web-time = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 serde_json.workspace = true
 serde = { workspace = true, features = ["derive"] }
 
@@ -37,6 +38,7 @@ sys-locale = "0.3"
 fractique-core = { path = "../fractique-core", default-features = false }
 wasm-bindgen-futures = "0.4"
 sys-locale = { version = "0.3", features = ["js"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "wasmbind"] }
 web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlCanvasElement", "console"] }
 wgpu = { version = "30", default-features = false, features = ["webgl", "webgpu", "wgsl"] }
 

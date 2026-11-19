@@ -36,10 +36,29 @@ pub enum Kind {
     Flame(Box<Scene>),
 }
 
+// A picture's place in the history: the pictures mutated from one another are a family, numbered as they were made.
+#[derive(Clone, Copy, PartialEq, Default, Debug)]
+pub struct Origin {
+    pub family: u64,
+    pub mutation: u32,
+    pub made: Option<u64>,
+}
+
+#[derive(Clone, Copy, PartialEq, Default, Debug)]
+pub enum Step {
+    #[default]
+    Adjusted,
+    Fresh,
+    Mutated,
+    Picked,
+    Visited,
+}
+
 #[derive(Clone, PartialEq)]
 pub struct Piece {
     pub title: String,
     pub kind: Kind,
+    pub origin: Origin,
 }
 
 impl Piece {
@@ -51,7 +70,7 @@ impl Piece {
         }
     }
 
-    fn key(&self) -> String {
+    pub(crate) fn key(&self) -> String {
         use std::hash::{Hash, Hasher};
         match &self.kind {
             Kind::Wall(seed, layout, material, dark, hue) => {
@@ -65,8 +84,24 @@ impl Piece {
         }
     }
 
-    fn to_value(&self) -> Value {
+    pub(crate) fn scene(&self, ratio: f64) -> Scene {
         match &self.kind {
+            Kind::Wall(seed, layout, material, dark, hue) => random_wallpaper(
+                *seed,
+                &Request {
+                    layout: Some(*layout),
+                    material: Some(*material),
+                    ratio,
+                    dark: *dark,
+                    hue: *hue,
+                },
+            ),
+            Kind::Flame(scene) => (**scene).clone(),
+        }
+    }
+
+    fn to_value(&self) -> Value {
+        let mut value = match &self.kind {
             Kind::Wall(seed, layout, material, dark, hue) => {
                 let name = |all: &[(&'static str, bool)]| all.iter().find(|(_, is)| *is).map_or("", |(n, _)| n);
                 json!({
@@ -79,7 +114,13 @@ impl Piece {
                 })
             }
             Kind::Flame(scene) => json!({ "title": self.title, "scene": scene.to_json() }),
+        };
+        if self.origin != Origin::default() {
+            value["family"] = json!(self.origin.family);
+            value["mutation"] = json!(self.origin.mutation);
+            value["made"] = json!(self.origin.made);
         }
+        value
     }
 
     fn from_value(value: &Value) -> Option<Self> {
@@ -94,7 +135,15 @@ impl Piece {
                 value.get("hue").and_then(Value::as_f64),
             ),
         };
-        Some(Self { title, kind })
+        let number = |key: &str| value.get(key).and_then(Value::as_u64);
+        let origin = Origin {
+            family: number("family").unwrap_or(0),
+            mutation: number("mutation")
+                .and_then(|count| u32::try_from(count).ok())
+                .unwrap_or(0),
+            made: number("made"),
+        };
+        Some(Self { title, kind, origin })
     }
 }
 
@@ -111,6 +160,9 @@ pub struct Phone {
     pub clear: Vec<Rect>,
     pub kept: Vec<Piece>,
     pub recent: Vec<Piece>,
+    pub step: Step,
+    pub origin: Origin,
+    pub at: [usize; 3],
     thumbs: HashMap<String, egui::TextureHandle>,
     drawing: HashSet<String>,
     drawn: (mpsc::Sender<Thumb>, mpsc::Receiver<Thumb>),
@@ -124,6 +176,10 @@ type Thumb = (String, [usize; 2], Vec<u8>);
 const DRAWN_AT_ONCE: usize = 2;
 
 impl Phone {
+    pub fn busy(&self) -> bool {
+        !self.drawing.is_empty()
+    }
+
     pub fn kept_text(&self) -> String {
         Value::Array(self.kept.iter().map(Piece::to_value).collect()).to_string()
     }
@@ -154,6 +210,9 @@ impl Phone {
             clear: Vec::new(),
             kept,
             recent,
+            step: Step::Adjusted,
+            origin: Origin::default(),
+            at: [0; 3],
             thumbs: HashMap::new(),
             drawing: HashSet::new(),
             drawn: mpsc::channel(),
@@ -211,6 +270,7 @@ fn tile_width(room: f32, gap: f32) -> f32 {
 
 #[derive(Clone, Copy)]
 enum Icon {
+    Back,
     Keep(bool),
     Similar,
     Style,
@@ -220,6 +280,11 @@ enum Icon {
 fn icon(painter: &egui::Painter, at: Pos2, which: Icon, ink: Color32) {
     let stroke = Stroke::new(1.6, ink);
     match which {
+        Icon::Back => {
+            painter.line_segment([at + vec2(-8.0, 0.0), at + vec2(8.0, 0.0)], stroke);
+            painter.line_segment([at + vec2(-8.0, 0.0), at + vec2(-2.0, -6.0)], stroke);
+            painter.line_segment([at + vec2(-8.0, 0.0), at + vec2(-2.0, 6.0)], stroke);
+        }
         Icon::Keep(full) => {
             let outline: Vec<Pos2> = (0..40)
                 .map(|step| {
@@ -277,22 +342,78 @@ fn icon(painter: &egui::Painter, at: Pos2, which: Icon, ink: Color32) {
     }
 }
 
-fn note(recent: &mut Vec<Piece>, piece: Piece) {
-    let same_flame = |other: &Piece| matches!(other.kind, Kind::Flame(_)) && other.title == piece.title;
-    // A flame that is being adjusted is one picture, not one for every move of a slider.
-    if matches!(piece.kind, Kind::Flame(_)) && recent.first().is_some_and(same_flame) {
-        recent[0] = piece;
-        return;
+pub(crate) fn now() -> u64 {
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs())
+}
+
+pub(crate) fn clock(made: u64, now: u64) -> String {
+    use chrono::TimeZone;
+    let local = |seconds: u64| chrono::Local.timestamp_opt(i64::try_from(seconds).ok()?, 0).single();
+    match (local(made), local(now)) {
+        (Some(made), Some(now)) if made.date_naive() == now.date_naive() => made.format("%H:%M").to_string(),
+        (Some(made), _) => made.format("%d.%m %H:%M").to_string(),
+        _ => String::new(),
     }
-    let key = piece.key();
+}
+
+// The place the piece has among the recent pictures of its tab afterwards; `at` is the place of the picture that
+// was on the screen before it.
+fn note(recent: &mut Vec<Piece>, mut piece: Piece, step: Step, at: usize, now: u64) -> usize {
+    let (tab, key) = (piece.tab(), piece.key());
+    let rows: Vec<usize> = (0..recent.len()).filter(|&index| recent[index].tab() == tab).collect();
+    let twin = rows.iter().position(|&index| recent[index].key() == key);
+    let before = rows.get(at).copied().filter(|&index| {
+        matches!((&piece.kind, &recent[index].kind), (Kind::Flame(_), Kind::Flame(_)))
+            && recent[index].title == piece.title
+    });
+    let family = now.max(recent.iter().map(|other| other.origin.family + 1).max().unwrap_or(0));
+    match (step, twin, before) {
+        (Step::Adjusted | Step::Visited, Some(twin), _) => return twin,
+        // A flame that is being adjusted is one picture, not one for every move of a slider.
+        (Step::Adjusted, None, Some(before)) => {
+            piece.origin = recent[before].origin;
+            recent[before] = piece;
+            return at;
+        }
+        (Step::Mutated, ..) => {
+            if piece.origin.family == 0 {
+                piece.origin.family = family;
+                if let Some(before) = before {
+                    recent[before].origin.family = family;
+                }
+            }
+            let last = recent
+                .iter()
+                .filter(|other| other.origin.family == piece.origin.family)
+                .map(|other| other.origin.mutation)
+                .fold(piece.origin.mutation, u32::max);
+            piece.origin.mutation = last + 1;
+            piece.origin.made = Some(now);
+        }
+        (Step::Picked | Step::Visited, ..) => {
+            piece.origin.made.get_or_insert(now);
+        }
+        (Step::Adjusted, ..) if piece.origin.family != 0 && matches!(piece.kind, Kind::Wall(..)) => {
+            piece.origin.made = Some(now);
+        }
+        (Step::Fresh | Step::Adjusted, ..) => {
+            piece.origin = Origin {
+                family,
+                mutation: 0,
+                made: Some(now),
+            };
+        }
+    }
     recent.retain(|other| other.key() != key);
-    let tab = piece.tab();
     recent.insert(0, piece);
     let mut kept = 0;
     recent.retain(|other| {
         kept += usize::from(other.tab() == tab);
         other.tab() != tab || kept <= MOST_RECENT
     });
+    0
 }
 
 // A disc filled with a gradient from its upper left to its lower right, with a soft rim: rings of triangles,
@@ -360,18 +481,81 @@ impl App {
             Piece {
                 title: shown(&self.title),
                 kind: Kind::Wall(self.seed, layout, material, self.wall.dark, self.wall.hue),
+                origin: self.phone.origin,
             }
         } else {
             Piece {
                 title: shown(&self.title),
                 kind: Kind::Flame(Box::new(self.dressed())),
+                origin: self.phone.origin,
             }
         }
     }
 
     pub(crate) fn remember(&mut self, size: [u32; 2]) {
         let piece = self.piece(size);
-        note(&mut self.phone.recent, piece);
+        let tab = piece.tab();
+        let step = std::mem::take(&mut self.phone.step);
+        let at = note(&mut self.phone.recent, piece, step, self.phone.at[tab], now());
+        self.phone.at[tab] = at;
+        if let Some(found) = self.phone.recent.iter().filter(|other| other.tab() == tab).nth(at) {
+            self.phone.origin = found.origin;
+        }
+    }
+
+    // The picture on the screen takes its place among the recent ones before another one replaces it.
+    pub(crate) fn settle(&mut self) -> bool {
+        match self.requested {
+            Some(size) => self.remember(size),
+            None if !self.wall.live => self.remember([1, 2]),
+            None => return false,
+        }
+        true
+    }
+
+    pub(crate) fn begin(&mut self) {
+        self.phone.step = Step::Fresh;
+        self.phone.origin = Origin::default();
+    }
+
+    pub(crate) fn recent_here(&self) -> Vec<Piece> {
+        let tab = self.tab();
+        let mine = self.phone.recent.iter().filter(|piece| piece.tab() == tab);
+        mine.cloned().collect()
+    }
+
+    pub(crate) fn has_older(&self) -> bool {
+        let tab = self.tab();
+        self.phone.recent.iter().filter(|piece| piece.tab() == tab).count() > self.phone.at[tab] + 1
+    }
+
+    // One step through the recent pictures of the tab, which stay in their order.
+    pub(crate) fn travel(&mut self, back: bool) {
+        self.settle();
+        let tab = self.tab();
+        let at = self.phone.at[tab];
+        let to = if back { at + 1 } else { at.wrapping_sub(1) };
+        let Some(piece) = self.recent_here().into_iter().nth(to) else {
+            return;
+        };
+        self.show_piece(&piece);
+        self.phone.step = Step::Visited;
+        self.phone.at[tab] = to;
+    }
+
+    pub(crate) fn label(&self, title: &str, origin: Origin) -> String {
+        let name = self.display(title);
+        match origin.mutation {
+            0 => name,
+            count => format!("{name} · {} {count}", self.t("mutation")),
+        }
+    }
+
+    fn tile_label(&self, piece: &Piece) -> String {
+        match piece.origin.mutation {
+            0 => self.display(&piece.title),
+            count => format!("{} {count}", self.t("mutation")),
+        }
     }
 
     pub(crate) fn show_piece(&mut self, piece: &Piece) {
@@ -393,6 +577,8 @@ impl App {
                 self.pick((**scene).clone(), piece.title.clone(), false);
             }
         }
+        self.phone.step = Step::Picked;
+        self.phone.origin = piece.origin;
     }
 
     // The picture as the lock screen of an iPhone shows it: the date, the time, the torch and the camera.
@@ -599,7 +785,9 @@ impl App {
             (Icon::Style, "style"),
             (Icon::Similar, similar),
             (Icon::Keep(is_kept), "keep"),
+            (Icon::Back, "back"),
         ];
+        let older = self.has_older();
         // Upright the labels would run into the scene's name; on its side a phone has the room for them.
         let hinted = content.width() > content.height();
         let mut pressed = None;
@@ -610,6 +798,11 @@ impl App {
                 .pivot(Align2::CENTER_CENTER)
                 .show(ctx, |ui| {
                     let (rect, response) = ui.allocate_exact_size(vec2(46.0, 46.0), Sense::click());
+                    let ink = if key == "back" && !older {
+                        ink.gamma_multiply(0.35)
+                    } else {
+                        ink
+                    };
                     icon(ui.painter(), rect.center(), which, ink);
                     if response.clicked() {
                         pressed = Some(key);
@@ -665,6 +858,7 @@ impl App {
                 ctx.request_repaint();
             }
             Some("similar") => self.act("mutate"),
+            Some("back") => self.travel(true),
             Some("keep") => {
                 crate::tick(true);
                 match self.phone.kept.iter().position(|kept| kept.kind == piece.kind) {
@@ -723,9 +917,10 @@ impl App {
             (self.t(&format!("l_{layout}")), self.t(&format!("m_{material}")))
         } else {
             let title = self.display(&self.title);
-            match title.rsplit_once(' ') {
-                Some((head, tail)) if title.chars().count() > 9 => (head.to_owned(), tail.to_owned()),
-                _ => (title, String::new()),
+            match (title.rsplit_once(' '), self.phone.origin.mutation) {
+                (Some((head, tail)), _) if title.chars().count() > 9 => (head.to_owned(), tail.to_owned()),
+                (_, 0) => (title, String::new()),
+                (_, count) => (title, format!("{} {count}", self.t("mutation"))),
             }
         };
         let detail = self.detail();
@@ -749,9 +944,6 @@ impl App {
         line(detail, egui::FontId::monospace(11.5), soft, 8.0);
         line(second, font(34.0, MEDIUM), soft, -6.0);
         line(first, font(34.0, SEMIBOLD), ink, 4.0);
-        if self.wall.live {
-            line(format!("{:04}", self.seed), egui::FontId::monospace(12.5), soft, 0.0);
-        }
     }
 
     fn phone_tune(&mut self, ctx: &egui::Context, content: Rect, panes: &mut Panes) {
@@ -817,7 +1009,7 @@ impl App {
         }
     }
 
-    fn thumb(
+    pub(crate) fn thumb(
         &mut self,
         ctx: &egui::Context,
         key: String,
@@ -981,12 +1173,11 @@ impl App {
                                     })
                                     .show(ui, |ui| {
                                         let kept = self.phone.kept.clone();
-                                        close |= self.sheet_row(ui, scale, "collection", &kept);
-                                        let tab = self.tab();
-                                        let mut recent = self.phone.recent.clone();
-                                        recent.retain(|piece| piece.tab() == tab);
+                                        close |= self.sheet_row(ui, scale, "collection", &kept, None);
+                                        let recent = self.recent_here();
                                         if recent.len() > 1 {
-                                            close |= self.sheet_row(ui, scale, "recent", &recent);
+                                            let shown = Some(self.phone.at[self.tab()]);
+                                            close |= self.sheet_row(ui, scale, "recent", &recent, shown);
                                         }
                                         widgets::section(ui, &self.t("color"));
                                         ui.add_space(6.0);
@@ -1013,7 +1204,14 @@ impl App {
         }
     }
 
-    fn sheet_row(&mut self, ui: &mut egui::Ui, scale: f32, title: &str, pieces: &[Piece]) -> bool {
+    fn sheet_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        scale: f32,
+        title: &str,
+        pieces: &[Piece],
+        shown: Option<usize>,
+    ) -> bool {
         if pieces.is_empty() {
             return false;
         }
@@ -1031,23 +1229,11 @@ impl App {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = vec2(8.0, 0.0);
-                    for piece in pieces {
+                    for (index, piece) in pieces.iter().enumerate() {
                         let picture = self.thumb(&ctx, format!("k {}", piece.key()), pixels, 10, &mut budget, || {
-                            Some(match &piece.kind {
-                                Kind::Wall(seed, layout, material, dark, hue) => random_wallpaper(
-                                    *seed,
-                                    &Request {
-                                        layout: Some(*layout),
-                                        material: Some(*material),
-                                        ratio: f64::from(TILE_RATIO),
-                                        dark: *dark,
-                                        hue: *hue,
-                                    },
-                                ),
-                                Kind::Flame(scene) => (**scene).clone(),
-                            })
+                            Some(piece.scene(f64::from(TILE_RATIO)))
                         });
-                        if Self::tile(ui, side, picture, &self.display(&piece.title), false) {
+                        if Self::tile(ui, side, picture, &self.tile_label(piece), Some(index) == shown) {
                             picked = Some(piece.clone());
                         }
                     }
@@ -1303,6 +1489,7 @@ mod tests {
         Piece {
             title: "Waves Steel".into(),
             kind: Kind::Wall(seed, Layout::ALL[0].1, Material::ALL[0].1, false, None),
+            origin: Origin::default(),
         }
     }
 
@@ -1312,28 +1499,108 @@ mod tests {
         Piece {
             title: title.into(),
             kind: Kind::Flame(Box::new(scene)),
+            origin: Origin::default(),
         }
+    }
+
+    fn kinds(recent: &[Piece]) -> Vec<Kind> {
+        recent.iter().map(|piece| piece.kind.clone()).collect()
     }
 
     #[test]
     fn recent_pictures_are_newest_first_without_repeats() {
         let mut recent = Vec::new();
-        for piece in [
-            wall(1),
-            wall(2),
-            flame("Aurora Spiral", 1.0),
-            flame("Aurora Spiral", 1.4),
-            wall(1),
-        ] {
-            note(&mut recent, piece);
+        for piece in [wall(1), wall(2), flame("Aurora Spiral", 1.0), wall(1)] {
+            note(&mut recent, piece, Step::Fresh, 0, 100);
         }
-        assert!(recent == [wall(1), flame("Aurora Spiral", 1.4), wall(2)]);
+        assert_eq!(
+            note(&mut recent, flame("Aurora Spiral", 1.4), Step::Adjusted, 0, 100),
+            0
+        );
+        assert!(kinds(&recent) == kinds(&[wall(1), flame("Aurora Spiral", 1.4), wall(2)]));
         for seed in 10..60 {
-            note(&mut recent, wall(seed));
+            note(&mut recent, wall(seed), Step::Fresh, 0, 100);
         }
         assert_eq!(recent.len(), MOST_RECENT + 1);
-        assert!(recent.contains(&flame("Aurora Spiral", 1.4)));
+        assert!(
+            recent
+                .iter()
+                .any(|piece| piece.kind == flame("Aurora Spiral", 1.4).kind)
+        );
         assert_eq!((wall(1).tab(), flame("Aurora Spiral", 1.4).tab()), (2, 0));
-        assert!(recent[0] == wall(59));
+        assert!(recent[0].kind == wall(59).kind);
+    }
+
+    #[test]
+    fn every_mutation_is_a_picture_of_its_own_and_an_adjustment_is_none() {
+        let mut recent = Vec::new();
+        note(&mut recent, flame("Random 7", 1.0), Step::Fresh, 0, 100);
+        let mut origin = recent[0].origin;
+        assert_eq!((origin.mutation, origin.made), (0, Some(100)));
+        for count in 1..=5 {
+            let mut piece = flame("Random 7", 1.0 + f64::from(count));
+            piece.origin = origin;
+            assert_eq!(note(&mut recent, piece, Step::Mutated, 0, 100 + u64::from(count)), 0);
+            origin = recent[0].origin;
+            assert_eq!((origin.mutation, origin.made), (count, Some(100 + u64::from(count))));
+        }
+        assert_eq!(recent.len(), 6);
+        assert!(recent.iter().all(|piece| piece.origin.family == origin.family));
+        let fifth_down = recent[4].clone();
+        assert_eq!(fifth_down.origin.mutation, 1);
+
+        let mut adjusted = flame("Random 7", 9.5);
+        adjusted.origin = origin;
+        assert_eq!(note(&mut recent, adjusted.clone(), Step::Adjusted, 0, 200), 0);
+        assert_eq!(recent.len(), 6);
+        assert!(recent[0].kind == adjusted.kind);
+        assert_eq!(recent[0].origin, origin);
+
+        assert_eq!(note(&mut recent, fifth_down.clone(), Step::Visited, 0, 300), 4);
+        assert!(recent[4] == fifth_down);
+        let mut tuned = flame("Random 7", 2.5);
+        tuned.origin = fifth_down.origin;
+        assert_eq!(note(&mut recent, tuned.clone(), Step::Adjusted, 4, 300), 4);
+        assert!(recent[4].kind == tuned.kind && recent.len() == 6);
+
+        let mut mutated = flame("Random 7", 7.7);
+        mutated.origin = fifth_down.origin;
+        assert_eq!(note(&mut recent, mutated, Step::Mutated, 4, 400), 0);
+        assert_eq!((recent.len(), recent[0].origin.mutation), (7, 6));
+        assert_eq!(note(&mut recent, tuned.clone(), Step::Picked, 0, 500), 0);
+        assert_eq!(recent.len(), 7);
+        assert!(recent[0] == tuned);
+
+        note(&mut recent, flame("Random 8", 0.3), Step::Fresh, 0, 600);
+        assert_eq!(recent[0].origin.mutation, 0);
+        assert_ne!(recent[0].origin.family, origin.family);
+    }
+
+    #[test]
+    fn a_list_of_an_older_build_loads_and_a_mutation_starts_its_family() {
+        let old = Value::Array(vec![json!({
+            "title": "Random 12",
+            "scene": fractique_core::presets::get("aurora-spiral").unwrap().to_json(),
+        })]);
+        let mut phone = Phone::new(None, Some(old.to_string()));
+        assert_eq!(phone.recent.len(), 1);
+        assert_eq!(phone.recent[0].origin, Origin::default());
+        assert_eq!(phone.recent_text(), old.to_string());
+
+        note(&mut phone.recent, flame("Random 12", 3.0), Step::Mutated, 0, 100);
+        assert_eq!(phone.recent[0].origin.mutation, 1);
+        assert_eq!(phone.recent[1].origin.family, phone.recent[0].origin.family);
+        let again = Phone::new(None, Some(phone.recent_text()));
+        assert!(again.recent == phone.recent);
+        let mut same = phone.recent[0].clone();
+        same.origin = Origin::default();
+        assert_eq!(same.key(), phone.recent[0].key());
+    }
+
+    #[test]
+    fn the_time_of_another_day_has_its_date() {
+        let day = 86_400;
+        assert_eq!(clock(1000, 1000).len(), "14:32".len());
+        assert_eq!(clock(1000, 1000 + 3 * day).len(), "18.11 14:32".len());
     }
 }

@@ -104,6 +104,11 @@ pub fn marked_row(ui: &mut Ui, text: &str, selected: bool, mark: Option<&str>) -
 
 fn plain_row(ui: &mut Ui, text: &str, selected: bool) -> (egui::Rect, egui::Response) {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+    row_text(ui, rect, &response, text, selected, 12.0, rect.width() - 40.0);
+    (rect, response)
+}
+
+fn row_text(ui: &Ui, rect: egui::Rect, response: &egui::Response, text: &str, selected: bool, indent: f32, room: f32) {
     let fill = if selected {
         40
     } else if response.hovered() {
@@ -114,22 +119,81 @@ fn plain_row(ui: &mut Ui, text: &str, selected: bool) -> (egui::Rect, egui::Resp
     if fill > 0 {
         ui.painter().rect_filled(rect, CornerRadius::same(9), white(fill));
     }
-    let (family, color) = if selected {
-        (MEDIUM, white(255))
+    let (font, color) = if selected {
+        (font(14.0, MEDIUM), white(255))
     } else {
-        ("inter", white(200))
-    };
-    let font = if selected {
-        font(14.0, family)
-    } else {
-        FontId::proportional(14.0)
+        (FontId::proportional(14.0), white(200))
     };
     let mut job = egui::text::LayoutJob::simple_singleline(text.to_owned(), font, color);
-    job.wrap = egui::text::TextWrapping::truncate_at_width(rect.width() - 40.0);
+    job.wrap = egui::text::TextWrapping::truncate_at_width(room);
     let galley = ui.painter().layout_job(job);
-    let at = rect.left_center() + vec2(12.0, -galley.size().y * 0.5);
+    let at = rect.left_center() + vec2(indent, -galley.size().y * 0.5);
     ui.painter().galley(at, galley, color);
-    (rect, response)
+}
+
+pub const PICTURE: egui::Vec2 = vec2(88.0, 55.0);
+
+// A row with a small picture before its text and a dim note at its right edge.
+pub fn picture_row(
+    ui: &mut Ui,
+    text: &str,
+    note: Option<&str>,
+    picture: Option<egui::TextureId>,
+    selected: bool,
+) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), PICTURE.y + 8.0), Sense::click());
+    let note = note.map(|note| {
+        ui.painter()
+            .layout_no_wrap(note.to_owned(), FontId::proportional(12.0), white(120))
+    });
+    let noted = note.as_ref().map_or(0.0, |note| note.size().x + 10.0);
+    let indent = PICTURE.x + 16.0;
+    row_text(
+        ui,
+        rect,
+        &response,
+        text,
+        selected,
+        indent,
+        rect.width() - indent - 12.0 - noted,
+    );
+    if let Some(note) = note {
+        let at = rect.right_center() - vec2(12.0 + note.size().x, note.size().y * 0.5);
+        ui.painter().galley(at, note, white(120));
+    }
+    let frame = egui::Rect::from_min_size(rect.min + vec2(4.0, 4.0), PICTURE);
+    let round = CornerRadius::same(7);
+    match picture {
+        Some(id) => {
+            egui::Image::from_texture(egui::load::SizedTexture::new(id, frame.size()))
+                .corner_radius(round)
+                .paint_at(ui, frame);
+        }
+        None => {
+            ui.painter().rect_filled(frame, round, white(18));
+        }
+    }
+    let edge = egui::Stroke::new(0.6, white(70));
+    ui.painter().rect_stroke(frame, round, edge, egui::StrokeKind::Inside);
+    response.clicked()
+}
+
+pub const BACK: f32 = 38.0;
+
+pub fn back(ui: &mut Ui, enabled: bool, hint: &str) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(BACK, BACK), Sense::click());
+    let lift = match (enabled, response.is_pointer_button_down_on(), response.hovered()) {
+        (true, true, _) => 20,
+        (true, false, true) => 50,
+        _ => 30,
+    };
+    ui.painter().circle_filled(rect.center(), BACK * 0.5, white(lift));
+    let ink = egui::Stroke::new(1.6, white(if enabled { 240 } else { 70 }));
+    let tip = rect.center() - vec2(6.5, 0.0);
+    for to in [vec2(13.0, 0.0), vec2(5.5, -5.5), vec2(5.5, 5.5)] {
+        ui.painter().line_segment([tip, tip + to], ink);
+    }
+    enabled && response.on_hover_text(hint).clicked()
 }
 
 pub fn round(ui: &mut Ui, kind: &str, enabled: bool) -> bool {
