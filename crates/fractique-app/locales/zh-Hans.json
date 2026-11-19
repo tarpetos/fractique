@@ -73,6 +73,7 @@
   "shapes": "形状",
   "fractals": "分形",
   "fractal_kind": "类型",
+  "heavy_kind": "较重：绘制时间更长",
   "parameters": "参数",
   "layout": "布局",
   "material": "材质",

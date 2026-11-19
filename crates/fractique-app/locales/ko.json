@@ -73,6 +73,7 @@
   "shapes": "도형",
   "fractals": "프랙탈",
   "fractal_kind": "종류",
+  "heavy_kind": "무거움: 그리는 데 시간이 더 걸립니다",
   "parameters": "매개변수",
   "layout": "레이아웃",
   "material": "소재",

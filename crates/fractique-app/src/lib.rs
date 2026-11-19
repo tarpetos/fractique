@@ -847,6 +847,23 @@ fn all_densities(scene: &Scene) -> bool {
     scene.sheets.is_none() && scene.layers.iter().all(drawn)
 }
 
+// The kinds the processor alone draws and takes long over: marked in the list, left out on a phone.
+const HEAVY: [&str; 9] = [
+    "buddhabrot",
+    "hopalong",
+    "gumowski_mira",
+    "mandelbulb",
+    "mandelbox",
+    "menger_sponge",
+    "kleinian",
+    "lyapunov",
+    "l_system",
+];
+
+fn heavy(kind: &str) -> bool {
+    HEAVY.contains(&kind)
+}
+
 // The graphics card draws the scene by itself: as densities, or all of it pixel by pixel.
 fn on_card(scene: &Scene) -> bool {
     all_densities(scene) || (scene.sheets.is_none() && scene.layers.iter().all(field::drawn))
@@ -2236,13 +2253,15 @@ impl App {
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
         let mut chosen = None;
+        let hint = self.t("heavy_kind");
         let tall = list_height(fractal::all().count(), room);
         egui::ScrollArea::vertical()
             .max_height(tall)
             .min_scrolled_height(tall)
             .show(ui, |ui| {
                 for spec in fractal::all() {
-                    if widgets::row(ui, &self.kind_name(spec.name), self.kind == spec.name) {
+                    let mark = heavy(spec.name).then_some(hint.as_str());
+                    if widgets::marked_row(ui, &self.kind_name(spec.name), self.kind == spec.name, mark) {
                         chosen = Some(spec.name);
                     }
                 }
@@ -4755,6 +4774,14 @@ mod tests {
             scene.layers.len()
         );
         assert!(both.sources.is_empty());
+    }
+
+    #[test]
+    fn a_heavy_kind_is_a_kind_the_card_does_not_draw() {
+        for kind in HEAVY {
+            let scene = fractal::random_scene(kind, 4).unwrap_or_else(|| panic!("{kind} is not a kind"));
+            assert!(!on_card(&scene), "{kind}");
+        }
     }
 
     #[test]

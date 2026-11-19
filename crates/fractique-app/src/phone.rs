@@ -1186,7 +1186,7 @@ impl App {
         let mut kind = None;
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(gap, 10.0);
-            for spec in fractal::all() {
+            for spec in fractal::all().filter(|spec| !crate::heavy(spec.name)) {
                 let first = spec
                     .presets
                     .first()

@@ -73,6 +73,7 @@
   "shapes": "Формы",
   "fractals": "Фракталы",
   "fractal_kind": "ТИП",
+  "heavy_kind": "Тяжёлый: рисуется дольше",
   "parameters": "ПАРАМЕТРЫ",
   "layout": "КОМПОЗИЦИЯ",
   "material": "МАТЕРИАЛ",

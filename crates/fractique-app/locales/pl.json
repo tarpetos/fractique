@@ -73,6 +73,7 @@
   "shapes": "Kształty",
   "fractals": "Fraktale",
   "fractal_kind": "TYP",
+  "heavy_kind": "Ciężki: rysuje się dłużej",
   "parameters": "PARAMETRY",
   "layout": "UKŁAD",
   "material": "MATERIAŁ",
