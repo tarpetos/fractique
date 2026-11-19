@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* **Recent pictures with pictures, mutations and Back:** a random picture is named by its word alone
+  (**Random**, the fractal's type, **Wallpaper**) wherever the app shows it: the seed is no longer on the
+  screen, also for titles kept by older versions, and the file name offered by an export or a save keeps it
+  (`Random354`, `Mandelbrot42`). Every **Mutate** is now a recent picture of its own, so the fifth row down
+  is five mutations back; before, a flame and all its mutations were one entry. The pictures mutated from one
+  another are a family, numbered as they were made: **Random**, **Random · mutation 1**, **Random ·
+  mutation 2**. Adjusting the picture on the screen (tone, colors, layers, view) still updates its one entry.
+  On a computer every row of **Recent** has a small picture, drawn in the background, and the time the picture
+  was made; a phone's tiles say **mutation 2** under a mutation. The new **Back** arrow in the toolbar (also
+  **Alt+←** and the mouse's back button; a round button on a phone) shows the picture one older than the one on
+  the screen without reordering the list, so pressing it again goes further back; **Alt+→** and the mouse's
+  forward button go forward. The stored list is read by older versions and theirs by this one. The app now
+  depends on `chrono` for the local time.
+
 * **Random flames without squares:** the second random generator no longer draws the variation `rectangles`,
   which tiled a flame into a grid of squares in about one random scene in seven. A seed that drew it gives another
   scene now (a breaking change for those seeds); every other seed gives the scene it gave, and no golden hash

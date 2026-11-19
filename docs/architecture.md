@@ -442,7 +442,7 @@ What else follows from a picture that never leaves the card:
 | View and zoom | A moved or zoomed view moves and scales the picture on the screen; when it has rested for 0.18 s the chaos game is played again for the new view |
 | **Instant** export | Saves the picture that is on the screen: it is copied back from the card and written as a PNG. While samples are still being plotted the export waits for the last batch. An export at another size than the picture's, and one of a picture the card gave up meanwhile, is rendered by the processor as before |
 | Light or dark ink, darker glass | The lightness that picks them is measured on the blurred picture under the panes, copied back from the card after each drawing |
-| **Recent** | A picture is remembered when its last batch is finished |
+| **Recent** | A picture is remembered when its last batch is finished, and before **Mutate** or **Back** replaces it |
 | The tabs | A tab keeps the processor's finished picture to come back to; the card's picture is not kept, so coming back to the flames plays the chaos game again |
 | Saved files, the session | They hold the scene, not pixels: nothing waits for a picture |
 
@@ -633,7 +633,9 @@ are then the same picture. A scene file given on the command line is the scene, 
 is the size of the picture whatever the window's. `FRACTIQUE_THEN=14,1,14:0.01:0` shows these views one after
 another before the screenshot is taken (the magnification, or the magnification and the place to the right and
 down), each when the picture of the one before is whole, or 1.5 s after it was asked for where the processor
-renders it. `FRACTIQUE_DEBUG_TIMES=1` prints the graphics card, the trial,
+renders it. `FRACTIQUE_STEPS=randomize,mutate,mutate,back` presses these buttons one after another before the
+screenshot is taken, each when the picture of the one before is whole, and `FRACTIQUE_SHOW=recent` (also
+`fractals-recent`, `wall-recent`) opens the list of recent pictures, whose small pictures the screenshot waits for. `FRACTIQUE_DEBUG_TIMES=1` prints the graphics card, the trial,
 every render the processor starts, the seconds from the request to each picture and to a saved export, and for
 every batch of the card the milliseconds it took and the millions of steps its walkers were allowed. The tests of
 `chaos.rs` compare three flames and three attractors with the processor's render when the machine has a graphics
