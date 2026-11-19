@@ -73,6 +73,7 @@
   "shapes": "Forme",
   "fractals": "Frattali",
   "fractal_kind": "TIPO",
+  "heavy_kind": "Pesante: richiede più tempo per il disegno",
   "parameters": "PARAMETRI",
   "layout": "DISPOSIZIONE",
   "material": "MATERIALE",

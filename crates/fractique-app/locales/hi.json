@@ -73,6 +73,7 @@
   "shapes": "आकृतियाँ",
   "fractals": "फ्रैक्टल",
   "fractal_kind": "प्रकार",
+  "heavy_kind": "भारी: बनने में अधिक समय लगता है",
   "parameters": "पैरामीटर",
   "layout": "लेआउट",
   "material": "सामग्री",

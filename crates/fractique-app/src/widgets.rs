@@ -83,6 +83,26 @@ fn lock(painter: &egui::Painter, at: egui::Pos2, color: Color32) {
 }
 
 pub fn locked_row(ui: &mut Ui, text: &str, selected: bool, locked: bool) -> bool {
+    let (rect, response) = plain_row(ui, text, selected);
+    if locked {
+        lock(ui.painter(), rect.right_center() - vec2(16.0, 0.0), white(150));
+    }
+    response.clicked()
+}
+
+pub fn marked_row(ui: &mut Ui, text: &str, selected: bool, mark: Option<&str>) -> bool {
+    let (rect, response) = plain_row(ui, text, selected);
+    match mark {
+        Some(hint) => {
+            let at = rect.right_center() - vec2(16.0, 0.0);
+            ui.painter().circle_filled(at, 3.5, Color32::from_rgb(255, 190, 90));
+            response.on_hover_text(hint).clicked()
+        }
+        None => response.clicked(),
+    }
+}
+
+fn plain_row(ui: &mut Ui, text: &str, selected: bool) -> (egui::Rect, egui::Response) {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
     let fill = if selected {
         40
@@ -111,10 +131,7 @@ pub fn locked_row(ui: &mut Ui, text: &str, selected: bool, locked: bool) -> bool
         font,
         color,
     );
-    if locked {
-        lock(ui.painter(), rect.right_center() - vec2(16.0, 0.0), white(150));
-    }
-    response.clicked()
+    (rect, response)
 }
 
 pub fn round(ui: &mut Ui, kind: &str, enabled: bool) -> bool {

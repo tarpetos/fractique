@@ -73,6 +73,7 @@
   "shapes": "Bentuk",
   "fractals": "Fraktal",
   "fractal_kind": "JENIS",
+  "heavy_kind": "Berat: perlu waktu lebih lama untuk digambar",
   "parameters": "PARAMETER",
   "layout": "TATA LETAK",
   "material": "BAHAN",

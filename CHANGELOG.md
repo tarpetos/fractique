@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+* **Heavy kinds:** the kinds that only the processor draws and that take it long (Buddhabrot, Hopalong,
+  Gumowski-Mira, Mandelbulb, Mandelbox, Menger sponge, Kleinian, Lyapunov, L-system) carry an amber dot in the
+  list of types on a computer, with a hint, and are left out of the tiles on a phone. A scene or a `.frcq` file
+  with such a kind still opens and renders everywhere.
+
 * **Fractals of other kinds:** a layer of a scene is now a flame or a fractal of another kind, and three kinds are
   here: the **Mandelbrot set** and **Julia sets**, drawn pixel by pixel with smooth colors, a thin dark rim along
   the set, colors that fade to dark away from it and anti-aliasing where the picture has edges, and the
