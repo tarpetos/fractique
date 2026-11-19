@@ -406,13 +406,14 @@ fn note(recent: &mut Vec<Piece>, mut piece: Piece, step: Step, at: usize, now: u
             };
         }
     }
-    // The picture that was on the screen comes right after the new one, so that Back returns to it.
-    if at > 0
-        && !matches!(step, Step::Picked | Step::Visited)
-        && let Some(&seen) = rows.get(at)
-    {
-        let last = recent.remove(seen);
-        recent.insert(0, last);
+    // A new picture made from further back is followed by the picture that was on the screen and those before
+    // it, so that Back goes on from there; the newer ones that were stepped over come after them.
+    if at > 0 && at < rows.len() && !matches!(step, Step::Picked | Step::Visited) {
+        let mut mine: Vec<Piece> = rows.iter().map(|&index| recent[index].clone()).collect();
+        mine.rotate_left(at);
+        for (&index, piece) in rows.iter().zip(mine) {
+            recent[index] = piece;
+        }
     }
     recent.retain(|other| other.key() != key);
     recent.insert(0, piece);
@@ -1512,14 +1513,14 @@ mod tests {
     }
 
     #[test]
-    fn a_new_picture_after_going_back_comes_before_the_one_that_was_shown() {
+    fn a_new_picture_after_going_back_is_followed_by_the_pictures_behind_the_one_shown() {
         let mut recent = Vec::new();
         for seed in 1..=4 {
             note(&mut recent, wall(seed), Step::Fresh, 0, 100);
         }
         assert!(kinds(&recent) == kinds(&[wall(4), wall(3), wall(2), wall(1)]));
         assert_eq!(note(&mut recent, wall(9), Step::Fresh, 2, 200), 0);
-        assert!(kinds(&recent) == kinds(&[wall(9), wall(2), wall(4), wall(3), wall(1)]));
+        assert!(kinds(&recent) == kinds(&[wall(9), wall(2), wall(1), wall(4), wall(3)]));
     }
 
     fn kinds(recent: &[Piece]) -> Vec<Kind> {
