@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+* **New icon:** a white lowercase f whose hook winds into a spiral, over a Buddhabrot in blue-grey on near-black,
+  on every platform: the window, the Windows program, the macOS and Linux packages, the browser tab, Android and
+  iOS. Below 64 pixels the letter is drawn heavier and simpler. On iOS the same icon serves the light and the dark
+  appearance, dimmed in the dark one.
+
 * **Recent pictures of each tab:** Flames, Fractals and Shapes each keep their own recent pictures, 20 of them,
   and the list a tab opens holds only its own, with the picture on screen marked. Before, one list of 24 served
   all three, and the name under **Recent** changed with every change of tab.
