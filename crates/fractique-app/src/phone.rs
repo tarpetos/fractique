@@ -42,6 +42,14 @@ pub struct Piece {
 }
 
 impl Piece {
+    pub fn tab(&self) -> usize {
+        match &self.kind {
+            Kind::Wall(..) => 2,
+            Kind::Flame(scene) if scene.layers.iter().any(|layer| layer.fractal().is_some()) => 1,
+            Kind::Flame(_) => 0,
+        }
+    }
+
     fn key(&self) -> String {
         use std::hash::{Hash, Hasher};
         match &self.kind {
@@ -1316,6 +1324,7 @@ mod tests {
             note(&mut recent, wall(seed));
         }
         assert_eq!(recent.len(), MOST_RECENT);
+        assert_eq!((wall(1).tab(), flame("Aurora Spiral", 1.4).tab()), (2, 0));
         assert!(recent[0] == wall(59));
     }
 }

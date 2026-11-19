@@ -3094,9 +3094,14 @@ impl App {
                 self.open_sheet(Sheet::Presets);
             }
         }
-        if self.phone.recent.len() > 1 {
+        // The picture before this one, of this tab's sort when there is one: the list is one for all the tabs, and
+        // its newest would change with every change of tab.
+        let (tab, own) = (self.tab(), shown(&self.title));
+        let others = || self.phone.recent.iter().filter(|piece| piece.title != own);
+        let earlier = others().find(|piece| piece.tab() == tab).or_else(|| others().next());
+        if let Some(label) = earlier.map(|piece| self.display(&piece.title)) {
             widgets::section(ui, &self.t("recent"));
-            if widgets::dropdown(ui, &self.display(&self.phone.recent[1].title)) {
+            if widgets::dropdown(ui, &label) {
                 self.open_listing(Listing::Recent);
             }
         }
