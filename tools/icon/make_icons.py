@@ -1,149 +1,150 @@
 """Draws the app icon and writes every size and format the platforms need.
 
 Run from the repository root:  uv run --no-project --with pillow --with numpy python tools/icon/make_icons.py
+
+The icon is a white lowercase f whose hook winds into a spiral, over a Buddhabrot. The Buddhabrot is the preset
+buddhabrot-classic, kept as a scene beside this script and rendered by the command line of this repository:
+
+    cargo build --release
+    ./target/release/fractique render tools/icon/buddhabrot.json --size 1024x1024 --quality high -o tools/icon/buddhabrot.png
+
+The script crops that picture to the figure, takes most of its color away and fades it into a near-black ground.
+Below 64 pixels the letter is drawn heavier with a shorter spiral, and below 48 pixels it is also larger and the
+Buddhabrot is blurred to a dim glow.
 """
 
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "assets" / "icon"
 ANDROID = ROOT / "crates" / "fractique-app" / "android" / "res"
-# What the glass is seen against: fractique render tools/icon/flame.json --size 1024x1024 --quality high -o tools/icon/flame.png
-FLAME = Path(__file__).with_name("flame.png")
+IOS = ROOT / "ios" / "Assets.xcassets" / "AppIcon.appiconset"
+RENDER = Path(__file__).with_name("buddhabrot.png")
 
 SIZE = 1024
 OVERSAMPLE = 2
-DARK = "#1a1433"
-LIGHT = "#f1effc"
-WARM = ["#ffcc55", "#ff8a50", "#f04e8c", "#a855f7", "#5b6cff"]
-DEEP = ["#f5a623", "#f2682f", "#e0357a", "#8f3ff0", "#4658f0"]
-WHITE = ["#ffffff"] * 5
-LEVELS = [(128, 24, 30), (64, 12, 15), (32, 6, 7.5)]
-DOT = 8
-CLEAR = 0.55
-
-
-def glyph(colors, dot):
-    shapes, x = [], 0
-    for cell, gap, radius in LEVELS:
-        step = cell + gap
-        for row in range(5):
-            shapes.append((x, row * step, cell, radius, colors[row]))
-        shapes.append((x + step, 0, cell, radius, colors[0]))
-        shapes.append((x + step, 2 * step, cell, radius, colors[2]))
-        x += 2 * step
-    width = x + 2 * DOT
-    height = 5 * LEVELS[0][0] + 4 * LEVELS[0][1]
-    return shapes, (x, DOT, dot), width, height
-
-
-def glass(image, box, radius, bezel, refraction, blur, opacity, depth, tint, shadow, peak=0.0):
-    """One pane of the app's glass (crates/fractique-app/src/glass.wgsl), drawn over the image."""
-    side = image.shape[0]
-    soft = np.asarray(Image.fromarray((image * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(side * 0.02)), dtype=np.float32) / 255
-    reach, strength = shadow
-    x0, y0 = max(int(box[0] - 3 * reach), 0), max(int(box[1] - 3 * reach), 0)
-    x1, y1 = min(int(box[2] + 3 * reach) + 1, side), min(int(box[3] + 3 * reach) + 1, side)
-    px, py = np.meshgrid(np.arange(x0, x1) + 0.5, np.arange(y0, y1) + 0.5)
-    cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
-    hx, hy = (box[2] - box[0]) / 2, (box[3] - box[1]) / 2
-    fx, fy = px - cx, py - cy
-    qx, qy = np.abs(fx) - hx + radius, np.abs(fy) - hy + radius
-    distance = np.hypot(np.maximum(qx, 0), np.maximum(qy, 0)) + np.minimum(np.maximum(qx, qy), 0) - radius
-    corner = (qx > 0) & (qy > 0)
-    length = np.maximum(np.hypot(qx, qy), 1e-6)
-    ox = np.where(corner, qx / length, np.where(qx > qy, 1.0, 0.0)) * np.where(fx >= 0, 1, -1)
-    oy = np.where(corner, qy / length, np.where(qx > qy, 0.0, 1.0)) * np.where(fy >= 0, 1, -1)
-
-    rim = np.clip(1 + distance / bezel, 0, 1)
-    bend = rim**3
-    mixed = (blur * (1 - 0.6 * bend))[..., None]
-
-    def look(factor, channel):
-        sx = np.clip((px - ox * bend * refraction * factor).astype(int), 0, side - 1)
-        sy = np.clip((py - oy * bend * refraction * factor).astype(int), 0, side - 1)
-        return (image[sy, sx] * (1 - mixed) + soft[sy, sx] * mixed)[..., channel]
-
-    color = np.stack([look(1.1, 0), look(1.0, 1), look(0.9, 2)], axis=-1)
-    if peak:
-        # Coloured glass filters the light behind it instead of covering it.
-        filtered = np.array(tint, dtype=np.float32) * (opacity + (peak - opacity) * np.clip(color * 4.0 - 0.25, 0, 1))
-        color = color * 1.3 * CLEAR + filtered * (1 - CLEAR)
-    else:
-        color = color * 1.08 * (1 - opacity) + np.array(tint, dtype=np.float32) * opacity
-    facing = (ox * -0.6 + oy * -0.8)[..., None]
-    curve = (rim * rim)[..., None]
-    color = color * (1 + 0.6 * curve * facing * depth) + 0.03 * curve * np.maximum(facing, 0) * depth
-    hair = max(bezel * 0.09, 1.5)
-    edge = np.clip((distance + 2.6 * hair) / (1.9 * hair), 0, 1)
-    edge = (edge * edge * (3 - 2 * edge))[..., None]
-    color = color + edge * (0.3 * np.maximum(facing, 0) ** 2 + 0.13 * np.maximum(-facing, 0) ** 2 + 0.035) * depth
-
-    inside = np.clip(0.5 - distance, 0, 1)[..., None]
-    shade = strength * np.exp(-np.maximum(distance, 0) / (max(reach, 1) * 0.4))[..., None] * (1 - inside)
-    under = image[y0:y1, x0:x1]
-    image[y0:y1, x0:x1] = np.clip(color * inside + under * (1 - inside) * (1 - shade), 0, 1)
+CORNER = 230
+CROP = (82, 62, 942, 922)
+GROUND = "#06080d"
+PAPER = "#eef1f6"
+INK = "#0b0e16"
+HAZE = "#4a5f7e"
+FIT = (0.56, 0.79)
+# From this many pixels up: the weight of the stroke, the turns of the spiral, the blur of the Buddhabrot, the growth.
+DETAIL = [(64, 1.0, 1.45, 0, 1.0), (48, 1.1, 1.4, 0, 1.0), (24, 1.25, 1.1, 40, 1.05), (0, 1.4, 0.85, 60, 1.1)]
+# Android shows the middle 72 of an adaptive icon's 108 units and promises only a circle of 66.
+ADAPTIVE_FIT = (0.385, 0.535)
+ADAPTIVE_REACH = 0.74
 
 
 def rgb(color):
-    return [int(color[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+    return np.array([int(color[i : i + 2], 16) / 255 for i in (1, 3, 5)], dtype=np.float32)
 
 
-def draw(background, corner, colors, dot, scale=1.0):
+def smooth(t):
+    t = np.clip(t, 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def letter(weight, turns):
+    eye_x, eye_y, reach, stem, foot, bar = 0.60, 0.36, 0.24, 0.36, 0.89, 0.625
+    half = 0.046 * weight
+    angle = np.linspace(0, turns * 2 * np.pi, 2500)
+    radius = reach * np.exp(-0.24 * angle * angle / (angle + 1.2))
+    points = np.stack([eye_x - radius * np.cos(angle), eye_y - radius * np.sin(angle)], axis=1)
+    widths = half * (1 - 0.86 * (angle / angle[-1]) ** 0.8)
+    thick = 0.027 * weight
+    lean = thick * 0.28
+    polygons = [
+        [(stem - half, eye_y), (stem + half, eye_y), (stem + half, foot), (stem - half, foot)],
+        [(stem - 0.0925 + lean, bar - thick), (stem + 0.1925 + lean, bar - thick), (stem + 0.1925 - lean, bar + thick), (stem - 0.0925 - lean, bar + thick)],
+    ]
+    return points, widths, polygons
+
+
+def mark(weight, turns, fit, shift):
+    points, widths, polygons = letter(weight, turns)
+    corners = np.array([p for polygon in polygons for p in polygon])
+    low = np.minimum((points - widths[:, None]).min(axis=0), corners.min(axis=0))
+    high = np.maximum((points + widths[:, None]).max(axis=0), corners.max(axis=0))
     side = SIZE * OVERSAMPLE
-    flame = Image.open(FLAME).convert("RGB").resize((side, side), Image.LANCZOS)
-    if colors == WHITE:
-        flame = ImageOps.grayscale(flame).convert("RGB")
-    image = np.asarray(flame, dtype=np.float32) / 255
+    scale = min(fit[0] / (high[0] - low[0]), fit[1] / (high[1] - low[1])) * side
+    offset = (np.array([0.5, 0.5]) + shift) * side - (low + high) / 2 * scale
+    image = Image.new("L", (side, side), 0)
+    pen = ImageDraw.Draw(image)
+    for (x, y), r in zip(points * scale + offset, widths * scale):
+        pen.ellipse((x - r, y - r, x + r, y + r), fill=255)
+    for polygon in polygons:
+        pen.polygon([tuple(np.array(p) * scale + offset) for p in polygon], fill=255)
+    return image.resize((SIZE, SIZE), Image.LANCZOS)
 
-    dark = background == DARK
-    radius = max(corner * OVERSAMPLE, 1)
-    glass(image, (0, 0, side, side), radius, side * 0.07, side * 0.05, 0.45, 0.8 if dark else 0.88, 1.0, rgb(background), (0, 0))
 
-    peak = 1.6 if dark and colors != WHITE else 1.0
-    shapes, (dot_x, dot_r, dot_color), width, height = glyph(colors, dot)
-    k = OVERSAMPLE * scale
-    left, top = (side - width * k) / 2, (side - height * k) / 2
-    for x, y, cell, tile_radius, color in shapes:
-        box = (left + x * k, top + y * k, left + (x + cell) * k, top + (y + cell) * k)
-        size = cell * k
-        glass(image, box, tile_radius * k, size * 0.3, size * 0.34, 0.2, 0.62, 1.4, rgb(color), (size * 0.2, 0.45), peak=peak)
+def buddhabrot(reach, blur):
+    side = round(SIZE * reach)
+    figure = Image.open(RENDER).convert("RGB").crop(CROP).resize((side, side), Image.LANCZOS)
+    if blur:
+        figure = figure.filter(ImageFilter.GaussianBlur(blur)).point(lambda value: value * 0.5)
+    figure = np.asarray(figure, dtype=np.float32) / 255
+    y, x = np.mgrid[0:side, 0:side]
+    distance = np.hypot((x + 0.5) / side - 0.5, (y + 0.5) / side - 0.5) * 2
+    end = 1.5 if reach == 1 else 1.0
+    figure = figure * smooth((end - distance) / (end - 0.6))[..., None]
+    light = np.zeros((SIZE, SIZE, 3), dtype=np.float32)
+    start = (SIZE - side) // 2
+    light[start : start + side, start : start + side] = figure
+    return light
 
-    out = Image.fromarray((image * 255).astype(np.uint8)).convert("RGBA")
-    cx, cy = left + (dot_x + dot_r) * k, top + dot_r * k
-    ImageDraw.Draw(out).ellipse((cx - dot_r * k, cy - dot_r * k, cx + dot_r * k, cy + dot_r * k), fill=dot_color)
+
+def draw(side=SIZE, ground=GROUND, ink="#ffffff", corner=CORNER, keep=0.45, gain=0.9, fit=FIT, reach=1.0):
+    weight, turns, blur, growth = next(row[1:] for row in DETAIL if side >= row[0])
+    letter_mask = mark(weight, turns, (fit[0] * growth, fit[1] * growth), (0.004, 0.0))
+    shape = np.asarray(letter_mask, dtype=np.float32)[..., None] / 255
+    shade = np.asarray(letter_mask.filter(ImageFilter.GaussianBlur(22)), dtype=np.float32)[..., None] / 255
+    light = buddhabrot(reach, blur)
+    grey = light.mean(axis=2, keepdims=True)
+    if ground == PAPER:
+        image = rgb(PAPER) + (rgb(HAZE) - rgb(PAPER)) * np.clip(grey * 1.5, 0, 1)
+        image = image + (1 - image) * 0.5 * shade
+    else:
+        image = rgb(ground) + (grey * (1 - keep) + light * keep) * gain
+        image = image * (1 - 0.6 * shade)
+    image = image * (1 - shape) + rgb(ink) * shape
+    out = Image.fromarray((np.clip(image, 0, 1) * 255 + 0.5).astype(np.uint8)).convert("RGBA")
     if corner:
-        mask = Image.new("L", (side, side), 0)
-        ImageDraw.Draw(mask).rounded_rectangle((0, 0, side - 1, side - 1), radius, fill=255)
-        out.putalpha(mask)
-    return out.resize((SIZE, SIZE), Image.LANCZOS)
+        big = SIZE * OVERSAMPLE
+        mask = Image.new("L", (big, big), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, big - 1, big - 1), corner * OVERSAMPLE, fill=255)
+        out.putalpha(mask.resize((SIZE, SIZE), Image.LANCZOS))
+    return out if side == SIZE else out.resize((side, side), Image.LANCZOS)
 
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    icon = draw(DARK, 230, WARM, "#ffffff")
-    icon.save(OUT / "icon-1024.png")
-    for side in (16, 32, 48, 64, 128, 256, 512):
-        icon.resize((side, side), Image.LANCZOS).save(OUT / f"icon-{side}.png")
-    icon.save(OUT / "icon.ico", sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
-    icon.save(OUT / "icon.icns")
-    draw(LIGHT, 230, DEEP, DARK).save(OUT / "icon-light-1024.png")
-    draw(DARK, 230, WHITE, "#ffffff").save(OUT / "icon-mono-1024.png")
-    draw(DARK, 0, WARM, "#ffffff").convert("RGB").save(OUT / "ios-1024.png")
-    draw(LIGHT, 0, DEEP, DARK).convert("RGB").save(OUT / "ios-light-1024.png")
-    # iOS turns the tinted icon to grey and tints it: white glyph on black, as Apple asks.
-    draw("#000000", 0, WHITE, "#ffffff").convert("RGB").save(OUT / "ios-tinted-1024.png")
+    icons = {side: draw(side) for side in (16, 24, 32, 48, 64, 128, 256, 512, 1024)}
+    for side, icon in icons.items():
+        if side != 24:
+            icon.save(OUT / f"icon-{side}.png")
+    icons[256].save(OUT / "icon.ico", sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)], append_images=[icons[s] for s in (16, 24, 32, 48, 64, 128)])
+    icons[1024].save(OUT / "icon.icns", append_images=[icons[s] for s in (16, 32, 64, 128, 256, 512)])
+    draw(ground=PAPER, ink=INK).save(OUT / "icon-light-1024.png")
+    draw(keep=0.0).save(OUT / "icon-mono-1024.png")
 
-    # Android crops an adaptive icon's foreground to the middle two thirds, so the glyph is drawn smaller there.
-    foreground = draw(DARK, 0, WARM, "#ffffff", scale=0.62)
+    # iOS rounds the corners itself. It turns the tinted icon to grey and tints it: white on black, as Apple asks.
+    draw(corner=0).convert("RGB").save(IOS / "light.png")
+    draw(corner=0, gain=0.55).convert("RGB").save(IOS / "dark.png")
+    draw(corner=0, ground="#000000", keep=0.0, gain=0.4).convert("RGB").save(IOS / "tinted.png")
+
+    foreground = draw(corner=0, fit=ADAPTIVE_FIT, reach=ADAPTIVE_REACH)
     for density, legacy, adaptive in (("mdpi", 48, 108), ("hdpi", 72, 162), ("xhdpi", 96, 216), ("xxhdpi", 144, 324), ("xxxhdpi", 192, 432)):
         folder = ANDROID / f"mipmap-{density}"
         folder.mkdir(parents=True, exist_ok=True)
-        icon.resize((legacy, legacy), Image.LANCZOS).save(folder / "ic_launcher.png")
+        draw(legacy).save(folder / "ic_launcher.png")
         foreground.resize((adaptive, adaptive), Image.LANCZOS).save(folder / "ic_launcher_foreground.png")
+    color = f'<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">{GROUND}</color>\n</resources>\n'
+    (ANDROID / "values" / "ic_launcher_background.xml").write_text(color)
 
 
 if __name__ == "__main__":
