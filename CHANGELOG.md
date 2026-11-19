@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-* **Names of fractals in every language:** the names of the kinds and of their presets are shown in the app's
-  language again, in all 15 (the kinds were kept in English for a while, the presets always were). The default
+* **Names of fractals in every language:** the names of the kinds, of their presets and of the flame presets are
+  shown in the app's language, in all 15 (the kinds were kept in English for a while, the presets always were). The default
   name of an exported picture and of a scene file is made from the English name as before (`MandelboxStation`).
 
 * **Heavy kinds:** the kinds that only the processor draws and that take it long (Buddhabrot, Hopalong,
