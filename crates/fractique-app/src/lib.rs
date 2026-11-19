@@ -254,7 +254,7 @@ fn size_list(
     }
     ui.data_mut(|data| data.insert_temp(remembered, group));
     let family = groups[group];
-    let height = (height - 76.0).max(64.0);
+    let height = (height - 76.0).max(32.0);
     let mut bar = egui::style::ScrollStyle::floating();
     bar.bar_width = 5.0;
     ui.spacing_mut().scroll = bar;
@@ -451,6 +451,42 @@ fn preset_name(texts: &i18n::Texts, kind: &str, preset: &str) -> String {
     let key = format!("n_{kind}_{preset}");
     let text = texts.get(&key);
     if text == key { shown(preset) } else { text }
+}
+
+// A layer's name as the app gave it in one language, given in another: the name of a preset, of a kind or of a
+// random picture, alone or with the layer's number after it. A name from elsewhere (a scene file) has none.
+fn renamed(name: &str, from: &i18n::Texts, to: &i18n::Texts, titles: &[String]) -> Option<String> {
+    let known = |name: &str| {
+        let title = |title: &str| (displayed(from, title) == name).then(|| displayed(to, title));
+        let flame = || presets::names().into_iter().find_map(title);
+        let kind = || {
+            fractal::all().find_map(|spec| {
+                let preset = |preset: &fractal::Preset| title(&format!("{}-{}", spec.name, preset.name));
+                title(&format!("{} 1", spec.name)).or_else(|| spec.presets.iter().find_map(preset))
+            })
+        };
+        let word = || {
+            ["random", "wallpaper"]
+                .into_iter()
+                .find_map(|key| title(&format!("{} 1", from.get(key))))
+        };
+        titles
+            .iter()
+            .find_map(|known| title(known))
+            .or_else(flame)
+            .or_else(kind)
+            .or_else(word)
+    };
+    if name.is_empty() {
+        return None;
+    }
+    known(name).or_else(|| {
+        let (head, number) = name.rsplit_once(' ')?;
+        is_seed(number)
+            .then(|| known(head))
+            .flatten()
+            .map(|head| format!("{head} {number}"))
+    })
 }
 
 fn named(mut scene: Scene, title: &str) -> Scene {
@@ -1107,21 +1143,31 @@ fn rendered(
 }
 
 // A scroll area left to itself starts two rows tall and can stay so.
-// An upright phone has no room beside a list: the list stands at the lower edge and leaves the upper fifth of the
-// screen free to tap. Elsewhere it stands in the middle.
+// On a phone a list stands in the middle and grows until the phone's outer margin is left above and below it; on a
+// computer it has the window's height to itself, as it had.
 fn list_place(content: egui::Rect, phone: bool) -> (egui::Pos2, egui::Align2, f32) {
     let high = content.height();
-    if !phone || high <= content.width() {
-        return (content.center(), egui::Align2::CENTER_CENTER, high);
-    }
-    let foot = egui::pos2(content.center().x, content.bottom() - LIST_FOOT);
-    (foot, egui::Align2::CENTER_BOTTOM, high * 0.8 - LIST_FOOT + LIST_SPARE)
+    let room = if phone {
+        high - 2.0 * widgets::OUTER + LIST_SPARE
+    } else {
+        high
+    };
+    (content.center(), egui::Align2::CENTER_CENTER, room)
 }
 
-const LIST_FOOT: f32 = 8.0;
-// What `list_height` leaves of its room beyond the rows, less what a list's heading and margins take.
+// What `list_height` leaves of its room beyond the rows, less what a list's heading and padding take.
 const LIST_SPARE: f32 = 110.0 - LIST_FRAME;
-const LIST_FRAME: f32 = 78.0;
+const LIST_FRAME: f32 = 2.0 * widgets::PAD + widgets::CLOSE + 6.0;
+
+// How wide a sheet's content is. On a phone every sheet is as wide as the screen leaves inside the outer margin and
+// the padding, up to a width that reads well on a phone on its side; on a computer each has its own.
+fn sheet_width(screen: f32, natural: f32, phone: bool) -> f32 {
+    if phone {
+        (screen - 2.0 * (widgets::OUTER + widgets::PAD)).min(natural.max(300.0))
+    } else {
+        natural
+    }
+}
 
 fn list_height(rows: usize, room: f32) -> f32 {
     (rows as f32 * 32.0 - 2.0).clamp(30.0, (room - 110.0).max(90.0))
@@ -1342,7 +1388,7 @@ impl App {
                 radius: 30.0,
                 bezel: 20.0,
             },
-            tuning: false,
+            tuning: opens("tuning"),
             inspector_open: None,
             panes: Vec::new(),
             toolbar_size: egui::Vec2::ZERO,
@@ -2462,8 +2508,8 @@ impl App {
         }
     }
 
-    fn preset_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
-        ui.set_width(260.0);
+    fn preset_sheet(&mut self, ui: &mut egui::Ui, room: f32, width: f32) {
+        ui.set_width(width);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         if self.listing == Listing::Recent {
             self.recent_sheet(ui, room);
@@ -2557,12 +2603,16 @@ impl App {
         ui.spacing_mut().scroll = bar;
         let mut chosen = None;
         let hint = self.t("heavy_kind");
-        let tall = list_height(fractal::all().count(), room);
+        // A phone is not offered the kinds that take its processor long, here as in the styles.
+        let kinds: Vec<_> = fractal::all()
+            .filter(|spec| !self.phone.on || !heavy(spec.name))
+            .collect();
+        let tall = list_height(kinds.len(), room);
         egui::ScrollArea::vertical()
             .max_height(tall)
             .min_scrolled_height(tall)
             .show(ui, |ui| {
-                for spec in fractal::all() {
+                for spec in kinds {
                     let mark = heavy(spec.name).then_some(hint.as_str());
                     if widgets::marked_row(ui, &self.kind_name(spec.name), self.kind == spec.name, mark) {
                         chosen = Some(spec.name);
@@ -2657,7 +2707,6 @@ impl App {
     }
 
     fn recent_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
-        ui.set_width((ui.ctx().content_rect().width() - 60.0).min(380.0));
         widgets::heading(ui, &self.t("recent"));
         let mut bar = egui::style::ScrollStyle::floating();
         bar.bar_width = 5.0;
@@ -2692,8 +2741,8 @@ impl App {
         }
     }
 
-    fn size_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
-        ui.set_width(300.0);
+    fn size_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32, width: f32) {
+        ui.set_width(width);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
         widgets::heading(ui, &self.t("size"));
         let own = format!("{} · {} × {}", self.t("size_window"), window[0], window[1]);
@@ -2801,11 +2850,7 @@ impl App {
 
         ui.set_width(width);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-        ui.label(
-            egui::RichText::new(self.t("pro_title"))
-                .font(font(17.0, SEMIBOLD))
-                .color(egui::Color32::WHITE),
-        );
+        widgets::title(ui, &self.t("pro_title"), 17.0);
         let Some(store) = &self.store else {
             return;
         };
@@ -2899,6 +2944,24 @@ impl App {
     }
 
     // What the system's Back of a phone leaves, one thing at a press: a list, a sheet, the styles or the controls.
+    fn set_language(&mut self, ctx: &egui::Context, lang: Lang) {
+        let before = std::mem::replace(&mut self.texts, Texts::new(lang));
+        widgets::install_fonts(ctx, lang);
+        let mut titles = vec![self.title.clone()];
+        titles.extend(
+            self.phone
+                .recent
+                .iter()
+                .chain(&self.phone.kept)
+                .map(|piece| piece.title.clone()),
+        );
+        for layer in &mut self.base.layers {
+            if let Some(name) = renamed(&layer.name, &before, &self.texts, &titles) {
+                layer.name = name;
+            }
+        }
+    }
+
     fn leave(&mut self) {
         if self.languages_open || self.sizes_open || self.presets_open {
             self.languages_open = false;
@@ -3400,8 +3463,7 @@ impl App {
     }
 
     fn inspector_scene(&mut self, ui: &mut egui::Ui) {
-        #[cfg(any(target_os = "android", target_os = "ios", target_arch = "wasm32"))]
-        {
+        if self.phone.on || cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
             widgets::section(ui, &self.t("language"));
             if widgets::row(ui, self.texts.lang.name(), true) {
                 self.languages_open = !self.languages_open;
@@ -3410,7 +3472,7 @@ impl App {
             }
         }
 
-        ui.add_space(12.0);
+        ui.add_space(widgets::SECTION);
         let tabs = ["flames", "fractals", "shapes"].map(|key| self.t(key));
         if let Some(tab) = widgets::segments(ui, &tabs, self.tab()) {
             self.set_mode(tab);
@@ -4015,14 +4077,10 @@ impl App {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32, wide: Option<f32>) {
-        ui.set_width(wide.unwrap_or(300.0));
+    fn export_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32, (width, wide): (f32, bool)) {
+        ui.set_width(width);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-        ui.label(
-            egui::RichText::new(self.t("export_title"))
-                .font(font(17.0, SEMIBOLD))
-                .color(egui::Color32::WHITE),
-        );
+        widgets::title(ui, &self.t("export_title"), 17.0);
 
         if let Some(job) = &self.export.job {
             let share = job.share();
@@ -4056,7 +4114,7 @@ impl App {
         let mut picked = Pick::None;
         #[cfg(feature = "store")]
         let size_before = self.export.size;
-        let clicked = if wide.is_some() {
+        let clicked = if wide {
             // A low, wide screen: the sizes at the left, the rest at the right.
             ui.spacing_mut().item_spacing.x = 24.0;
             let mut clicked = false;
@@ -4064,7 +4122,7 @@ impl App {
                 let ui = &mut columns[0];
                 ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
                 widgets::section(ui, &size);
-                let height = (room - 250.0).clamp(34.0, 230.0);
+                let height = (room - 2.0 * widgets::OUTER - 258.0).clamp(34.0, 230.0);
                 picked = size_list(
                     ui,
                     &self.texts,
@@ -4339,7 +4397,7 @@ impl App {
     fn tuning(&mut self, ui: &mut egui::Ui) {
         ui.set_width(220.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-        ui.label(egui::RichText::new(self.t("glass_title")).font(font(15.0, SEMIBOLD)));
+        widgets::title(ui, &self.t("glass_title"), 15.0);
         let labels = ["refraction", "depth", "bezel"].map(|key| self.t(key));
         let optics = &mut self.optics;
         let edit = |ui: &mut egui::Ui, label: &str, value: &mut f32, range: (f64, f64)| {
@@ -4395,6 +4453,12 @@ impl App {
             && let Some(step) = self.steps.pop()
         {
             let numbers: Vec<f32> = step.split(':').skip(1).filter_map(|part| part.parse().ok()).collect();
+            if let Some(code) = step.strip_prefix("lang:") {
+                self.set_language(ctx, Lang::from_locale(code));
+                self.shown_frames = 1;
+                ctx.request_repaint();
+                return;
+            }
             if step.starts_with("tap:") || step == "wait" {
                 if let [across, down] = numbers[..] {
                     let screen = ctx.content_rect();
@@ -4422,6 +4486,15 @@ impl App {
         if self.shown_frames == 6
             && let Some(path) = self.screenshot.clone()
         {
+            // A test run's panes go beside its picture: a script checks that no two of them overlap.
+            let panes: String = self
+                .panes
+                .iter()
+                .map(|(pane, radius, _)| {
+                    format!("{} {} {} {} {radius}\n", pane.min.x, pane.min.y, pane.max.x, pane.max.y)
+                })
+                .collect();
+            let _ = std::fs::write(path.with_extension("panes"), panes);
             let (done, ctx_done) = (self.screenshot_done.clone(), ctx.clone());
             let callback = egui::ScreenshotCallback::new(move |image: Arc<egui::ColorImage>| {
                 if let Err(error) = save_png(&path, image.as_raw(), image.size) {
@@ -4690,11 +4763,12 @@ impl eframe::App for App {
                 let inspector = egui::Area::new(egui::Id::unique("inspector"))
                     .fixed_pos(corner)
                     .show(&ctx, |ui| {
+                        let pad = widgets::PAD as i8;
                         let margin = egui::Margin {
-                            left: 22,
-                            right: 8,
-                            top: 22,
-                            bottom: 22,
+                            left: pad,
+                            right: pad - 14,
+                            top: pad,
+                            bottom: pad,
                         };
                         egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
                             let room = content.height() - 40.0 - 44.0 - under;
@@ -4777,11 +4851,11 @@ impl eframe::App for App {
                 .pivot(egui::Align2::CENTER_CENTER)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
+                    widgets::pane().show(ui, |ui| {
                         let low = content.width() > content.height() && content.height() < 560.0;
-                        let wide = low.then(|| (content.width() - 60.0).min(604.0));
-                        self.export_sheet(ui, window, content.height(), wide);
-                        if widgets::close(ui, widgets::line(ui, 17.0), &self.t("close")) {
+                        let width = sheet_width(content.width(), if low { 604.0 } else { 300.0 }, self.phone.on);
+                        self.export_sheet(ui, window, content.height(), (width, low));
+                        if widgets::close(ui, &self.t("close")) {
                             self.export.open = false;
                         }
                     });
@@ -4797,9 +4871,9 @@ impl eframe::App for App {
                 .pivot(egui::Align2::CENTER_CENTER)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
+                    widgets::pane().show(ui, |ui| {
                         self.updates.ui(ui, &self.texts, width);
-                        if widgets::close(ui, widgets::line(ui, 17.0), &self.t("close")) {
+                        if widgets::close(ui, &self.t("close")) {
                             self.updates.open = false;
                         }
                     });
@@ -4809,15 +4883,15 @@ impl eframe::App for App {
 
         #[cfg(feature = "store")]
         if self.pro.is_some() {
-            let width = (content.width() - 84.0).min(300.0);
+            let width = sheet_width(content.width(), 300.0, self.phone.on).min(content.width() - 84.0);
             let sheet = egui::Area::new(egui::Id::unique("pro"))
                 .fixed_pos(content.center())
                 .pivot(egui::Align2::CENTER_CENTER)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
+                    widgets::pane().show(ui, |ui| {
                         self.pro_sheet(ui, width);
-                        if widgets::close(ui, widgets::line(ui, 17.0), &self.t("close")) {
+                        if widgets::close(ui, &self.t("close")) {
                             self.leave_pro();
                         }
                     });
@@ -4827,15 +4901,17 @@ impl eframe::App for App {
 
         if self.presets_open {
             let (at, pivot, room) = list_place(content, self.phone.on);
+            let natural = if self.listing == Listing::Recent { 380.0 } else { 260.0 };
+            let width = sheet_width(content.width(), natural, self.phone.on);
             self.list_backdrop(&ctx, screen);
             let sheet = egui::Area::new(egui::Id::unique("presets"))
                 .fixed_pos(at)
                 .pivot(pivot)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
-                        self.preset_sheet(ui, room);
-                        if widgets::close(ui, widgets::CLOSE, &self.t("close")) {
+                    widgets::pane().show(ui, |ui| {
+                        self.preset_sheet(ui, room, width);
+                        if widgets::close(ui, &self.t("close")) {
                             self.presets_open = false;
                         }
                     });
@@ -4852,9 +4928,10 @@ impl eframe::App for App {
                 .pivot(pivot)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
-                        self.size_sheet(ui, window, room);
-                        if widgets::close(ui, widgets::CLOSE, &self.t("close")) {
+                    widgets::pane().show(ui, |ui| {
+                        let width = sheet_width(content.width(), 300.0, self.phone.on);
+                        self.size_sheet(ui, window, room, width);
+                        if widgets::close(ui, &self.t("close")) {
                             self.sizes_open = false;
                         }
                     });
@@ -4872,14 +4949,15 @@ impl eframe::App for App {
                     (at, egui::Align2::RIGHT_TOP, content.height())
                 };
             let mut chosen = self.texts.lang;
+            let width = sheet_width(content.width(), 196.0, self.phone.on);
             self.list_backdrop(&ctx, screen);
             let menu = egui::Area::new(egui::Id::unique("languages"))
                 .fixed_pos(at)
                 .pivot(pivot)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE.inner_margin(egui::Margin::same(10)).show(ui, |ui| {
-                        ui.set_width(196.0);
+                    widgets::pane().show(ui, |ui| {
+                        ui.set_width(width);
                         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
                         widgets::heading(ui, &self.t("language"));
                         let mut bar = egui::style::ScrollStyle::floating();
@@ -4897,27 +4975,34 @@ impl eframe::App for App {
                                     }
                                 }
                             });
-                        if widgets::close(ui, widgets::CLOSE, &self.t("close")) {
+                        if widgets::close(ui, &self.t("close")) {
                             self.languages_open = false;
                         }
                     });
                 });
             ctx.move_to_top(menu.response.layer_id);
             if chosen != self.texts.lang {
-                self.texts = Texts::new(chosen);
-                widgets::install_fonts(&ctx, chosen);
+                self.set_language(&ctx, chosen);
             }
-            panes.push((menu.response.rect, 22.0, true));
+            panes.push((menu.response.rect, self.optics.radius, true));
         }
 
         if self.tuning {
+            // In a narrow window the toolbar reaches under this panel's place: the panel stands above it.
+            let wide = 220.0 + 2.0 * widgets::PAD;
+            let reach = content.center().x + self.toolbar_size.x * 0.5 + 12.0;
+            let lift = if !self.phone.on && reach > content.right() - 20.0 - wide {
+                self.toolbar_size.y + 12.0
+            } else {
+                0.0
+            };
             let tuning = egui::Area::new(egui::Id::unique("tuning"))
-                .fixed_pos(egui::pos2(content.right() - 20.0, content.bottom() - 20.0))
+                .fixed_pos(egui::pos2(content.right() - 20.0, content.bottom() - 20.0 - lift))
                 .pivot(egui::Align2::RIGHT_BOTTOM)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE.inner_margin(egui::Margin::same(20)).show(ui, |ui| {
+                    widgets::pane().show(ui, |ui| {
                         self.tuning(ui);
-                        if widgets::close(ui, widgets::line(ui, 15.0), &self.t("close")) {
+                        if widgets::close(ui, &self.t("close")) {
                             self.tuning = false;
                         }
                     });
@@ -5230,35 +5315,54 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_list_on_an_upright_phone_leaves_the_upper_fifth_of_the_screen() {
-        for high in [568.0, 640.0, 780.0, 800.0, 932.0] {
-            let content = egui::Rect::from_min_size(egui::pos2(0.0, 24.0), egui::vec2(360.0, high));
+    fn a_long_list_on_a_phone_leaves_the_same_edge_above_and_below() {
+        for (wide, high) in [(360.0, 568.0), (360.0, 780.0), (430.0, 932.0), (780.0, 360.0)] {
+            let content = egui::Rect::from_min_size(egui::pos2(0.0, 24.0), egui::vec2(wide, high));
             let (at, pivot, room) = list_place(content, true);
-            assert_eq!(
-                (at.y, pivot),
-                (content.bottom() - LIST_FOOT, egui::Align2::CENTER_BOTTOM)
-            );
-            let top = at.y - list_height(40, room) - LIST_FRAME;
-            assert!(top >= content.top() + high * 0.2 - 0.01, "{high}: {top}");
-            assert!(top <= content.top() + high * 0.2 + 1.0, "{high}: {top}");
-            let short = at.y - list_height(3, room) - LIST_FRAME;
-            assert!(short > top + 200.0, "{high}");
+            assert_eq!((at, pivot), (content.center(), egui::Align2::CENTER_CENTER));
+            let long = list_height(40, room) + LIST_FRAME;
+            assert!((long - (high - 2.0 * widgets::OUTER)).abs() < 0.01, "{high}: {long}");
+            let short = list_height(3, room) + LIST_FRAME;
+            assert_eq!(short, 3.0 * 32.0 - 2.0 + LIST_FRAME);
         }
+        for natural in [196.0, 260.0, 300.0, 380.0, 604.0] {
+            let width = sheet_width(360.0, natural, true);
+            assert_eq!(width + 2.0 * widgets::PAD + 2.0 * widgets::OUTER, 360.0, "{natural}");
+            assert_eq!(sheet_width(1280.0, natural, false), natural);
+        }
+        assert_eq!(sheet_width(780.0, 260.0, true), 300.0);
+        assert_eq!(sheet_width(780.0, 604.0, true), 604.0);
+        let window = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 746.0));
+        assert_eq!(
+            list_place(window, false),
+            (window.center(), egui::Align2::CENTER_CENTER, 746.0)
+        );
     }
 
     #[test]
-    fn a_list_stands_in_the_middle_on_a_computer_and_on_a_phone_on_its_side() {
-        let wide = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(780.0, 360.0));
-        let tall = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 900.0));
+    fn a_layer_named_by_the_app_is_named_anew_in_another_language() {
+        let (english, ukrainian) = (i18n::Texts::new(i18n::Lang::En), i18n::Texts::new(i18n::Lang::Uk));
+        let titles = ["buddhabrot-classic".to_owned(), "Random 354".to_owned()];
+        let again = |name: &str| renamed(name, &ukrainian, &english, &titles);
         assert_eq!(
-            list_place(wide, true),
-            (wide.center(), egui::Align2::CENTER_CENTER, 360.0)
+            again(&displayed(&ukrainian, "buddhabrot-classic")),
+            Some(displayed(&english, "buddhabrot-classic"))
         );
+        assert_eq!(again(&displayed(&ukrainian, "Random 354")), Some("Random".to_owned()));
         assert_eq!(
-            list_place(tall, false),
-            (tall.center(), egui::Align2::CENTER_CENTER, 900.0)
+            again(&displayed(&ukrainian, "aurora-spiral")),
+            Some(displayed(&english, "aurora-spiral"))
         );
-        assert!(list_height(40, 360.0) + LIST_FRAME <= 360.0 - 2.0 * LIST_FOOT);
+        let second = format!("{} 2", displayed(&ukrainian, "aurora-spiral"));
+        assert_eq!(
+            again(&second),
+            Some(format!("{} 2", displayed(&english, "aurora-spiral")))
+        );
+        assert_eq!(again(&ukrainian.get("f_julia")), Some(english.get("f_julia")));
+        assert_eq!(again("Мій шар"), None);
+        assert_eq!(again(""), None);
+        let back = renamed("Random", &english, &ukrainian, &titles);
+        assert_eq!(back, Some(displayed(&ukrainian, "Random 354")));
     }
 
     #[test]

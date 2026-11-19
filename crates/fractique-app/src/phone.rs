@@ -1088,29 +1088,30 @@ impl App {
     }
 
     fn phone_tune(&mut self, ctx: &egui::Context, content: Rect, panes: &mut Panes) {
-        let panel = content.shrink(14.0);
+        let panel = content.shrink(widgets::OUTER);
         // On its side a phone is wide and low: the controls go in two columns.
         let lying = content.width() > content.height();
         let mut done = false;
         egui::Area::new(egui::Id::unique("phone_tune"))
             .fixed_pos(panel.min)
             .show(ctx, |ui| {
+                let pad = widgets::PAD as i8;
                 let margin = egui::Margin {
-                    left: 22,
-                    right: 8,
-                    top: 16,
-                    bottom: 14,
+                    left: pad,
+                    right: pad - 14,
+                    top: pad,
+                    bottom: pad,
                 };
                 egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
-                    let inner = panel.width() - 30.0;
+                    let inner = panel.width() - 2.0 * widgets::PAD + 14.0;
                     ui.set_width(inner);
                     ui.spacing_mut().item_spacing = vec2(8.0, 2.0);
                     let top = ui.cursor().top();
                     self.inspector_head(ui);
-                    let spot = widgets::close_spot(top, widgets::line(ui, 30.0), panel.right() - 22.0);
+                    let spot = widgets::close_spot(top, widgets::line(ui, 30.0), panel.right() - widgets::PAD);
                     done = widgets::close_at(ui, spot, &self.t("close"));
                     ui.add_space(4.0);
-                    let room = panel.height() - 30.0 - (ui.cursor().top() - top);
+                    let room = panel.height() - 2.0 * widgets::PAD - (ui.cursor().top() - top);
                     let mut bar = egui::style::ScrollStyle::floating();
                     bar.bar_width = 5.0;
                     bar.floating_allocated_width = 0.0;
@@ -1257,7 +1258,8 @@ impl App {
     fn phone_sheet(&mut self, ctx: &egui::Context, content: Rect, size: [u32; 2], panes: &mut Panes) {
         let high = content.height();
         let top = content.top() + (high * self.phone.lift + self.phone.pull).clamp(high * SHEET_TALL, high * 0.92);
-        let rect = Rect::from_min_max(egui::pos2(content.left() + 8.0, top), content.max - vec2(8.0, 8.0));
+        let edge = widgets::OUTER;
+        let rect = Rect::from_min_max(egui::pos2(content.left() + edge, top), content.max - vec2(edge, edge));
         let scale = ctx.pixels_per_point();
         let mut close = false;
         let mut tune = false;
@@ -1269,10 +1271,10 @@ impl App {
                 ui.set_max_size(rect.size());
                 egui::Frame::NONE
                     .inner_margin(egui::Margin {
-                        left: 18,
-                        right: 6,
+                        left: widgets::PAD as i8,
+                        right: widgets::PAD as i8 - 12,
                         top: 10,
-                        bottom: 14,
+                        bottom: widgets::PAD as i8,
                     })
                     .show(ui, |ui| {
                         ui.spacing_mut().item_spacing = vec2(8.0, 2.0);
@@ -1299,10 +1301,9 @@ impl App {
                         scroll.bar_width = 5.0;
                         scroll.floating_allocated_width = 0.0;
                         ui.spacing_mut().scroll = scroll;
-                        let heading = ui.cursor().top() + 14.0;
                         egui::ScrollArea::vertical()
-                            .max_height(rect.height() - 60.0)
-                            .min_scrolled_height(rect.height() - 60.0)
+                            .max_height(rect.height() - 42.0 - widgets::PAD)
+                            .min_scrolled_height(rect.height() - 42.0 - widgets::PAD)
                             .show(ui, |ui| {
                                 egui::Frame::NONE
                                     .inner_margin(egui::Margin {
@@ -1331,8 +1332,6 @@ impl App {
                                         tune = widgets::pill(ui, &self.t("fine_tune"), false, ui.available_width());
                                     });
                             });
-                        let spot = widgets::close_spot(heading, widgets::line(ui, 11.0), rect.right() - 18.0);
-                        close |= widgets::close_at(ui, spot, &self.t("close"));
                     });
             });
         panes.push((rect, 28.0, true));

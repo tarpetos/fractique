@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+* **One set of measures for every pane, lists in the middle of a phone's screen:** every sheet, list and panel
+  now has the same padding on all four sides, 22 points, and the close button fills the corner of it: 22 points
+  from the top and from the right edge, on the title's line. Before, the list of languages had 10, the glass
+  panel of **F2** 20, the phone's controls 16 above and 14 below, the styles 18 and 14, and a title's button sat
+  3 to 7 points higher than its text's padding. On a phone every sheet is as wide as every other (12 points from
+  the screen's edges; before the lists stood 28 and 72 points in, the size sheet and the export 8, the controls
+  14), and a list stands in the middle of the screen: a long one (types, presets) grows until 12 points are left
+  above and below it and scrolls, a short one is as high as its rows. The lower-edge placement of the lists, with
+  a fifth of the screen empty above them, is gone. The list of languages is as wide as the others on a phone and
+  has their padding on a computer too. The phone's styles have no close button again: it lay over the small
+  pictures once the sheet was scrolled, and the handle closes them. On a phone the list of types leaves out the
+  nine that take its processor long, as the styles always did, and with them the orange dot nobody could read
+  there; a picture of such a type that is on the screen stays, and **Recent** still brings one back. A layer
+  named by the app (after a preset, a type or a random picture) is named anew when the language changes; before,
+  the layers kept the names of the language they were made in while everything else changed. In a narrow window
+  the glass panel of **F2** stood over the toolbar; it stands above it. The export on a phone held on its side
+  reached the screen's edges; it leaves 16 points. Test runs: `FRACTIQUE_STEPS` takes `lang:en`;
+  `FRACTIQUE_SHOW` takes `tuning`; the language row of the phone's controls shows when the phone's screen runs
+  on a computer; a screenshot run writes its panes' rectangles beside the picture.
+
 * **Close buttons on the title's line, lists that are easy to leave:** the round button with a cross of every
   sheet, list and panel stands on the line of its title or heading, as far from the pane's right edge as the
   title is from the left one, and never over the pane's outline or its round corner; before it sat higher and
