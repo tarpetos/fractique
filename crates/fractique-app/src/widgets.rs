@@ -180,20 +180,45 @@ pub fn picture_row(
 
 pub const BACK: f32 = 38.0;
 
-pub fn back(ui: &mut Ui, enabled: bool, hint: &str) -> bool {
+pub fn back(ui: &mut Ui, hint: &str) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(BACK, BACK), Sense::click());
-    let lift = match (enabled, response.is_pointer_button_down_on(), response.hovered()) {
-        (true, true, _) => 20,
-        (true, false, true) => 50,
+    let lift = match (response.is_pointer_button_down_on(), response.hovered()) {
+        (true, _) => 20,
+        (false, true) => 50,
         _ => 30,
     };
     ui.painter().circle_filled(rect.center(), BACK * 0.5, white(lift));
-    let ink = egui::Stroke::new(1.6, white(if enabled { 240 } else { 70 }));
+    let ink = egui::Stroke::new(1.6, white(240));
     let tip = rect.center() - vec2(6.5, 0.0);
     for to in [vec2(13.0, 0.0), vec2(5.5, -5.5), vec2(5.5, 5.5)] {
         ui.painter().line_segment([tip, tip + to], ink);
     }
-    enabled && response.on_hover_text(hint).clicked()
+    response.on_hover_text(hint).clicked()
+}
+
+pub const CLOSE: f32 = 28.0;
+
+pub fn close(ui: &mut Ui, hint: &str) -> bool {
+    let corner = ui.min_rect().right_top();
+    close_at(ui, corner + vec2(-8.0, 8.0), hint)
+}
+
+pub fn close_at(ui: &mut Ui, center: egui::Pos2, hint: &str) -> bool {
+    // A finger needs 44 points; the circle drawn is smaller.
+    let touch = egui::Rect::from_center_size(center, egui::Vec2::splat(44.0));
+    let response = ui.interact(touch, ui.scope_id().with("close"), Sense::click());
+    let lift = match (response.is_pointer_button_down_on(), response.hovered()) {
+        (true, _) => 14,
+        (false, true) => 50,
+        _ => 30,
+    };
+    ui.painter().circle_filled(center, CLOSE * 0.5, white(lift));
+    let ink = egui::Stroke::new(1.5, white(240));
+    for turn in [1.0, -1.0] {
+        ui.painter()
+            .line_segment([center + vec2(-4.0, -4.0 * turn), center + vec2(4.0, 4.0 * turn)], ink);
+    }
+    response.on_hover_text(hint).clicked()
 }
 
 pub fn round(ui: &mut Ui, kind: &str, enabled: bool) -> bool {

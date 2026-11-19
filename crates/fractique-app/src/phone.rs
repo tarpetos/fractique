@@ -270,20 +270,60 @@ fn tile_width(room: f32, gap: f32) -> f32 {
 
 #[derive(Clone, Copy)]
 enum Icon {
+    New,
     Back,
     Keep(bool),
-    Similar,
+    Mutate,
     Style,
     Save,
 }
 
-fn icon(painter: &egui::Painter, at: Pos2, which: Icon, ink: Color32) {
-    let stroke = Stroke::new(1.6, ink);
+fn icon(painter: &egui::Painter, at: Pos2, which: Icon, ink: Color32, scale: f32) {
+    let stroke = Stroke::new(1.6 * scale.max(0.7), ink);
+    let v = |x: f32, y: f32| vec2(x, y) * scale;
+    let capped = |from: Pos2, to: Pos2, width: f32| {
+        painter.line_segment([from, to], Stroke::new(width, ink));
+        painter.circle_filled(from, width * 0.5, ink);
+        painter.circle_filled(to, width * 0.5, ink);
+    };
     match which {
+        Icon::New => {
+            let width = 2.0 * scale.max(0.7);
+            let (reach, across, bend) = (16.0, 16.0 * 0.866, 3.0);
+            let corners = [
+                (0.0, -reach),
+                (across, -reach * 0.5),
+                (across, reach * 0.5),
+                (0.0, reach),
+                (-across, reach * 0.5),
+                (-across, -reach * 0.5),
+            ]
+            .map(|(x, y)| vec2(x, y));
+            let mut outline = Vec::new();
+            for (index, corner) in corners.into_iter().enumerate() {
+                let from = corner + (corners[(index + 5) % 6] - corner).normalized() * bend;
+                let to = corner + (corners[(index + 1) % 6] - corner).normalized() * bend;
+                for step in 0..=4 {
+                    let t = step as f32 / 4.0;
+                    let point = from * (1.0 - t) * (1.0 - t) + corner * 2.0 * t * (1.0 - t) + to * t * t;
+                    outline.push(at + point * scale);
+                }
+            }
+            painter.add(egui::Shape::closed_line(outline, Stroke::new(width, ink)));
+            for index in [1, 3, 5] {
+                capped(at, at + corners[index] * (0.95 * scale), width);
+            }
+            let (left, right) = (vec2(-across * 0.5, reach * 0.25), vec2(across * 0.5, reach * 0.25));
+            let (two, three) = (vec2(across * 0.22, reach * 0.3), vec2(across * 0.25, -reach * 0.33));
+            painter.circle_filled(at + v(0.0, -reach * 0.5), 1.7 * scale, ink);
+            for pip in [left - two, left + two, right - three, right, right + three] {
+                painter.circle_filled(at + pip * scale, 1.5 * scale, ink);
+            }
+        }
         Icon::Back => {
-            painter.line_segment([at + vec2(-8.0, 0.0), at + vec2(8.0, 0.0)], stroke);
-            painter.line_segment([at + vec2(-8.0, 0.0), at + vec2(-2.0, -6.0)], stroke);
-            painter.line_segment([at + vec2(-8.0, 0.0), at + vec2(-2.0, 6.0)], stroke);
+            painter.line_segment([at + v(-8.0, 0.0), at + v(8.0, 0.0)], stroke);
+            painter.line_segment([at + v(-8.0, 0.0), at + v(-2.0, -6.0)], stroke);
+            painter.line_segment([at + v(-8.0, 0.0), at + v(-2.0, 6.0)], stroke);
         }
         Icon::Keep(full) => {
             let outline: Vec<Pos2> = (0..40)
@@ -292,12 +332,12 @@ fn icon(painter: &egui::Painter, at: Pos2, which: Icon, ink: Color32) {
                     let (sin, cos) = t.sin_cos();
                     let x = 16.0 * sin * sin * sin;
                     let y = 13.0 * cos - 5.0 * (2.0 * t).cos() - 2.0 * (3.0 * t).cos() - (4.0 * t).cos();
-                    at + vec2(x, -y * 0.92 + 1.0) * 0.52
+                    at + v(x, -y * 0.92 + 1.0) * 0.52
                 })
                 .collect();
             if full {
                 let mut mesh = egui::Mesh::default();
-                mesh.colored_vertex(at + vec2(0.0, 1.0), ink);
+                mesh.colored_vertex(at + v(0.0, 1.0), ink);
                 for point in &outline {
                     mesh.colored_vertex(*point, ink);
                 }
@@ -308,37 +348,125 @@ fn icon(painter: &egui::Painter, at: Pos2, which: Icon, ink: Color32) {
             }
             painter.add(egui::Shape::closed_line(outline, stroke));
         }
-        Icon::Similar => {
-            let star = |center: Pos2, reach: f32| {
-                let thin = reach * 0.26;
-                let points = [
-                    (0.0, -reach),
-                    (thin, -thin),
-                    (reach, 0.0),
-                    (thin, thin),
-                    (0.0, reach),
-                    (-thin, thin),
-                    (-reach, 0.0),
-                    (-thin, -thin),
-                ]
-                .map(|(x, y)| center + vec2(x, y));
-                painter.add(egui::Shape::closed_line(points.to_vec(), stroke));
-            };
-            star(at + vec2(-2.0, 2.0), 8.0);
-            star(at + vec2(8.0, -8.0), 3.4);
+        Icon::Mutate => {
+            let scale = scale * 0.8;
+            let v = |x: f32, y: f32| vec2(x, y) * scale;
+            capped(at + v(-12.0, 12.0), at + v(1.5, -1.5), 2.0 * scale.max(0.7));
+            let (center, reach) = (at + v(6.5, -6.5), 7.0 * scale);
+            let thin = reach * 0.26;
+            let points = [
+                (0.0, -reach),
+                (thin, -thin),
+                (reach, 0.0),
+                (thin, thin),
+                (0.0, reach),
+                (-thin, thin),
+                (-reach, 0.0),
+                (-thin, -thin),
+            ]
+            .map(|(x, y)| center + vec2(x, y));
+            painter.add(egui::Shape::closed_line(points.to_vec(), stroke));
+            for (x, y, reach) in [(-7.0, -8.0, 2.6), (11.0, 7.0, 2.2)] {
+                let width = 1.4 * scale.max(0.7);
+                capped(at + v(x - reach, y), at + v(x + reach, y), width);
+                capped(at + v(x, y - reach), at + v(x, y + reach), width);
+            }
         }
         Icon::Style => {
             for (y, knob) in [(-6.0, 4.0), (0.0, -4.0), (6.0, 2.0)] {
-                painter.line_segment([at + vec2(-9.0, y), at + vec2(9.0, y)], stroke);
-                painter.circle_filled(at + vec2(knob, y), 2.8, ink);
+                painter.line_segment([at + v(-9.0, y), at + v(9.0, y)], stroke);
+                painter.circle_filled(at + v(knob, y), 2.8 * scale, ink);
             }
         }
         Icon::Save => {
-            painter.line_segment([at + vec2(0.0, -9.0), at + vec2(0.0, 3.0)], stroke);
-            painter.line_segment([at + vec2(-5.0, -2.0), at + vec2(0.0, 3.0)], stroke);
-            painter.line_segment([at + vec2(5.0, -2.0), at + vec2(0.0, 3.0)], stroke);
-            painter.line_segment([at + vec2(-8.0, 8.0), at + vec2(8.0, 8.0)], stroke);
+            painter.line_segment([at + v(0.0, -9.0), at + v(0.0, 3.0)], stroke);
+            painter.line_segment([at + v(-5.0, -2.0), at + v(0.0, 3.0)], stroke);
+            painter.line_segment([at + v(5.0, -2.0), at + v(0.0, 3.0)], stroke);
+            painter.line_segment([at + v(-8.0, 8.0), at + v(8.0, 8.0)], stroke);
         }
+    }
+}
+
+// The name on one or two lines, and the mutation as a tag of its own: it is no part of the name.
+fn placard_lines(title: &str, mutation: u32, word: &str, turkish: bool) -> (String, String, String) {
+    let (first, second) = match title.rsplit_once(' ') {
+        Some((head, tail)) if title.chars().count() > 9 => (head.to_owned(), tail.to_owned()),
+        _ => (title.to_owned(), String::new()),
+    };
+    let tag = match mutation {
+        0 => String::new(),
+        count if turkish => format!("{} {count}", word.replace('i', "İ").to_uppercase()),
+        count => format!("{} {count}", word.to_uppercase()),
+    };
+    (first, second, tag)
+}
+
+struct Rail {
+    shutter: Pos2,
+    large: f32,
+    small: f32,
+    fan: [Pos2; 3],
+    column: [Pos2; 2],
+    scale: f32,
+}
+
+// A phone on its side: the largest are about 440 points high, less their bars.
+const LOW: f32 = 420.0;
+const LARGE: f32 = 68.0;
+const SMALL: f32 = 46.0;
+const CLEAR: f32 = 8.0;
+
+// How far from the large button's centre the three small ones around it stand, clear of it and of one another,
+// and how far along the large button's own edge the first and the last of them are from its centre.
+fn reach(scale: f32) -> [f32; 2] {
+    let aside = (LARGE - SMALL) * 0.5 * scale;
+    let mut away = (LARGE + SMALL) * 0.5 * scale + CLEAR;
+    let between = |away: f32| {
+        let turn = std::f32::consts::FRAC_PI_4 + (aside / away).asin();
+        2.0 * away * (turn * 0.5).sin()
+    };
+    while between(away) < SMALL * scale + CLEAR {
+        away += 0.25;
+    }
+    [away, (away * away - aside * aside).sqrt()]
+}
+
+fn rail(content: Rect, top: f32) -> Rail {
+    let tall = |scale: f32, gap: f32, foot: f32| {
+        foot + LARGE * scale * 0.5 + reach(scale)[1] + SMALL * scale * 2.5 + 2.0 * gap
+    };
+    let room = content.bottom() - top;
+    let (full, tight) = (tall(1.0, 10.0, 20.0), tall(1.0, 4.0, 8.0));
+    let (scale, gap, foot) = if room >= tight {
+        let loose = ((room - tight) / (full - tight)).min(1.0);
+        (1.0, 4.0 + 6.0 * loose, 8.0 + 12.0 * loose)
+    } else {
+        let (mut low, mut high) = (0.25, 1.0);
+        for _ in 0..20 {
+            let middle = (low + high) * 0.5;
+            if tall(middle, 4.0, 8.0) > room {
+                high = middle;
+            } else {
+                low = middle;
+            }
+        }
+        (low, 4.0, 8.0)
+    };
+    let (large, small, [away, along]) = (LARGE * scale, SMALL * scale, reach(scale));
+    let shutter = egui::pos2(
+        content.right() - 14.0 - large * 0.5,
+        content.bottom() - foot - large * 0.5,
+    );
+    let (aside, slant) = ((large - small) * 0.5, away * std::f32::consts::FRAC_1_SQRT_2);
+    let fan = [vec2(aside, -along), vec2(-slant, -slant), vec2(-along, aside)].map(|by| shutter + by);
+    let style = fan[0].y - small - gap;
+    Rail {
+        shutter,
+        large,
+        small,
+        fan,
+        column: [style, style - small - gap].map(|y| egui::pos2(fan[0].x, y)),
+        scale,
     }
 }
 
@@ -739,10 +867,15 @@ impl App {
         let (on_picture, ink) = (ink, Color32::WHITE);
         let reverse = Color32::from_rgb(14, 18, 34);
         let labels = ["flames", "fractals", "shapes"].map(|key| self.t(key));
+        let (lift, space) = if content.height() < LOW {
+            (6.0, 6.0)
+        } else {
+            (10.0, 8.0)
+        };
         let tab = self.tab();
         let mut mode = None;
         let pill = egui::Area::new(egui::Id::unique("phone_mode"))
-            .fixed_pos(egui::pos2(content.center().x, content.top() + 10.0))
+            .fixed_pos(egui::pos2(content.center().x, content.top() + lift))
             .pivot(Align2::CENTER_TOP)
             .show(ctx, |ui| {
                 egui::Frame::NONE.inner_margin(egui::Margin::same(4)).show(ui, |ui| {
@@ -773,7 +906,7 @@ impl App {
         }
 
         let strip = egui::Area::new(egui::Id::unique("phone_colors"))
-            .fixed_pos(egui::pos2(content.center().x, pill.response.rect.bottom() + 8.0))
+            .fixed_pos(egui::pos2(content.center().x, pill.response.rect.bottom() + space))
             .pivot(Align2::CENTER_TOP)
             .show(ctx, |ui| {
                 egui::Frame::NONE
@@ -784,79 +917,71 @@ impl App {
         self.phone.clear.push(strip.response.rect);
         let below = strip.response.rect.bottom() + 12.0;
 
-        let edge = content.right() - 14.0;
-        let shutter = egui::pos2(edge - 34.0, content.bottom() - 54.0);
         let similar = if self.wall.live { "similar" } else { "mutate" };
         let piece = self.piece(size);
         let is_kept = self.phone.kept.iter().any(|kept| kept.kind == piece.kind);
-        let rail = [
-            (Icon::Save, "export"),
-            (Icon::Style, "style"),
-            (Icon::Similar, similar),
+        let column = [(Icon::Style, "style"), (Icon::Save, "export")];
+        let fan = [
+            (Icon::Mutate, similar),
             (Icon::Keep(is_kept), "keep"),
             (Icon::Back, "back"),
         ];
-        let older = self.has_older();
-        // Upright the labels would run into the scene's name; on its side a phone has the room for them.
-        let hinted = content.width() > content.height();
+        let taken = pill.response.rect.right().max(strip.response.rect.right()) + 8.0;
+        let beside = rail(content, content.top() + 6.0);
+        let free = taken <= beside.shutter.x - beside.small * 0.5;
+        let place = if free {
+            beside
+        } else {
+            rail(content, strip.response.rect.bottom() + 8.0)
+        };
+        let fan_left = place.fan[2].x - place.small * 0.5;
+        // Where the name does not fit beside the buttons, as on a narrow upright phone, it stands above them.
+        let (right, foot) = if fan_left - 12.0 - content.left() - 22.0 >= 170.0 {
+            (fan_left - 12.0, content.bottom() - 24.0)
+        } else {
+            let above = place.fan[0].y - place.small * 0.5 - 12.0;
+            (place.shutter.x - place.small * 0.5 - 12.0, above)
+        };
         let mut pressed = None;
-        for (index, (which, key)) in rail.into_iter().enumerate() {
-            let at = egui::pos2(edge - 23.0, shutter.y - 66.0 - 56.0 * index as f32);
-            let button = egui::Area::new(egui::Id::unique(("phone_rail", index)))
+        let texts = &self.texts;
+        let mut round = |id: egui::Id, at: Pos2, side: f32, which: Icon, key: &'static str| {
+            let name = texts.get(key);
+            let button = egui::Area::new(id)
                 .fixed_pos(at)
                 .pivot(Align2::CENTER_CENTER)
                 .show(ctx, |ui| {
-                    let (rect, response) = ui.allocate_exact_size(vec2(46.0, 46.0), Sense::click());
-                    let ink = if key == "back" && !older {
-                        ink.gamma_multiply(0.35)
-                    } else {
-                        ink
-                    };
-                    icon(ui.painter(), rect.center(), which, ink);
-                    if response.clicked() {
+                    let (rect, response) = ui.allocate_exact_size(vec2(side, side), Sense::click());
+                    if matches!(which, Icon::New) {
+                        let held = response.is_pointer_button_down_on();
+                        let reach = side * 0.5 - if held { 3.0 } else { 1.0 };
+                        ui.painter().circle_stroke(rect.center(), reach, Stroke::new(1.6, ink));
+                    }
+                    icon(ui.painter(), rect.center(), which, ink, place.scale);
+                    if response.on_hover_text(name).clicked() {
                         pressed = Some(key);
                     }
                 });
-            let rect = button.response.rect;
+            button.response.rect
+        };
+        let mut rects = Vec::new();
+        for (index, (which, key)) in column.into_iter().enumerate() {
+            let id = egui::Id::unique(("phone_rail", index));
+            let rect = round(id, place.column[index], place.small, which, key);
             if key == "export" {
                 self.phone.share_from = rect;
             }
+            rects.push(rect);
+        }
+        for (index, (which, key)) in fan.into_iter().enumerate() {
+            let id = egui::Id::unique(("phone_fan", index));
+            rects.push(round(id, place.fan[index], place.small, which, key));
+        }
+        let shutter = egui::Id::unique("phone_shutter");
+        rects.push(round(shutter, place.shutter, place.large, Icon::New, "randomize"));
+        for rect in rects {
             panes.push((rect, rect.height() * 0.5, false));
             self.phone.clear.push(rect);
-            if hinted {
-                ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::unique("phone_hints")))
-                    .text(
-                        rect.left_center() - vec2(10.0, 0.0),
-                        Align2::RIGHT_CENTER,
-                        self.t(key),
-                        font(13.0, MEDIUM),
-                        on_picture,
-                    );
-            }
         }
-
-        let button = egui::Area::new(egui::Id::unique("phone_shutter"))
-            .fixed_pos(shutter)
-            .pivot(Align2::CENTER_CENTER)
-            .show(ctx, |ui| {
-                let (rect, response) = ui.allocate_exact_size(vec2(68.0, 68.0), Sense::click());
-                let at = rect.center();
-                let held = response.is_pointer_button_down_on();
-                ui.painter()
-                    .circle_stroke(at, if held { 31.0 } else { 33.0 }, Stroke::new(1.6, ink));
-                let stroke = Stroke::new(2.0, ink);
-                for flip in [1.0, -1.0] {
-                    let (from, to) = (at + vec2(-11.0, -7.0 * flip), at + vec2(11.0, 7.0 * flip));
-                    ui.painter().line_segment([from, to], stroke);
-                    ui.painter().line_segment([to, to + vec2(-6.5, 0.0)], stroke);
-                    ui.painter().line_segment([to, to + vec2(-2.0, -6.0 * flip)], stroke);
-                }
-                if response.clicked() {
-                    pressed = Some("randomize");
-                }
-            });
-        panes.push((button.response.rect, 34.0, false));
-        self.phone.clear.push(button.response.rect);
 
         match pressed {
             Some("style") => {
@@ -867,7 +992,8 @@ impl App {
                 ctx.request_repaint();
             }
             Some("similar") => self.act("mutate"),
-            Some("back") => self.travel(true),
+            Some("back") if self.has_older() => self.travel(true),
+            Some("back") => crate::refuse(),
             Some("keep") => {
                 crate::tick(true);
                 match self.phone.kept.iter().position(|kept| kept.kind == piece.kind) {
@@ -899,7 +1025,7 @@ impl App {
                 );
         }
 
-        self.placard(ctx, content, size, on_picture);
+        self.placard(ctx, content, [right, foot], size, on_picture);
 
         if self.view != WHOLE {
             let rect = self.reset_button(ctx, egui::pos2(content.center().x, below + 44.0));
@@ -907,12 +1033,13 @@ impl App {
         }
     }
 
-    fn placard(&self, ctx: &egui::Context, content: Rect, size: [u32; 2], ink: Color32) {
+    fn placard(&self, ctx: &egui::Context, content: Rect, [right, foot]: [f32; 2], size: [u32; 2], ink: Color32) {
         let painter = ctx.layer_painter(egui::LayerId::new(
             egui::Order::Middle,
             egui::Id::unique("phone_placard"),
         ));
         let soft = ink.gamma_multiply(0.72);
+        let mut tag = String::new();
         let (first, second) = if self.wall.live {
             let (layout, material) = self.current(size);
             let layout = Layout::ALL
@@ -925,17 +1052,20 @@ impl App {
                 .map_or("relief", |(n, _)| n);
             (self.t(&format!("l_{layout}")), self.t(&format!("m_{material}")))
         } else {
-            let title = self.display(&self.title);
-            match (title.rsplit_once(' '), self.phone.origin.mutation) {
-                (Some((head, tail)), _) if title.chars().count() > 9 => (head.to_owned(), tail.to_owned()),
-                (_, 0) => (title, String::new()),
-                (_, count) => (title, format!("{} {count}", self.t("mutation"))),
-            }
+            let turkish = self.texts.lang == crate::i18n::Lang::Tr;
+            let lines = placard_lines(
+                &self.display(&self.title),
+                self.phone.origin.mutation,
+                &self.t("mutation"),
+                turkish,
+            );
+            tag = lines.2;
+            (lines.0, lines.1)
         };
         let detail = self.detail();
-        let room = content.width() - 22.0 - 110.0;
         let left = content.left() + 22.0;
-        let mut y = content.bottom() - 24.0;
+        let room = right - left;
+        let mut y = foot;
         let mut line = |text: String, id: egui::FontId, color: Color32, gap: f32| {
             if text.is_empty() {
                 return;
@@ -950,7 +1080,8 @@ impl App {
             painter.galley(egui::pos2(left, y), galley, color);
             y -= gap;
         };
-        line(detail, egui::FontId::monospace(11.5), soft, 8.0);
+        line(detail, egui::FontId::monospace(11.5), soft, 6.0);
+        line(tag, font(11.0, SEMIBOLD), Color32::from_white_alpha(120), 4.0);
         line(second, font(34.0, MEDIUM), soft, -6.0);
         line(first, font(34.0, SEMIBOLD), ink, 4.0);
     }
@@ -978,7 +1109,9 @@ impl App {
                         ui.vertical(|ui| self.inspector_head(ui));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
                             ui.add_space(14.0);
-                            done = widgets::round(ui, "remove", true);
+                            let (spot, _) =
+                                ui.allocate_exact_size(vec2(widgets::CLOSE, widgets::CLOSE), Sense::hover());
+                            done = widgets::close_at(ui, spot.center(), &self.t("close"));
                         });
                     });
                     ui.add_space(4.0);
@@ -1493,6 +1626,83 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_mutation_is_a_tag_under_the_name_and_no_part_of_it() {
+        let lines = |title: &str, mutation: u32| placard_lines(title, mutation, "мутація", false);
+        let text = |a: &str, b: &str, c: &str| (a.to_owned(), b.to_owned(), c.to_owned());
+        assert_eq!(lines("Випадковий", 0), text("Випадковий", "", ""));
+        assert_eq!(lines("Випадковий", 1), text("Випадковий", "", "МУТАЦІЯ 1"));
+        assert_eq!(lines("Спіраль аврори", 0), text("Спіраль", "аврори", ""));
+        assert_eq!(lines("Спіраль аврори", 12), text("Спіраль", "аврори", "МУТАЦІЯ 12"));
+        assert_eq!(placard_lines("Rastgele", 2, "değişim", true).2, "DEĞİŞİM 2");
+        assert_eq!(placard_lines("Zufall", 2, "Mutation", false).2, "MUTATION 2");
+    }
+
+    #[test]
+    fn the_buttons_stay_between_the_status_bar_and_the_lower_edge() {
+        for (width, height, top) in [
+            (753.0, 360.0, 30.0),
+            (800.0, 360.0, 0.0),
+            (640.0, 295.0, 24.0),
+            (568.0, 320.0, 0.0),
+        ]
+        .into_iter()
+        .chain((120..900).step_by(7).map(|height| (400.0, height as f32, 6.0)))
+        {
+            let content = Rect::from_min_max(egui::pos2(0.0, top), egui::pos2(width, height));
+            let place = rail(content, content.top() + 6.0);
+            let half = place.small * 0.5;
+            let (right, bottom) = (place.shutter.x + place.large * 0.5, place.shutter.y + place.large * 0.5);
+            assert!(bottom <= content.bottom() && right <= content.right(), "{height}");
+            let away = (place.fan[1] - place.shutter).length();
+            for (index, at) in place.fan.into_iter().enumerate() {
+                assert!(((at - place.shutter).length() - away).abs() < 0.01, "{height}");
+                assert!(away - half - place.large * 0.5 >= CLEAR - 0.01, "{height}: {away}");
+                assert!(at.x - half > content.left(), "{height}");
+                if index > 0 {
+                    let between = (at - place.fan[index - 1]).length() - place.small;
+                    assert!(between >= CLEAR - 0.01, "{height}: {between}");
+                }
+            }
+            assert!((place.fan[2].y + half - bottom).abs() < 0.001, "{height}");
+            let mut lowest = place.fan[0].y - half;
+            for at in [place.fan[0]].into_iter().chain(place.column) {
+                assert!((at.x + half - right).abs() < 0.001, "{height}");
+            }
+            for at in place.column {
+                assert!(at.y + half < lowest, "{height}");
+                lowest = at.y - half;
+            }
+            assert!(lowest >= content.top() - 0.01, "{height}: {lowest}");
+            let tight = 8.0 + 34.0 + reach(1.0)[1] + 115.0 + 8.0;
+            assert_eq!(place.scale == 1.0, content.height() - 6.0 >= tight, "{height}");
+        }
+    }
+
+    #[test]
+    fn a_tall_screen_has_the_buttons_at_their_full_size() {
+        let place = rail(
+            Rect::from_min_max(egui::pos2(0.0, 40.0), egui::pos2(360.0, 800.0)),
+            150.0,
+        );
+        assert_eq!((place.large, place.small, place.scale), (68.0, 46.0, 1.0));
+        assert_eq!(place.shutter, egui::pos2(312.0, 746.0));
+        assert_eq!(reach(1.0)[0], 65.0);
+        assert_eq!(place.fan[0].x, 323.0);
+        assert!((place.fan[2].y - 757.0).abs() < 0.001);
+        assert!((place.fan[0].y - place.column[0].y - 56.0).abs() < 0.001);
+        assert!((place.column[0].y - place.column[1].y - 56.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn a_low_screen_closes_the_gaps_before_the_buttons_shrink() {
+        let place = rail(Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(700.0, 240.0)), 0.0);
+        assert_eq!(place.scale, 1.0);
+        let gap = place.column[0].y - place.column[1].y - 46.0;
+        assert!((4.0..10.0).contains(&gap), "{gap}");
+        assert!(place.column[1].y - 23.0 >= -0.01);
+    }
 
     fn wall(seed: u64) -> Piece {
         Piece {

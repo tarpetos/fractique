@@ -25,7 +25,7 @@ Rust is installed by the scripts when it is missing.
 The first build takes a few minutes. The Simulator opens with Fractique in it. No Apple account is needed.
 
 What to look at: the picture fills the screen; the **Flames** and **Shapes** switch at the top and the round
-buttons at the bottom right stay clear of the notch and the home bar; the round button makes a new picture, a swipe
+buttons at the bottom right stay clear of the notch and the home bar; the large one makes a new picture, a swipe
 goes to the next wallpaper, **Style** opens the sheet of small pictures and **Fine-tune** in it the sliders.
 [usage.md](usage.md#on-a-phone) describes the screen.
 
@@ -159,7 +159,7 @@ Sandbox Apple Account**.
 | Open **Export** | 2560 × 1440, 3840 × 2160 and the other large sizes have a lock, 1920 × 1080 and 1290 × 2796 have none; **Custom** has a lock; no Android size is listed |
 | Choose 1920 × 1080, **Save to Photos** | The picture is saved, no sheet |
 | Choose 3840 × 2160, **Save to Photos** | The Fractique Pro sheet with the price in the tester's currency |
-| **Cancel** | Back in the export sheet, nothing saved |
+| The round button with a cross, top right | Back in the export sheet, nothing saved |
 | **Save** again, **Buy**, confirm | The system's purchase dialog; then the sheet closes, the export starts by itself and the picture is in Photos; the locks are gone |
 | Close the app, turn on Airplane Mode, open it | Still no locks |
 | Delete the app, install it again, open **Export**, press a locked size, **Restore purchases** | The locks go without paying again |

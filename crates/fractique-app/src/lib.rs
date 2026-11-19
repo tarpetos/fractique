@@ -2801,14 +2801,11 @@ impl App {
             .size(13.5)
             .color(soft),
         );
-        ui.add_space(14.0);
-        let full = ui.available_width();
         if state == State::Owned {
-            if widgets::pill(ui, &self.t("close"), true, full) {
-                self.pro = None;
-            }
             return;
         }
+        ui.add_space(14.0);
+        let full = ui.available_width();
         let words = match &state {
             State::Loading => self.t("pro_loading"),
             State::Buying => self.t("pro_waiting"),
@@ -2835,12 +2832,6 @@ impl App {
         }
         if state != State::Buying {
             restore = widgets::pill(ui, &self.t("pro_restore"), false, full);
-            ui.add_space(8.0);
-        }
-        if widgets::pill(ui, &self.t("cancel"), false, full)
-            && let Some(Wanted::Export { .. } | Wanted::ExportSize(_)) = self.pro.take()
-        {
-            self.export.open = true;
         }
         if let Some(store) = &mut self.store
             && (buy || restore)
@@ -2851,6 +2842,16 @@ impl App {
                 store.restore();
             }
             ui.ctx().request_repaint();
+        }
+    }
+
+    #[cfg(feature = "store")]
+    fn leave_pro(&mut self) {
+        let owned = !self.pro_missing();
+        if let Some(Wanted::Export { .. } | Wanted::ExportSize(_)) = self.pro.take()
+            && !owned
+        {
+            self.export.open = true;
         }
     }
 
@@ -3716,14 +3717,14 @@ impl App {
         let natural: f32 = labels.iter().map(|label| widgets::pill_width(ui, label)).sum();
         let arrow = widgets::BACK + gap;
         let one_row = arrow + natural + (labels.len() - 1) as f32 * gap <= room;
-        let (older, hint) = (self.has_older(), self.t("back"));
+        let hint = self.t("back");
 
         let (mut clicked, mut back) = (None, false);
         let mut row = |ui: &mut egui::Ui, buttons: std::ops::Range<usize>| {
             ui.horizontal(|ui| {
                 let first = buttons.start == 0;
                 if first {
-                    back = widgets::back(ui, older, &hint);
+                    back = widgets::back(ui, &hint);
                 }
                 let width = match (one_row, first) {
                     (true, _) => 0.0,
@@ -3993,7 +3994,7 @@ impl App {
         let clicked = if wide.is_some() {
             // A low, wide screen: the sizes at the left, the rest at the right.
             ui.spacing_mut().item_spacing.x = 24.0;
-            let mut clicked = (false, false);
+            let mut clicked = false;
             ui.columns(2, |columns| {
                 let ui = &mut columns[0];
                 ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
@@ -4045,10 +4046,7 @@ impl App {
         }
         #[cfg(not(feature = "store"))]
         let _ = picked;
-        if clicked.0 {
-            self.export.open = false;
-        }
-        if clicked.1 {
+        if clicked {
             #[cfg(feature = "store")]
             if self.pro_missing() && store::needs_pro([width, height], self.export.size.is_none_or(is_listed)) {
                 self.want(Wanted::Export {
@@ -4149,7 +4147,7 @@ impl App {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn export_choices(&mut self, ui: &mut egui::Ui) -> (bool, bool) {
+    fn export_choices(&mut self, ui: &mut egui::Ui) -> bool {
         widgets::section(ui, &self.t("quality"));
         ui.add_space(2.0);
         let qualities = export::QUALITIES.map(|(key, _, _)| self.t(key));
@@ -4179,19 +4177,13 @@ impl App {
         } else {
             "save_png"
         });
-        let cancel = self.t("cancel");
-        let half = (ui.available_width() - 8.0) * 0.5;
-        let mut clicked = (false, false);
-        ui.horizontal(|ui| {
-            clicked.0 = widgets::pill(ui, &cancel, false, half);
-            clicked.1 = widgets::pill(ui, &save, true, half);
-        });
+        let mut clicked = widgets::pill(ui, &save, true, ui.available_width());
         self.export.share = false;
         if cfg!(any(target_os = "android", target_os = "ios")) {
             ui.add_space(8.0);
             if widgets::pill(ui, &self.t("share"), false, ui.available_width()) {
                 self.export.share = true;
-                clicked.1 = true;
+                clicked = true;
             }
         }
         clicked
@@ -4374,6 +4366,14 @@ fn tick(strong: bool) {
     let _ = strong;
 }
 
+// One short tick of the phone for a press that has nothing to do; a computer and a browser stay silent.
+fn refuse() {
+    #[cfg(target_os = "ios")]
+    ios::tick(false);
+    #[cfg(target_os = "android")]
+    android::refuse();
+}
+
 fn save_png(path: &std::path::Path, rgba: &[u8], size: [usize; 2]) -> Result<(), String> {
     let file = std::fs::File::create(path).map_err(|e| e.to_string())?;
     let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), size[0] as u32, size[1] as u32);
@@ -4418,7 +4418,7 @@ impl eframe::App for App {
         let content = {
             self.window_keys(&ctx);
             let mut content = safe_content(&ctx);
-            if !self.bare {
+            if !self.bare && !self.phone.on {
                 content.min.y += BAR + BAR_GAP;
             }
             content
@@ -4683,6 +4683,9 @@ impl eframe::App for App {
                         let low = content.width() > content.height() && content.height() < 560.0;
                         let wide = low.then(|| (content.width() - 60.0).min(604.0));
                         self.export_sheet(ui, window, content.height(), wide);
+                        if widgets::close(ui, &self.t("close")) {
+                            self.export.open = false;
+                        }
                     });
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
@@ -4696,9 +4699,12 @@ impl eframe::App for App {
                 .pivot(egui::Align2::CENTER_CENTER)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE
-                        .inner_margin(egui::Margin::same(22))
-                        .show(ui, |ui| self.updates.ui(ui, &self.texts, width));
+                    egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
+                        self.updates.ui(ui, &self.texts, width);
+                        if widgets::close(ui, &self.t("close")) {
+                            self.updates.open = false;
+                        }
+                    });
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }
@@ -4711,9 +4717,12 @@ impl eframe::App for App {
                 .pivot(egui::Align2::CENTER_CENTER)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE
-                        .inner_margin(egui::Margin::same(22))
-                        .show(ui, |ui| self.pro_sheet(ui, width));
+                    egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
+                        self.pro_sheet(ui, width);
+                        if widgets::close(ui, &self.t("close")) {
+                            self.leave_pro();
+                        }
+                    });
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }
@@ -4724,9 +4733,12 @@ impl eframe::App for App {
                 .pivot(egui::Align2::CENTER_CENTER)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE
-                        .inner_margin(egui::Margin::same(22))
-                        .show(ui, |ui| self.preset_sheet(ui, content.height()));
+                    egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
+                        self.preset_sheet(ui, content.height());
+                        if widgets::close(ui, &self.t("close")) {
+                            self.presets_open = false;
+                        }
+                    });
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }
@@ -4737,9 +4749,12 @@ impl eframe::App for App {
                 .pivot(egui::Align2::CENTER_CENTER)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE
-                        .inner_margin(egui::Margin::same(22))
-                        .show(ui, |ui| self.size_sheet(ui, window, content.height()));
+                    egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
+                        self.size_sheet(ui, window, content.height());
+                        if widgets::close(ui, &self.t("close")) {
+                            self.sizes_open = false;
+                        }
+                    });
                 });
             panes.push((sheet.response.rect, self.optics.radius, true));
         }
@@ -4759,11 +4774,13 @@ impl eframe::App for App {
                     egui::Frame::NONE.inner_margin(egui::Margin::same(10)).show(ui, |ui| {
                         ui.set_width(196.0);
                         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+                        widgets::section(ui, &self.t("language"));
+                        ui.add_space(4.0);
                         let mut bar = egui::style::ScrollStyle::floating();
                         bar.bar_width = 5.0;
                         ui.spacing_mut().scroll = bar;
                         egui::ScrollArea::vertical()
-                            .max_height(content.height() - 110.0)
+                            .max_height(content.height() - 150.0)
                             .show(ui, |ui| {
                                 for lang in Lang::ALL {
                                     if widgets::row(ui, lang.name(), lang == chosen) {
@@ -4772,6 +4789,9 @@ impl eframe::App for App {
                                     }
                                 }
                             });
+                        if widgets::close(ui, &self.t("close")) {
+                            self.languages_open = false;
+                        }
                     });
                 });
             if chosen != self.texts.lang {
@@ -4786,9 +4806,12 @@ impl eframe::App for App {
                 .fixed_pos(egui::pos2(content.right() - 20.0, content.bottom() - 20.0))
                 .pivot(egui::Align2::RIGHT_BOTTOM)
                 .show(&ctx, |ui| {
-                    egui::Frame::NONE
-                        .inner_margin(egui::Margin::same(20))
-                        .show(ui, |ui| self.tuning(ui));
+                    egui::Frame::NONE.inner_margin(egui::Margin::same(20)).show(ui, |ui| {
+                        self.tuning(ui);
+                        if widgets::close(ui, &self.t("close")) {
+                            self.tuning = false;
+                        }
+                    });
                 });
             panes.push((tuning.response.rect, self.optics.radius, false));
         }

@@ -225,6 +225,52 @@ fn system_insets(env: &mut Env<'_>, activity: &JObject<'_>) -> Call<[i32; 4]> {
     Ok(sides)
 }
 
+fn haptic(env: &mut Env<'_>, activity: &JObject<'_>) -> Call<bool> {
+    let window = env
+        .call_method(
+            activity,
+            jni_str!("getWindow"),
+            jni_sig!("()Landroid/view/Window;"),
+            &[],
+        )?
+        .l()?;
+    let view = env
+        .call_method(
+            &window,
+            jni_str!("getDecorView"),
+            jni_sig!("()Landroid/view/View;"),
+            &[],
+        )?
+        .l()?;
+    // HapticFeedbackConstants: REJECT (17) from Android 11 on, VIRTUAL_KEY (1) before. Neither needs a permission.
+    let kind = if AndroidApp::sdk_version() >= 30 { 17 } else { 1 };
+    env.call_method(
+        &view,
+        jni_str!("performHapticFeedback"),
+        jni_sig!("(I)Z"),
+        &[JValue::Int(kind)],
+    )?
+    .z()
+}
+
+pub fn refuse() {
+    let Some(app) = crate::ANDROID.get() else {
+        return;
+    };
+    // SAFETY: as in `keep`.
+    let vm = unsafe { JavaVM::from_raw(app.vm_as_ptr().cast()) };
+    let done: Call<bool> = vm.attach_current_thread(|env| {
+        // SAFETY: as in `keep`.
+        let activity = unsafe { JObject::from_raw(env, app.activity_as_ptr().cast()) };
+        let done = haptic(env, &activity);
+        if done.is_err() {
+            env.exception_clear();
+        }
+        done
+    });
+    let _ = done;
+}
+
 pub fn insets() -> [i32; 4] {
     let Some(app) = crate::ANDROID.get() else {
         return [0; 4];
