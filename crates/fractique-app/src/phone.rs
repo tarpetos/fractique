@@ -708,7 +708,7 @@ impl App {
                 .map_or("relief", |(n, _)| n);
             (self.t(&format!("l_{layout}")), self.t(&format!("m_{material}")))
         } else {
-            let title = shown(&self.title);
+            let title = self.display(&self.title);
             match title.rsplit_once(' ') {
                 Some((head, tail)) if title.chars().count() > 9 => (head.to_owned(), tail.to_owned()),
                 _ => (title, String::new()),
@@ -1031,7 +1031,7 @@ impl App {
                                 Kind::Flame(scene) => (**scene).clone(),
                             })
                         });
-                        if Self::tile(ui, side, picture, &shown(&piece.title), false) {
+                        if Self::tile(ui, side, picture, &self.display(&piece.title), false) {
                             picked = Some(piece.clone());
                         }
                     }
@@ -1214,7 +1214,8 @@ impl App {
                 let key = format!("p {:?} {:?}", Some(&name), self.palette);
                 let picture = self.thumb(&ctx, key, pixels, 10, &mut budget, || pictured(&name));
                 let current = !self.is_random && self.title == name;
-                if Self::tile(ui, side, picture, &shown(&name[prefix..]), current) {
+                let label = crate::preset_name(&self.texts, &self.kind, &name[prefix..]);
+                if Self::tile(ui, side, picture, &label, current) {
                     picked = Some(name);
                 }
             }
