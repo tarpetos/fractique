@@ -23,6 +23,8 @@
   "bezel": "ベベル",
   "export": "書き出し",
   "export_title": "画像を書き出す",
+  "export_magnified": "この表示は拡大した画像です。表示のまま書き出されます。",
+  "magnified": "拡大した画像",
   "size": "サイズ",
   "quality": "品質",
   "size_window": "自動",

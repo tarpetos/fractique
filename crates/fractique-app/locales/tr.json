@@ -23,6 +23,8 @@
   "bezel": "Pah",
   "export": "Dışa aktar",
   "export_title": "Görüntüyü dışa aktar",
+  "export_magnified": "Bu görünüm büyütülmüş bir görüntü olarak gösterilir ve göründüğü gibi dışa aktarılır.",
+  "magnified": "büyütülmüş görüntü",
   "size": "BOYUT",
   "quality": "KALİTE",
   "size_window": "Otomatik",

@@ -322,6 +322,12 @@ fn grid(options: &RenderOptions) -> u32 {
     (base * options.supersample).min(8)
 }
 
+// The steps of the kind's loop the samples of a pixel take at most, for a kind the shaders know.
+pub(crate) fn steps_a_pixel(fractal: &Fractal, options: &RenderOptions) -> Option<f64> {
+    let plan = planned(fractal, options, true)?;
+    Some(plan.cost * f64::from(plan.frame.size[2] * plan.frame.size[2]))
+}
+
 struct Plan {
     kind: usize,
     frame: Box<Frame>,
@@ -653,6 +659,22 @@ impl Fields {
         }
     }
 
+    fn plan(&self, fractal: &Fractal, options: &RenderOptions, layers: usize) -> Option<Plan> {
+        if !self.able || options.supersample != 1 {
+            return None;
+        }
+        let plan = planned(fractal, options, self.unbounded)?;
+        // A pixel whose grid of samples could walk more steps than the smallest batch may hold is the processor's.
+        let share = 1.0 / layers.max(1) as f64;
+        let rate = self.rates.lock().unwrap_or_else(|e| e.into_inner())[plan.kind];
+        let grid = f64::from(plan.frame.size[2] * plan.frame.size[2]);
+        (room(&rate, share, plan.cost * grid) >= 1.0).then_some(plan)
+    }
+
+    pub(crate) fn draws(&self, fractal: &Fractal, options: &RenderOptions, layers: usize) -> bool {
+        self.plan(fractal, options, layers).is_some()
+    }
+
     // The layer made ready for the card, if the card draws this fractal at this size and depth.
     // `layers` is how many layers of the scene share one submission.
     pub(crate) fn layer(
@@ -662,19 +684,9 @@ impl Fields {
         layers: usize,
         ctx: &egui::Context,
     ) -> Planned {
-        if !self.able || options.supersample != 1 {
-            return Planned::No;
-        }
-        let Some(plan) = planned(fractal, options, self.unbounded) else {
+        let Some(plan) = self.plan(fractal, options, layers) else {
             return Planned::No;
         };
-        // A pixel whose grid of samples could walk more steps than the smallest batch may hold is the processor's.
-        let share = 1.0 / layers.max(1) as f64;
-        let rate = self.rates.lock().unwrap_or_else(|e| e.into_inner())[plan.kind];
-        let grid = f64::from(plan.frame.size[2] * plan.frame.size[2]);
-        if room(&rate, share, plan.cost * grid) < 1.0 {
-            return Planned::No;
-        }
         if self.pipes[plan.kind].get().is_none() {
             self.compile(plan.kind, ctx);
             return Planned::Soon;
@@ -735,7 +747,7 @@ impl Fields {
             stage: Stage::Start,
             flying: None,
             drew: false,
-            share,
+            share: 1.0 / layers.max(1) as f64,
             last: None,
             gauged: 0,
             span: u32::MAX,

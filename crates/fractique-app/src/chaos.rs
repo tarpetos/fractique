@@ -771,65 +771,13 @@ impl Chaos {
         let cells = u64::from(size[0]) * u64::from(size[1]);
         let layers = scene.layers.len() as u64;
         let bounded = scene.layers.iter().any(|layer| layer.fractal().is_some());
-        if scene.sheets.is_some()
-            || scene.layers.is_empty()
-            || options.supersample != 1
-            || size[0].max(size[1]) > self.largest_side
-            || cells * 16 > self.largest_buffer
-            || cells * 24 * layers > ROOM
-            || bounded
-                && scene
-                    .layers
-                    .iter()
-                    .map(|layer| cells * taps(layer.tone(), size))
-                    .sum::<u64>()
-                    > MOST_TAPS
-        {
+        let Some((plans, walkers, weights)) = self.plans(scene, options) else {
             return false;
-        }
+        };
         #[cfg(not(test))]
         self.longest
             .store(if bounded { LONGEST } else { PATIENT }, Ordering::Relaxed);
         let goal = u64::from(options.samples_per_pixel) * cells;
-        let weights: Vec<u64> = scene
-            .layers
-            .iter()
-            .map(|layer| layer.flame().map_or(1, weight))
-            .collect();
-        // Few enough that the unplotted steps of the first batch leave half of what it may take for points.
-        let room = (MOST_STEPS * cells).min(MOST_IN_ALL) / layers;
-        let heaviest = weights.iter().copied().max().unwrap_or(1);
-        let fit = (room / (heaviest * 2 * u64::from(FUSE))).min(u64::from(MOST_WALKERS)) as u32;
-        let walkers = if bounded {
-            ((cells / 16) as u32)
-                .min(fit)
-                .div_ceil(GROUP)
-                .clamp(1, MOST_WALKERS / GROUP)
-                * GROUP
-        } else {
-            ((cells / 16) as u32).div_ceil(GROUP).clamp(GROUP, MOST_WALKERS / GROUP) * GROUP
-        };
-        let mut plans = Vec::new();
-        for layer in &scene.layers {
-            let plan = match (layer.flame(), layer.fractal()) {
-                (Some(flame), _) => {
-                    packed(flame, size, self.finest.unwrap_or(FINEST)).map(|(data, plotted)| Plan::Flame(data, plotted))
-                }
-                // The walkers count the points they plot in 32 bits.
-                (_, Some(shown)) if goal < 1 << 31 => self.recipe(shown).and_then(|recipe| {
-                    if recipe.work(goal, walkers) > MOST_WORK * cells {
-                        return None;
-                    }
-                    let (data, tables) = recipe.packed(shown, size, goal, walkers, self.finest)?;
-                    Some(Plan::Orbit(data, tables))
-                }),
-                _ => None,
-            };
-            let Some(plan) = plan else {
-                return false;
-            };
-            plans.push(plan);
-        }
         let class = scene
             .layers
             .iter()
@@ -1002,6 +950,87 @@ impl Chaos {
         }
         self.run = Some(made);
         true
+    }
+
+    // The layers as the shaders read them, the walkers and the layers' weights, or nothing for a scene or a view
+    // the graphics card does not draw. Nothing is sent to the card.
+    fn plans(&mut self, scene: &Scene, options: &RenderOptions) -> Option<(Vec<Plan>, u32, Vec<u64>)> {
+        let size = [options.width, options.height];
+        let cells = u64::from(size[0]) * u64::from(size[1]);
+        let layers = scene.layers.len() as u64;
+        let bounded = scene.layers.iter().any(|layer| layer.fractal().is_some());
+        if scene.sheets.is_some()
+            || scene.layers.is_empty()
+            || options.supersample != 1
+            || size[0].max(size[1]) > self.largest_side
+            || cells * 16 > self.largest_buffer
+            || cells * 24 * layers > ROOM
+            || bounded
+                && scene
+                    .layers
+                    .iter()
+                    .map(|layer| cells * taps(layer.tone(), size))
+                    .sum::<u64>()
+                    > MOST_TAPS
+        {
+            return None;
+        }
+        let goal = u64::from(options.samples_per_pixel) * cells;
+        let weights: Vec<u64> = scene
+            .layers
+            .iter()
+            .map(|layer| layer.flame().map_or(1, weight))
+            .collect();
+        // Few enough that the unplotted steps of the first batch leave half of what it may take for points.
+        let room = (MOST_STEPS * cells).min(MOST_IN_ALL) / layers;
+        let heaviest = weights.iter().copied().max().unwrap_or(1);
+        let fit = (room / (heaviest * 2 * u64::from(FUSE))).min(u64::from(MOST_WALKERS)) as u32;
+        let walkers = if bounded {
+            ((cells / 16) as u32)
+                .min(fit)
+                .div_ceil(GROUP)
+                .clamp(1, MOST_WALKERS / GROUP)
+                * GROUP
+        } else {
+            ((cells / 16) as u32).div_ceil(GROUP).clamp(GROUP, MOST_WALKERS / GROUP) * GROUP
+        };
+        let mut plans = Vec::new();
+        for layer in &scene.layers {
+            let plan = match (layer.flame(), layer.fractal()) {
+                (Some(flame), _) => {
+                    packed(flame, size, self.finest.unwrap_or(FINEST)).map(|(data, plotted)| Plan::Flame(data, plotted))
+                }
+                // The walkers count the points they plot in 32 bits.
+                (_, Some(shown)) if goal < 1 << 31 => self.recipe(shown).and_then(|recipe| {
+                    if recipe.work(goal, walkers) > MOST_WORK * cells {
+                        return None;
+                    }
+                    let (data, tables) = recipe.packed(shown, size, goal, walkers, self.finest)?;
+                    Some(Plan::Orbit(data, tables))
+                }),
+                _ => None,
+            };
+            plans.push(plan?);
+        }
+        Some((plans, walkers, weights))
+    }
+
+    // Whether the graphics card draws this view of the scene, shaders that are still compiled aside. `deep` is a
+    // view that holds little of a flame.
+    pub fn draws(&mut self, scene: &Scene, options: &RenderOptions, deep: bool) -> bool {
+        if !self.works() {
+            return false;
+        }
+        if scene.sheets.is_none() && !scene.layers.is_empty() && scene.layers.iter().all(field::drawn) {
+            let fits = options.width.max(options.height) <= self.largest_side;
+            let mut fractals = scene.layers.iter().filter_map(|layer| layer.fractal());
+            return fits && fractals.all(|fractal| self.fields.draws(fractal, options, scene.layers.len()));
+        }
+        let bounded = scene.layers.iter().any(|layer| layer.fractal().is_some());
+        if deep && (bounded || matches!(self.particles.get(), Some(None))) {
+            return false;
+        }
+        self.plans(scene, options).is_some()
     }
 
     // What the kind worked out from the fractal's parameters, the same for every view of it, or nothing for a

@@ -23,6 +23,8 @@
   "bezel": "Biseau",
   "export": "Exporter",
   "export_title": "Exporter l'image",
+  "export_magnified": "Cette vue est affichée comme une image agrandie et exportée telle quelle.",
+  "magnified": "image agrandie",
   "size": "TAILLE",
   "quality": "QUALITÉ",
   "size_window": "Auto",

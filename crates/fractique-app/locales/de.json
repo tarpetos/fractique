@@ -23,6 +23,8 @@
   "bezel": "Fase",
   "export": "Export",
   "export_title": "Bild exportieren",
+  "export_magnified": "Diese Ansicht wird als vergrößertes Bild gezeigt und so exportiert.",
+  "magnified": "vergrößertes Bild",
   "size": "GRÖSSE",
   "quality": "QUALITÄT",
   "size_window": "Auto",

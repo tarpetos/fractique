@@ -23,6 +23,8 @@
   "bezel": "Bisel",
   "export": "Exportar",
   "export_title": "Exportar imagen",
+  "export_magnified": "Esta vista se muestra como imagen ampliada y se exporta tal como se ve.",
+  "magnified": "imagen ampliada",
   "size": "TAMAÑO",
   "quality": "CALIDAD",
   "size_window": "Auto",

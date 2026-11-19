@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* **No view waits longer than 10 seconds:** a moved or zoomed view is drawn anew only when its picture is
+  expected within 10 seconds on what would draw it. Otherwise the app keeps the picture it has and shows it
+  magnified, as the first versions did, and the status line says **magnified picture**; nothing renders and
+  nothing waits. The graphics card counts as fast for every view it draws. For the processor the app keeps the
+  best speed its renders have shown in the session, for whole and for deep views of each kind, and a render
+  that turns out longer than that is stopped after about a second. On a Ryzen 7 5700X without the card a deep
+  view of a flame is drawn at 1280 × 720 (6 s) and at 1920 × 1080 while it fits (9 s), and magnified from
+  2.83 times at 2560 × 1440 and 3840 × 2160, where it took 36 to 48 s; with an RTX 4070 views are sharp as far
+  as the card reaches. The whole view is always rendered. An export of a magnified view saves what the screen
+  shows, at every quality, and the sheet says so.
+
+* **Wallpapers zoom as pictures:** a wheel or a pinch on a wallpaper magnifies its picture and keeps it so.
+  Before, the wallpaper came back whole a moment later while the toolbar still showed the magnification.
+
 * **Deep views on the graphics card:** with GPU acceleration on, a magnified view of a flame is drawn by the
   graphics card at any depth its 32-bit numbers reach, as the whole flame is. Before, the card gave up a view
   that held less than an eighth of the flame's points and the processor drew it: 33 to 48 s for a picture of

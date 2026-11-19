@@ -23,6 +23,8 @@
   "bezel": "斜角",
   "export": "导出",
   "export_title": "导出图像",
+  "export_magnified": "此视图显示为放大的图像，并按所见导出。",
+  "magnified": "放大的图像",
   "size": "尺寸",
   "quality": "质量",
   "size_window": "自动",

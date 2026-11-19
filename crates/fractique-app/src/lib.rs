@@ -15,6 +15,7 @@ mod instance;
 #[cfg(target_os = "ios")]
 mod ios;
 mod orbit;
+mod pace;
 mod phone;
 mod preview;
 #[cfg(any(feature = "store", test))]
@@ -89,6 +90,7 @@ struct Rendered {
     image: Image,
     soft: (Vec<u8>, u32, u32),
     seconds: f32,
+    speed: Option<(String, bool, f64)>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -726,6 +728,15 @@ struct App {
     shown: View,
     shown_zoom: f64,
     drawn: Option<(View, f64)>,
+    // The view of the picture that is rendered or on the screen, and whether the screen shows it magnified
+    // because the view itself would take too long to render.
+    aimed: (View, f64),
+    magnified: bool,
+    given_up: bool,
+    speeds: pace::Speeds,
+    // A render that was stopped because it would have taken too long: its generation, and the speed it showed.
+    late: Late,
+    too_long: Option<(View, f64)>,
     touched: Instant,
     gpu: bool,
     preview: Option<Preview>,
@@ -748,7 +759,7 @@ struct App {
     asked: Instant,
     measured: Arc<AtomicU32>,
     #[cfg(not(target_arch = "wasm32"))]
-    instant: Option<(export::Later, [u32; 2])>,
+    instant: Option<(export::Later, [u32; 2], Option<[f32; 3]>)>,
     #[cfg(not(target_arch = "wasm32"))]
     export_at: Option<PathBuf>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -841,6 +852,7 @@ struct Store {
 }
 
 type Layers = Arc<Mutex<Store>>;
+type Late = Arc<Mutex<Option<(u64, Option<(String, f64)>)>>>;
 type Sources = (Vec<String>, Vec<Arc<Source>>);
 
 const KEPT_BYTES: usize = if cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
@@ -911,6 +923,34 @@ fn on_card(scene: &Scene) -> bool {
     all_densities(scene) || (scene.sheets.is_none() && scene.layers.iter().all(field::drawn))
 }
 
+// What the layers of a scene cost the processor at this size.
+fn parts<'a>(scene: &'a Scene, options: &RenderOptions) -> Vec<pace::Part<'a>> {
+    let pixels = f64::from(options.width) * f64::from(options.height);
+    let samples = pixels * f64::from(options.samples_per_pixel);
+    let part = |layer: &'a Layer| {
+        let Some(shown) = layer.fractal() else {
+            return pace::Part {
+                kind: pace::FLAME,
+                work: samples,
+                stepped: false,
+            };
+        };
+        let spec = fractal::spec(&shown.kind);
+        let stepped = !spec.is_some_and(fractal::Spec::is_density);
+        let iterations = || {
+            let param = spec?.params.iter().find(|param| param.name == "iterations")?;
+            Some(shown.params.get(param.name).copied().unwrap_or(param.default))
+        };
+        let steps = || field::steps_a_pixel(shown, options).or_else(iterations).unwrap_or(1.0);
+        pace::Part {
+            kind: &shown.kind,
+            work: if stepped { pixels * steps() } else { samples },
+            stepped,
+        }
+    };
+    scene.layers.iter().map(part).collect()
+}
+
 // A layer's pixels depend only on its flame, its place in the scene, the seed and the size, so a layer that did
 // not change is taken from an earlier render. The layers of the whole view are the last to be dropped: Reset view
 // comes back to them. With `sources` the densities are kept too: a layer whose tone alone changed is developed
@@ -922,9 +962,10 @@ fn rendered(
     kept: &Layers,
     home: bool,
     sources: bool,
-) -> Result<(Image, Option<Sources>), RenderError> {
+) -> Result<(Image, Option<Sources>, bool), RenderError> {
     static USES: AtomicU64 = AtomicU64::new(0);
     let size = size_key(options);
+    let mut fresh = true;
     let (mut keys, mut layers) = (Vec::new(), Vec::new());
     let (mut source_keys, mut held) = (Vec::new(), Vec::new());
     for (index, layer) in scene.layers.iter().enumerate() {
@@ -949,6 +990,7 @@ fn rendered(
                 entry.item.clone()
             })
         });
+        fresh &= found.is_none() && source.is_none();
         let developed = match found {
             Some(developed) => developed,
             None => {
@@ -1025,7 +1067,7 @@ fn rendered(
     }
     let image = compose(scene, &layers.iter().map(|layer| &**layer).collect::<Vec<_>>(), options)?;
     let held = (sources && held.len() == scene.layers.len() && !held.is_empty()).then_some((source_keys, held));
-    Ok((image, held))
+    Ok((image, held, fresh))
 }
 
 // A scroll area left to itself starts two rows tall and can stay so.
@@ -1196,6 +1238,18 @@ impl App {
             shown: WHOLE,
             shown_zoom: 1.0,
             drawn: None,
+            aimed: (WHOLE, 1.0),
+            magnified: false,
+            given_up: false,
+            late: Arc::default(),
+            too_long: None,
+            speeds: {
+                let mut speeds = pace::Speeds::default();
+                if let Verdict::Fast(Some(rate)) = verdict {
+                    speeds.seen(pace::FLAME, false, rate);
+                }
+                speeds
+            },
             touched: Instant::now(),
             gpu,
             preview,
@@ -1443,6 +1497,8 @@ impl App {
             Some((mut picture, size)) if Some(size) == self.requested => {
                 picture.generation = self.generation;
                 self.drawn = Some((rest.view, self.adjust.zoom));
+                self.aimed = (picture.view, picture.zoom);
+                self.magnified = picture.view != rest.view;
                 self.rendering = false;
                 let _ = self.results.0.send(picture);
             }
@@ -1546,12 +1602,68 @@ impl App {
         self.view = WHOLE;
     }
 
+    // Whether the picture of the view is expected soon enough to be rendered: the graphics card draws it, or the
+    // processor has shown the speed for it. The whole view is rendered however long it takes, and a wallpaper has
+    // no other view.
+    fn fast(&mut self, size: [u32; 2]) -> bool {
+        let (view, zoom) = (self.view, self.adjust.zoom);
+        if view == WHOLE || self.wall.live || self.too_long == Some((view, zoom)) {
+            return view == WHOLE;
+        }
+        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let scene = self.scene();
+        let deep = view.zoom * zoom >= pace::DEEP_FROM;
+        let card = self.gpu_on() && !self.given_up && on_card(&scene);
+        if card
+            && self
+                .chaos
+                .as_mut()
+                .is_some_and(|chaos| chaos.draws(&scene, &full, deep))
+        {
+            return true;
+        }
+        view.zoom * zoom <= 1.0 || self.speeds.seconds(&parts(&scene, &full), deep) <= pace::LONGEST
+    }
+
+    // Renders the view, or leaves a view that would take too long to the picture the app has, magnified: the one
+    // on the screen while it covers the view, the whole view's otherwise. `changed`: the picture itself is not
+    // the scene's any more.
+    fn show_view(&mut self, ctx: &egui::Context, size: [u32; 2], changed: bool) {
+        if self.fast(size) {
+            self.magnified = false;
+            self.start_render(ctx, size);
+            return;
+        }
+        let asked = (self.view, self.adjust.zoom);
+        let (picture, zoom) = self.aimed;
+        self.magnified = true;
+        if !changed && zoom == asked.1 && (picture == WHOLE || pace::covers(asked.0.within(&picture, size))) {
+            self.drawn = Some(asked);
+            if !self.rendering {
+                self.shown_frames = self.shown_frames.max(1);
+            }
+        } else {
+            self.view = WHOLE;
+            self.start_render(ctx, size);
+            self.view = asked.0;
+            self.drawn = Some(asked);
+            if !self.rendering {
+                self.shown_frames = self.shown_frames.max(1);
+            }
+        }
+        if timed() {
+            let (shown, label) = (self.aimed.0.label(), asked.0.label());
+            eprintln!("times: the view at {label}× is the picture of {shown}×, magnified");
+        }
+    }
+
     fn start_render(&mut self, ctx: &egui::Context, size: [u32; 2]) {
         self.cancel.store(true, Ordering::Relaxed);
         self.cancel = Arc::new(AtomicBool::new(false));
         self.generation += 1;
         self.requested = Some(size);
         self.drawn = Some((self.view, self.adjust.zoom));
+        self.aimed = (self.view, self.adjust.zoom);
         self.rendering = true;
         self.asked = Instant::now();
 
@@ -1593,21 +1705,53 @@ impl App {
         let (view, zoom) = (self.view, self.adjust.zoom);
         let sources = self.gpu_on() && all_flames(&scene);
         let home = view == WHOLE;
+        let deep = view.zoom * zoom >= pace::DEEP_FROM;
+        let measured = Some(parts(&scene, &full))
+            .filter(|parts| !self.wall.live && parts.windows(2).all(|pair| pair[0].kind == pair[1].kind))
+            .and_then(|parts| {
+                Some((
+                    parts.first()?.kind.to_owned(),
+                    parts.iter().map(|part| part.work).sum::<f64>(),
+                ))
+            });
         let (sender, ctx, kept) = (self.results.0.clone(), ctx.clone(), self.kept.clone());
+        let (late, layers) = (self.late.clone(), scene.layers.len().max(1) as f64);
         let work = move || {
             for (draft, options) in passes {
                 let started = Instant::now();
+                // A layer that will clearly take too long is given up: the picture the app has is magnified instead.
+                let begun = Mutex::new((Instant::now(), 0.0));
+                let watch = |share: f64| {
+                    let mut begun = begun.lock().unwrap_or_else(|e| e.into_inner());
+                    if share < begun.1 {
+                        begun.0 = Instant::now();
+                    }
+                    begun.1 = share;
+                    let spent = begun.0.elapsed().as_secs_f64();
+                    if spent > pace::PROOF && spent > share * pace::LONGEST && !cancel.swap(true, Ordering::Relaxed) {
+                        let shown = measured.as_ref().filter(|_| deep);
+                        let speed = shown.map(|(kind, work)| (kind.clone(), work / layers * share / spent));
+                        *late.lock().unwrap_or_else(|e| e.into_inner()) = Some((generation, speed));
+                    }
+                };
+                let watch: &(dyn Fn(f64) + Sync) = &watch;
                 let control = Control {
                     cancel: Some(&cancel),
-                    progress: None,
+                    progress: (!draft && !home).then_some(watch),
                 };
                 #[cfg(not(target_arch = "wasm32"))]
                 let result = render_pool().install(|| rendered(&scene, &options, &control, &kept, home, sources));
                 #[cfg(target_arch = "wasm32")]
                 let result = rendered(&scene, &options, &control, &kept, home, sources);
-                let Ok((image, held)) = result else {
+                let Ok((image, held, fresh)) = result else {
+                    ctx.request_repaint();
                     return;
                 };
+                let spent = started.elapsed().as_secs_f64().max(1e-6);
+                let speed = measured
+                    .as_ref()
+                    .filter(|_| fresh && !draft)
+                    .map(|(kind, work)| (kind.clone(), deep, work / spent));
                 let held = held.map(|(keys, sources)| Held {
                     size,
                     options,
@@ -1626,6 +1770,7 @@ impl App {
                     image,
                     soft,
                     seconds,
+                    speed,
                 };
                 if sender.send(done).is_err() {
                     return;
@@ -1645,12 +1790,31 @@ impl App {
             self.chaotic = false;
             self.requested = None;
         }
+        let late = self.late.lock().unwrap_or_else(|e| e.into_inner()).take();
+        if let Some((generation, speed)) = late
+            && generation == self.generation
+        {
+            if let Some((kind, rate)) = speed {
+                self.speeds.seen(&kind, true, rate);
+            }
+            if timed() {
+                eprintln!("times: the processor would take too long: the render is given up");
+            }
+            self.too_long = Some(self.aimed);
+            self.requested = None;
+        }
         while let Ok(done) = self.results.1.try_recv() {
             if done.generation != self.generation {
                 continue;
             }
             self.previewing = false;
             self.chaotic = false;
+            if let Some((kind, deep, rate)) = &done.speed {
+                self.speeds.seen(kind, *deep, *rate);
+                if timed() {
+                    eprintln!("times: the processor made {rate:.3e} a second of {kind}, deep: {deep}");
+                }
+            }
             if let Some(chaos) = &mut self.chaos {
                 chaos.end();
             }
@@ -1889,6 +2053,9 @@ impl App {
             }
             _ => Verdict::Slow,
         };
+        if let Verdict::Fast(Some(rate)) = self.verdict {
+            self.speeds.seen(pace::FLAME, false, rate);
+        }
         if timed() {
             let (card, processor) = seconds.unwrap_or((f32::NAN, f32::NAN));
             let used = if self.verdict == Verdict::Slow {
@@ -1944,13 +2111,17 @@ impl App {
     // is copied back from the card and saved. A picture the card gave up meanwhile is rendered by the processor.
     #[cfg(not(target_arch = "wasm32"))]
     fn hand_over(&mut self, ctx: &egui::Context) {
-        let Some((later, size)) = self.instant.take() else {
+        let Some((later, size, cut)) = self.instant.take() else {
             return;
         };
         if later.cancelled() {
             return;
         }
-        if !self.requested.is_some_and(|shown| self.card_shows(shown)) {
+        if cut.is_some() && !self.chaotic {
+            later.fail();
+            return;
+        }
+        if cut.is_none() && !self.requested.is_some_and(|shown| self.card_shows(shown)) {
             let options = RenderOptions {
                 width: size[0],
                 height: size[1],
@@ -1965,12 +2136,13 @@ impl App {
             return;
         };
         if !chaos.finished() {
-            self.instant = Some((later, size));
+            self.instant = Some((later, size, cut));
             return;
         }
-        let saved = preview.read(false, ctx, move |pixels| match pixels {
-            Some((rgba, size)) => later.save(rgba, size),
-            None => later.fail(),
+        let saved = preview.read(false, ctx, move |pixels| match (pixels, cut) {
+            (Some((rgba, from)), Some(at)) => later.save(pace::magnified(&rgba, from, at, size), size),
+            (Some((rgba, from)), None) => later.save(rgba, from),
+            (None, _) => later.fail(),
         });
         if let Some(index) = saved {
             chaos.watch(index);
@@ -1983,6 +2155,7 @@ impl App {
             if timed() {
                 eprintln!("times: the graphics card gave the scene up");
             }
+            self.given_up = true;
             self.requested = None;
             return;
         }
@@ -2077,6 +2250,8 @@ impl App {
     fn detail(&self) -> String {
         if self.rendering && !self.chaotic {
             self.t("rendering")
+        } else if self.magnified && self.view != WHOLE {
+            format!("{}  ·  {}×", self.t("magnified"), self.view.label())
         } else {
             self.status.clone()
         }
@@ -3059,6 +3234,7 @@ impl App {
         self.is_random = is_random;
         self.wall.live = false;
         self.requested = None;
+        self.given_up = false;
         self.view = WHOLE;
         self.layer = 0;
     }
@@ -3809,12 +3985,16 @@ impl App {
     fn export_to(&mut self, ctx: &egui::Context, [width, height]: [u32; 2], path: PathBuf) {
         let (_, samples, supersample) = export::QUALITIES[self.export.quality];
         self.export_asked = Instant::now();
+        if self.magnified && self.view != WHOLE {
+            self.export_magnified(ctx, [width, height], path);
+            return;
+        }
         let as_shown = samples == export::AS_SHOWN && (self.shown, self.shown_zoom) == (self.view, self.adjust.zoom);
         let on_card = self.chaos.as_ref().and_then(Chaos::levels).map(|(size, _)| size);
         if as_shown && on_card == Some([width, height]) && self.requested.is_some_and(|size| self.card_shows(size)) {
             let (job, later) = export::Job::later(path, ctx.clone());
             self.export.job = Some(job);
-            self.instant = Some((later, [width, height]));
+            self.instant = Some((later, [width, height], None));
             ctx.request_repaint();
             return;
         }
@@ -3846,6 +4026,32 @@ impl App {
         ));
     }
 
+    // A view that is a magnified picture on the screen is exported as that: rendering it is what the app spares.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn export_magnified(&mut self, ctx: &egui::Context, size: [u32; 2], path: PathBuf) {
+        let at = self.view.within(&self.shown, self.requested.unwrap_or(size));
+        if self.chaotic {
+            let (job, later) = export::Job::later(path, ctx.clone());
+            self.export.job = Some(job);
+            self.instant = Some((later, size, Some(at)));
+            ctx.request_repaint();
+        } else if let Some((generation, image)) = &self.last
+            && *generation == self.generation
+        {
+            let image = image.clone();
+            let make = move || {
+                Arc::new(Image {
+                    width: size[0],
+                    height: size[1],
+                    rgba: pace::magnified(&image.rgba, [image.width, image.height], at, size),
+                })
+            };
+            self.export.job = Some(export::Job::made(make, path, ctx.clone()));
+        } else {
+            self.export.note = self.t("rendering");
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     fn export_choices(&mut self, ui: &mut egui::Ui) -> (bool, bool) {
         widgets::section(ui, &self.t("quality"));
@@ -3853,6 +4059,14 @@ impl App {
         let qualities = export::QUALITIES.map(|(key, _, _)| self.t(key));
         if let Some(index) = widgets::segments(ui, &qualities, self.export.quality) {
             self.export.quality = index;
+        }
+        if self.magnified && self.view != WHOLE {
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new(self.t("export_magnified"))
+                    .size(12.5)
+                    .color(egui::Color32::from_white_alpha(190)),
+            );
         }
         if !self.export.note.is_empty() {
             ui.add_space(8.0);
@@ -4138,12 +4352,12 @@ impl eframe::App for App {
                     self.hold_render(&ctx, size);
                 } else {
                     self.previewing = false;
-                    self.start_render(&ctx, size);
+                    self.show_view(&ctx, size, true);
                 }
             } else if self.drawn != Some((self.view, self.adjust.zoom)) && !self.frozen {
                 let still = self.touched.elapsed().as_secs_f32();
                 if still >= SETTLE || self.swift {
-                    self.start_render(&ctx, size);
+                    self.show_view(&ctx, size, self.drawn.is_none());
                 } else {
                     ctx.request_repaint_after(std::time::Duration::from_secs_f32(SETTLE - still));
                 }
@@ -4867,8 +5081,8 @@ mod tests {
         };
         let kept = Layers::default();
         let whole = fractique_core::render(&scene, &options, &control).expect("it renders");
-        let (first, _) = rendered(&scene, &options, &control, &kept, true, false).expect("it renders");
-        let (again, _) = rendered(&scene, &options, &control, &kept, true, false).expect("it renders");
+        let (first, _, _) = rendered(&scene, &options, &control, &kept, true, false).expect("it renders");
+        let (again, _, _) = rendered(&scene, &options, &control, &kept, true, false).expect("it renders");
         assert_eq!(first.rgba, whole.rgba);
         assert_eq!(again.rgba, whole.rgba);
         assert_eq!(
@@ -4919,7 +5133,7 @@ mod tests {
             assert!(!all_flames(&scene), "{}", spec.name);
             let kept = Layers::default();
             let whole = fractique_core::render(&scene, &options, &control).expect("it renders");
-            let (first, held) = rendered(&scene, &options, &control, &kept, true, false).expect("it renders");
+            let (first, held, _) = rendered(&scene, &options, &control, &kept, true, false).expect("it renders");
             assert_eq!(first.rgba, whole.rgba, "{}", spec.name);
             assert!(held.is_none());
 
@@ -4930,10 +5144,36 @@ mod tests {
             };
             let mut dimmer = scene.clone();
             dimmer.layers[1].opacity = 0.5;
-            let (again, _) = rendered(&dimmer, &options, &stopped, &kept, true, false).expect("nothing is rendered");
+            let (again, _, _) = rendered(&dimmer, &options, &stopped, &kept, true, false).expect("nothing is rendered");
             let expected = fractique_core::render(&dimmer, &options, &control).expect("it renders");
             assert_eq!(again.rgba, expected.rgba, "{}", spec.name);
         }
+    }
+
+    #[test]
+    fn the_work_of_a_picture_is_its_samples_or_its_steps() {
+        let options = RenderOptions {
+            width: 200,
+            height: 100,
+            samples_per_pixel: 32,
+            supersample: 1,
+        };
+        let flame = presets::get("aurora-spiral").expect("a preset");
+        let work = parts(&flame, &options);
+        assert_eq!(
+            (work[0].kind, work[0].work, work[0].stepped),
+            (pace::FLAME, 640_000.0, false)
+        );
+        let set = fractal::preset("mandelbrot-whole").expect("a preset");
+        let work = parts(&set, &options);
+        let whole = 20_000.0 * 4.0 * 300.0;
+        assert_eq!((work[0].kind, work[0].stepped), ("mandelbrot", true));
+        assert!((whole..whole * 1.2).contains(&work[0].work), "{}", work[0].work);
+        let mut deeper = set.clone();
+        deeper.layers[0].camera_mut().zoom *= 1e4;
+        assert!(parts(&deeper, &options)[0].work > 2.5 * whole);
+        let solid = fractal::preset("mandelbulb-classic").expect("a preset");
+        assert_eq!(parts(&solid, &options)[0].work, 20_000.0 * 10.0);
     }
 
     #[test]
@@ -4990,7 +5230,7 @@ mod tests {
             progress: None,
         };
         let kept = Layers::default();
-        let (first, held) = rendered(&scene, &options, &control, &kept, true, true).expect("it renders");
+        let (first, held, _) = rendered(&scene, &options, &control, &kept, true, true).expect("it renders");
         assert_eq!(
             first.rgba,
             fractique_core::render(&scene, &options, &control).unwrap().rgba
@@ -5009,7 +5249,7 @@ mod tests {
             cancel: Some(&stop),
             progress: None,
         };
-        let (toned, held) = rendered(&scene, &options, &stopped, &kept, true, true).expect("nothing is rendered");
+        let (toned, held, _) = rendered(&scene, &options, &stopped, &kept, true, true).expect("nothing is rendered");
         assert_eq!(
             toned.rgba,
             fractique_core::render(&scene, &options, &control).unwrap().rgba
