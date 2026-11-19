@@ -254,6 +254,71 @@ RADV), far weaker: at 1920×1080 the longest batch took 120 ms for `clifford-cla
 `de_jong-classic`, 100 ms for `lorenz-butterfly`, 190 ms for `aurora-spiral` and 301 ms for `solar-mandala`;
 at 1280×720, 65, 78, 47, 73 and 110 ms. All stay under the 0.5 s after which the card is given up.
 
+### Deep views on the graphics card
+
+A magnified view that holds less than an eighth of the flame's points is drawn by the card from particles
+([architecture.md](architecture.md#deep-views-on-the-graphics-card)); before, the card gave such a view up and
+the processor drew it. Measured on Windows 11 with the **NVIDIA GeForce RTX 4070** (Vulkan) and the Ryzen 7 5700X
+by the test `deep_views_on_the_graphics_card_beside_the_processor` of `chaos.rs`, without a window, at 32
+samples per pixel. Each preset is magnified about a point of its picture that is lit as half of its lit pixels
+are. "First picture" and "whole picture" are from the request, the plan of the view included; "processor" is
+`fractique-core` rendering the same view on all 16 threads.
+
+| Scene | Magnified | Size | Card: first picture | Card: whole picture | Processor |
+| --- | --- | --- | --- | --- | --- |
+| `aurora-spiral` | 3 | 3840×2160 | 0.27 s | 1.92 s | 36.5 s |
+| `aurora-spiral` | 14 | 3840×2160 | 0.18 s | 1.85 s | 48.2 s |
+| `aurora-spiral` | 100 | 3840×2160 | 0.32 s | 1.65 s | 42.0 s |
+| `aurora-spiral` | 1000 | 3840×2160 | not drawn | | 46.2 s |
+| `aurora-spiral` | 3 | 1920×1080 | 0.13 s | 0.46 s | 8.1 s |
+| `aurora-spiral` | 14 | 1920×1080 | 0.14 s | 0.45 s | 10.1 s |
+| `aurora-spiral` | 100 | 1920×1080 | 0.11 s | 0.33 s | 9.7 s |
+| `aurora-spiral` | 1000 | 1920×1080 | 0.16 s | 0.39 s | 11.2 s |
+| `solar-mandala` | 14 | 1920×1080 | 0.25 s | 0.54 s | 12.7 s |
+| `solar-mandala` | 100 | 1920×1080 | 0.25 s | 0.54 s | 14.2 s |
+| `solar-mandala` | 1000 | 1920×1080 | 0.33 s | 0.67 s | 26.2 s |
+| `ember-vortex` | 14 | 1920×1080 | 0.07 s | 0.17 s | 14.2 s |
+| `ember-vortex` | 100 | 1920×1080 | 0.08 s | 0.25 s | 17.6 s |
+| `ember-vortex` | 1000 | 1920×1080 | not drawn | | 19.4 s |
+
+"Not drawn": the view is too fine for 32-bit floats where it is (cells a unit times the distance from the
+origin above 400 000), which is known before anything is sent; the processor renders it. `solar-mandala` and
+`ember-vortex` magnified 3 times still hold more than an eighth of their points at that place and are drawn by
+the plain chaos game (0.23 s and 0.02 s). The longest submission of these runs took 0.12 s; a step of the plan
+took 1 to 36 ms.
+
+In the app, in a window nobody sees, `aurora-spiral` at 3840×2160 about the point (-0.9, 0.56), one view after
+another: magnified 14 times, the first picture came 0.17 s after the request and the whole picture after 1.53 s
+(the processor: 33 to 36 s); moved by a hundredth of the view, 0.18 s and 1.54 s; magnified 100 times, 0.23 s
+and 1.24 s; 300 times, 0.28 s and 1.53 s; and back to the whole flame, 0.08 s. No view went to the processor.
+
+How far the card's picture is from the processor's, as the mean and the largest difference between the averages
+of 8 × 8 blocks on the scale of 0 to 255, beside the mean difference between two renders of the processor whose
+seeds differ. A deep view is drawn from a few thousand particles that share their latest steps, so two renders of
+one view differ far more than two renders of a whole flame do.
+
+| Scene | Magnified | Size | Card to processor: mean | Largest | Processor to processor, another seed: mean |
+| --- | --- | --- | --- | --- | --- |
+| `aurora-spiral` | 3 | 3840×2160 | 1.72 | 18.5 | 1.38 |
+| `aurora-spiral` | 14 | 3840×2160 | 3.38 | 52.0 | 2.33 |
+| `aurora-spiral` | 100 | 3840×2160 | 3.78 | 59.8 | 3.34 |
+| `aurora-spiral` | 3 | 1920×1080 | 2.00 | 15.6 | 1.71 |
+| `aurora-spiral` | 14 | 1920×1080 | 4.59 | 54.3 | 3.20 |
+| `aurora-spiral` | 100 | 1920×1080 | 4.86 | 61.4 | 3.19 |
+| `aurora-spiral` | 1000 | 1920×1080 | 2.33 | 28.3 | 2.15 |
+| `solar-mandala` | 14 | 1920×1080 | 2.49 | 28.2 | 2.45 |
+| `solar-mandala` | 100 | 1920×1080 | 6.94 | 110.5 | 7.86 |
+| `solar-mandala` | 1000 | 1920×1080 | 32.33 | 230.9 | 38.35 |
+| `ember-vortex` | 14 | 1920×1080 | 2.51 | 65.0 | 2.24 |
+| `ember-vortex` | 100 | 1920×1080 | 6.61 | 77.0 | 4.95 |
+
+The card's picture is as far from the processor's as the processor's is from its own with another seed, or a
+little farther. Both are estimates: at 640×360 the plain chaos game, played on the card until as many points
+were in the picture (0.5 to 4 s of it), was 10.3, 9.2 and 7.7 away from the card's deep view of `aurora-spiral`
+magnified 14 and 100 times and of `ember-vortex` magnified 14 times, and 7.8, 12.4 and 5.8 away from the
+processor's (`a_deep_view_beside_the_plain_chaos_game`): the plain chaos game shows more faint threads than
+either.
+
 ### Fractals on the graphics card
 
 The escape-time and the root-finding kinds are drawn pixel by pixel by the graphics card
