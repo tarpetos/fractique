@@ -450,7 +450,7 @@ What the processor still renders for the screen, with its drafts and passes as b
 
 | What | Why |
 | --- | --- |
-| Wallpapers | Sheets are drawn exactly, not sampled |
+| Sheets under a flame or a fractal | [The card draws sheets alone](#wallpapers-on-the-graphics-card) |
 | A scene with a fractal in any layer that is not one of [the orbits the card walks](#orbits-on-the-graphics-card), unless all its layers are [drawn pixel by pixel](#fractals-drawn-pixel-by-pixel-on-the-graphics-card) | The graphics card has shaders for flames, for three attractors and for the escape-time and root-finding kinds. The processor renders the whole scene, with drafts, and the preview is not drawn for it either |
 | A picture whose density estimation would look at more than 17 179 869 184 cells in one submission | [The work of one submission](#the-work-of-one-submission) has a bound that is known before it is sent. With the smoothing at 1 that leaves the card five layers at 3840 × 2160 |
 | A view that holds less than an eighth of the flame's points, in a scene with an attractor beside the flame | The card draws such a view from particles only in a scene of flames alone ([Deep views on the graphics card](#deep-views-on-the-graphics-card)): the particles are not inside [the bounds](#the-work-of-one-submission) such a scene is held to. The card counts the points that land in the picture and gives the view up after its first batch |
@@ -569,6 +569,41 @@ The card's picture is not the processor's pixel for pixel. Compared in blocks of
 1650, a plain and a deep preset of every kind at 640 × 400, 1280 × 720 and 1920 × 1080 differ by 0.3 to 0.4 of
 255 on average and by 4 at most. [performance.md](performance.md#fractals-on-the-graphics-card) has the times.
 
+#### Wallpapers on the graphics card
+
+With **GPU acceleration** on, a scene of sheets with no layer over them (every wallpaper of the Shapes tab) is
+drawn by the graphics card alone, as the kinds drawn pixel by pixel are, through the same chain of batches: the
+picture is the screen's and its Instant export, and the processor renders only the exact exports. A new
+wallpaper, a swipe to the next one, another layout, material, color, light or dark, and another size are each
+one such picture. A zoomed view is not drawn: the whole wallpaper is, and the screen magnifies it.
+
+| Step | What happens |
+| --- | --- |
+| Shader | `sheets.wgsl` repeats `sheets.rs` of `fractique-core` for one pixel in 32-bit floats: the distance to a box, a petal, a ring and a wave, with the same early answer for a shape farther away than the shadow reaches; the nearest shape of a sheet, the shadow it casts, its coverage, the rise of the distance over 0.001 for the rim, the bevel, the gradient and the blend. It is compiled in a thread of its own when a wallpaper is first asked for; until then a draft from the processor stands in |
+| Numbers | `sheets.rs` of the app packs a shape into seven rows of four numbers, as `Solid::new` works them out in 64 bits (the center, the turn, the reach, the extent, the kind's own numbers, a wave's swells), and a sheet into three (its colors, its opacity, where its shapes begin). The shapes are one storage buffer, the sheets a uniform |
+| Levels | A pixel's color is written to the half-float texture [the preview](#the-preview-on-the-graphics-card) starts from. The preview draws it onto the canvas as it is, with the ordered dither of `render.rs`, so that a number of the picture is the processor's or one step from it |
+| The bound | The work of a pixel is counted in units: 1 for a shape that is too far to matter, 4 for one whose distance is worked out, 3 more for every swell of a wave. A pixel takes at most twice the units of all the shapes of its sheets plus twice the dearest shape of each (the two looks for the nearest shape, the two more for the rise): 48 to 304 for the 14 layouts, 50 688 for 48 sheets of 32 waves of 4 swells. Before a batch is sent, its pixels times that are held to the units the card has shown it works in 0.05 s, and never above 100 000 000; a card is taken to work at least 50 000 000 a second. The loops of the shader end at 48 sheets, 32 shapes and 4 swells whatever the buffers say |
+| Passes | When one sample a pixel would not fit in a batch, the whole picture is drawn first with one sample a block of 2 to 64 pixels a side. Then every pixel is drawn, in bands of 8 rows. The edges are smooth by the coverage, so nothing is drawn twice |
+| Batches | One dispatch in one submission, sized to take 20 ms by the batch before, between a quarter of it and four times it, and never more than the bound. The shader counts the units it worked, and the most units a second any batch has shown is the card's speed. The end of a batch sends the next, [as for the kinds drawn pixel by pixel](#fractals-drawn-pixel-by-pixel-on-the-graphics-card), and a batch that takes longer than 0.5 s gives the picture to the processor |
+
+What the processor renders:
+
+| What | Why |
+| --- | --- |
+| A scene whose smallest batch, 64 pixels, could take more than the bound | Decided before anything is sent: more than 39 062 units a pixel on a card that has not shown more than the least speed, 1 562 500 on any |
+| A shape too large for 32-bit floats | When the largest number its distance is made from (the radius of a ring or of a petal's arc, the phase of a swell, with the distance of the picture's far edge) measures more than 1 048 576 pixels: a sixteenth of a pixel would be lost. No generated wallpaper comes near it, up to 7680 × 4320 |
+| Sheets with a flame or a fractal over them | The sheets are then the ground of a picture made from a histogram |
+| Supersampling, exports at Standard and higher, the command line tool, the MCP tools, the server | The card draws for the screen only |
+
+Compared on a GeForce RTX 4070, every layout with every material, light and dark, three seeds each, at
+1920 × 1080 and 1080 × 2400 (1008 pictures): 2.0 to 3.8 of a hundred numbers of a picture differ from the
+processor's, by one step of 255 (by up to 3 in one pair), and blocks of 8 × 8 pixels differ by 0.035 on average
+and by 0.3 at most. The tiles are the exception. Along the diagonal of a square's corner two sides are equally
+near; where the center of a pixel lies exactly on it, the processor's rise of the distance is nothing in both
+directions and the rim is dimmer there, a line one pixel wide, while 32-bit floats put the pixel on one side
+or the other. A number differs by up to 119 on such a line and a block by up to 6.5.
+[performance.md](performance.md#wallpapers-on-the-graphics-card) has the times.
+
 ### When the graphics card is used
 
 The **Graphics** section with the switch exists only where the card plays the chaos game clearly faster than the
@@ -607,7 +642,10 @@ for every preset, for 20 seeds of each random generator, for every variation and
 every orbit kind, how far 32-bit floats reach into a flame and into an attractor, the differences and the times
 of deep views magnified 3 to 1000 times, and how far a deep view is from the plain chaos game with as many
 points in the picture. The tests of `field.rs` do the same for the kinds drawn
-pixel by pixel, and check their bound without a card.
+pixel by pixel, and check their bound without a card. The tests of `sheets.rs` validate the shader, check that
+every generated wallpaper is one the card takes and that the heaviest scene is bounded, and compare a wallpaper
+of every layout and the heaviest scene with the processor's render; two more, run with `--ignored`, print the
+differences for every layout and material and the times beside the processor's.
 
 ## Limits
 

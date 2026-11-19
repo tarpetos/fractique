@@ -478,7 +478,8 @@ impl Preview {
     }
 
     fn passes(&mut self, scene: &Scene, size: [u32; 2], sources: &[&wgpu::TextureView]) -> Option<()> {
-        if sources.len() != scene.layers.len() {
+        let wallpaper = crate::sheets::drawn(scene);
+        if sources.len() != scene.layers.len() + usize::from(wallpaper) {
             return None;
         }
         if self.picture.as_ref().is_none_or(|picture| picture.size != size) {
@@ -519,6 +520,20 @@ impl Preview {
         let picture = self.picture.as_ref()?;
         let soft = self.soft.as_ref()?;
         let mut passes = Vec::new();
+        if wallpaper {
+            passes.push(Pass {
+                pipeline: &self.layer[2],
+                target: &picture.view,
+                clear: Some(scene.background),
+                levels: sources[0],
+                image: &self.nothing,
+                uniforms: Uniforms {
+                    tone: [1.0, 1.0, 0.0, 0.0],
+                    blend: [1.0, 0.0, 1.0, 1.0],
+                    reach: [1.0, 1.0, 0.0, 1.0],
+                },
+            });
+        }
         for (index, ((layer, levels), glow)) in scene.layers.iter().zip(sources).zip(&glowing).enumerate() {
             let tone = layer.tone();
             let levels = *levels;
