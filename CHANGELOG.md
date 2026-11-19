@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+* **Lists over the phone's controls can be read:** on a phone, a list opened from **Fine-tune** (the language,
+  the fractal's type, the presets, **Recent**, the size, a wallpaper's layout or material) was drawn over the
+  controls without a background of its own: the rows of the list and the labels, dropdowns and sliders of the
+  controls stood on top of one another and neither could be read. The glass of every pane is drawn under all
+  texts, so a list cannot cover a panel that stays on the screen; the controls now hide while a list is open, as
+  the computer's inspector does in a narrow window, and come back when it closes. A tap beside the list closes
+  the list and leaves the controls open; before, it closed the controls and left the list. The list of recent
+  pictures was wider than an upright phone's screen, its sides and its close button cut off: it is as wide as the
+  screen allows. The list of languages shows as many rows as fit instead of about ten with the last one cut in
+  half. The fault was there since the phone got a screen of its own (#9), on every graphics backend.
+
 * **The phone's buttons fit every screen, and what opens over the picture closes the same way:** the round
   buttons of the phone's screen stand around the lower right corner, under the thumb. The large one that makes a
   new picture is in the corner, and three small ones stand around it, all equally far from its centre: **Mutate**

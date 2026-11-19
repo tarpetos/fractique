@@ -850,15 +850,16 @@ impl App {
         panes: &mut Panes,
         covered: bool,
     ) {
+        // A list's glass is drawn under every text: what it would cover hides while the list is open.
+        if covered {
+            return;
+        }
         if self.phone.tune {
             self.phone_tune(ctx, content, panes);
             return;
         }
         if self.phone.sheet {
             self.phone_sheet(ctx, content, size, panes);
-            return;
-        }
-        if covered {
             return;
         }
         let ink = self.ink();
