@@ -340,67 +340,57 @@ impl Updates {
         let mut install = None;
         let mut page = None;
         let mut restart = false;
-        let mut close = false;
-        ui.horizontal(|ui| {
-            match (&self.phase, chosen.as_deref()) {
-                (Phase::Downloading { version, got, total }, _) => {
-                    let share = total.map_or(0.0, |total| *got as f32 / total.max(1) as f32);
-                    let text = format!(
-                        "{} · {:.1} MB",
-                        texts.get("downloading").replace("{v}", version),
-                        *got as f64 / 1e6
-                    );
-                    ui.vertical(|ui| {
-                        ui.set_width(width - 130.0);
-                        let (bar, _) =
-                            ui.allocate_exact_size(egui::vec2(ui.available_width(), 6.0), egui::Sense::hover());
-                        let done = egui::Rect::from_min_size(bar.min, egui::vec2(bar.width() * share, bar.height()));
-                        ui.painter()
-                            .rect_filled(bar, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(45));
-                        ui.painter().rect_filled(
-                            done,
-                            egui::CornerRadius::same(3),
-                            egui::Color32::from_white_alpha(225),
-                        );
-                        ui.add_space(6.0);
-                        ui.label(egui::RichText::new(text).size(13.0).color(dim));
-                    });
+        ui.horizontal(|ui| match (&self.phase, chosen.as_deref()) {
+            (Phase::Downloading { version, got, total }, _) => {
+                let share = total.map_or(0.0, |total| *got as f32 / total.max(1) as f32);
+                let text = format!(
+                    "{} · {:.1} MB",
+                    texts.get("downloading").replace("{v}", version),
+                    *got as f64 / 1e6
+                );
+                ui.vertical(|ui| {
+                    ui.set_width(width - 130.0);
+                    let (bar, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 6.0), egui::Sense::hover());
+                    let done = egui::Rect::from_min_size(bar.min, egui::vec2(bar.width() * share, bar.height()));
+                    ui.painter()
+                        .rect_filled(bar, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(45));
+                    ui.painter()
+                        .rect_filled(done, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(225));
+                    ui.add_space(6.0);
+                    ui.label(egui::RichText::new(text).size(13.0).color(dim));
+                });
+            }
+            (Phase::Ready(version), _) => {
+                restart = widgets::pill(ui, &texts.get("restart_now"), true, 0.0);
+                let text = texts.get("ready").replace("{v}", version);
+                ui.add(egui::Label::new(egui::RichText::new(text).size(13.0).color(dim)).wrap());
+            }
+            (_, Some(version)) if update::compare(version) == Ordering::Equal => {
+                ui.label(
+                    egui::RichText::new(texts.get("this_version"))
+                        .font(font(13.5, MEDIUM))
+                        .color(dim),
+                );
+            }
+            (phase, Some(version)) => {
+                if self.kind == Kind::Auto {
+                    let key = if update::compare(version) == Ordering::Greater {
+                        "update_to"
+                    } else {
+                        "install_v"
+                    };
+                    if widgets::pill(ui, &texts.get(key).replace("{v}", version), true, 0.0) {
+                        install = Some(version.to_owned());
+                    }
+                } else if widgets::pill(ui, &texts.get("download_page"), true, 0.0) {
+                    page = Some(update::release_page(version));
                 }
-                (Phase::Ready(version), _) => {
-                    restart = widgets::pill(ui, &texts.get("restart_now"), true, 0.0);
-                    let text = texts.get("ready").replace("{v}", version);
+                if let Phase::Failed { version: failed, error } = phase {
+                    let text = format!("Fractique {failed} {}: {error}", texts.get("download_failed"));
                     ui.add(egui::Label::new(egui::RichText::new(text).size(13.0).color(dim)).wrap());
                 }
-                (_, Some(version)) if update::compare(version) == Ordering::Equal => {
-                    ui.label(
-                        egui::RichText::new(texts.get("this_version"))
-                            .font(font(13.5, MEDIUM))
-                            .color(dim),
-                    );
-                }
-                (phase, Some(version)) => {
-                    if self.kind == Kind::Auto {
-                        let key = if update::compare(version) == Ordering::Greater {
-                            "update_to"
-                        } else {
-                            "install_v"
-                        };
-                        if widgets::pill(ui, &texts.get(key).replace("{v}", version), true, 0.0) {
-                            install = Some(version.to_owned());
-                        }
-                    } else if widgets::pill(ui, &texts.get("download_page"), true, 0.0) {
-                        page = Some(update::release_page(version));
-                    }
-                    if let Phase::Failed { version: failed, error } = phase {
-                        let text = format!("Fractique {failed} {}: {error}", texts.get("download_failed"));
-                        ui.add(egui::Label::new(egui::RichText::new(text).size(13.0).color(dim)).wrap());
-                    }
-                }
-                (_, None) => {}
             }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                close = widgets::pill(ui, &texts.get("close"), false, 0.0);
-            });
+            (_, None) => {}
         });
 
         if let Some(version) = install {
@@ -412,9 +402,6 @@ impl Updates {
         if restart {
             update::install_pending(true);
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        }
-        if close {
-            self.open = false;
         }
     }
 }

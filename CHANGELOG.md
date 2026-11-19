@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+* **The phone's buttons fit every screen, and what opens over the picture closes the same way:** the round
+  buttons of the phone's screen stand around the lower right corner, under the thumb. The large one that makes a
+  new picture is in the corner, and three small ones stand around it, all equally far from its centre: **Mutate**
+  (**Similar** for a wallpaper) above it, with its right edge on the large button's, **Keep** on the diagonal
+  and **Back** at its left, standing on the same line. **Style** and, over it, **Export** stand straight above **Mutate** on the right edge.
+  No button has its name written beside it any more. The right edge is laid out in the room between the status
+  bar or the camera cutout and the lower edge of the screen: where it does not fit, the gaps between the buttons
+  close first, then the buttons become smaller, so no button is under the status bar or off the screen, upright
+  or on its side. Before, **Back** was the fifth button of a column of five and was cut off at the top on phones held on
+  their side. The large button has a new drawing, a die seen from a corner, and **Mutate** a wand with a star.
+  On a low screen the switch of the tabs and the row of colors stand closer to the top and to one another.
+  **Back** is never dim any more, on a phone and in the computer's toolbar: pressed with no older picture in the
+  tab it changes nothing, and a phone gives one short haptic tick (Android through the view's own feedback,
+  which needs no permission; an iPhone a light impact).
+  The placard shows a mutation as a small dim tag under the picture's name (**MUTATION 1**) instead of a second
+  large line that read as part of the name, and shows it for names of two words too.
+  Every sheet, list and panel without a handle now has the same round button with a cross in its top right corner, on a phone and
+  on a computer: **Fine-tune**, the export, the sizes, the presets, **Recent**, the fractal types, the layouts
+  and materials, the languages (which gained a heading), the updates window, the **Fractique Pro** sheet and the
+  glass panel of **F2**. The **Cancel** buttons of the export and of the Fractique Pro sheet and the **Close**
+  buttons of the updates window and of the sheet of an owned Fractique Pro are gone; **Cancel** stays where it
+  stops an export that is running. A tap beside a sheet and **Esc** work as they did, and the phone's styles, a
+  sheet with a handle, close by the handle as before and have no such button.
+
 * **Recent pictures with pictures, mutations and Back:** a random picture is named by its word alone
   (**Random**, the fractal's type, **Wallpaper**) wherever the app shows it: the seed is no longer on the
   screen, also for titles kept by older versions, and the file name offered by an export or a save keeps it
