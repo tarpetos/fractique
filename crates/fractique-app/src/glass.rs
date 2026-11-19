@@ -243,6 +243,19 @@ impl Gfx {
         self.bind(device);
     }
 
+    // The picture is drawn anew into the textures it is in: a copy of what they held is what it fades from.
+    pub fn show_over(
+        &mut self,
+        device: &wgpu::Device,
+        flame: &wgpu::TextureView,
+        soft: &wgpu::TextureView,
+        past: (wgpu::TextureView, wgpu::TextureView),
+    ) {
+        self.now = (flame.clone(), soft.clone());
+        self.past = Some(past);
+        self.bind(device);
+    }
+
     pub fn forget_past(&mut self, device: &wgpu::Device) {
         if self.past.take().is_some() {
             self.bind(device);
@@ -378,47 +391,52 @@ impl egui_wgpu::CallbackTrait for Draw {
 
 pub struct Frame<'a> {
     painter: &'a egui::Painter,
+    screen: egui::Rect,
     places: Vec<egui::layers::ShapeIdx>,
-    next: usize,
-    shown: Shown,
+    panes: Vec<(egui::Rect, Optics, f32)>,
 }
 
 impl<'a> Frame<'a> {
-    // The panes are drawn under the widgets but placed after them, where the widgets were laid out: their places
-    // in the list of shapes are kept free until then.
-    pub fn new(painter: &'a egui::Painter, screen: egui::Rect, shown: Shown) -> Self {
-        painter.add(egui_wgpu::Callback::new_paint_callback(
-            screen,
-            Draw {
-                slot: 0,
-                kind: Kind::Background,
-                shown,
-            },
-        ));
-        let places = (1..SLOTS).map(|_| painter.add(egui::Shape::Noop)).collect();
+    // The picture and the panes are drawn under the widgets but decided after them: the panes stand where the
+    // widgets were laid out, and the picture is blurred from the frame of the click that asks for another. Their
+    // places in the list of shapes are kept free until then.
+    pub fn new(painter: &'a egui::Painter, screen: egui::Rect) -> Self {
+        let places = (0..SLOTS).map(|_| painter.add(egui::Shape::Noop)).collect();
         Self {
             painter,
+            screen,
             places,
-            next: 0,
-            shown,
+            panes: Vec::new(),
         }
     }
 
     pub fn pane(&mut self, rect: egui::Rect, optics: Optics, opacity: f32) {
-        let Some(place) = self.places.get(self.next) else {
-            return;
-        };
-        if opacity <= 0.0 {
-            return;
+        if opacity > 0.0 && self.panes.len() + 1 < SLOTS {
+            self.panes.push((rect, optics, opacity));
         }
-        let area = rect.expand(SHADOW_REACH);
-        let draw = Draw {
-            slot: self.next + 1,
-            kind: Kind::Pane { rect, optics, opacity },
-            shown: self.shown,
+    }
+
+    pub fn finish(&mut self, shown: Shown) {
+        let background = Draw {
+            slot: 0,
+            kind: Kind::Background,
+            shown,
         };
-        self.painter
-            .set(*place, egui_wgpu::Callback::new_paint_callback(area, draw));
-        self.next += 1;
+        self.painter.set(
+            self.places[0],
+            egui_wgpu::Callback::new_paint_callback(self.screen, background),
+        );
+        for (index, (rect, optics, opacity)) in self.panes.drain(..).enumerate() {
+            let draw = Draw {
+                slot: index + 1,
+                kind: Kind::Pane { rect, optics, opacity },
+                shown,
+            };
+            let area = rect.expand(SHADOW_REACH);
+            self.painter.set(
+                self.places[index + 1],
+                egui_wgpu::Callback::new_paint_callback(area, draw),
+            );
+        }
     }
 }

@@ -883,6 +883,10 @@ struct App {
     fresh: motion::Motion,
     fading: bool,
     veiled: bool,
+    resizing: bool,
+    moved_only: bool,
+    pictures: u32,
+    snap_due: bool,
     past: Option<Picture>,
     shown_size: Option<[u32; 2]>,
     aimed_size: [u32; 2],
@@ -894,6 +898,7 @@ struct App {
     then: Vec<View>,
     steps: Vec<String>,
     tap: Option<(egui::Pos2, u8)>,
+    dragged: Option<(egui::Pos2, egui::Pos2, u32, u32)>,
     custom: [String; 2],
     // A text of a fractal while it is typed, by its layer and name: what is typed need not be valid yet.
     typed: Option<(String, String)>,
@@ -1454,6 +1459,10 @@ impl App {
             fresh: motion::Motion::at(1.0),
             fading: false,
             veiled: false,
+            resizing: false,
+            moved_only: false,
+            pictures: 0,
+            snap_due: false,
             past: None,
             shown_size: None,
             aimed_size: [0; 2],
@@ -1475,6 +1484,7 @@ impl App {
                 |steps| steps.split(',').rev().map(str::to_owned).collect(),
             ),
             tap: None,
+            dragged: None,
             custom: Default::default(),
             typed: None,
             sizes_open: opens("sizes"),
@@ -2060,6 +2070,7 @@ impl App {
                 );
             }
             self.shown_size = Some(self.aimed_size);
+            self.pictures += 1;
             self.trace.stage(if done.draft { "draft" } else { "picture" });
             self.shown = done.view;
             self.light = lightness(&done.image.rgba, 97);
@@ -2124,6 +2135,7 @@ impl App {
             return false;
         }
         if !goes_on {
+            self.snap_due = true;
             self.quick = (None, None);
             self.chaos_at = (self.view, self.adjust.zoom);
         } else if self.wall.live && self.chaotic {
@@ -2440,6 +2452,11 @@ impl App {
         let (Some(preview), Some((size, levels))) = (&mut self.preview, chaos.levels()) else {
             return;
         };
+        let settled = !self.fresh.moving(self.stage.now);
+        let on_card = self.chaotic || self.previewing;
+        let before = (std::mem::take(&mut self.snap_due) && on_card && settled)
+            .then(|| preview.snapshot())
+            .flatten();
         if !preview.draw_levels(&scene, size, &levels, ctx) {
             return;
         }
@@ -2450,8 +2467,12 @@ impl App {
         let (Some(gfx), Some((picture, soft))) = (renderer.callback_resources.get_mut::<Gfx>(), preview.views()) else {
             return;
         };
-        let turn = !self.chaotic && !self.fresh.moving(self.stage.now);
-        gfx.show(&state.device, picture, soft, turn);
+        let turn = before.is_some() || (!self.chaotic && settled);
+        match before {
+            Some(before) => gfx.show_over(&state.device, picture, soft, before),
+            None => gfx.show(&state.device, picture, soft, turn),
+        }
+        self.pictures += u32::from(fresh);
         self.trace.stage("card");
         let (measured, wake) = (self.measured.clone(), ctx.clone());
         let read = preview.read(true, ctx, move |pixels| {
@@ -3158,7 +3179,115 @@ impl App {
         self.fades.resize(panes.len(), shown);
     }
 
-    fn glaze(&mut self, glass: &mut glass::Frame<'_>, panes: phone::Panes) {
+    // Whether a picture is on its way that the screen does not show yet: one asked for, one being drawn, or one
+    // that will be drawn when the view or the window has rested. A view that is only magnified has none coming.
+    fn awaited(&mut self, size: [u32; 2]) -> bool {
+        if self.resizing {
+            return true;
+        }
+        // A finished picture whose tone the card follows by itself is not waited for: what the screen shows is
+        // already the picture of the control that moves.
+        let followed = self.latest.is_some() && self.previews(size);
+        if self.requested != Some(size) {
+            return !(followed || self.card_shows(size));
+        }
+        // The card draws a moved view of these within a frame or two.
+        if (self.previewing && self.latest.is_some()) || (self.swift && self.moved_only) {
+            return false;
+        }
+        if self.rendering {
+            return true;
+        }
+        let asked = (self.view, self.adjust.zoom);
+        if self.drawn == Some(asked) || self.frozen {
+            return false;
+        }
+        let (picture, zoom) = self.aimed;
+        self.fast(size) || zoom != asked.1 || !(picture == WHOLE || pace::covers(asked.0.within(&picture, size)))
+    }
+
+    // What `preview_now` asks before it draws: the layers on the card are this scene's.
+    fn previews(&self, size: [u32; 2]) -> bool {
+        if !self.gpu_on() || self.wall.live {
+            return false;
+        }
+        let Some(held) = self.held.as_ref().filter(|held| held.size == size) else {
+            return false;
+        };
+        let scene = self.scene_in(self.shown, self.shown_zoom);
+        let prefix = size_key(&held.options);
+        all_flames(&scene)
+            && (0..scene.layers.len())
+                .map(|index| source_key(&scene, index, &prefix))
+                .eq(held.keys.iter().cloned())
+    }
+
+    // The picture as this frame shows it, decided when the frame's clicks have been taken in: the blur over it
+    // begins in the frame that asks for a new picture.
+    fn picture_now(
+        &mut self,
+        ctx: &egui::Context,
+        frame: &eframe::Frame,
+        size: [u32; 2],
+        screen: egui::Rect,
+    ) -> glass::Shown {
+        let now = self.stage.now;
+        let awaited = self.awaited(size);
+        let held = ctx.input(|input| input.pointer.any_down());
+        let (veil, moving) = self.veil.step(awaited, held, now);
+        let fresh = self.fresh.value(now);
+        if moving || self.fresh.moving(now) {
+            ctx.request_repaint();
+        } else if std::mem::take(&mut self.fading)
+            && let Some(state) = frame.wgpu_render_state()
+            && let Some(gfx) = state.renderer.write().callback_resources.get_mut::<Gfx>()
+        {
+            gfx.forget_past(&state.device);
+        }
+        self.veiled = veil > 0.0;
+        if self.trace.on() {
+            self.trace.note = format!(
+                "veil {veil:.3} fresh {fresh:.3} awaited {} picture {} rendering {}",
+                u8::from(awaited),
+                self.pictures,
+                u8::from(self.rendering)
+            );
+        }
+        let fixed = self.picture.is_some();
+        let lay = |shown: &Picture| {
+            let [across, along, larger] = if self.adjust.zoom == shown.zoom || !self.gpu_on() {
+                self.view.within(&shown.view, shown.size)
+            } else {
+                self.view
+                    .scaled(self.adjust.zoom)
+                    .within(&shown.view.scaled(shown.zoom), shown.size)
+            };
+            let (stretch, closer) = laid(shown.size, size, fixed, screen.size());
+            [across, along, larger * closer, stretch]
+        };
+        let shown = Picture {
+            view: self.shown,
+            zoom: self.shown_zoom,
+            size: self.shown_size.unwrap_or(size),
+        };
+        glass::Shown {
+            view: lay(&shown),
+            past: lay(&self.past.unwrap_or(shown)),
+            fresh,
+            veil: veil * self.trace.veil.unwrap_or(motion::VEIL),
+        }
+    }
+
+    fn glaze(
+        &mut self,
+        glass: &mut glass::Frame<'_>,
+        panes: phone::Panes,
+        ctx: &egui::Context,
+        frame: &eframe::Frame,
+        size: [u32; 2],
+        screen: egui::Rect,
+    ) {
+        let shown = self.picture_now(ctx, frame, size, screen);
         self.fades.resize(panes.len(), 1.0);
         for ((rect, radius, dark), opacity) in panes.iter().zip(&self.fades) {
             let mut optics = Optics {
@@ -3182,6 +3311,7 @@ impl App {
             }
             glass.pane(*rect, optics, *opacity);
         }
+        glass.finish(shown);
         self.panes = panes;
     }
 
@@ -4732,6 +4862,15 @@ impl App {
             self.shown_frames = 0;
             return;
         }
+        if step.starts_with("drag:")
+            && let [x, y, to_x, to_y, frames] = numbers[..]
+        {
+            let screen = ctx.content_rect();
+            let at = |x: f32, y: f32| screen.min + screen.size() * egui::vec2(x, y);
+            self.dragged = Some((at(x, y), at(to_x, to_y), frames as u32, 0));
+            self.shown_frames = 1;
+            return;
+        }
         if step.starts_with("tap:") || step == "wait" {
             if let [across, down] = numbers[..] {
                 let screen = ctx.content_rect();
@@ -4788,6 +4927,23 @@ impl eframe::App for App {
         if self.trace.fixed_clock {
             input.time = Some(self.trace.frame as f64 / 60.0);
             input.predicted_dt = 1.0 / 60.0;
+        }
+        if let Some((from, to, frames, at)) = self.dragged {
+            let pos = from + (to - from) * (at as f32 / frames.max(1) as f32).min(1.0);
+            let press = |pressed| egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            input.events.push(egui::Event::PointerMoved(pos));
+            if at == 1 {
+                input.events.push(press(true));
+            } else if at == frames + 2 {
+                input.events.push(press(false));
+            }
+            self.dragged = (at < frames + 2).then_some((from, to, frames, at + 1));
+            return;
         }
         let Some((pos, phase)) = self.tap else {
             return;
@@ -4945,6 +5101,7 @@ impl App {
         }
         if window[0] > 0 && window[1] > 0 && !resizing {
             if self.requested != Some(size) {
+                self.moved_only = false;
                 if self.card_shows(size) {
                     self.requested = Some(size);
                     self.drawn = Some((self.view, self.adjust.zoom));
@@ -4957,6 +5114,7 @@ impl App {
             } else if self.drawn != Some((self.view, self.adjust.zoom)) && !self.frozen {
                 let still = self.touched.elapsed().as_secs_f32();
                 if still >= SETTLE || self.swift {
+                    self.moved_only = true;
                     self.show_view(&ctx, size, self.drawn.is_none());
                 } else {
                     ctx.request_repaint_after(std::time::Duration::from_secs_f32(SETTLE - still));
@@ -4964,23 +5122,7 @@ impl App {
             }
         }
         self.chaos_frame(&ctx, frame);
-        let (veil, wake) = self.veil.step(self.rendering || resizing, now);
-        if let Some(wake) = wake {
-            ctx.request_repaint_after(std::time::Duration::from_secs_f32(wake));
-        }
-        let fresh = self.fresh.value(now);
-        if self.fresh.moving(now) {
-            ctx.request_repaint();
-        } else if std::mem::take(&mut self.fading)
-            && let Some(state) = frame.wgpu_render_state()
-            && let Some(gfx) = state.renderer.write().callback_resources.get_mut::<Gfx>()
-        {
-            gfx.forget_past(&state.device);
-        }
-        self.veiled = veil > 0.0;
-        if self.trace.on() {
-            self.trace.note = format!("veil {veil:.3} fresh {fresh:.3}");
-        }
+        self.resizing = resizing;
 
         let painter = ctx.layer_painter(egui::LayerId::background()).with_clip_rect(screen);
         if std::env::var_os("FRACTIQUE_DEBUG_LAYOUT").is_some() {
@@ -5004,33 +5146,7 @@ impl App {
                 self.shown_frames = 2;
             }
         }
-        let fixed = self.picture.is_some();
-        let lay = |shown: &Picture| {
-            let [across, along, larger] = if self.adjust.zoom == shown.zoom || !self.gpu_on() {
-                self.view.within(&shown.view, shown.size)
-            } else {
-                self.view
-                    .scaled(self.adjust.zoom)
-                    .within(&shown.view.scaled(shown.zoom), shown.size)
-            };
-            let (stretch, closer) = laid(shown.size, size, fixed, screen.size());
-            [across, along, larger * closer, stretch]
-        };
-        let shown = Picture {
-            view: self.shown,
-            zoom: self.shown_zoom,
-            size: self.shown_size.unwrap_or(size),
-        };
-        let mut glass = glass::Frame::new(
-            &painter,
-            screen,
-            glass::Shown {
-                view: lay(&shown),
-                past: lay(&self.past.unwrap_or(shown)),
-                fresh,
-                veil: veil * self.trace.veil.unwrap_or(motion::VEIL),
-            },
-        );
+        let mut glass = glass::Frame::new(&painter, screen);
 
         if self.bare || self.phone.preview {
             let mut panes = Vec::new();
@@ -5047,7 +5163,7 @@ impl App {
                 panes.push((rect, rect.height() * 0.5, false));
                 self.faded(&panes, from, shown);
             }
-            self.glaze(&mut glass, panes);
+            self.glaze(&mut glass, panes, &ctx, frame, size, screen);
             self.stage.keep_moving(&ctx);
             if self.screenshot.is_some() {
                 self.take_screenshot(&ctx);
@@ -5418,7 +5534,7 @@ impl App {
             self.pane(&ctx, &mut panes, &tuning.response, self.optics.radius, false, shown);
         }
 
-        self.glaze(&mut glass, panes);
+        self.glaze(&mut glass, panes, &ctx, frame, size, screen);
         self.stage.keep_moving(&ctx);
         if self.screenshot.is_some() {
             self.take_screenshot(&ctx);

@@ -393,11 +393,10 @@ every transition uses, so they are changed in one place.
 
 | Constant | Value | What takes that long |
 | --- | --- | --- |
-| `PANEL` | 0.18 s | A sheet, a list or a panel coming or going; the picture fading into the next one; the blur over the picture |
+| `PANEL` | 0.18 s | A sheet, a list or a panel coming or going; the picture fading into the next one; the blur over the picture leaving |
 | `SMALL` | 0.12 s | A control lighting up under the pointer, a switch, the mark of a chosen segment, a small picture arriving, a sheet growing to its content |
-| `GIVE` | 0.08 s | What a sheet covers (the toolbar, the panel, a phone's buttons) going away under it |
+| `GIVE` | 0.08 s | What a sheet covers (the toolbar, the panel, a phone's buttons) going away under it; the blur over the picture coming |
 | `SHIFT` | 12 points | How far a pane rises while it fades in |
-| `PATIENCE` | 0.14 s | Work shorter than this never blurs the picture |
 | `VEIL` | 0.7 | The share of its blurred copy the picture is shown as while a new one is drawn |
 | `RAMP` | 48 points | The stretch of a window's width over which the panel makes room for the toolbar |
 
@@ -413,9 +412,9 @@ compile otherwise. Where Windows is set to show no animations (`SPI_GETCLIENTARE
 | A sheet that changes height | egui places a centred sheet by the size it had a frame ago, so a sheet whose content grew would jump, a frame late. `leaf` lets the height glide (`SMALL`) around the point the sheet hangs from and hides what the sheet has not grown to yet |
 | Layouts at a width | The panel grows shorter as the toolbar comes to stand under it, over `RAMP` points before it does, not at one width; the toolbar's buttons grow from their narrow to their wide padding between 676 and 724 points of width. A threshold that is a switch (`latch`) turns on above its band and off below it |
 | A window that is resized | The picture is drawn anew when the window's size has stood for 0.18 s (`Rest`), not at every step of the drag. Until then the picture on the screen is laid out for the new size at the scale the new one will have, which goes by the window's shorter side: it is cut or gets room beside it, and is never squeezed (`laid`) |
-| One picture after another | The shader holds the picture and the one before it, each with its own view, and shows a share of each: a new picture fades in over the old one, the first over the dark window. A picture that arrives while the one before it still fades in (the full picture after a draft) takes its place in that fade. The card's own pictures are refined in the same texture and only fade when they replace a processor's |
-| The blur while a picture is drawn | `Veil`. While a render runs, or a resized window waits, the picture on the screen is shown as a share of its blurred copy, the one the panes already use, so the blur costs no pass and no texture: one more `mix` in `glass.wgsl`. It comes after `PATIENCE`, stays while the work runs and leaves as the picture arrives; work that goes on keeps it, so a zoom in steps does not pulse. A view that is only magnified ([too long to render](#the-app)) has no work pending and no blur. Nothing of it reaches an export, a small picture or a saved file: those are made from the render, not from the screen |
-| Repaints | A motion asks for the next frame only while it moves; the wait of `PATIENCE` and of a resized window is one `request_repaint_after`. Nothing polls |
+| One picture after another | The shader holds the picture and the one before it, each with its own view, and shows a share of each: a new picture fades in over the old one, the first over the dark window. A picture that arrives while the one before it still fades in (the full picture after a draft) takes its place in that fade. The card refines its pictures in the same textures: when it begins another, a copy of what they held (`Preview::snapshot`, one copy on the card) is what the new one fades from |
+| The blur while a picture is on its way | `Veil`. The picture on the screen is shown as a share of its blurred copy, the one the panes already use, so the blur costs no pass and no texture: one more `mix` in `glass.wgsl`. It begins in the frame that asks for a picture (a click, a step of the wheel, a control that renders, an edge that is dragged), one frame into its rise, and is whole after `GIVE`: there is no moment in which the old picture stands sharp and waits. It is decided at the end of the frame, when the clicks have been taken in, so the picture and the panes are both placed then (`glass::Frame::finish`). It stays while the picture is awaited (`App::awaited`: a render asked for or running, a view or a window that has to rest first), and while a button or a finger is held, so steps that follow one another keep it and it leaves once, over `PANEL`, with an ease at both ends. It never leaves before it has fully come: the shortest blur is one rise and one fall, a quarter of a second, and none flicks. A picture that is there in the frame that asked for it gets none. Not waited for: a view that is only magnified ([too long to render](#the-app)), a moved view of a kind the card draws within a frame, and a tone the card follows by itself. Nothing of it reaches an export, a small picture or a saved file: those are made from the render, not from the screen |
+| Repaints | A motion asks for the next frame only while it moves; a blur that is held asks for none, and the rest of a resized window is one `request_repaint_after`. Nothing polls |
 
 For a test: `FRACTIQUE_TRACE=file` writes a line a frame (the time since the start, the time the frame took, the
 window's size, how many renders have started, each pane's rectangle and opacity, the blur and the fade of the
@@ -423,7 +422,9 @@ picture) and the times of the start (`start app`, `start frame`, `start draft`, 
 `FRACTIQUE_FRAMES=folder` with the steps `frames:60` or `sweep:1280:640:20:800` (from a width to a width by a
 step, at a height) saves that many consecutive frames, and `FRACTIQUE_FIRST=30` the first of the run; while
 frames are recorded the steps after it are taken one a frame, `skip:8` waits and `rest` ends that;
-`size:900:700` sets the window's size and `zoom:2` magnifies the view; `FRACTIQUE_CLOCK=1` makes every frame a
+`size:900:700` sets the window's size, `zoom:2` magnifies the view and `drag:0.14:0.9:0.19:0.9:30` drags from a
+point to a point (shares of the window) over that many frames; the trace also says whether a picture is awaited
+and counts the pictures shown; `FRACTIQUE_CLOCK=1` makes every frame a
 sixtieth of a second, so a run repeats; `FRACTIQUE_VEIL=1` sets another strength of the blur.
 
 ### The purchase in the App Store builds

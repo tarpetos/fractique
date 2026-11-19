@@ -16,13 +16,17 @@
   picture, at the scale the new one will have, and draws anew once its size has stood for 0.18 s; before, every
   step of the drag started a render (161 for 161 steps) and a frame of the drag took 25 ms where the graphics
   card draws, now 9 ms. A new picture fades in over the one before it, the first over the dark window, and the
-  window's panes fade in with it. While a picture is drawn for longer than 0.14 s, the one on the screen is
-  blurred (to 70 % of the blurred copy the panes already use, at no cost of its own) and the blur leaves as the
-  new picture arrives; shorter work never blurs, and a view that is only magnified has none. Controls light up
+  window's panes fade in with it. From the frame that asks for a new picture (a click, a step of the wheel, a
+  control that renders, an edge that is dragged) the one on the screen is blurred, to 70 % of the blurred copy the
+  panes already use, at no cost of its own: the blur is whole after 0.08 s, stays while the picture is awaited and
+  while a button is held, and leaves over 0.18 s as the new picture fades in under it, also where the graphics
+  card draws into the same textures. It is one rise and one fall, never shorter than a quarter of a second and
+  never a flick; a picture that is there at once, a view that is only magnified and a tone the card follows by
+  itself get none. Controls light up
   under the pointer over 0.12 s, a switch slides, the mark of a chosen segment glides and a small picture fades
   in when it is drawn. Where Windows is set to show no animations, nothing is animated. Test runs:
   `FRACTIQUE_TRACE`, `FRACTIQUE_FRAMES`, `FRACTIQUE_FIRST`, `FRACTIQUE_CLOCK`, `FRACTIQUE_VEIL`,
-  `FRACTIQUE_MOTION` and the steps `frames`, `sweep`, `size`, `zoom`, `skip`, `rest`
+  `FRACTIQUE_MOTION` and the steps `frames`, `sweep`, `size`, `zoom`, `drag`, `skip`, `rest`
   ([architecture.md](docs/architecture.md#motion)).
 
 * **One set of measures for every pane, lists in the middle of a phone's screen:** every sheet, list and panel

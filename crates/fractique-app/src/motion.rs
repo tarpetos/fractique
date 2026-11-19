@@ -7,18 +7,23 @@ pub const GIVE: f32 = 0.08;
 pub const SHIFT: f32 = 12.0;
 // The share of its blurred copy the picture is shown as while a new one is drawn.
 pub const VEIL: f32 = 0.7;
-// A picture that is ready sooner than this is never blurred.
-pub const PATIENCE: f32 = 0.14;
+// The blur is on its way in the frame that asks for a picture: it starts one frame into its rise.
+const FRAME: f64 = 1.0 / 60.0;
 pub const BAND: f32 = 24.0;
 // The points of a window's width over which a panel makes room for what comes to stand under it.
 pub const RAMP: f32 = 48.0;
 
 // Smooth, not slow: nothing takes longer than a quarter of a second.
-const _: () = assert!(PANEL <= 0.25 && SMALL <= PANEL && GIVE <= SMALL && PATIENCE <= 0.15);
+const _: () = assert!(PANEL <= 0.25 && SMALL <= PANEL && GIVE <= SMALL);
 
 pub fn ease(t: f32) -> f32 {
     let left = 1.0 - t.clamp(0.0, 1.0);
     1.0 - left * left * left
+}
+
+fn smooth(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
 }
 
 // False where the system asks for no animations: every span is then zero. FRACTIQUE_MOTION=off does the same.
@@ -197,41 +202,75 @@ impl<T: PartialEq + Copy> Rest<T> {
     }
 }
 
-// The blur over the picture while a new one is drawn: it comes after a short patience, stays while the work
-// runs and leaves when the picture is ready. Work that goes on keeps it, so a zoom in steps does not pulse.
+// The blur over the picture while a new one is on its way. It begins in the frame that asks for the picture and
+// rises fast (`GIVE`); it stays while the picture is awaited, so steps that follow one another keep it; it
+// leaves (`PANEL`) once the picture is there, and never before it has fully come, so the shortest blur is one
+// rise and one fall and none flicks. A picture that is there in the frame that asked for it gets no blur. While
+// a button or a finger is held, as on a slider that is dragged, it does not leave between two pictures.
 #[derive(Clone, Copy, Debug)]
 pub struct Veil {
-    motion: Motion,
-    busy_since: Option<f64>,
+    from: f32,
+    to: f32,
+    since: f64,
+    span: f32,
+    began: f64,
 }
 
 impl Veil {
     pub const fn new() -> Self {
         Self {
-            motion: Motion::at(0.0),
-            busy_since: None,
+            from: 0.0,
+            to: 0.0,
+            since: 0.0,
+            span: 0.0,
+            began: 0.0,
         }
     }
 
-    // The strength now (0 to 1), and the seconds after which it has to be asked again although nothing moves.
-    pub fn step(&mut self, busy: bool, now: f64) -> (f32, Option<f32>) {
-        let mut wake = None;
-        if busy {
-            let since = *self.busy_since.get_or_insert(now);
-            let waited = (now - since) as f32;
-            if waited >= span(PATIENCE) || self.motion.value(now) > 0.0 {
-                self.motion.aim(1.0, now, span(PANEL), 1.0);
-            } else {
-                wake = Some(span(PATIENCE) - waited);
+    fn value(&self, now: f64) -> f32 {
+        if self.span <= 0.0 {
+            return self.to;
+        }
+        let t = (now - self.since) as f32 / self.span;
+        let share = if self.to > self.from { ease(t) } else { smooth(t) };
+        self.from + (self.to - self.from) * share
+    }
+
+    fn turning(&self, now: f64) -> bool {
+        self.span > 0.0 && ((now - self.since) as f32) < self.span
+    }
+
+    // The strength now (0 to 1), and whether the next frame has to be drawn for it.
+    pub fn step(&mut self, awaited: bool, held: bool, now: f64) -> (f32, bool) {
+        if !wanted() {
+            return (0.0, false);
+        }
+        let value = self.value(now);
+        if awaited && self.to != 1.0 {
+            let fresh = value <= 0.0;
+            if fresh {
+                self.began = now;
             }
-        } else {
-            self.busy_since = None;
-            self.motion.aim(0.0, now, span(PANEL), 1.0);
+            *self = Self {
+                from: value,
+                to: 1.0,
+                since: if fresh { now - FRAME } else { now },
+                span: GIVE * (1.0 - value),
+                began: self.began,
+            };
+        } else if !awaited && !held && self.to != 0.0 && !self.turning(now) {
+            *self = Self {
+                from: value,
+                to: 0.0,
+                since: now,
+                span: PANEL * value,
+                began: self.began,
+            };
         }
-        if self.motion.moving(now) {
-            wake = Some(0.0);
-        }
-        (self.motion.value(now), wake)
+        (
+            self.value(now),
+            self.turning(now) || (!awaited && !held && self.to != 0.0),
+        )
     }
 }
 
@@ -340,32 +379,99 @@ mod tests {
         assert_eq!(rest.wait([780, 600], 5.21, 0.18), 0.0);
     }
 
-    #[test]
-    fn quick_work_never_blurs_and_long_work_blurs_once() {
-        let mut veil = Veil::new();
-        assert_eq!(veil.step(true, 0.0).0, 0.0);
-        let (strength, wake) = veil.step(true, 0.1);
-        assert_eq!(strength, 0.0);
-        assert!(wake.is_some_and(|wake| wake > 0.0 && wake < PATIENCE));
-        assert_eq!(veil.step(false, 0.12), (0.0, None));
+    fn course(veil: &mut Veil, awaited: impl Fn(u32) -> (bool, bool), frames: u32) -> Vec<f32> {
+        (0..frames)
+            .map(|frame| {
+                let (awaited, held) = awaited(frame);
+                veil.step(awaited, held, f64::from(frame) / 60.0).0
+            })
+            .collect()
+    }
 
+    fn humps(course: &[f32]) -> u32 {
+        let mut count = 0;
+        let mut falling = false;
+        for pair in course.windows(2) {
+            if pair[1] < pair[0] {
+                falling = true;
+            } else if pair[1] > pair[0] && falling {
+                count += 1;
+                falling = false;
+            }
+        }
+        count + u32::from(course.iter().any(|value| *value > 0.0))
+    }
+
+    #[test]
+    fn the_blur_is_on_its_way_in_the_frame_that_asks_for_a_picture() {
         let mut veil = Veil::new();
-        veil.step(true, 0.0);
-        veil.step(true, 0.15);
-        let rising = veil.step(true, 0.2).0;
-        assert!(rising > 0.0 && rising < 1.0);
-        assert_eq!(veil.step(true, 0.4).0, 1.0);
-        // Work that goes on, as in a zoom step by step, keeps the blur where it is.
-        assert_eq!(veil.step(true, 0.9), (1.0, None));
-        let falling = veil.step(false, 1.0).0;
-        assert_eq!(falling, 1.0);
-        let lower = veil.step(false, 1.05).0;
-        assert!(lower < 1.0 && lower > 0.0);
-        // New work while it leaves turns it back from where it is, not from zero.
-        let back = veil.step(true, 1.06).0;
-        assert!(back > 0.0);
-        assert!(veil.step(true, 1.3).0 == 1.0);
-        assert_eq!(veil.step(false, 2.0).0, 1.0);
-        assert_eq!(veil.step(false, 2.3), (0.0, None));
+        assert_eq!(veil.step(false, false, 0.0), (0.0, false));
+        let (first, moving) = veil.step(true, false, 1.0);
+        assert!(first > 0.3 && first < 1.0 && moving);
+        assert_eq!(veil.step(true, false, 1.0 + f64::from(GIVE)).0, 1.0);
+    }
+
+    #[test]
+    fn a_picture_that_is_there_at_once_is_never_blurred() {
+        let mut veil = Veil::new();
+        assert!(
+            course(&mut veil, |_| (false, false), 30)
+                .iter()
+                .all(|value| *value == 0.0)
+        );
+    }
+
+    #[test]
+    fn the_shortest_blur_comes_fully_and_leaves_once() {
+        let mut veil = Veil::new();
+        // The picture is awaited for a single frame.
+        let course = course(&mut veil, |frame| (frame == 3, false), 40);
+        assert_eq!(course[2], 0.0);
+        assert!(course[3] > 0.0);
+        let peak = course
+            .iter()
+            .position(|value| *value == 1.0)
+            .expect("the blur comes fully");
+        assert!(course[..=peak].windows(2).all(|pair| pair[1] >= pair[0]));
+        assert!(course[peak..].windows(2).all(|pair| pair[1] <= pair[0]));
+        assert_eq!(humps(&course), 1);
+        let shown = course.iter().filter(|value| **value > 0.0).count();
+        assert!(shown as f32 / 60.0 >= 0.2, "{shown} frames");
+        assert_eq!(*course.last().unwrap(), 0.0);
+        assert_eq!(veil.step(false, false, 2.0), (0.0, false));
+    }
+
+    #[test]
+    fn steps_that_follow_one_another_keep_the_blur_and_it_leaves_once() {
+        let mut veil = Veil::new();
+        // A slider dragged for a second: each of its pictures is there two frames after it is asked for.
+        let dragged = |frame: u32| {
+            (
+                (5..70).contains(&frame) && !frame.is_multiple_of(3),
+                (5..70).contains(&frame),
+            )
+        };
+        let course = course(&mut veil, dragged, 100);
+        assert_eq!(humps(&course), 1);
+        assert!(course[12..70].iter().all(|value| *value == 1.0));
+        assert!(course[71] < 1.0);
+        assert_eq!(*course.last().unwrap(), 0.0);
+        // Held at its level, it asks for no frames.
+        let mut held = Veil::new();
+        held.step(true, false, 0.0);
+        assert_eq!(held.step(true, false, 1.0), (1.0, false));
+        assert_eq!(held.step(false, true, 2.0), (1.0, false));
+    }
+
+    #[test]
+    fn a_picture_asked_for_while_the_blur_leaves_turns_it_back_without_a_jump() {
+        let mut veil = Veil::new();
+        veil.step(true, false, 0.0);
+        veil.step(false, false, 0.2);
+        let leaving = veil.step(false, false, 0.3).0;
+        assert!(leaving > 0.0 && leaving < 1.0);
+        let back = veil.step(true, false, 0.3).0;
+        assert!((back - leaving).abs() < 1e-6);
+        assert_eq!(veil.step(true, false, 0.4).0, 1.0);
     }
 }

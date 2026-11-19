@@ -328,6 +328,37 @@ impl Preview {
         !self.failed.load(Ordering::Relaxed)
     }
 
+    // A copy of the picture and of its blurred one as they are now, for the screen to fade from while the next
+    // picture is drawn into the same textures.
+    pub fn snapshot(&self) -> Option<(wgpu::TextureView, wgpu::TextureView)> {
+        let (picture, soft) = (self.picture.as_ref()?, &self.soft.as_ref()?[0]);
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        let mut copy = |from: &Target| {
+            let size = wgpu::Extent3d {
+                width: from.size[0],
+                height: from.size[1],
+                depth_or_array_layers: 1,
+            };
+            let kept = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("fractique picture before"),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: PICTURE,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            encoder.copy_texture_to_texture(from.view.texture().as_image_copy(), kept.as_image_copy(), size);
+            kept.create_view(&wgpu::TextureViewDescriptor::default())
+        };
+        let kept = (copy(picture), copy(soft));
+        self.queue.submit([encoder.finish()]);
+        Some(kept)
+    }
+
     pub fn views(&self) -> Option<(&wgpu::TextureView, &wgpu::TextureView)> {
         Some((&self.picture.as_ref()?.view, &self.soft.as_ref()?[0].view))
     }
