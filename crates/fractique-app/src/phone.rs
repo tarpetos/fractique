@@ -13,7 +13,8 @@ use crate::{App, WHOLE, named, shown};
 pub const SWIPE: f32 = 56.0;
 const TILE_RATIO: f32 = 1.6;
 const MOST_KEPT: usize = 48;
-const MOST_RECENT: usize = 24;
+// The recent pictures a tab keeps: each of the three has a list of its own.
+const MOST_RECENT: usize = 20;
 // OKLCH hue in degrees, and the color the dot is drawn in.
 const TINTS: [(f64, [u8; 3]); 8] = [
     (27.0, [216, 69, 47]),
@@ -285,8 +286,13 @@ fn note(recent: &mut Vec<Piece>, piece: Piece) {
     }
     let key = piece.key();
     recent.retain(|other| other.key() != key);
+    let tab = piece.tab();
     recent.insert(0, piece);
-    recent.truncate(MOST_RECENT);
+    let mut kept = 0;
+    recent.retain(|other| {
+        kept += usize::from(other.tab() == tab);
+        other.tab() != tab || kept <= MOST_RECENT
+    });
 }
 
 // A disc filled with a gradient from its upper left to its lower right, with a soft rim: rings of triangles,
@@ -976,7 +982,9 @@ impl App {
                                     .show(ui, |ui| {
                                         let kept = self.phone.kept.clone();
                                         close |= self.sheet_row(ui, scale, "collection", &kept);
-                                        let recent = self.phone.recent.clone();
+                                        let tab = self.tab();
+                                        let mut recent = self.phone.recent.clone();
+                                        recent.retain(|piece| piece.tab() == tab);
                                         if recent.len() > 1 {
                                             close |= self.sheet_row(ui, scale, "recent", &recent);
                                         }
@@ -1323,7 +1331,8 @@ mod tests {
         for seed in 10..60 {
             note(&mut recent, wall(seed));
         }
-        assert_eq!(recent.len(), MOST_RECENT);
+        assert_eq!(recent.len(), MOST_RECENT + 1);
+        assert!(recent.contains(&flame("Aurora Spiral", 1.4)));
         assert_eq!((wall(1).tab(), flame("Aurora Spiral", 1.4).tab()), (2, 0));
         assert!(recent[0] == wall(59));
     }

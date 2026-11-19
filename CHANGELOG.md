@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* **Recent pictures of each tab:** Flames, Fractals and Shapes each keep their own recent pictures, 20 of them,
+  and the list a tab opens holds only its own, with the picture on screen marked. Before, one list of 24 served
+  all three, and the name under **Recent** changed with every change of tab.
+
 * **Names of fractals in every language:** the names of the kinds, of their presets and of the flame presets are
   shown in the app's language, in all 15 (the kinds were kept in English for a while, the presets always were). The default
   name of an exported picture and of a scene file is made from the English name as before (`MandelboxStation`).

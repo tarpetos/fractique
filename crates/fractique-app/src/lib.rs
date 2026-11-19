@@ -2393,14 +2393,17 @@ impl App {
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
         let mut chosen = None;
-        let tall = list_height(self.phone.recent.len(), room);
+        let (tab, own) = (self.tab(), shown(&self.title));
+        let mine: Vec<&phone::Piece> = self.phone.recent.iter().filter(|piece| piece.tab() == tab).collect();
+        let current = mine.iter().position(|piece| piece.title == own);
+        let tall = list_height(mine.len(), room);
         egui::ScrollArea::vertical()
             .max_height(tall)
             .min_scrolled_height(tall)
             .show(ui, |ui| {
-                for (index, piece) in self.phone.recent.iter().enumerate() {
-                    if widgets::row(ui, &self.display(&piece.title), index == 0) {
-                        chosen = Some(piece.clone());
+                for (index, piece) in mine.iter().enumerate() {
+                    if widgets::row(ui, &self.display(&piece.title), Some(index) == current) {
+                        chosen = Some((*piece).clone());
                     }
                 }
             });
@@ -3100,12 +3103,14 @@ impl App {
                 self.open_sheet(Sheet::Presets);
             }
         }
-        // The picture before this one, of this tab's sort when there is one: the list is one for all the tabs, and
-        // its newest would change with every change of tab.
+        // Each tab has its own recent pictures: the one before the picture shown, or that picture when it is alone.
         let (tab, own) = (self.tab(), shown(&self.title));
-        let others = || self.phone.recent.iter().filter(|piece| piece.title != own);
-        let earlier = others().find(|piece| piece.tab() == tab).or_else(|| others().next());
-        if let Some(label) = earlier.map(|piece| self.display(&piece.title)) {
+        let mut mine = self.phone.recent.iter().filter(|piece| piece.tab() == tab);
+        let first = mine.next();
+        let earlier = first
+            .filter(|piece| piece.title != own)
+            .or_else(|| mine.find(|piece| piece.title != own));
+        if let Some(label) = earlier.or(first).map(|piece| self.display(&piece.title)) {
             widgets::section(ui, &self.t("recent"));
             if widgets::dropdown(ui, &label) {
                 self.open_listing(Listing::Recent);
