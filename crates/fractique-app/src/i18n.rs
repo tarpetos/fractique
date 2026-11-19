@@ -117,8 +117,10 @@ impl Lang {
     }
 }
 
-// The names of the kinds of fractal and of their parameters: one file a family, every text in every language.
-const FRACTALS: [&str; 5] = [
+// The names of the kinds of fractal, of their parameters and presets, and of the flame presets: one file a family,
+// every text in every language.
+const FRACTALS: [&str; 6] = [
+    include_str!("../locales/fractals/flame.json"),
     include_str!("../locales/fractals/escape.json"),
     include_str!("../locales/fractals/root.json"),
     include_str!("../locales/fractals/orbit.json"),

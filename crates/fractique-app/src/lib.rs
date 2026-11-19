@@ -400,6 +400,11 @@ fn file_name(title: &str) -> String {
 // spell it or as an older build showed it: its words are given in the language, and the file names stay as they are.
 fn displayed(texts: &i18n::Texts, title: &str) -> String {
     let joined = file_name(title);
+    if let Some(name) = presets::names().into_iter().find(|name| file_name(name) == joined) {
+        let key = format!("n_flame_{name}");
+        let text = texts.get(&key);
+        return if text == key { shown(name) } else { text };
+    }
     for spec in fractal::all() {
         let Some(rest) = joined.strip_prefix(&file_name(spec.name)) else {
             continue;
@@ -1155,9 +1160,10 @@ impl App {
         let restore = screenshot.is_none() || std::env::var_os("FRACTIQUE_RESTORE").is_some();
         let session = if restore { stored("session") } else { None };
         let title = "aurora-spiral".to_owned();
+        let first = displayed(&texts, &title);
         let mut app = Self {
             texts,
-            base: named(presets::get(&title).unwrap_or_else(|| random_scene(1)), &shown(&title)),
+            base: named(presets::get(&title).unwrap_or_else(|| random_scene(1)), &first),
             wall: Wall {
                 on: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall") || what == "layouts"),
                 live: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.contains("wall") || what == "layouts"),
@@ -4790,7 +4796,13 @@ mod tests {
             displayed(&ukrainian, "Gumowski-Mira 7"),
             displayed(&ukrainian, "gumowski_mira 7")
         );
-        assert_eq!(displayed(&ukrainian, "aurora-spiral"), "Aurora Spiral");
+        for name in presets::names() {
+            assert_eq!(displayed(&english, name), shown(name));
+            assert_ne!(displayed(&ukrainian, name), shown(name), "{name}");
+            assert_eq!(displayed(&ukrainian, &shown(name)), displayed(&ukrainian, name));
+        }
+        assert_eq!(file_name("aurora-spiral"), "AuroraSpiral");
+        assert_eq!(displayed(&ukrainian, "my scene"), "My scene");
     }
 
     #[test]

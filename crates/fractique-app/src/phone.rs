@@ -1268,7 +1268,7 @@ impl App {
                     Some(scene)
                 });
                 let current = !self.is_random && self.title == name;
-                if Self::tile(ui, side, picture, &shown(name), current) {
+                if Self::tile(ui, side, picture, &self.display(name), current) {
                     picked = Some(name);
                 }
             }
@@ -1280,7 +1280,7 @@ impl App {
         if let Some(name) = picked
             && let Some(scene) = presets::get(name)
         {
-            self.pick(named(scene, &shown(name)), name.to_owned(), false);
+            self.pick(named(scene, &self.display(name)), name.to_owned(), false);
             return true;
         }
         false
