@@ -5,7 +5,7 @@ struct Ply {
 };
 
 struct Frame {
-    size: vec4<u32>,   // pixels across and down, sheets
+    size: vec4<u32>,   // pixels across and down, sheets, the rows of the shapes
     view: vec4<f32>,   // the width of a pixel, half the picture in pixels (x, y), the longer half of the picture
     light: vec4<f32>,  // where the light comes from (x, y), how far from a shape its distance is exact
     look: vec4<f32>,   // rim, rim_width, bevel, gradient
@@ -24,7 +24,10 @@ struct Batch {
 @group(0) @binding(2) var<storage, read_write> spent: array<atomic<u32>>;
 @group(0) @binding(3) var levels: texture_storage_2d<rgba16float, write>;
 // Seven rows a shape: the center and the turn (cos, sin); the reach, the extent (x, y), the kind; two rows of
-// the kind's own numbers, a wave's swells from the second on.
+// the kind's own numbers, a wave's swells from the second on. A box that is not turned has in its fifth row the
+// diagonal of its corner where the processor's 64-bit numbers tie: the pixels across less the pixels down, its
+// first row of pixels, how many, and where its rows begin after the shapes. Those hold, two bits a pixel and
+// twelve pixels a number, what the processor finds there: 1 no rise, 2 a rise across only, 3 a rise down only.
 @group(0) @binding(4) var<storage, read> shapes: array<vec4<f32>>;
 
 const ROWS: u32 = 7u;
@@ -140,6 +143,21 @@ fn across(shape: u32, at: vec2<f32>) -> f32 {
     return clamp(p.x / bounds.y, -1.0, 1.0) * light.x + clamp(p.y / bounds.z, -1.0, 1.0) * light.y;
 }
 
+fn tied(shape: u32, pixel: vec2<f32>) -> u32 {
+    let mark = shapes[shape * ROWS + 4u];
+    if (batch.stride.x != 1u || u32(shapes[shape * ROWS + 1u].w) != BOX || mark.z < 0.5) {
+        return 0u;
+    }
+    let at = vec2<i32>(floor(pixel));
+    let down = at.y - i32(mark.y);
+    if (at.x - at.y != i32(mark.x) || down < 0 || down >= i32(mark.z)) {
+        return 0u;
+    }
+    let index = u32(down);
+    let held = shapes[frame.size.w + u32(mark.w) + index / 48u][(index / 12u) % 4u];
+    return (u32(held) >> (2u * (index % 12u))) & 3u;
+}
+
 fn nearest(first: u32, count: u32, at: vec2<f32>) -> Nearest {
     var best = Nearest(3.0e38, first);
     for (var index = 0u; index < count; index++) {
@@ -175,10 +193,22 @@ fn shaded(pixel: vec2<f32>) -> vec3<f32> {
         if (cover <= 0.0) {
             continue;
         }
-        let rise = vec2<f32>(
+        var rise = vec2<f32>(
             away(near.shape, p + vec2<f32>(STEP, 0.0)) - near.gap,
             away(near.shape, p + vec2<f32>(0.0, STEP)) - near.gap,
         );
+        switch tied(near.shape, pixel) {
+            case 1u: {
+                rise = vec2<f32>(0.0);
+            }
+            case 2u: {
+                rise = vec2<f32>(-1.0, 0.0);
+            }
+            case 3u: {
+                rise = vec2<f32>(0.0, -1.0);
+            }
+            default: {}
+        }
         let steep = long(rise);
         var facing = 0.0;
         if (steep > 0.0) {

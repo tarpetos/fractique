@@ -28,6 +28,10 @@ const ROWS: usize = 7;
 // Pixels the largest number a shape's distance is made from may measure: above it 32-bit floats are off by more
 // than a sixteenth of a pixel, and the processor draws the scene.
 const FINEST: f64 = (1u32 << 20) as f64;
+// fractique-core's sheets.rs: how far the distance is taken again for its rise.
+const STEP: f64 = 1e-3;
+// Pixels of a diagonal in one of its numbers, two bits each, so that a 32-bit float holds them exactly.
+const HELD: usize = 12;
 
 // The scene is a wallpaper: sheets and nothing over them.
 pub(crate) fn drawn(scene: &Scene) -> bool {
@@ -137,8 +141,82 @@ fn solid(shape: &Shape, edge: f64) -> ([[f64; 4]; ROWS], f64, f64) {
     }
 }
 
+// fractique-core's sheets.rs, Solid::distance of a box that is not turned, from its center.
+fn within(half: [f64; 2], corners: &[f64; 4], px: f64, py: f64) -> f64 {
+    let [hx, hy] = half;
+    let (qx, qy) = (px.abs() - hx, py.abs() - hy);
+    let signs = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    for (radius, (sx, sy)) in corners.iter().zip(signs) {
+        if *radius <= 0.0 {
+            continue;
+        }
+        let (vx, vy) = ((px - sx * (hx - radius)) * sx, (py - sy * (hy - radius)) * sy);
+        if vx > 0.0 && vy > 0.0 {
+            let round = (vx * vx + vy * vy).sqrt() - radius;
+            return if qx <= 0.0 && qy <= 0.0 {
+                round.max(qx.max(qy))
+            } else {
+                round
+            };
+        }
+    }
+    let (ox, oy) = (qx.max(0.0), qy.max(0.0));
+    (ox * ox + oy * oy).sqrt() + qx.max(qy).min(0.0)
+}
+
+struct View {
+    scale: f64,
+    half: (f64, f64),
+    size: [u32; 2],
+}
+
+// Where the centers of pixels lie on the diagonal of the corner of a box that is not turned, the one both
+// steps of the rise lead away from, the last bit of the processor's 64-bit numbers decides which side is
+// nearer, or that neither is. The pixels across of that diagonal less the pixels down, its first row, and for
+// every row from it what the processor finds: 0 to leave it to the card, 1 no rise, 2 a rise across only,
+// 3 a rise down only.
+fn diagonal(center: [f64; 2], half: [f64; 2], corners: &[f64; 4], view: &View) -> Option<(f64, u32, Vec<u8>)> {
+    let View {
+        scale,
+        half: edge,
+        size,
+    } = *view;
+    let lean = (center[0] - center[1] + half[1] - half[0] + edge.0 - edge.1) / scale;
+    let ahead = lean.round();
+    if (lean - ahead).abs() > 1.0 / 16.0 {
+        return None;
+    }
+    let row = |y: f64| ((y + edge.1) / scale).clamp(0.0, f64::from(size[1]));
+    let (from, to) = (row(center[1] - half[1]).floor() as u32, row(center[1]).ceil() as u32);
+    let code = |y: u32| {
+        let x = f64::from(y) + ahead;
+        if x < 0.0 || x >= f64::from(size[0]) {
+            return 0;
+        }
+        let (px, py) = ((x + 0.5) * scale - edge.0, (f64::from(y) + 0.5) * scale - edge.1);
+        let (lx, ly) = (px - center[0], py - center[1]);
+        if lx >= 0.0 || ly >= 0.0 || lx.abs() > half[0] || ly.abs() > half[1] {
+            return 0;
+        }
+        let d = within(half, corners, lx, ly);
+        let gx = within(half, corners, (px + STEP) - center[0], ly) - d;
+        let gy = within(half, corners, lx, (py + STEP) - center[1]) - d;
+        match (gx, gy) {
+            (0.0, 0.0) => 1,
+            (gx, 0.0) if gx < 0.0 => 2,
+            (0.0, gy) if gy < 0.0 => 3,
+            _ => 0,
+        }
+    };
+    let codes: Vec<u8> = (from..to).map(code).collect();
+    let first = codes.iter().position(|code| *code != 0)?;
+    let last = codes.iter().rposition(|code| *code != 0)?;
+    Some((ahead, from + first as u32, codes[first..=last].to_vec()))
+}
+
 struct Plan {
     frame: Box<Frame>,
+    // The shapes, seven rows each, then the diagonals of the boxes that have one.
     shapes: Vec<[f32; 4]>,
     // Units of work a pixel takes at most.
     cost: f64,
@@ -161,7 +239,20 @@ fn planned(scene: &Scene, stack: &Sheets, options: &RenderOptions) -> Option<Pla
         ground: [scene.background[0], scene.background[1], scene.background[2], 1.0].map(|value| value as f32),
         plies: [[[0.0; 4]; 3]; MAX_SHEETS],
     });
-    let mut shapes = Vec::new();
+    let view = View {
+        scale,
+        half,
+        size: [options.width, options.height],
+    };
+    let rows = ROWS
+        * stack
+            .stack
+            .iter()
+            .map(|sheet| sheet.shapes.len().min(MAX_SHAPES))
+            .sum::<usize>();
+    frame.size[3] = rows as u32;
+    let mut shapes = Vec::with_capacity(rows);
+    let mut diagonals: Vec<[f32; 4]> = Vec::new();
     let mut cost = 0.0;
     for (ply, sheet) in frame.plies.iter_mut().zip(&stack.stack) {
         let (first, to) = (shapes.len() / ROWS, sheet.color_to.unwrap_or([0.0; 3]));
@@ -179,12 +270,34 @@ fn planned(scene: &Scene, stack: &Sheets, options: &RenderOptions) -> Option<Pla
             if fine.is_nan() || fine > FINEST {
                 return None;
             }
-            shapes.extend(rows.map(|row| row.map(|value| value as f32)));
+            let mut rows = rows.map(|row| row.map(|value| value as f32));
+            if let Shape::Box {
+                center,
+                half,
+                corners,
+                rotation,
+            } = shape
+                && turn(*rotation) == (1.0, 0.0)
+                && let Some((ahead, first, codes)) = diagonal(*center, *half, corners, &view)
+            {
+                rows[4] = [ahead as f32, first as f32, codes.len() as f32, diagonals.len() as f32];
+                let numbers: Vec<f32> = codes
+                    .chunks(HELD)
+                    .map(|held| held.iter().rev().fold(0u32, |all, code| all << 2 | u32::from(*code)) as f32)
+                    .collect();
+                diagonals.extend(numbers.chunks(4).map(|four| {
+                    let mut row = [0.0; 4];
+                    row[..four.len()].copy_from_slice(four);
+                    row
+                }));
+            }
+            shapes.extend(rows);
             all += units;
             dearest = dearest.max(units);
         }
         cost += 2.0 * (all + dearest);
     }
+    shapes.extend(diagonals);
     Some(Plan { frame, shapes, cost })
 }
 
@@ -621,7 +734,8 @@ mod tests {
                         let scene = wallpaper(seed, layout, material, seed % 2 == 0, &options);
                         let stack = scene.sheets.as_ref().expect("a wallpaper has sheets");
                         let plan = planned(&scene, stack, &options).expect("32-bit floats hold it");
-                        assert_eq!(plan.shapes.len() % ROWS, 0);
+                        assert!(plan.shapes.len() >= plan.frame.size[3] as usize);
+                        assert_eq!(plan.frame.size[3] as usize % ROWS, 0);
                         assert!(LEAST as f64 * plan.cost <= bound(&Rate::default()), "{layout:?} {seed}");
                     }
                 }
@@ -682,6 +796,24 @@ mod tests {
         });
         scene.validate().expect("the scene is valid");
         assert!(planned(&scene, scene.sheets.as_ref().expect("sheets"), &options).is_none());
+    }
+
+    #[test]
+    fn the_processors_ties_on_the_diagonal_of_a_corner_are_told_to_the_card() {
+        let view = View {
+            scale: 2.0 / 1080.0,
+            half: (1920.0 / 1080.0, 1.0),
+            size: [1920, 1080],
+        };
+        let cell = 2.0 * view.half.0 / 3.0;
+        let (center, half) = ([-view.half.0 + cell * 1.5, 0.0], [cell / 2.0; 2]);
+        let (ahead, first, codes) = diagonal(center, half, &[0.0; 4], &view).expect("the diagonal meets pixels");
+        assert_eq!((ahead, first, codes.len()), (420.0, 220, 320));
+        assert!(codes.iter().all(|code| (1..=3).contains(code)));
+        assert!(codes.contains(&1));
+        assert!(diagonal(center, half, &[cell / 2.0; 4], &view).is_none());
+        let moved = [center[0] + view.scale / 3.0, center[1]];
+        assert!(diagonal(moved, half, &[0.0; 4], &view).is_none());
     }
 
     // A software adapter compiles the shader when it is first run, and is late with that picture.
