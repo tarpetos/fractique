@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+* **Close buttons on the title's line, lists that are easy to leave:** the round button with a cross of every
+  sheet, list and panel stands on the line of its title or heading, as far from the pane's right edge as the
+  title is from the left one, and never over the pane's outline or its round corner; before it sat higher and
+  nearer the corner than the title, and on the narrow list of languages it reached past the corner. Over a list
+  the space above the button is the space beside it. The phone's styles have the button again, beside their
+  handle. On an upright phone a list (the language, the fractal's type, the presets, **Recent**, the size, a
+  layout, a material) stands at the lower edge of the screen and leaves the upper fifth free to tap; before, the
+  list of types filled the screen. A click or a tap beside a list closes it and does nothing else: it no longer
+  presses what lies under the list or moves the picture. A tap on the row already chosen closes the list of
+  types without drawing the picture anew. The system's **Back** of an Android phone closes what is open, one
+  thing at a press: a list, a sheet, the styles or the controls. Test runs: `FRACTIQUE_STEPS` takes
+  `tap:0.5:0.1`, a tap at that share of the window, and `wait`.
+
 * **Lists over the phone's controls can be read:** on a phone, a list opened from **Fine-tune** (the language,
   the fractal's type, the presets, **Recent**, the size, a wallpaper's layout or material) was drawn over the
   controls without a background of its own: the rows of the list and the labels, dropdowns and sliders of the

@@ -198,9 +198,24 @@ pub fn back(ui: &mut Ui, hint: &str) -> bool {
 
 pub const CLOSE: f32 = 28.0;
 
-pub fn close(ui: &mut Ui, hint: &str) -> bool {
-    let corner = ui.min_rect().right_top();
-    close_at(ui, corner + vec2(-8.0, 8.0), hint)
+pub fn heading(ui: &mut Ui, title: &str) {
+    let around = (CLOSE - line(ui, 11.0)) * 0.5;
+    ui.add_space(around);
+    ui.label(egui::RichText::new(title).font(font(11.0, SEMIBOLD)).color(white(120)));
+    ui.add_space(around + 4.0);
+}
+
+pub fn line(ui: &Ui, size: f32) -> f32 {
+    ui.fonts_mut(|fonts| fonts.row_height(&font(size, SEMIBOLD)))
+}
+
+pub fn close_spot(top: f32, line: f32, right: f32) -> egui::Pos2 {
+    egui::pos2(right - CLOSE * 0.5, top + line * 0.5)
+}
+
+pub fn close(ui: &mut Ui, line: f32, hint: &str) -> bool {
+    let rect = ui.min_rect();
+    close_at(ui, close_spot(rect.top(), line, rect.right()), hint)
 }
 
 pub fn close_at(ui: &mut Ui, center: egui::Pos2, hint: &str) -> bool {
@@ -557,4 +572,50 @@ pub fn slider_to(
     );
     painter.circle_filled(egui::pos2(at, middle), knob + grown, Color32::WHITE);
     changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn inside(pane: egui::Rect, radius: f32, at: egui::Pos2) -> bool {
+        let reach = CLOSE * 0.5;
+        let core = pane.shrink(radius);
+        let nearest = egui::pos2(
+            at.x.clamp(core.left(), core.right()),
+            at.y.clamp(core.top(), core.bottom()),
+        );
+        pane.shrink(reach).contains(at) && (at - nearest).length() + reach <= radius
+    }
+
+    #[test]
+    fn the_close_button_stands_on_the_title_line_in_the_title_margin() {
+        for (margin, radius, line) in [
+            (22.0, 30.0, 20.0),
+            (20.0, 30.0, 18.0),
+            (22.0, 30.0, 36.0),
+            (18.0, 28.0, 13.0),
+        ] {
+            for width in [120.0, 196.0, 260.0, 300.0, 604.0] {
+                let content = egui::Rect::from_min_size(egui::pos2(40.0, 60.0), vec2(width, 200.0));
+                let pane = content.expand(margin);
+                let at = close_spot(content.top(), line, content.right());
+                assert_eq!(at.y, content.top() + line * 0.5);
+                assert_eq!(pane.right() - (at.x + CLOSE * 0.5), content.left() - pane.left());
+                assert!(inside(pane, radius, at), "{margin} {radius} {line} {width}");
+            }
+        }
+    }
+
+    #[test]
+    fn over_a_list_the_gap_above_the_close_button_is_the_gap_beside_it() {
+        for (margin, radius) in [(22.0, 30.0), (10.0, 22.0)] {
+            let content = egui::Rect::from_min_size(egui::pos2(40.0, 60.0), vec2(196.0, 300.0));
+            let pane = content.expand(margin);
+            let at = close_spot(content.top(), CLOSE, content.right());
+            let (above, beside) = (at.y - CLOSE * 0.5 - pane.top(), pane.right() - at.x - CLOSE * 0.5);
+            assert_eq!((above, beside), (margin, margin));
+            assert!(inside(pane, radius, at));
+        }
+    }
 }

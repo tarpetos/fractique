@@ -809,6 +809,7 @@ struct App {
     picture: Option<[u32; 2]>,
     then: Vec<View>,
     steps: Vec<String>,
+    tap: Option<(egui::Pos2, u8)>,
     custom: [String; 2],
     // A text of a fractal while it is typed, by its layer and name: what is typed need not be valid yet.
     typed: Option<(String, String)>,
@@ -1106,6 +1107,22 @@ fn rendered(
 }
 
 // A scroll area left to itself starts two rows tall and can stay so.
+// An upright phone has no room beside a list: the list stands at the lower edge and leaves the upper fifth of the
+// screen free to tap. Elsewhere it stands in the middle.
+fn list_place(content: egui::Rect, phone: bool) -> (egui::Pos2, egui::Align2, f32) {
+    let high = content.height();
+    if !phone || high <= content.width() {
+        return (content.center(), egui::Align2::CENTER_CENTER, high);
+    }
+    let foot = egui::pos2(content.center().x, content.bottom() - LIST_FOOT);
+    (foot, egui::Align2::CENTER_BOTTOM, high * 0.8 - LIST_FOOT + LIST_SPARE)
+}
+
+const LIST_FOOT: f32 = 8.0;
+// What `list_height` leaves of its room beyond the rows, less what a list's heading and margins take.
+const LIST_SPARE: f32 = 110.0 - LIST_FRAME;
+const LIST_FRAME: f32 = 78.0;
+
 fn list_height(rows: usize, room: f32) -> f32 {
     (rows as f32 * 32.0 - 2.0).clamp(30.0, (room - 110.0).max(90.0))
 }
@@ -1343,6 +1360,7 @@ impl App {
                 |_| Vec::new(),
                 |steps| steps.split(',').rev().map(str::to_owned).collect(),
             ),
+            tap: None,
             custom: Default::default(),
             typed: None,
             sizes_open: opens("sizes"),
@@ -2460,7 +2478,7 @@ impl App {
             return;
         }
         let adding = self.adding_layer;
-        widgets::section(ui, &self.t(if adding { "layers" } else { "presets" }));
+        widgets::heading(ui, &self.t(if adding { "layers" } else { "presets" }));
         let mut bar = egui::style::ScrollStyle::floating();
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
@@ -2533,7 +2551,7 @@ impl App {
     }
 
     fn kind_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
-        widgets::section(ui, &self.t("fractal_kind"));
+        widgets::heading(ui, &self.t("fractal_kind"));
         let mut bar = egui::style::ScrollStyle::floating();
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
@@ -2553,7 +2571,9 @@ impl App {
             });
         if let Some(kind) = chosen {
             self.presets_open = false;
-            self.show_kind(kind);
+            if kind != self.kind {
+                self.show_kind(kind);
+            }
         }
     }
 
@@ -2638,7 +2658,7 @@ impl App {
 
     fn recent_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
         ui.set_width((ui.ctx().content_rect().width() - 60.0).min(380.0));
-        widgets::section(ui, &self.t("recent"));
+        widgets::heading(ui, &self.t("recent"));
         let mut bar = egui::style::ScrollStyle::floating();
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
@@ -2675,7 +2695,7 @@ impl App {
     fn size_sheet(&mut self, ui: &mut egui::Ui, window: [u32; 2], room: f32) {
         ui.set_width(300.0);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-        widgets::section(ui, &self.t("size"));
+        widgets::heading(ui, &self.t("size"));
         let own = format!("{} · {} × {}", self.t("size_window"), window[0], window[1]);
         let height = (room - 230.0).clamp(34.0, 420.0);
         let locked = self.lock();
@@ -2861,6 +2881,43 @@ impl App {
         {
             self.export.open = true;
         }
+    }
+
+    // A click beside an open list closes it and goes no further: this lies over everything else and takes it.
+    fn list_backdrop(&mut self, ctx: &egui::Context, screen: egui::Rect) {
+        let behind = egui::Area::new(egui::Id::unique("list_backdrop"))
+            .fixed_pos(screen.min)
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                ui.allocate_response(screen.size(), egui::Sense::click_and_drag())
+            });
+        if behind.inner.clicked() {
+            self.languages_open = false;
+            self.sizes_open = false;
+            self.presets_open = false;
+        }
+    }
+
+    // What the system's Back of a phone leaves, one thing at a press: a list, a sheet, the styles or the controls.
+    fn leave(&mut self) {
+        if self.languages_open || self.sizes_open || self.presets_open {
+            self.languages_open = false;
+            self.sizes_open = false;
+            self.presets_open = false;
+            return;
+        }
+        #[cfg(feature = "store")]
+        if self.pro.is_some() {
+            self.leave_pro();
+            return;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.export.open && self.export.job.is_none() {
+            self.export.open = false;
+            return;
+        }
+        self.phone.sheet = false;
+        self.phone.tune = false;
     }
 
     fn reset_button(&mut self, ctx: &egui::Context, at: egui::Pos2) -> egui::Rect {
@@ -3662,7 +3719,7 @@ impl App {
 
     fn wall_sheet(&mut self, ui: &mut egui::Ui, room: f32) {
         let layouts = self.listing == Listing::Layouts;
-        widgets::section(ui, &self.t(if layouts { "layout" } else { "material" }));
+        widgets::heading(ui, &self.t(if layouts { "layout" } else { "material" }));
         let mut bar = egui::style::ScrollStyle::floating();
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
@@ -4332,10 +4389,21 @@ impl App {
             return;
         }
         // FRACTIQUE_STEPS: the buttons a test run presses, each when the picture of the one before is whole
-        // (randomize, mutate, back, forward).
+        // (randomize, mutate, back, forward), and tap:0.5:0.1, a tap at that share of the window's width and
+        // height; wait lets a few frames pass after one.
         if self.shown_frames == 5
             && let Some(step) = self.steps.pop()
         {
+            let numbers: Vec<f32> = step.split(':').skip(1).filter_map(|part| part.parse().ok()).collect();
+            if step.starts_with("tap:") || step == "wait" {
+                if let [across, down] = numbers[..] {
+                    let screen = ctx.content_rect();
+                    self.tap = Some((screen.min + screen.size() * egui::vec2(across, down), 0));
+                }
+                self.shown_frames = 1;
+                ctx.request_repaint();
+                return;
+            }
             match step.as_str() {
                 "back" | "forward" => self.travel(step == "back"),
                 key => self.act(key),
@@ -4393,6 +4461,25 @@ fn save_png(path: &std::path::Path, rgba: &[u8], size: [usize; 2]) -> Result<(),
 }
 
 impl eframe::App for App {
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, input: &mut egui::RawInput) {
+        let Some((pos, phase)) = self.tap else {
+            return;
+        };
+        let press = |pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        input.events.push(match phase {
+            0 => egui::Event::PointerMoved(pos),
+            1 => press(true),
+            2 => press(false),
+            _ => egui::Event::PointerGone,
+        });
+        self.tap = (phase < 3).then_some((pos, phase + 1));
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -4418,6 +4505,9 @@ impl eframe::App for App {
         self.updates.settle(&ctx);
         if ctx.input(|input| input.key_pressed(egui::Key::F2)) {
             self.tuning = !self.tuning;
+        }
+        if ctx.input(|input| input.key_pressed(egui::Key::BrowserBack)) {
+            self.leave();
         }
 
         let screen = ctx.viewport_rect();
@@ -4691,7 +4781,7 @@ impl eframe::App for App {
                         let low = content.width() > content.height() && content.height() < 560.0;
                         let wide = low.then(|| (content.width() - 60.0).min(604.0));
                         self.export_sheet(ui, window, content.height(), wide);
-                        if widgets::close(ui, &self.t("close")) {
+                        if widgets::close(ui, widgets::line(ui, 17.0), &self.t("close")) {
                             self.export.open = false;
                         }
                     });
@@ -4709,7 +4799,7 @@ impl eframe::App for App {
                 .show(&ctx, |ui| {
                     egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
                         self.updates.ui(ui, &self.texts, width);
-                        if widgets::close(ui, &self.t("close")) {
+                        if widgets::close(ui, widgets::line(ui, 17.0), &self.t("close")) {
                             self.updates.open = false;
                         }
                     });
@@ -4727,7 +4817,7 @@ impl eframe::App for App {
                 .show(&ctx, |ui| {
                     egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
                         self.pro_sheet(ui, width);
-                        if widgets::close(ui, &self.t("close")) {
+                        if widgets::close(ui, widgets::line(ui, 17.0), &self.t("close")) {
                             self.leave_pro();
                         }
                     });
@@ -4736,45 +4826,53 @@ impl eframe::App for App {
         }
 
         if self.presets_open {
+            let (at, pivot, room) = list_place(content, self.phone.on);
+            self.list_backdrop(&ctx, screen);
             let sheet = egui::Area::new(egui::Id::unique("presets"))
-                .fixed_pos(content.center())
-                .pivot(egui::Align2::CENTER_CENTER)
+                .fixed_pos(at)
+                .pivot(pivot)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
                     egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
-                        self.preset_sheet(ui, content.height());
-                        if widgets::close(ui, &self.t("close")) {
+                        self.preset_sheet(ui, room);
+                        if widgets::close(ui, widgets::CLOSE, &self.t("close")) {
                             self.presets_open = false;
                         }
                     });
                 });
+            ctx.move_to_top(sheet.response.layer_id);
             panes.push((sheet.response.rect, self.optics.radius, true));
         }
 
         if self.sizes_open {
+            let (at, pivot, room) = list_place(content, self.phone.on);
+            self.list_backdrop(&ctx, screen);
             let sheet = egui::Area::new(egui::Id::unique("sizes"))
-                .fixed_pos(content.center())
-                .pivot(egui::Align2::CENTER_CENTER)
+                .fixed_pos(at)
+                .pivot(pivot)
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| {
                     egui::Frame::NONE.inner_margin(egui::Margin::same(22)).show(ui, |ui| {
-                        self.size_sheet(ui, window, content.height());
-                        if widgets::close(ui, &self.t("close")) {
+                        self.size_sheet(ui, window, room);
+                        if widgets::close(ui, widgets::CLOSE, &self.t("close")) {
                             self.sizes_open = false;
                         }
                     });
                 });
+            ctx.move_to_top(sheet.response.layer_id);
             panes.push((sheet.response.rect, self.optics.radius, true));
         }
 
         if self.languages_open {
-            let (at, pivot) =
+            let (at, pivot, room) =
                 if self.phone.on || cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
-                    (content.center(), egui::Align2::CENTER_CENTER)
+                    list_place(content, self.phone.on)
                 } else {
-                    (self.language_anchor + egui::vec2(0.0, 12.0), egui::Align2::RIGHT_TOP)
+                    let at = self.language_anchor + egui::vec2(0.0, 12.0);
+                    (at, egui::Align2::RIGHT_TOP, content.height())
                 };
             let mut chosen = self.texts.lang;
+            self.list_backdrop(&ctx, screen);
             let menu = egui::Area::new(egui::Id::unique("languages"))
                 .fixed_pos(at)
                 .pivot(pivot)
@@ -4783,12 +4881,11 @@ impl eframe::App for App {
                     egui::Frame::NONE.inner_margin(egui::Margin::same(10)).show(ui, |ui| {
                         ui.set_width(196.0);
                         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-                        widgets::section(ui, &self.t("language"));
-                        ui.add_space(4.0);
+                        widgets::heading(ui, &self.t("language"));
                         let mut bar = egui::style::ScrollStyle::floating();
                         bar.bar_width = 5.0;
                         ui.spacing_mut().scroll = bar;
-                        let tall = list_height(Lang::ALL.len(), content.height());
+                        let tall = list_height(Lang::ALL.len(), room);
                         egui::ScrollArea::vertical()
                             .max_height(tall)
                             .min_scrolled_height(tall)
@@ -4800,11 +4897,12 @@ impl eframe::App for App {
                                     }
                                 }
                             });
-                        if widgets::close(ui, &self.t("close")) {
+                        if widgets::close(ui, widgets::CLOSE, &self.t("close")) {
                             self.languages_open = false;
                         }
                     });
                 });
+            ctx.move_to_top(menu.response.layer_id);
             if chosen != self.texts.lang {
                 self.texts = Texts::new(chosen);
                 widgets::install_fonts(&ctx, chosen);
@@ -4819,7 +4917,7 @@ impl eframe::App for App {
                 .show(&ctx, |ui| {
                     egui::Frame::NONE.inner_margin(egui::Margin::same(20)).show(ui, |ui| {
                         self.tuning(ui);
-                        if widgets::close(ui, &self.t("close")) {
+                        if widgets::close(ui, widgets::line(ui, 15.0), &self.t("close")) {
                             self.tuning = false;
                         }
                     });
@@ -5130,6 +5228,38 @@ fn generator_of(session: &serde_json::Value) -> Generator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_list_on_an_upright_phone_leaves_the_upper_fifth_of_the_screen() {
+        for high in [568.0, 640.0, 780.0, 800.0, 932.0] {
+            let content = egui::Rect::from_min_size(egui::pos2(0.0, 24.0), egui::vec2(360.0, high));
+            let (at, pivot, room) = list_place(content, true);
+            assert_eq!(
+                (at.y, pivot),
+                (content.bottom() - LIST_FOOT, egui::Align2::CENTER_BOTTOM)
+            );
+            let top = at.y - list_height(40, room) - LIST_FRAME;
+            assert!(top >= content.top() + high * 0.2 - 0.01, "{high}: {top}");
+            assert!(top <= content.top() + high * 0.2 + 1.0, "{high}: {top}");
+            let short = at.y - list_height(3, room) - LIST_FRAME;
+            assert!(short > top + 200.0, "{high}");
+        }
+    }
+
+    #[test]
+    fn a_list_stands_in_the_middle_on_a_computer_and_on_a_phone_on_its_side() {
+        let wide = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(780.0, 360.0));
+        let tall = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 900.0));
+        assert_eq!(
+            list_place(wide, true),
+            (wide.center(), egui::Align2::CENTER_CENTER, 360.0)
+        );
+        assert_eq!(
+            list_place(tall, false),
+            (tall.center(), egui::Align2::CENTER_CENTER, 900.0)
+        );
+        assert!(list_height(40, 360.0) + LIST_FRAME <= 360.0 - 2.0 * LIST_FOOT);
+    }
 
     #[test]
     fn a_session_without_a_generator_is_from_the_first() {
