@@ -396,6 +396,31 @@ fn file_name(title: &str) -> String {
     out
 }
 
+// A title as the app shows it. A fractal's is the name of a preset or a kind and a seed, spelled as the files
+// spell it or as an older build showed it: its words are given in the language, and the file names stay as they are.
+fn displayed(texts: &i18n::Texts, title: &str) -> String {
+    let joined = file_name(title);
+    for spec in fractal::all() {
+        let Some(rest) = joined.strip_prefix(&file_name(spec.name)) else {
+            continue;
+        };
+        let kind = texts.get(&format!("f_{}", spec.name));
+        if let Some(preset) = spec.presets.iter().find(|preset| file_name(preset.name) == rest) {
+            return format!("{kind} {}", preset_name(texts, spec.name, preset.name));
+        }
+        if !rest.is_empty() && rest.chars().all(|letter| letter.is_ascii_digit()) {
+            return format!("{kind} {rest}");
+        }
+    }
+    shown(title)
+}
+
+fn preset_name(texts: &i18n::Texts, kind: &str, preset: &str) -> String {
+    let key = format!("n_{kind}_{preset}");
+    let text = texts.get(&key);
+    if text == key { shown(preset) } else { text }
+}
+
 fn named(mut scene: Scene, title: &str) -> Scene {
     let several = scene.layers.len() > 1;
     for (index, layer) in scene.layers.iter_mut().enumerate() {
@@ -1316,6 +1341,10 @@ impl App {
         self.t(&format!("f_{kind}"))
     }
 
+    fn display(&self, title: &str) -> String {
+        displayed(&self.texts, title)
+    }
+
     fn show_kind(&mut self, kind: &str) {
         let Some(spec) = fractal::spec(kind) else {
             return;
@@ -1328,7 +1357,7 @@ impl App {
 
     fn show_preset(&mut self, name: &str) {
         if let Some(scene) = presets::get(name).or_else(|| fractal::preset(name)) {
-            self.pick(named(scene, &shown(name)), name.to_owned(), false);
+            self.pick(named(scene, &self.display(name)), name.to_owned(), false);
         }
     }
 
@@ -2199,21 +2228,22 @@ impl App {
                 }
                 for name in &names {
                     let current = !adding && !self.is_random && self.title == *name;
-                    if widgets::row(ui, &shown(name), current)
+                    if widgets::row(ui, &self.display(name), current)
                         && let Some(scene) = presets::get(name).or_else(|| fractal::preset(name))
                     {
-                        chosen = Some((named(scene, &shown(name)), name.clone()));
+                        chosen = Some((named(scene, &self.display(name)), name.clone()));
                     }
                 }
             });
         let Some((scene, title)) = chosen else { return };
         self.presets_open = false;
         if adding {
+            let name = self.display(&title);
             if let Some(mut layer) = scene.layers.into_iter().next()
                 && self.base.layers.len() < MAX_LAYERS
             {
                 layer.blend = Blend::Screen;
-                layer.name = shown(&title);
+                layer.name = name;
                 self.base.layers.push(layer);
                 self.layer = self.base.layers.len() - 1;
                 self.requested = None;
@@ -2238,9 +2268,9 @@ impl App {
     fn fresh(&mut self) -> (Scene, String) {
         if self.fractals {
             self.seed += 1;
-            let title = format!("{} {}", self.kind_name(&self.kind), self.seed);
+            let title = format!("{} {}", self.kind, self.seed);
             if let Some(scene) = fractal::random_scene(&self.kind, self.seed) {
-                return (named(scene, &title), title);
+                return (named(scene, &self.display(&title)), title);
             }
         }
         let title = self.next_random();
@@ -2363,7 +2393,7 @@ impl App {
             .min_scrolled_height(tall)
             .show(ui, |ui| {
                 for (index, piece) in self.phone.recent.iter().enumerate() {
-                    if widgets::row(ui, &shown(&piece.title), index == 0) {
+                    if widgets::row(ui, &self.display(&piece.title), index == 0) {
                         chosen = Some(piece.clone());
                     }
                 }
@@ -3060,13 +3090,13 @@ impl App {
                 }
             }
             widgets::section(ui, &self.t("presets"));
-            if widgets::dropdown(ui, &shown(&self.title)) {
+            if widgets::dropdown(ui, &self.display(&self.title)) {
                 self.open_sheet(Sheet::Presets);
             }
         }
         if self.phone.recent.len() > 1 {
             widgets::section(ui, &self.t("recent"));
-            if widgets::dropdown(ui, &shown(&self.phone.recent[1].title)) {
+            if widgets::dropdown(ui, &self.display(&self.phone.recent[1].title)) {
                 self.open_listing(Listing::Recent);
             }
         }
@@ -4219,7 +4249,7 @@ impl eframe::App for App {
                         egui::Frame::NONE.inner_margin(egui::Margin::same(9)).show(ui, |ui| {
                             let detail = self.detail();
                             let name = ui.painter().layout_no_wrap(
-                                shown(&self.title),
+                                self.display(&self.title),
                                 font(13.5, MEDIUM),
                                 egui::Color32::WHITE,
                             );
@@ -4729,6 +4759,31 @@ mod tests {
         assert_eq!(verdict_of("Adreno 610|V@0502.0|0.0.9|slow", card), Verdict::Unknown);
         assert_eq!(verdict_of("Mali-G52|r1|0.1.0|fast|9", card), Verdict::Unknown);
         assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|fast|", card), Verdict::Unknown);
+    }
+
+    #[test]
+    fn a_fractal_is_named_in_the_language_and_its_file_in_english() {
+        let english = i18n::Texts::new(i18n::Lang::En);
+        let ukrainian = i18n::Texts::new(i18n::Lang::Uk);
+        for spec in fractal::all() {
+            for preset in spec.presets {
+                let key = format!("n_{}_{}", spec.name, preset.name);
+                assert_ne!(english.get(&key), key);
+                let title = format!("{}-{}", spec.name, preset.name);
+                assert_eq!(displayed(&ukrainian, &shown(&title)), displayed(&ukrainian, &title));
+                assert_ne!(displayed(&ukrainian, &title), shown(&title));
+            }
+        }
+        assert_eq!(displayed(&english, "mandelbox-station"), "Mandelbox Station");
+        assert_eq!(file_name("mandelbox-station"), "MandelboxStation");
+        let random = displayed(&ukrainian, "burning_ship 42");
+        assert!(random.ends_with(" 42") && !random.contains("Burning"), "{random}");
+        assert_eq!(file_name("burning_ship 42"), "BurningShip42");
+        assert_eq!(
+            displayed(&ukrainian, "Gumowski-Mira 7"),
+            displayed(&ukrainian, "gumowski_mira 7")
+        );
+        assert_eq!(displayed(&ukrainian, "aurora-spiral"), "Aurora Spiral");
     }
 
     #[test]

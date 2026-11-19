@@ -33,8 +33,9 @@ and the commands. The short mark `frcq.` was tried and is on hold: do not use it
   A scene file that loaded before must keep loading and rendering the same; otherwise bump `SCENE_VERSION`.
 - **Texts of the app:** never a literal in the code. Every text is a key in `crates/fractique-app/locales/en.json`
   and in each of the other 14 locale files; a test fails when one lacks a key. The texts of the fractal kinds are in
-  `locales/fractals/<family>.json`, all 15 languages in one file. Proper names stay in English in every language:
-  the names of the kinds (`f_*`), of presets, of the Mandelbrot and Julia forms; only ordinary words are translated. After adding texts in Japanese,
+  `locales/fractals/<family>.json`, all 15 languages in one file. The names of the kinds (`f_*`), of their presets
+  (`n_<kind>_<preset>`) and of the Mandelbrot and Julia forms are translated in every language; a default file name is
+  made from the English name (`MandelboxStation`), never from the translated one. After adding texts in Japanese,
   Chinese, Korean or Hindi, run `tools/i18n/make_fonts.py`: the fonts for those hold only the characters in use.
 - **README:** `README.md` has 14 translations in `docs/readme/`. A change to one goes into all of them.
 - **Dependencies:** after a change to `Cargo.lock`, run `python3 tools/notices/make_notices.py`: it rewrites the table of
