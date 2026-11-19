@@ -386,6 +386,23 @@ Glass shows what lies under it, so two panes never overlap: a list or a sheet hi
 a pane that would reach another one in a small window moves (the glass panel of **F2** stands above the toolbar
 there). A test run writes the rectangles of its panes beside its screenshot (`.panes`), for a script to check.
 
+### The window comes first
+
+The window keeps its frames and answers at once whatever picture is being drawn. A program cannot reserve a
+share of a graphics card; what it can do is never ask for more than its share and never have work waiting
+ahead of the window's own frame. `pace.rs` holds the numbers.
+
+| Rule | How |
+| --- | --- |
+| The frame | The window draws a frame in 16.7 ms and no sooner (`FRAME`; `lib.rs` holds it to that on every screen, so a 120 or 144 Hz screen shows 60 frames a second too) |
+| The slice | Of a frame the card may spend half on a picture (`SHARE`, 8.3 ms), and a quarter (`SHARE_ATTENDED`, 4.2 ms) while the window is used and for 0.3 s after: an event of the mouse or a finger, a button held, a text typed, a pane in motion |
+| One batch a frame | Every card path (the chaos game, deep views, orbits, the kinds drawn pixel by pixel, wallpapers) sends one submission a frame and the next only when the card has told that the last is done (`map_async` on the thread that waits for the card; the window's thread never waits). So the card has at most one slice of work ahead of the window's frame |
+| The size of a batch | `pace::next`: a batch that overran its slice is followed by one cut to the slice at once; one that ran short by one at most 1.5 times larger, or 8 times when it used less than a sixteenth of the slice. The smallest batch is one step of every walker, or 64 samples of a kind drawn pixel by pixel |
+| No fixed costs in a batch | The density estimation no longer follows every batch: it is drawn twice a picture, in strips of rows that fit the slice ([The chaos game](#the-chaos-game-on-the-graphics-card)) |
+| The cost | A picture takes two to four times longer on the card than flat out, and the card is busy a fifth to a third of the time instead of all of it. A card is told to leave a picture to the processor when its work, at the share it gets, would take longer than the processor |
+| The processor | Renders run on a pool that leaves two cores to the window; a picture reaches the screen as one upload |
+| Outside the app's reach | Another program using the card, a driver that stalls inside one dispatch (a batch that takes over 0.5 s still ends the card's part in the picture), and the first compilation of a shader, which is done on a thread of its own at the start |
+
 ### Motion
 
 Nothing on the screen appears, goes, moves or changes size at once. `motion.rs` holds the times and the easing
@@ -497,7 +514,8 @@ window does. The toolbar shows the time the picture took.
 | Walkers | A compute shader (`chaos.wgsl`) runs one walker for every 16 pixels, up to 262 144 at once, and fewer where the 24 unplotted steps of that many would take more than half of what [one submission may do](#the-work-of-one-submission). Each does what `chaos.rs` and `render.rs` do: it picks a transform by weight, applies the affine map, the variations (all 49), the post map, moves its color, hides the point by the transform's opacity, and plots it through the final transform, the symmetry and the camera. The numbers are 32-bit floats. Each walker has its own random numbers (xoroshiro64**), seeded from the scene's seed, the layer and the walker's number, and starts with 24 steps that are not plotted |
 | Histogram | Four 32-bit integers a cell: the hits and the three color sums, added with atomic operations, so the order of the walkers does not matter. A cell's color sums stop at 16 000 000 hits, where they would overflow; its hits go on |
 | Levels | A second shader (`levels.wgsl`) repeats the density estimation of `tone.rs`: the same kernels, chosen by the same table of hits, gathered for every pixel. Tiles of 16 × 16 cells tell how far a pixel has to look. It writes the levels that the shaders of [the preview](#the-preview-on-the-graphics-card) start from, so the tone, the glow and the blending are the preview's |
-| Batches | The first batch plots 2 samples per pixel; once a batch has shown how fast the card is, a later run starts with as many as fit in 20 ms. Each next batch is sized by how long the last one took: 40 ms, or 2.5 times the shortest batch when the levels alone take longer than that, and never less than a sixteenth of all samples. Whatever that asks for, a batch stays within [the work of one submission](#the-work-of-one-submission) |
+| Batches | One batch is sent a frame, and none before the one before it has come back. A batch is sized to keep the card for a [slice of the frame](#the-window-comes-first): the first of a card nothing is known of is as small as a batch can be (one step of every walker), a later run starts with as many as the card has shown to fit, and each next one is sized by how long the last took. Whatever that asks for, a batch stays within [the work of one submission](#the-work-of-one-submission) |
+| Levels | The density estimation is drawn twice for a picture, not after every batch: once when 2 samples a pixel are plotted, for the first picture, and once at the end. It is drawn in its own submissions, a strip of rows each (16 rows at first, then as many as fit the slice), after one that looks the tiles over; nothing is walked meanwhile, so the strips are of one histogram |
 | Events | A batch is one submission. A thread that sleeps in the driver until that submission is finished takes in how many points landed in the picture and asks for a repaint; the next frame sends the next batch. The window's thread never waits for the graphics card |
 | Kept | With the last batch the histograms and the walkers are freed; the levels stay on the card (8 bytes a pixel for each layer) for as long as the picture is on the screen |
 
@@ -557,9 +575,8 @@ and a card that refuses them leaves deep views to the processor and keeps the re
 #### The work of one submission
 
 The bounds below hold for a scene with an attractor in it. A scene of flames alone is walked as it was before
-them: its walkers are as many as a sixteenth of the pixels (at most 262 144), a batch grows with the card's pace
-up to four times the one before, the run takes about 16 batches at most, the density estimation has no bound of
-its own, and a batch is given 20 s. That path ran on every card it was tried on without a hang; the bounds were
+them: its walkers are as many as a sixteenth of the pixels (at most 262 144), a batch is sized by
+the slice of the frame alone, and a batch is given 20 s. That path ran on every card it was tried on without a hang; the bounds were
 made for the shaders that came after it.
 
 A shader that works for seconds takes the screen with it, and a graphics driver that waits too long for one resets

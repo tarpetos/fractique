@@ -1,4 +1,47 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+// The window draws a frame in this time and no sooner (`lib.rs` holds it to that), whatever the screen's own pace.
+pub const FRAME: f32 = 1.0 / 60.0;
+// The share of a frame the graphics card may spend on a picture: the rest is the window's and the system's.
+// While the window is used (a button or a finger held, the wheel, a text typed, a pane in motion) it is the
+// smaller share.
+pub const SHARE: f32 = 0.5;
+pub const SHARE_ATTENDED: f32 = 0.25;
+// A batch that ran short of its slice is followed by one at most this many times larger; one that overran is
+// followed by one cut to the slice at once.
+pub const GROWTH: f64 = 1.5;
+const FAR: f64 = 8.0;
+
+const _: () = assert!(SHARE < 0.6 && SHARE_ATTENDED <= SHARE * 0.5);
+
+static ATTENDED: AtomicBool = AtomicBool::new(false);
+
+pub fn attend(used: bool) {
+    ATTENDED.store(used, Ordering::Relaxed);
+}
+
+// The seconds one batch of a picture may keep the graphics card: one batch is sent a frame, and none before the
+// one before it has come back, so the card never has more than this ahead of the window's own frame.
+pub fn slice() -> f32 {
+    slice_of(ATTENDED.load(Ordering::Relaxed))
+}
+
+pub fn slice_of(attended: bool) -> f32 {
+    FRAME * if attended { SHARE_ATTENDED } else { SHARE }
+}
+
+// The size of the next batch, from the size of the last and the seconds it took.
+pub fn next(sent: f64, took: f32, slice: f32) -> f64 {
+    let fits = f64::from(slice) / f64::from(took.max(1e-5));
+    // A batch far under its slice, as the first of a card nothing is known of, is followed by one half-way there.
+    let grown = if fits > 2.0 * FAR {
+        (fits / 2.0).min(FAR)
+    } else {
+        GROWTH
+    };
+    sent * fits.min(grown)
+}
 
 // A view is rendered when its picture is expected within this many seconds; a longer one is the picture the app
 // has, magnified.
@@ -110,6 +153,38 @@ pub fn magnified(rgba: &[u8], from: [u32; 2], [across, along, larger]: [f32; 3],
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_batch_is_cut_to_its_slice_at_once_and_grows_slowly() {
+        let slice = slice_of(false);
+        assert!((slice - 0.5 / 60.0).abs() < 1e-6);
+        // Four times too long: a quarter as large, at once.
+        assert!((next(1000.0, 4.0 * slice, slice) - 250.0).abs() < 1e-3);
+        // Ten times too short: half as large again, not ten times.
+        assert!((next(1000.0, 0.1 * slice, slice) - 1500.0).abs() < 1e-3);
+        // A hundred times too short, as the first batch of an unknown card: eight times, still far inside.
+        assert!((next(1000.0, 0.01 * slice, slice) - 8000.0).abs() < 1e-3);
+        assert!((next(1000.0, slice, slice) - 1000.0).abs() < 1e-3);
+        // From any size a card ten times too slow is within its slice after one batch, and stays there.
+        let mut sent = 1.0e6;
+        let seconds = |sent: f64| (sent * 1e-7) as f32;
+        sent = next(sent, seconds(sent), slice);
+        for _ in 0..50 {
+            assert!(seconds(sent) <= slice * 1.001);
+            sent = next(sent, seconds(sent), slice);
+        }
+        assert!((seconds(sent) - slice).abs() < slice * 0.01);
+    }
+
+    #[test]
+    fn a_window_that_is_used_leaves_the_card_half_as_much() {
+        assert!(slice_of(true) < slice_of(false));
+        assert!((slice_of(true) - 0.25 / 60.0).abs() < 1e-6);
+        attend(true);
+        assert_eq!(slice(), slice_of(true));
+        attend(false);
+        assert_eq!(slice(), slice_of(false));
+    }
 
     fn flame(work: f64) -> [Part<'static>; 1] {
         [Part {

@@ -7,6 +7,7 @@ use fractique_core::{Camera, Fractal, RenderOptions, fractal, math, palette, sce
 
 use web_time::Instant;
 
+use crate::pace;
 use crate::preview::{LEVELS, guarded};
 use crate::sheets::Stacks;
 
@@ -14,8 +15,6 @@ const HEAD: &str = include_str!("field.wgsl");
 const ESCAPE: &str = include_str!("field_escape.wgsl");
 const ROOT: &str = include_str!("field_root.wgsl");
 
-// A batch is sized to take about this long, so that the window keeps its pace.
-const PACE: f64 = 0.04;
 // However wrong the guess of a batch's time, its samples at their dearest take no longer than this.
 const DEAREST: f64 = 0.1;
 // Steps a second of a card nothing is known about yet: less than any card that passed the trial does.
@@ -1002,9 +1001,9 @@ impl Layer {
         let samples = match self.last {
             Some((samples, seconds)) => {
                 let before = samples as f64;
-                (before * PACE / seconds).clamp(0.25 * before, 4.0 * before)
+                pace::next(before, seconds as f32, pace::slice())
             }
-            None if known > 0.0 => known * PACE,
+            None if known > 0.0 => known * f64::from(pace::slice()),
             None => most,
         };
         (samples.min(most) as u64).max(LEAST)
@@ -1136,7 +1135,7 @@ impl Layer {
                 rate.steps = rate.steps.max(samples as f64 * self.cost / seconds);
                 self.gauged += 1;
                 // A batch this long is the card's work more than the wait for it.
-                if seconds >= 0.5 * PACE || rate.steps * DEAREST >= MOST_WORK || self.gauged >= 4 {
+                if seconds >= 0.5 * f64::from(pace::slice()) || rate.steps * DEAREST >= MOST_WORK || self.gauged >= 4 {
                     rate.gauged = true;
                     self.stage = Stage::First([0, 0]);
                 }

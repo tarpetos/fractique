@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+* **The window keeps its pace while the graphics card draws:** a picture drawn by the card took the card for 40 ms
+  at a time, so the window drew 25 frames a second and the card showed as fully used until the picture was done
+  (on master as much as after the two stages). Now the card gets a slice of every frame, half of it, and a
+  quarter while the window is used; one batch is sent a frame, sized by how long the last one took, cut at once
+  when it overruns; and the density estimation, which followed every batch and nothing showed, is drawn twice a
+  picture, in strips. Measured on an RTX 4070 during a zoom into a flame at 2560 × 1600 with a list opened and
+  closed meanwhile: a frame took 39 ms (median) and 51 ms at worst, now 4.6 ms and 13.7 ms; the card was busy
+  96 % of the time, now 20 %; the picture takes 2.3 s instead of 0.6 s. A card is told to leave a picture to the
+  processor when its work, at the share it gets, would take longer than the processor.
+
 * **Everything opens, closes and resizes smoothly:** every sheet, list and panel (the presets, **Recent**, the
   types, the sizes, the languages, the export, the updates, Fractique Pro, the inspector, the glass panel of
   **F2**, a phone's styles and controls) fades and rises in over 0.18 s and leaves the same way, glass and texts

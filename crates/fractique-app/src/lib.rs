@@ -894,6 +894,7 @@ struct App {
     fading: bool,
     veiled: bool,
     resizing: bool,
+    used: Instant,
     moved_only: bool,
     pictures: u32,
     offered: [Option<Offer>; 2],
@@ -1477,6 +1478,7 @@ impl App {
             fading: false,
             veiled: false,
             resizing: false,
+            used: Instant::now(),
             moved_only: false,
             pictures: 0,
             offered: [None, None],
@@ -3366,15 +3368,21 @@ impl App {
         }
         self.veiled = veil > 0.0;
         if self.trace.on() {
+            let (batches, last, worst, spent) = self.chaos.as_ref().map_or((0, 0.0, 0.0, 0.0), Chaos::load);
             self.trace.note = format!(
-                "veil {veil:.3} fresh {fresh:.3} awaited {} picture {} rendering {} first {} view {:.5}:{:.5}:{:.5}",
+                "veil {veil:.3} fresh {fresh:.3} awaited {} picture {} rendering {} first {} view {:.5}:{:.5}:{:.5} \
+                 card {batches} {last:.2} {worst:.2} {spent:.1} slice {:.2} parts {:.1} {:.1} {:.1}",
                 u8::from(awaited),
                 self.pictures,
                 u8::from(self.rendering),
                 u8::from(self.handing),
                 self.view.zoom,
                 self.view.right,
-                self.view.down
+                self.view.down,
+                pace::slice() * 1000.0,
+                self.trace.parts[0],
+                self.trace.parts[1],
+                self.trace.parts[2]
             );
         }
         let fixed = self.picture.is_some();
@@ -5160,6 +5168,15 @@ impl App {
         let now = ctx.input(|input| input.time);
         self.stage.begin(now);
         self.fades.clear();
+        // The window comes first: while it is used, and for a moment after, a picture gets the smaller share
+        // of the graphics card.
+        let used = ctx.input(|input| !input.events.is_empty() || input.pointer.any_down())
+            || ctx.egui_wants_keyboard_input()
+            || self.stage.moving();
+        if used {
+            self.used = Instant::now();
+        }
+        pace::attend(self.used.elapsed().as_secs_f32() < 0.3);
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         self.arrive(&ctx);
         // Every mouse move asks for a redraw; at a 240 Hz screen's pace that makes a graphics card whine.
@@ -5173,7 +5190,9 @@ impl App {
             }
             self.last_frame = Instant::now();
         }
+        let clock = Instant::now();
         self.receive(&ctx, frame);
+        self.trace.parts[0] = clock.elapsed().as_secs_f32() * 1000.0;
         #[cfg(not(target_arch = "wasm32"))]
         self.finish_export();
         #[cfg(feature = "store")]
@@ -5240,6 +5259,7 @@ impl App {
         if resizing {
             ctx.request_repaint_after(std::time::Duration::from_secs_f32(wait));
         }
+        let clock = Instant::now();
         if window[0] > 0 && window[1] > 0 && !resizing {
             if self.requested != Some(size) {
                 self.moved_only = self.requested.is_some();
@@ -5262,7 +5282,10 @@ impl App {
                 }
             }
         }
+        self.trace.parts[1] = clock.elapsed().as_secs_f32() * 1000.0;
+        let clock = Instant::now();
         self.chaos_frame(&ctx, frame);
+        self.trace.parts[2] = clock.elapsed().as_secs_f32() * 1000.0;
         self.resizing = resizing;
 
         let painter = ctx.layer_painter(egui::LayerId::background()).with_clip_rect(screen);

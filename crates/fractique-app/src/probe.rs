@@ -45,6 +45,8 @@ pub struct Probe {
     chained: bool,
     sweep: Option<Sweep>,
     pub renders: u32,
+    // Milliseconds of the frame's parts: taking pictures in, asking for one, the card's step.
+    pub parts: [f32; 3],
     pub note: String,
     pending: Arc<AtomicU32>,
     stages: Vec<&'static str>,
@@ -75,6 +77,7 @@ impl Probe {
             chained: false,
             sweep: None,
             renders: 0,
+            parts: [0.0; 3],
             note: String::new(),
             pending: Arc::default(),
             stages: Vec::new(),
