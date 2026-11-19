@@ -455,6 +455,12 @@ same. On one card and driver a scene gives the same picture again.
 
 #### The work of one submission
 
+The bounds below hold for a scene with an attractor in it. A scene of flames alone is walked as it was before
+them: its walkers are as many as a sixteenth of the pixels (at most 262 144), a batch grows with the card's pace
+up to four times the one before, the run takes about 16 batches at most, the density estimation has no bound of
+its own, and a batch is given 20 s. That path ran on every card it was tried on without a hang; the bounds were
+made for the shaders that came after it.
+
 A shader that works for seconds takes the screen with it, and a graphics driver that waits too long for one resets
 the card. So what a submission may do is bounded by constants of `chaos.rs`, and held against a scene before
 anything is sent:
