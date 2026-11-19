@@ -3251,10 +3251,6 @@ impl App {
                         .inner_margin(card)
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                let name = egui::RichText::new(&label)
-                                    .font(font(14.0, MEDIUM))
-                                    .color(egui::Color32::WHITE);
-                                ui.add(egui::Label::new(name).truncate());
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     ui.spacing_mut().item_spacing.x = 4.0;
                                     for (kind, enabled) in
@@ -3264,6 +3260,12 @@ impl App {
                                             act = Some(kind);
                                         }
                                     }
+                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                        let name = egui::RichText::new(&label)
+                                            .font(font(14.0, MEDIUM))
+                                            .color(egui::Color32::WHITE);
+                                        ui.add(egui::Label::new(name).truncate());
+                                    });
                                 });
                             });
                             ui.add_space(6.0);
