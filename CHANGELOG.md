@@ -107,12 +107,11 @@
   processor's: the first is slower on a card than on the processor, 32-bit numbers leave the curve of the second,
   and the work of the third has no bound that is known before it is done
   ([docs/architecture.md](docs/architecture.md#orbits-on-the-graphics-card)).
-* **GPU acceleration, safer:** what the graphics card is given in one go now has a hard bound that is known before
-  it is sent: at most 4 steps a pixel and 4 194 304 steps for the walkers of all layers, and a density estimation
-  over at most 17 179 869 184 cells, which leaves the card a picture of 3840×2160 with five layers. Before, a
-  batch could grow to all the samples of a picture and was given 20 s. A batch that takes longer than 0.5 s now
-  ends the card's part for the session. The price: a picture takes more batches, so the last samples come later
-  than before
+* **GPU acceleration, safer for the new kinds:** what the graphics card is given in one go for a scene with an
+  attractor in it has a hard bound that is known before it is sent: at most 4 steps a pixel and 4 194 304 steps
+  for the walkers of all layers, and a density estimation over at most 17 179 869 184 cells; a batch that takes
+  longer than 0.5 s ends the card's part for the session. A scene of flames alone is drawn by the card as it
+  always was: its batches grow with the card's pace and it is given 20 s
   ([docs/architecture.md](docs/architecture.md#the-work-of-one-submission)).
 * **GPU acceleration:** the trial of a built-in graphics chip gives way when a picture is asked for and begins
   again when the app rests; its verdict is kept again, so a slow phone is tried once, not at every start. The

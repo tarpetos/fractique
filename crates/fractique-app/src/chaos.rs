@@ -51,6 +51,9 @@ const MOST_TAPS: u64 = 1 << 34;
 const MOST_WORK: u64 = 512;
 // A submission that takes longer than this many milliseconds ends the card's part for the session.
 pub(crate) const LONGEST: u32 = 500;
+// A scene of flames alone is walked as it was before the bounds: its batches grow with the card's pace, and it is
+// given this many milliseconds.
+const PATIENT: u32 = 20_000;
 // A run whose walkers have plotted nothing after this many batches is given up.
 const IDLE_BATCHES: u32 = 64;
 const RECIPES: usize = 8;
@@ -384,6 +387,7 @@ struct Flight {
 struct Run {
     keys: Vec<String>,
     class: String,
+    bounded: bool,
     size: [u32; 2],
     seed: u64,
     layers: Vec<Layer>,
@@ -666,6 +670,8 @@ impl Chaos {
             }
             let levels = layers.iter().map(|layer| layer.levels().clone()).collect();
             let (device, queue) = (&self.device, &self.queue);
+            #[cfg(not(test))]
+            self.longest.store(LONGEST, Ordering::Relaxed);
             self.pixels = Some(Pixels {
                 keys: keys.to_vec(),
                 size: [options.width, options.height],
@@ -682,21 +688,26 @@ impl Chaos {
         let size = [options.width, options.height];
         let cells = u64::from(size[0]) * u64::from(size[1]);
         let layers = scene.layers.len() as u64;
+        let bounded = scene.layers.iter().any(|layer| layer.fractal().is_some());
         if scene.sheets.is_some()
             || scene.layers.is_empty()
             || options.supersample != 1
             || size[0].max(size[1]) > self.largest_side
             || cells * 16 > self.largest_buffer
             || cells * 24 * layers > ROOM
-            || scene
-                .layers
-                .iter()
-                .map(|layer| cells * taps(layer.tone(), size))
-                .sum::<u64>()
-                > MOST_TAPS
+            || bounded
+                && scene
+                    .layers
+                    .iter()
+                    .map(|layer| cells * taps(layer.tone(), size))
+                    .sum::<u64>()
+                    > MOST_TAPS
         {
             return false;
         }
+        #[cfg(not(test))]
+        self.longest
+            .store(if bounded { LONGEST } else { PATIENT }, Ordering::Relaxed);
         let goal = u64::from(options.samples_per_pixel) * cells;
         let weights: Vec<u64> = scene
             .layers
@@ -707,11 +718,15 @@ impl Chaos {
         let room = (MOST_STEPS * cells).min(MOST_IN_ALL) / layers;
         let heaviest = weights.iter().copied().max().unwrap_or(1);
         let fit = (room / (heaviest * 2 * u64::from(FUSE))).min(u64::from(MOST_WALKERS)) as u32;
-        let walkers = ((cells / 16) as u32)
-            .min(fit)
-            .div_ceil(GROUP)
-            .clamp(1, MOST_WALKERS / GROUP)
-            * GROUP;
+        let walkers = if bounded {
+            ((cells / 16) as u32)
+                .min(fit)
+                .div_ceil(GROUP)
+                .clamp(1, MOST_WALKERS / GROUP)
+                * GROUP
+        } else {
+            ((cells / 16) as u32).div_ceil(GROUP).clamp(GROUP, MOST_WALKERS / GROUP) * GROUP
+        };
         let mut plans = Vec::new();
         for layer in &scene.layers {
             let plan = match (layer.flame(), layer.fractal()) {
@@ -868,6 +883,7 @@ impl Chaos {
             Run {
                 keys: keys.to_vec(),
                 class,
+                bounded,
                 size,
                 seed: scene.seed,
                 layers,
@@ -1018,6 +1034,7 @@ impl Chaos {
                 label: Some("fractique chaos"),
             });
             let (goal, walkers, count) = (run.goal, run.walkers, run.layers.len() as u64);
+            let bounded = run.bounded;
             for (index, layer) in run.layers.iter_mut().enumerate() {
                 let Some(work) = &layer.work else {
                     continue;
@@ -1047,7 +1064,11 @@ impl Chaos {
                 let few = u64::from(walkers);
                 let fuse = if run.batches == 0 && !layer.orbit { FUSE } else { 0 };
                 let room = (MOST_STEPS * cells as u64).min(MOST_IN_ALL) / (count * few * layer.weight);
-                let most = room.saturating_sub(u64::from(fuse)).max(1);
+                let most = if bounded {
+                    room.saturating_sub(u64::from(fuse)).max(1)
+                } else {
+                    u64::MAX
+                };
                 let steps = (u64::from(run.steps) * u64::from(walkers))
                     .min(left)
                     .div_ceil(few)
@@ -1186,7 +1207,7 @@ pub(crate) mod tests {
         eprintln!("graphics: {:?}", adapter.get_info());
         // A software adapter compiles a shader when it is first run.
         if adapter.get_info().device_type == wgpu::DeviceType::Cpu {
-            chaos.longest.store(20_000, Ordering::Relaxed);
+            chaos.longest.store(PATIENT, Ordering::Relaxed);
         }
         chaos.works().then_some(Card {
             device,
