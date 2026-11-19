@@ -124,13 +124,11 @@ fn plain_row(ui: &mut Ui, text: &str, selected: bool) -> (egui::Rect, egui::Resp
     } else {
         FontId::proportional(14.0)
     };
-    ui.painter().text(
-        rect.left_center() + vec2(12.0, 0.0),
-        Align2::LEFT_CENTER,
-        text,
-        font,
-        color,
-    );
+    let mut job = egui::text::LayoutJob::simple_singleline(text.to_owned(), font, color);
+    job.wrap = egui::text::TextWrapping::truncate_at_width(rect.width() - 40.0);
+    let galley = ui.painter().layout_job(job);
+    let at = rect.left_center() + vec2(12.0, -galley.size().y * 0.5);
+    ui.painter().galley(at, galley, color);
     (rect, response)
 }
 
