@@ -6,6 +6,7 @@ mod blur;
 mod chaos;
 #[cfg(not(target_arch = "wasm32"))]
 mod export;
+mod field;
 mod glass;
 mod i18n;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -698,6 +699,8 @@ struct App {
     chaos_tried: bool,
     compiling: bool,
     chaotic: bool,
+    // The card draws the whole scene pixel by pixel: a moved view is drawn again at once, without a rest.
+    swift: bool,
     chaos_at: (View, f64),
     quick: (Option<f32>, Option<f32>),
     look: String,
@@ -844,6 +847,11 @@ fn all_densities(scene: &Scene) -> bool {
     scene.sheets.is_none() && scene.layers.iter().all(drawn)
 }
 
+// The graphics card draws the scene by itself: as densities, or all of it pixel by pixel.
+fn on_card(scene: &Scene) -> bool {
+    all_densities(scene) || (scene.sheets.is_none() && scene.layers.iter().all(field::drawn))
+}
+
 // A layer's pixels depend only on its flame, its place in the scene, the seed and the size, so a layer that did
 // not change is taken from an earlier render. The layers of the whole view are the last to be dropped: Reset view
 // comes back to them. With `sources` the densities are kept too: a layer whose tone alone changed is developed
@@ -969,7 +977,7 @@ fn list_height(rows: usize, room: f32) -> f32 {
 fn chaos_keys(scene: &Scene, options: &RenderOptions) -> Vec<String> {
     let size = size_key(options);
     (0..scene.layers.len())
-        .map(|index| source_key(scene, index, &size))
+        .map(|index| source_key(scene, index, &size) + &field::key(&scene.layers[index]))
         .collect()
 }
 
@@ -1142,6 +1150,7 @@ impl App {
             chaos_tried: false,
             compiling: false,
             chaotic: false,
+            swift: false,
             chaos_at: (WHOLE, 1.0),
             quick: (None, None),
             look: String::new(),
@@ -1503,7 +1512,7 @@ impl App {
             return;
         }
         // The shaders are not compiled yet: a draft stands in, and the render begins again when they are.
-        let soon = self.gpu_on() && all_densities(&scene) && self.chaos.as_ref().is_some_and(Chaos::pending);
+        let soon = self.gpu_on() && on_card(&scene) && self.chaos.as_ref().is_some_and(Chaos::pending);
         if soon && chaos_only() {
             return;
         }
@@ -1630,7 +1639,8 @@ impl App {
     }
 
     fn begin_chaos(&mut self, ctx: &egui::Context, scene: &Scene, full: &RenderOptions) -> bool {
-        let drawn = self.gpu_on() && !self.wall.live && all_densities(scene);
+        let drawn = self.gpu_on() && !self.wall.live && on_card(scene);
+        self.swift = false;
         let Some(chaos) = &mut self.chaos else {
             return false;
         };
@@ -1671,6 +1681,7 @@ impl App {
             self.quick = (None, None);
             self.chaos_at = (self.view, self.adjust.zoom);
         }
+        self.swift = scene.layers.iter().all(field::drawn);
         true
     }
 
@@ -1834,7 +1845,7 @@ impl App {
         };
         let pending = chaos.pending();
         // The shaders are compiled, or refused: a render that began without them begins again.
-        let flames = self.wall.live || all_densities(&self.base);
+        let flames = self.wall.live || on_card(&self.base);
         if self.compiling && !pending && self.rendering && !self.chaotic && self.gpu_on() && flames {
             self.requested = None;
         }
@@ -1928,7 +1939,10 @@ impl App {
                     .map(|(took, steps)| format!("{:.0}/{:.1}", took * 1000.0, *steps as f64 / 1e6))
                     .collect();
                 eprintln!("times: all samples from the graphics card after {full:.3} s");
-                eprintln!("times: its batches, ms/million steps: {}", batches.join(" "));
+                match chaos.slowest() {
+                    Some((slowest, count)) => eprintln!("times: its {count} batches, the longest {slowest:.3} s"),
+                    None => eprintln!("times: its batches, ms/million steps: {}", batches.join(" ")),
+                }
             }
             self.quick = times;
         }
@@ -4026,7 +4040,7 @@ impl eframe::App for App {
                 }
             } else if self.drawn != Some((self.view, self.adjust.zoom)) && !self.frozen {
                 let still = self.touched.elapsed().as_secs_f32();
-                if still >= SETTLE {
+                if still >= SETTLE || self.swift {
                     self.start_render(&ctx, size);
                 } else {
                     ctx.request_repaint_after(std::time::Duration::from_secs_f32(SETTLE - still));

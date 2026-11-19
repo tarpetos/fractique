@@ -8,6 +8,7 @@ use fractique_core::scene::Transform;
 use fractique_core::{Flame, Kind, RenderOptions, Scene, Tone, math, palette};
 use web_time::Instant;
 
+use crate::field::{self, Chain, Fields, Planned};
 use crate::orbit::{self, Recipe};
 use crate::preview::{LEVELS, guarded};
 
@@ -49,7 +50,7 @@ const MOST_TAPS: u64 = 3 << 29;
 // An orbit whose walkers would take more steps than this many a pixel in all is the processor's.
 const MOST_WORK: u64 = 512;
 // A submission that takes longer than this many milliseconds ends the card's part for the session.
-const LONGEST: u32 = 500;
+pub(crate) const LONGEST: u32 = 500;
 // A run whose walkers have plotted nothing after this many batches is given up.
 const IDLE_BATCHES: u32 = 64;
 const RECIPES: usize = 8;
@@ -436,6 +437,19 @@ pub struct Chaos {
     speeds: HashMap<String, f64>,
     recipes: Vec<(String, Option<Arc<Recipe>>)>,
     run: Option<Run>,
+    fields: Fields,
+    pixels: Option<Pixels>,
+    // The batches of a picture drawn pixel by pixel that has ended: the next one sends its first after the last.
+    draining: Option<Chain>,
+}
+
+// A scene of fractals drawn pixel by pixel: its batches follow one another without the window.
+struct Pixels {
+    keys: Vec<String>,
+    size: [u32; 2],
+    levels: Vec<wgpu::TextureView>,
+    chain: Chain,
+    report: field::Report,
 }
 
 impl Chaos {
@@ -512,6 +526,9 @@ impl Chaos {
             sender
         };
         Some(Self {
+            fields: Fields::new(adapter, device, queue, failed.clone()),
+            pixels: None,
+            draining: None,
             device: device.clone(),
             queue: queue.clone(),
             failed,
@@ -529,26 +546,54 @@ impl Chaos {
         })
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    fn waiter(&self) -> field::Waiter {
+        self.waiter.clone()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn waiter(&self) -> field::Waiter {}
+
+    // A test draws views deeper than 32-bit floats reach, to measure where they stop.
+    #[cfg(test)]
+    pub(crate) fn unbound(&mut self, unbounded: bool) {
+        self.fields.unbounded = unbounded;
+    }
+
     pub fn works(&self) -> bool {
         !self.failed.load(Ordering::Relaxed)
     }
 
     // The shaders are still being compiled: a run cannot begin yet, and soon can.
     pub fn pending(&self) -> bool {
-        self.works() && self.pipelines.get().is_none()
+        self.works() && (self.pipelines.get().is_none() || self.fields.pending())
     }
 
     pub fn keys(&self) -> Option<&[String]> {
-        self.run.as_ref().map(|run| run.keys.as_slice())
+        let pixels = self.pixels.as_ref().map(|pixels| pixels.keys.as_slice());
+        pixels.or(self.run.as_ref().map(|run| run.keys.as_slice()))
     }
 
     pub fn end(&mut self) {
         self.run = None;
+        if let Some(pixels) = self.pixels.take() {
+            pixels.chain.stop();
+            if pixels.chain.busy() {
+                self.draining = Some(pixels.chain);
+            }
+        }
+    }
+
+    // Of a picture drawn pixel by pixel: the seconds its longest batch took, and how many batches there were.
+    pub fn slowest(&self) -> Option<(f32, u32)> {
+        let report = self.pixels.as_ref()?.report;
+        Some((report.slowest, report.batches))
     }
 
     // Seconds the graphics card worked on the run so far, without the waits between its batches.
     pub fn spent(&self) -> f32 {
-        self.run.as_ref().map_or(0.0, |run| run.spent)
+        let pixels = self.pixels.as_ref().map(|pixels| pixels.report.spent);
+        pixels.unwrap_or(self.run.as_ref().map_or(0.0, |run| run.spent))
     }
 
     // The seconds each batch of the run took and the steps its walkers were allowed.
@@ -557,7 +602,8 @@ impl Chaos {
     }
 
     pub fn finished(&self) -> bool {
-        self.run.as_ref().is_some_and(|run| run.full.is_some())
+        let pixels = self.pixels.as_ref().is_some_and(|pixels| pixels.report.full.is_some());
+        pixels || self.run.as_ref().is_some_and(|run| run.full.is_some())
     }
 
     // Has the thread that waits for the graphics card wait for this submission too: what was asked to be told
@@ -571,10 +617,16 @@ impl Chaos {
 
     // Seconds from the start of the run to its first picture and to the last of its samples.
     pub fn times(&self) -> (Option<f32>, Option<f32>) {
+        if let Some(pixels) = &self.pixels {
+            return (pixels.report.first, pixels.report.full);
+        }
         self.run.as_ref().map_or((None, None), |run| (run.first, run.full))
     }
 
     pub fn levels(&self) -> Option<([u32; 2], Vec<&wgpu::TextureView>)> {
+        if let Some(pixels) = self.pixels.as_ref().filter(|pixels| pixels.report.batches > 0) {
+            return Some((pixels.size, pixels.levels.iter().collect()));
+        }
         let run = self.run.as_ref().filter(|run| run.batches > 0 && run.pictured())?;
         Some((run.size, run.layers.iter().map(|layer| &layer.levels).collect()))
     }
@@ -591,15 +643,37 @@ impl Chaos {
         ctx: &egui::Context,
     ) -> bool {
         if !self.works() {
-            self.run = None;
+            self.end();
             return false;
         }
-        if self.run.as_ref().is_some_and(|run| run.keys == keys) {
+        if self.keys() == Some(keys) {
             return true;
         }
-        self.run = None;
+        self.end();
         if self.refused.as_deref() == Some(keys) {
             return false;
+        }
+        if scene.sheets.is_none() && !scene.layers.is_empty() && scene.layers.iter().all(field::drawn) {
+            if options.width.max(options.height) > self.largest_side {
+                return false;
+            }
+            let mut layers = Vec::new();
+            for fractal in scene.layers.iter().filter_map(|layer| layer.fractal()) {
+                let Planned::Ready(layer) = self.fields.layer(fractal, options, scene.layers.len(), ctx) else {
+                    return false;
+                };
+                layers.push(*layer);
+            }
+            let levels = layers.iter().map(|layer| layer.levels().clone()).collect();
+            let (device, queue) = (&self.device, &self.queue);
+            self.pixels = Some(Pixels {
+                keys: keys.to_vec(),
+                size: [options.width, options.height],
+                levels,
+                chain: Chain::new(layers, device, queue, &self.failed, ctx, self.waiter(), asked),
+                report: field::Report::default(),
+            });
+            return true;
         }
         let pipelines = self.pipelines.clone();
         let Some(pipelines) = pipelines.get() else {
@@ -841,6 +915,20 @@ impl Chaos {
     // Takes in the batch that has finished and sends the next one. After Drawn the levels are new and the
     // picture is to be drawn from them again.
     pub fn advance(&mut self, ctx: &egui::Context) -> Step {
+        if let Some(pixels) = &mut self.pixels {
+            if self.draining.as_ref().is_some_and(Chain::busy) {
+                return Step::Waiting;
+            }
+            self.draining = None;
+            pixels.chain.go();
+            let fresh;
+            (pixels.report, fresh) = pixels.chain.look();
+            if self.failed.load(Ordering::Relaxed) {
+                self.pixels = None;
+                return Step::Refused;
+            }
+            return if fresh { Step::Drawn } else { Step::Waiting };
+        }
         let Some(run) = &mut self.run else {
             return Step::Waiting;
         };
@@ -1034,7 +1122,7 @@ impl Chaos {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::future::Future;
     use std::path::PathBuf;
 
@@ -1054,11 +1142,11 @@ mod tests {
         }
     }
 
-    struct Card {
+    pub(crate) struct Card {
         device: wgpu::Device,
         queue: wgpu::Queue,
         ctx: egui::Context,
-        chaos: Chaos,
+        pub(crate) chaos: Chaos,
         preview: Preview,
     }
 
@@ -1078,7 +1166,7 @@ mod tests {
         fn flush(&self) {}
     }
 
-    fn card() -> Option<Card> {
+    pub(crate) fn card() -> Option<Card> {
         if log::set_logger(&Shown).is_ok() {
             log::set_max_level(log::LevelFilter::Warn);
         }
@@ -1118,11 +1206,14 @@ mod tests {
 
         // The picture the graphics card alone draws of the scene, and the seconds to its first and its last
         // samples.
-        fn drawn(&mut self, scene: &Scene, options: &RenderOptions) -> Option<(Vec<u8>, f32, f32)> {
+        pub(crate) fn drawn(&mut self, scene: &Scene, options: &RenderOptions) -> Option<(Vec<u8>, f32, f32)> {
             let keys = vec![format!("{options:?} {}", scene.to_json())];
             self.chaos.end();
-            if !self.chaos.begin(scene, options, &keys, Instant::now(), None, &self.ctx) {
-                return None;
+            while !self.chaos.begin(scene, options, &keys, Instant::now(), None, &self.ctx) {
+                if !self.chaos.pending() {
+                    return None;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
             }
             let (first, full) = loop {
                 if self.chaos.advance(&self.ctx) == Step::Refused {
@@ -1186,7 +1277,7 @@ mod tests {
 
     // How far two pictures are apart, on the scale of 0 to 255: the mean and the largest difference between the
     // averages of their 8×8 blocks, so that the noise of single pixels does not count.
-    fn apart(one: &[u8], other: &[u8], width: usize, height: usize) -> (f64, f64) {
+    pub(crate) fn apart(one: &[u8], other: &[u8], width: usize, height: usize) -> (f64, f64) {
         let (across, down) = (width / BLOCK, height / BLOCK);
         let (mut sum, mut largest) = (0.0, 0f64);
         for block in 0..across * down {
@@ -1409,7 +1500,7 @@ mod tests {
             "{mean:.2} on average, {largest:.1} at most"
         );
 
-        for kind in ["mandelbrot", "hopalong", "buddhabrot", "gumowski_mira"] {
+        for kind in ["mandelbulb", "hopalong", "buddhabrot", "gumowski_mira"] {
             let scene = fractal::random_scene(kind, 1).expect("the kind is listed");
             assert!(card.drawn(&scene, &options).is_none(), "{kind}");
         }
@@ -1530,7 +1621,7 @@ mod tests {
         }
     }
 
-    fn save(path: &std::path::Path, rgba: &[u8], width: u32, height: u32) {
+    pub(crate) fn save(path: &std::path::Path, rgba: &[u8], width: u32, height: u32) {
         let file = std::fs::File::create(path).expect("the folder exists");
         let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), width, height);
         encoder.set_color(png::ColorType::Rgba);

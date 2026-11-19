@@ -55,8 +55,9 @@ flowchart LR
 | `fractique-app` | works | The app, `fractique-gui`: one codebase for Windows, macOS, Linux, Android, iOS and the web ([The app](#the-app)) |
 | `fractique-server` | works | The `fractique-server` command: an HTTP API with a render queue and limits, MCP over HTTP at `/mcp`, which also serves the web build of the app; the Docker image ([server.md](server.md)) |
 
-`vendor/` holds `eframe` and `egui-wgpu` with the fix the iOS drawing surface needs; the workspace patches them
-in.
+`vendor/` holds `eframe` and `egui-wgpu` with the fix the iOS drawing surface needs and a lock around the
+configuring of a surface ([why](#fractals-drawn-pixel-by-pixel-on-the-graphics-card)); the workspace patches
+them in.
 
 ### Why this shape
 
@@ -439,7 +440,7 @@ What the processor still renders for the screen, with its drafts and passes as b
 | What | Why |
 | --- | --- |
 | Wallpapers | Sheets are drawn exactly, not sampled |
-| A scene with a fractal in any layer that is not one of [the orbits the card walks](#orbits-on-the-graphics-card) | The graphics card has shaders for flames and for three attractors. The processor renders the whole scene, with drafts, and the preview is not drawn for it either |
+| A scene with a fractal in any layer that is not one of [the orbits the card walks](#orbits-on-the-graphics-card), unless all its layers are [drawn pixel by pixel](#fractals-drawn-pixel-by-pixel-on-the-graphics-card) | The graphics card has shaders for flames, for three attractors and for the escape-time and root-finding kinds. The processor renders the whole scene, with drafts, and the preview is not drawn for it either |
 | A picture whose density estimation would look at more than 1 610 612 736 cells in one submission | [The work of one submission](#the-work-of-one-submission) has a bound that is known before it is sent. With the smoothing at 1 that leaves the card two layers at 2560 × 1440 and six at 1920 × 1080; a picture of 3840 × 2160 is the processor's |
 | A view that holds less than an eighth of the flame's points | The processor draws it from particles ([Any zoom](#any-zoom)); the plain chaos game would waste its points and give another brightness. The graphics card counts the points that land in the picture and gives the view up after its first batch |
 | A view too fine for 32-bit floats | When the cells per unit times the distance of the view's far edge from the origin is above 400 000. Measured by moving a flame away from the origin: up to a million the picture stays the processor's, at three million it begins to differ |
@@ -496,6 +497,38 @@ Two more rules keep an attractor the processor's:
 and tables, in the order the kind's file names them), for a renderer outside the core that repeats the walks in
 its own arithmetic. It changes no pixel of the core's render.
 
+#### Fractals drawn pixel by pixel on the graphics card
+
+With **GPU acceleration** on, a scene whose layers are all of the escape-time kinds (`mandelbrot`, `julia`,
+`burning_ship`, `tricorn`, `multibrot`, `phoenix`, `magnet`) or the root-finding kinds (`newton`, `nova`) is
+drawn by the graphics card alone, as a flame is: the picture is the screen's and its Instant export, and the
+processor renders only the exact exports. A moved view is drawn again at once, without the rest of 0.18 s.
+
+| Step | What happens |
+| --- | --- |
+| Shaders | `field.wgsl` holds what the kinds share (the view, the palette, the color of a sample, the two passes); `field_escape.wgsl` and `field_root.wgsl` hold one function a kind, which repeats the kind's file in `fractique-core` in 32-bit floats. `field.rs` turns a layer's parameters into the numbers the function reads. A kind's shader is compiled in a thread of its own when the kind is first asked for; until then a draft from the processor stands in |
+| Passes | When one sample a pixel would not fit in a batch, the whole picture is drawn first with one sample a block of 2 to 64 pixels a side. Then every pixel gets one sample, in bands of 8 rows. Then the pixels that differ from a neighbour by more than 0.02 are counted, and drawn again from the grid of samples `pixel.rs` uses (2 × 2 at the 32 samples of the full pass) |
+| Levels | A sample is a color already, with the layer's gamma in it. It is written to the half-float texture the shaders of [the preview](#the-preview-on-the-graphics-card) start from, which for such a layer apply the brightness, the opacity, the blend and the glow only |
+| The bound | Every loop of the shaders ends at the steps the scene asks for (`iterations`, more for a deeper view, as in `fractique-core`), and at 4 000 000 whatever it asks. Before a batch is sent, its samples times the steps a sample takes at the very most (times the degree for Newton and Nova, times the multiplications of a whole power for Multibrot) are held to the steps the card has shown it walks in 0.1 s, and never above 100 000 000; a card nothing is known about yet is taken to walk 50 000 000 a second. The layers of a scene share the bound |
+| The card's speed | The first picture of a kind in a session begins with up to four batches whose samples walk every step, whatever their orbits do: their work is known exactly, so their time tells the steps a second. Each is sized by the bound the one before has shown. The most steps a second any batch has shown counts |
+| The edges | The pixels to draw again are counted by a batch that only reads the picture (at most 4 000 000 pixels of it), so the batch that draws them is sized by their number. Where a band of 8 rows holds more of them than one batch may, it is drawn in pieces sized as if every pixel were one |
+| Batches | A batch is one dispatch a layer in one submission. Its samples are those that would have taken 40 ms in the batch before, between a quarter of it and four times it, and never more than the bound |
+| Events | The thread that sleeps in the driver until a submission is finished takes in what the batch counted and sends the next one itself: a batch does not wait for a frame of the window. It asks for a repaint, and the frame draws what is there. wgpu refuses to configure the window's surface while another thread submits, so `egui-wgpu` in `vendor/` holds a lock around that, which this thread takes for a submission |
+| Given up | A batch that takes longer than 0.5 s ends the card's part for the session, by the same rule as [above](#the-work-of-one-submission) |
+
+What the processor renders of these kinds:
+
+| What | Why |
+| --- | --- |
+| A scene whose smallest batch, 64 pixels with their grid of samples, could take more than the bound | Decided before anything is sent: with the 2 × 2 grid that is more than 390 000 steps a sample on a card that has shown its speed, and more than 19 500 on one that has not |
+| A view too fine for 32-bit floats | When the pixels per unit times the distance of the view's far edge from the origin is above 400 000 for the escape-time kinds and 2 000 000 for Newton and Nova |
+| A scene that holds a flame or a fractal of another family beside them | The picture of these kinds is not made from a histogram, so they do not share a run with flames and orbits. The geometric kinds and the solids have no shader: the steps of a ray through a solid depend on the scene in more ways than one number bounds |
+| Supersampling | The card draws at the size of the screen only |
+
+The card's picture is not the processor's pixel for pixel. Compared in blocks of 8 × 8 pixels on a GeForce GTX
+1650, a plain and a deep preset of every kind at 640 × 400, 1280 × 720 and 1920 × 1080 differ by 0.3 to 0.4 of
+255 on average and by 4 at most. [performance.md](performance.md#fractals-on-the-graphics-card) has the times.
+
 ### When the graphics card is used
 
 The **Graphics** section with the switch exists only where the card plays the chaos game clearly faster than the
@@ -527,7 +560,8 @@ every batch of the card the milliseconds it took and the millions of steps its w
 `chaos.rs` compare three flames and three attractors with the processor's render when the machine has a graphics
 card with compute shaders; five more, run with `--ignored`, print the differences for every preset, for 20 seeds
 of each random generator, for every variation and for the presets and ten seeds of every orbit kind, and how far
-32-bit floats reach into a flame and into an attractor.
+32-bit floats reach into a flame and into an attractor. The tests of `field.rs` do the same for the kinds drawn
+pixel by pixel, and check their bound without a card.
 
 ## Limits
 

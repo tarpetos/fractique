@@ -522,6 +522,7 @@ impl Preview {
         for (index, ((layer, levels), glow)) in scene.layers.iter().zip(sources).zip(&glowing).enumerate() {
             let tone = layer.tone();
             let levels = *levels;
+            let plain = if crate::field::plain(layer) { 1.0 } else { 0.0 };
             let mut uniforms = Uniforms {
                 tone: [
                     tone.brightness as f32,
@@ -530,7 +531,7 @@ impl Preview {
                     tone.highlight as f32,
                 ],
                 blend: [layer.opacity as f32, 0.0, 1.0, 0.0],
-                reach: [1.0, 1.0, 0.0, 0.0],
+                reach: [1.0, 1.0, 0.0, plain],
             };
             let mut image = &self.nothing;
             if let Some((shrink, sigma)) = *glow {
@@ -544,7 +545,7 @@ impl Preview {
                     image: &self.nothing,
                     uniforms: Uniforms {
                         blend: [1.0, 0.0, across.min(4.0), 0.0],
-                        reach: [across, across, 0.0, 0.0],
+                        reach: [across, across, 0.0, plain],
                         ..uniforms
                     },
                 });
@@ -562,7 +563,7 @@ impl Preview {
                     });
                 }
                 uniforms.blend[1] = tone.glow_strength as f32;
-                uniforms.reach = [across, across, 0.0, 0.0];
+                uniforms.reach = [across, across, 0.0, plain];
                 image = &first.view;
             }
             let blend = match layer.blend {
