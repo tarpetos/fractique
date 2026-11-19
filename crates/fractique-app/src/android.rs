@@ -225,32 +225,61 @@ fn system_insets(env: &mut Env<'_>, activity: &JObject<'_>) -> Call<[i32; 4]> {
     Ok(sides)
 }
 
+// The vibrator, for 50 ms, as a notification's: on the phones tried (a ZTE Blade A7 with Android 9) a pulse of any
+// other use, and the view's haptic feedback, are accepted and then dropped by the system.
 fn haptic(env: &mut Env<'_>, activity: &JObject<'_>) -> Call<bool> {
-    let window = env
+    const PULSE: i64 = 50;
+    let name = text(env, "vibrator")?;
+    let vibrator = env
         .call_method(
             activity,
-            jni_str!("getWindow"),
-            jni_sig!("()Landroid/view/Window;"),
-            &[],
+            jni_str!("getSystemService"),
+            jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"),
+            &[JValue::Object(&name)],
         )?
         .l()?;
-    let view = env
-        .call_method(
-            &window,
-            jni_str!("getDecorView"),
-            jni_sig!("()Landroid/view/View;"),
-            &[],
-        )?
-        .l()?;
-    // HapticFeedbackConstants: REJECT (17) from Android 11 on, VIRTUAL_KEY (1) before. Neither needs a permission.
-    let kind = if AndroidApp::sdk_version() >= 30 { 17 } else { 1 };
+    if vibrator.is_null() {
+        return Ok(false);
+    }
+    let builder = env.new_object(jni_str!("android/media/AudioAttributes$Builder"), jni_sig!("()V"), &[])?;
     env.call_method(
-        &view,
-        jni_str!("performHapticFeedback"),
-        jni_sig!("(I)Z"),
-        &[JValue::Int(kind)],
-    )?
-    .z()
+        &builder,
+        jni_str!("setUsage"),
+        jni_sig!("(I)Landroid/media/AudioAttributes$Builder;"),
+        &[JValue::Int(5)],
+    )?;
+    let notification = env
+        .call_method(
+            &builder,
+            jni_str!("build"),
+            jni_sig!("()Landroid/media/AudioAttributes;"),
+            &[],
+        )?
+        .l()?;
+    if AndroidApp::sdk_version() >= 26 {
+        let effect = env
+            .call_static_method(
+                jni_str!("android/os/VibrationEffect"),
+                jni_str!("createOneShot"),
+                jni_sig!("(JI)Landroid/os/VibrationEffect;"),
+                &[JValue::Long(PULSE), JValue::Int(-1)],
+            )?
+            .l()?;
+        env.call_method(
+            &vibrator,
+            jni_str!("vibrate"),
+            jni_sig!("(Landroid/os/VibrationEffect;Landroid/media/AudioAttributes;)V"),
+            &[JValue::Object(&effect), JValue::Object(&notification)],
+        )?;
+    } else {
+        env.call_method(
+            &vibrator,
+            jni_str!("vibrate"),
+            jni_sig!("(JLandroid/media/AudioAttributes;)V"),
+            &[JValue::Long(PULSE), JValue::Object(&notification)],
+        )?;
+    }
+    Ok(true)
 }
 
 pub fn refuse() {
@@ -268,7 +297,9 @@ pub fn refuse() {
         }
         done
     });
-    let _ = done;
+    if let Err(error) = done {
+        crate::note(&format!("tick: {error}"));
+    }
 }
 
 pub fn insets() -> [i32; 4] {
