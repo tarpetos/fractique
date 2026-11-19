@@ -315,7 +315,8 @@ always is.
 | `update.rs`, `updates.rs` | The releases, the download and the install; the updates window ([releasing.md](releasing.md)) |
 | `glass.rs`, `glass.wgsl`, `blur.rs` | The picture on the screen and the glass panes over it: each pane shows a blurred, refracted part of the picture |
 | `preview.rs`, `preview.wgsl` | The preview on the graphics card: the layers' levels as textures, the tone mapping, the glow and the blending in shaders |
-| `chaos.rs`, `chaos.wgsl`, `levels.wgsl` | The chaos game on the graphics card: the walkers and the histogram in one compute shader, the density estimation in another |
+| `chaos.rs`, `flame.wgsl`, `chaos.wgsl`, `levels.wgsl` | The chaos game on the graphics card: a flame's transforms and variations (`flame.wgsl`), the walkers and the histogram in one compute shader, the density estimation in another |
+| `deep.rs`, `deep.wgsl` | [Deep views on the graphics card](#deep-views-on-the-graphics-card): the plan of a view that holds little of the flame, and the particles it is drawn from |
 | `orbit.rs`, `orbit.wgsl` | The orbit kinds the graphics card draws: what the shader reads of each, and their walkers, which plot into the same histogram |
 | `widgets.rs` | The controls: rows, pills, sliders, switches; the fonts |
 | `i18n.rs`, `locales/` | The texts, in 15 languages: one file a language, and in `locales/fractals/` one file a family of fractals with the names of its kinds and parameters in every language |
@@ -442,7 +443,7 @@ What the processor still renders for the screen, with its drafts and passes as b
 | Wallpapers | Sheets are drawn exactly, not sampled |
 | A scene with a fractal in any layer that is not one of [the orbits the card walks](#orbits-on-the-graphics-card), unless all its layers are [drawn pixel by pixel](#fractals-drawn-pixel-by-pixel-on-the-graphics-card) | The graphics card has shaders for flames, for three attractors and for the escape-time and root-finding kinds. The processor renders the whole scene, with drafts, and the preview is not drawn for it either |
 | A picture whose density estimation would look at more than 17 179 869 184 cells in one submission | [The work of one submission](#the-work-of-one-submission) has a bound that is known before it is sent. With the smoothing at 1 that leaves the card five layers at 3840 × 2160 |
-| A view that holds less than an eighth of the flame's points | The processor draws it from particles ([Any zoom](#any-zoom)); the plain chaos game would waste its points and give another brightness. The graphics card counts the points that land in the picture and gives the view up after its first batch |
+| A view that holds less than an eighth of the flame's points, in a scene with an attractor beside the flame | The card draws such a view from particles only in a scene of flames alone ([Deep views on the graphics card](#deep-views-on-the-graphics-card)): the particles are not inside [the bounds](#the-work-of-one-submission) such a scene is held to. The card counts the points that land in the picture and gives the view up after its first batch |
 | A view too fine for 32-bit floats | When the cells per unit times the distance of the view's far edge from the origin is above 400 000. Measured by moving a flame away from the origin: up to a million the picture stays the processor's, at three million it begins to differ |
 | A picture the card is slow at | After every batch the time the run will take is held against what the processor is expected to need for the picture (its samples a second in the trial below, and never less than 0.3 s). A run that would take longer is given up |
 | A flame with more than 256 variations in all, a picture whose histogram is larger than the card's largest buffer, a scene whose layers need more than 1 GB | The card does not hold them |
@@ -452,6 +453,29 @@ What the processor still renders for the screen, with its drafts and passes as b
 The graphics card's picture is not the processor's pixel for pixel: its random numbers are others, so the grain
 differs, and 32-bit floats round differently from one card to the next. Shapes, colors and brightness are the
 same. On one card and driver a scene gives the same picture again.
+
+#### Deep views on the graphics card
+
+A view that holds less than an eighth of the flame's points is drawn by the card too, from particles, as
+`deep.rs` of `fractique-core` draws it ([Any zoom](#any-zoom)): the plain chaos game would waste nearly all its
+points outside the picture. `deep.rs` of the app decides each step and `deep.wgsl` takes it, one submission a
+step, so that the card tells what its particles did before the next step is chosen.
+
+| Step | What happens |
+| --- | --- |
+| The first batch | Is the plain chaos game, as for any flame. It tells how many points landed in the picture. Fewer than an eighth of those plotted: the histogram is cleared and the view is drawn from particles. A view magnified more than twice is not shown before its first batch has told this, so the screen keeps the picture it had |
+| Particles | One for every 64 pixels, at least 8192 and at most 65 536. A particle is a point of the flame inside the window together with the seeds of the 128 steps that made it and of what was done to plot it (final transform, symmetry, opacity). A step with the same seed moves a point the same way again. Each particle has a walker of its own that plays the plain chaos game and gives it new starts; the seed of the walker's step at a time is worked out from that time, so the walker's past is not stored |
+| Pilot | The windows are those of the core: the view's own size doubled until it is magnified at most twice, then half the size at every step. Every particle's walker takes 8 steps and the particle keeps the first of its points that is inside the first window. The share of the tries that were inside is the share of the flame the window holds |
+| A window | Particles that are not inside it are replaced by copies of those that are (decided on the processor from one mark a particle, read back). Then every particle is moved 6 times: it keeps its latest `k` steps, takes the rest and the start from its walker, and stays where it was when the new point is not inside the window. The card counts, for every `k`, the moves tried, the moves accepted and how far they went; from these the range of `k` for the next window is chosen as in the core (accepted at least one time in twenty; fine enough at a 512th of the view). The particles inside the next window are marked and counted: their share times the share so far is what that window holds |
+| Plotting | In the last window, which is the picture, every particle is moved once for every point it plots, and now and then far, with fewer kept steps than the range, which carries particles between the parts of the view. A batch is sized by the time the one before took, as for the plain chaos game, and never asks for more than 268 435 456 steps of the chaos game, counting a point as two steps and the mean of the range. The picture is shown once 2 samples a pixel are plotted, and again after every batch |
+| Brightness | A density is a cell's count times `exposure × cells / points plotted`. The exposure is the core's: the share of the flame in view times the zoom squared, taken at the zoom where the view began to hold less than an eighth (found between two windows, where the share falls as a power of the zoom). Up to that zoom this is what the plain chaos game gives, since the points it would have plotted in all are the points in view over the share; past it the average density stays what it was, so a deep view is neither burnt nor black |
+| An empty view | When no particle is inside a window the flame has nothing there: the layer is drawn empty, as the core draws it |
+
+The random numbers are the card's own and the numbers are 32-bit floats, so the picture is not the processor's
+pixel for pixel: it differs from it as two renders of the processor with different seeds differ from each other
+([performance.md](performance.md#deep-views-on-the-graphics-card)). A view too fine for 32-bit floats is refused
+before anything is sent, as for the plain chaos game. The shaders of a deep view are compiled after the others,
+and a card that refuses them leaves deep views to the processor and keeps the rest.
 
 #### The work of one submission
 
@@ -470,7 +494,7 @@ anything is sent:
 | The walkers of all layers together | 4 steps a pixel and never more than 4 194 304 steps (`MOST_STEPS`, `MOST_IN_ALL`). A step of a flame counts once for every four variations its heaviest transform and the final transform apply. The unplotted steps of the first batch are inside the bound. A picture so small that this is less than a step for each walker gets one step for each of its 64 walkers a layer |
 | A walker of an orbit | The steps the batch gives it (`budget` in `orbit.wgsl`), plotted or not: its loop ends there whatever the orbit does |
 | The density estimation | For every cell of a layer the cells its widest kernel reaches, at most 19 × 19; all layers together at most 17 179 869 184 (`MOST_TAPS`), which a picture of 3840 × 2160 with five layers stays under: this bound is loose until the estimation is done in bands, and the 0.5 s limit is what stops a card that is too slow for it. A scene that needs more is the processor's |
-| A submission that takes longer than 0.5 s | The card's part ends for the session, as after an error: the switch goes and the processor renders. The thread that waits for the card gives up after the same time, so a submission that never ends is found too |
+| A submission that takes longer than 0.5 s | The picture is given up and the processor renders it; the card is not asked for that picture again, and draws the next one. The time is measured on the processor, which a render at full load delays, so it tells little about the card as a whole: before, it ended the card's part for the session. A submission that has not ended after 20 s more is not waited for: that ends the card's part for the session |
 
 Before these bounds a batch was sized by the pace alone: it grew up to four times from one batch to the next, was
 never less than a sixteenth of all samples, and was given 20 s. Its worst case was all the samples of a picture in
@@ -547,7 +571,8 @@ no preview, so the app behaves as it did before either.
 | The trial | A card that is able and not known yet is tried once the first picture is on the screen (rendered by the processor) and no render runs: `aurora-spiral` at 1280 × 720 with the samples of the full pass, first on the card, then on the processor. The card's time is the sum of its batches; the processor's counts only when no other render ran beside it, and is taken again otherwise |
 | The verdict | The card is used when the processor needed at least 1.3 times the card's time. The margin was two with a trial of 800 × 450; an Adreno 740 phone, whose card is plainly worth using, came out at 1.7 there, because so small a picture is over before the card's fixed costs stop counting. A card that is merely as fast is still left out: it is not worth pictures that differ from device to device |
 | Remembered | The verdict is kept in the app's settings with the card's name, the driver's version and the app's version, together with the processor's samples a second. The trial runs again when one of the three changes |
-| Errors | A shader the card refuses, no memory for a histogram or a texture, a batch that takes longer than 0.5 s: the card's part ends for the session, the switch goes and the processor renders. During the trial the same ends as a verdict against the card |
+| Errors | A shader the card refuses, no memory for a histogram or a texture, a submission that does not end: the card's part ends for the session, the switch goes and the processor renders. During the trial the same ends as a verdict against the card |
+| A picture given up | A batch that takes longer than its time (0.5 s for a scene with an attractor and for a fractal drawn pixel by pixel, 20 s for flames), a picture the card is slower at than the processor, a view it cannot hold: that picture is the processor's and the next one is the card's again. The eight pictures given up last are remembered and not tried again |
 
 Under the switch the app shows the card's name and the graphics interface as the system reports them, cut to the
 panel's width, and a note that the picture and an Instant export can differ slightly from device to device.
@@ -560,13 +585,18 @@ picture; `FRACTIQUE_SHOW=gpu-first` stops it after the first batch; `FRACTIQUE_S
 over whatever picture the device makes. `FRACTIQUE_EXPORT=file` starts an Instant export to that file as soon as
 the card's first picture is on the screen, so that it has to wait, and the screenshot waits for it: the two files
 are then the same picture. A scene file given on the command line is the scene, and `FRACTIQUE_PICTURE=320x200`
-is the size of the picture whatever the window's. `FRACTIQUE_DEBUG_TIMES=1` prints the graphics card, the trial,
+is the size of the picture whatever the window's. `FRACTIQUE_THEN=14,1,14:0.01:0` shows these views one after
+another before the screenshot is taken (the magnification, or the magnification and the place to the right and
+down), each when the picture of the one before is whole, or 1.5 s after it was asked for where the processor
+renders it. `FRACTIQUE_DEBUG_TIMES=1` prints the graphics card, the trial,
 every render the processor starts, the seconds from the request to each picture and to a saved export, and for
 every batch of the card the milliseconds it took and the millions of steps its walkers were allowed. The tests of
 `chaos.rs` compare three flames and three attractors with the processor's render when the machine has a graphics
-card with compute shaders; five more, run with `--ignored`, print the differences for every preset, for 20 seeds
-of each random generator, for every variation and for the presets and ten seeds of every orbit kind, and how far
-32-bit floats reach into a flame and into an attractor. The tests of `field.rs` do the same for the kinds drawn
+card with compute shaders, and two deep views of a flame; seven more, run with `--ignored`, print the differences
+for every preset, for 20 seeds of each random generator, for every variation and for the presets and ten seeds of
+every orbit kind, how far 32-bit floats reach into a flame and into an attractor, the differences and the times
+of deep views magnified 3 to 1000 times, and how far a deep view is from the plain chaos game with as many
+points in the picture. The tests of `field.rs` do the same for the kinds drawn
 pixel by pixel, and check their bound without a card.
 
 ## Limits

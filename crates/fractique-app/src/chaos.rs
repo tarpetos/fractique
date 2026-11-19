@@ -8,6 +8,7 @@ use fractique_core::scene::Transform;
 use fractique_core::{Flame, Kind, RenderOptions, Scene, Tone, math, palette};
 use web_time::Instant;
 
+use crate::deep::{self, Stage};
 use crate::field::{self, Chain, Fields, Planned};
 use crate::orbit::{self, Recipe};
 use crate::preview::{LEVELS, guarded};
@@ -25,8 +26,12 @@ const KERNELS: usize = 20;
 const MAX_SPREAD: f64 = 9.0;
 const SPREAD_SHARE: f64 = 0.004;
 const SPREAD_CURVE: f64 = 0.4;
-// fractique-core's deep.rs: below this share of the points in view the processor draws the view from particles.
-const IN_VIEW: f64 = 0.125;
+// fractique-core's deep.rs: a view magnified more than this may hold little of the flame.
+const WHOLE: f64 = 2.0;
+// The steps of the chaos game the particles of a deep view take in one submission, at most.
+const MOST_DEEP: u64 = 1 << 28;
+// So many scenes the card gave up are remembered: they are not tried again.
+const REFUSED: usize = 8;
 // Histograms and levels of one run, in bytes.
 const ROOM: u64 = 1 << 30;
 // Cells a unit, times the distance of the view from the origin: above it 32-bit coordinates show as a grid.
@@ -49,10 +54,10 @@ const HEAVY: u64 = 4;
 const MOST_TAPS: u64 = 1 << 34;
 // An orbit whose walkers would take more steps than this many a pixel in all is the processor's.
 const MOST_WORK: u64 = 512;
-// A submission that takes longer than this many milliseconds ends the card's part for the session.
+// A submission that takes longer than this many milliseconds ends the card's part in the picture.
 pub(crate) const LONGEST: u32 = 500;
 // A scene of flames alone is walked as it was before the bounds: its batches grow with the card's pace, and it is
-// given this many milliseconds.
+// given this many milliseconds. A submission of any scene that takes longer ends the card's part for the session.
 const PATIENT: u32 = 20_000;
 // A run whose walkers have plotted nothing after this many batches is given up.
 const IDLE_BATCHES: u32 = 64;
@@ -256,6 +261,50 @@ fn bound(binding: u32, buffer: &wgpu::Buffer) -> wgpu::BindGroupEntry<'_> {
     }
 }
 
+fn pipeline(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    source: &str,
+    entry_point: &str,
+) -> wgpu::ComputePipeline {
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some(entry_point),
+        bind_group_layouts: &[Some(layout)],
+        immediate_size: 0,
+    });
+    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some(entry_point),
+        source: wgpu::ShaderSource::Wgsl(source.into()),
+    });
+    device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        label: Some(entry_point),
+        layout: Some(&layout),
+        module: &module,
+        entry_point: Some(entry_point),
+        compilation_options: wgpu::PipelineCompilationOptions::default(),
+        cache: None,
+    })
+}
+
+// The shaders of a deep view: compiled after the others, which a picture of a whole flame does not wait for.
+struct Particles {
+    pilot: wgpu::ComputePipeline,
+    refill: wgpu::ComputePipeline,
+    sweep: wgpu::ComputePipeline,
+    mark: wgpu::ComputePipeline,
+}
+
+impl Particles {
+    fn new(device: &wgpu::Device, walking: &wgpu::BindGroupLayout) -> Self {
+        Self {
+            pilot: pipeline(device, walking, deep::SHADER, "pilot"),
+            refill: pipeline(device, walking, deep::SHADER, "refill"),
+            sweep: pipeline(device, walking, deep::SHADER, "sweep"),
+            mark: pipeline(device, walking, deep::SHADER, "mark"),
+        }
+    }
+}
+
 struct Pipelines {
     walk: wgpu::ComputePipeline,
     orbit: wgpu::ComputePipeline,
@@ -307,30 +356,12 @@ impl Pipelines {
                 ),
             ],
         });
-        let pipeline = |layout: &wgpu::BindGroupLayout, source: &str, entry_point: &str| {
-            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some(entry_point),
-                bind_group_layouts: &[Some(layout)],
-                immediate_size: 0,
-            });
-            let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some(entry_point),
-                source: wgpu::ShaderSource::Wgsl(source.into()),
-            });
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some(entry_point),
-                layout: Some(&layout),
-                module: &module,
-                entry_point: Some(entry_point),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                cache: None,
-            })
-        };
+        let flame = concat!(include_str!("flame.wgsl"), include_str!("chaos.wgsl"));
         Self {
-            walk: pipeline(&walking, include_str!("chaos.wgsl"), "walk"),
-            orbit: pipeline(&walking, orbit::SHADER, "walk"),
-            survey: pipeline(&looking, include_str!("levels.wgsl"), "survey"),
-            resolve: pipeline(&looking, include_str!("levels.wgsl"), "resolve"),
+            walk: pipeline(device, &walking, flame, "walk"),
+            orbit: pipeline(device, &walking, orbit::SHADER, "walk"),
+            survey: pipeline(device, &looking, include_str!("levels.wgsl"), "survey"),
+            resolve: pipeline(device, &looking, include_str!("levels.wgsl"), "resolve"),
             walking,
             looking,
         }
@@ -339,6 +370,8 @@ impl Pipelines {
 
 // What a layer needs while its samples are plotted: with the last of them its histogram and walkers are freed.
 struct Work {
+    flame: wgpu::Buffer,
+    histogram: wgpu::Buffer,
     batch: wgpu::Buffer,
     look: wgpu::Buffer,
     landed: wgpu::Buffer,
@@ -358,15 +391,41 @@ struct Layer {
     orbit: bool,
     done: u64,
     resolved: u64,
+    // A magnified view of a flame is shown once its first batch has told that enough of its points landed in the
+    // picture. When too few did, the view is drawn from particles: the plan of that is here.
+    checked: bool,
+    sparse: bool,
+    landed: u64,
+    deep: Option<deep::Plan>,
 }
 
 impl Layer {
+    fn told(&self) -> bool {
+        self.orbit || self.deep.is_some()
+    }
+
     fn pictured(&self) -> bool {
-        if self.orbit { self.resolved > 0 } else { self.done > 0 }
+        if self.told() {
+            self.resolved > 0
+        } else {
+            self.done > 0 && self.checked
+        }
     }
 
     fn settled(&self, goal: u64) -> bool {
-        self.done >= goal && (!self.orbit || self.resolved == self.done)
+        self.done >= goal
+            && if self.told() {
+                self.resolved == self.done
+            } else {
+                self.checked
+            }
+    }
+
+    // The numbers the card tells of the layer after a batch.
+    fn told_in(&self) -> usize {
+        self.deep
+            .as_ref()
+            .map_or(4, |plan| deep::HEAD + plan.particles as usize)
     }
 }
 
@@ -429,13 +488,19 @@ pub struct Chaos {
     queue: wgpu::Queue,
     failed: Arc<AtomicBool>,
     pipelines: Arc<OnceLock<Pipelines>>,
+    // Nothing when the card refused the shaders of a deep view: such a view is then the processor's.
+    particles: Arc<OnceLock<Option<Particles>>>,
     largest_buffer: u64,
     largest_side: u32,
     #[cfg(not(target_arch = "wasm32"))]
     waiter: std::sync::mpsc::Sender<wgpu::SubmissionIndex>,
-    refused: Option<Vec<String>>,
+    refused: Vec<Vec<String>>,
     longest: Arc<AtomicU32>,
     finest: Option<f64>,
+    // A test plays the plain chaos game for a view that holds little of the flame, to see what a deep view of it
+    // should show, with the brightness of the deep view.
+    #[cfg(test)]
+    plain: Option<f64>,
     // Samples a second, the most a batch has shown of layers of these kinds: the first batch of the next run
     // is sized by it.
     speeds: HashMap<String, f64>,
@@ -491,14 +556,22 @@ impl Chaos {
         let failed = Arc::new(AtomicBool::new(false));
         let longest = Arc::new(AtomicU32::new(LONGEST));
         let pipelines = Arc::new(OnceLock::new());
+        let particles = Arc::new(OnceLock::new());
         let build = {
             let (device, failed, pipelines, ctx) = (device.clone(), failed.clone(), pipelines.clone(), ctx.clone());
+            let particles = particles.clone();
             move || {
                 let made = guarded(&device, &failed, &ctx, || Pipelines::new(&device));
                 if !failed.load(Ordering::Relaxed) {
                     let _ = pipelines.set(made);
                 }
                 ctx.request_repaint();
+                if let Some(pipelines) = pipelines.get() {
+                    let refused = Arc::new(AtomicBool::new(false));
+                    let made = guarded(&device, &refused, &ctx, || Particles::new(&device, &pipelines.walking));
+                    let _ = particles.set((!refused.load(Ordering::Relaxed)).then_some(made));
+                    ctx.request_repaint();
+                }
             }
         };
         // A driver takes up to seconds to compile the shaders: the window does not wait for it.
@@ -514,13 +587,19 @@ impl Chaos {
             let (device, failed, ctx, longest) = (device.clone(), failed.clone(), ctx.clone(), longest.clone());
             std::thread::spawn(move || {
                 while let Ok(index) = receiver.recv() {
-                    let wait = wgpu::PollType::Wait {
-                        submission_index: Some(index),
-                        timeout: Some(std::time::Duration::from_millis(u64::from(
-                            longest.load(Ordering::Relaxed),
-                        ))),
+                    let wait = |longest: u32| {
+                        device.poll(wgpu::PollType::Wait {
+                            submission_index: Some(index.clone()),
+                            timeout: Some(std::time::Duration::from_millis(u64::from(longest))),
+                        })
                     };
-                    if let Err(error) = device.poll(wait) {
+                    // A submission that is late costs its picture, which is given up when it lands; one that
+                    // does not land at all costs the session.
+                    let landed = match wait(longest.load(Ordering::Relaxed)) {
+                        Err(wgpu::PollError::Timeout) => wait(PATIENT),
+                        landed => landed,
+                    };
+                    if let Err(error) = landed {
                         log::warn!("the chaos game on the graphics card is off: {error}");
                         failed.store(true, Ordering::Relaxed);
                         ctx.request_repaint();
@@ -537,13 +616,16 @@ impl Chaos {
             queue: queue.clone(),
             failed,
             pipelines,
+            particles,
             largest_buffer: limits.max_buffer_size.min(limits.max_storage_buffer_binding_size),
             largest_side: limits.max_texture_dimension_2d,
             #[cfg(not(target_arch = "wasm32"))]
             waiter,
-            refused: None,
+            refused: Vec::new(),
             longest,
             finest: None,
+            #[cfg(test)]
+            plain: None,
             speeds: HashMap::new(),
             recipes: Vec::new(),
             run: None,
@@ -654,7 +736,7 @@ impl Chaos {
             return true;
         }
         self.end();
-        if self.refused.as_deref() == Some(keys) {
+        if self.refused.iter().any(|refused| refused == keys) {
             return false;
         }
         if scene.sheets.is_none() && !scene.layers.is_empty() && scene.layers.iter().all(field::drawn) {
@@ -809,7 +891,11 @@ impl Chaos {
                         self.queue
                             .write_buffer(&walking, u64::from(walkers) * 32, bytemuck::cast_slice(&tail));
                     }
-                    let histogram = buffer("fractique histogram", cells * 16, storage);
+                    let histogram = buffer(
+                        "fractique histogram",
+                        cells * 16,
+                        storage | wgpu::BufferUsages::COPY_DST,
+                    );
                     let landed = buffer("fractique landed", 16, storage | wgpu::BufferUsages::COPY_SRC);
                     let tiles = buffer(
                         "fractique tiles",
@@ -858,6 +944,8 @@ impl Chaos {
                                 },
                             ],
                         }),
+                        flame,
+                        histogram,
                         batch,
                         look: look_buffer,
                         landed,
@@ -872,6 +960,10 @@ impl Chaos {
                         orbit: matches!(plan, Plan::Orbit(..)),
                         done: 0,
                         resolved: 0,
+                        checked: bounded || layer.camera().zoom <= WHOLE,
+                        sparse: false,
+                        landed: 0,
+                        deep: None,
                     }
                 })
                 .collect::<Vec<_>>();
@@ -930,6 +1022,13 @@ impl Chaos {
 
     // Takes in the batch that has finished and sends the next one. After Drawn the levels are new and the
     // picture is to be drawn from them again.
+    fn refuse(&mut self, keys: Vec<String>) {
+        self.refused.push(keys);
+        if self.refused.len() > REFUSED {
+            self.refused.remove(0);
+        }
+    }
+
     pub fn advance(&mut self, ctx: &egui::Context) -> Step {
         if let Some(pixels) = &mut self.pixels {
             if self.draining.as_ref().is_some_and(Chain::busy) {
@@ -943,6 +1042,12 @@ impl Chaos {
                 self.pixels = None;
                 return Step::Refused;
             }
+            if pixels.report.late {
+                if let Some(pixels) = self.pixels.take() {
+                    self.refuse(pixels.keys);
+                }
+                return Step::Refused;
+            }
             return if fresh { Step::Drawn } else { Step::Waiting };
         }
         let Some(run) = &mut self.run else {
@@ -952,6 +1057,9 @@ impl Chaos {
             self.run = None;
             return Step::Refused;
         }
+        // A view that holds little of a flame is drawn from particles, where the card has the shaders for it and
+        // the scene is of flames alone.
+        let shallow = run.bounded || matches!(self.particles.get(), Some(None));
         {
             let mut flight = run.flight.lock().unwrap_or_else(|e| e.into_inner());
             if flight.busy {
@@ -959,19 +1067,40 @@ impl Chaos {
             }
             if let Some(at) = flight.finished.take() {
                 let mut sparse = false;
-                for (layer, counts) in run.layers.iter_mut().zip(flight.landed.chunks_exact(4)) {
-                    if !layer.orbit {
-                        sparse |= f64::from(counts[0]) < IN_VIEW * layer.plotted * layer.done as f64;
-                        continue;
+                let mut told = flight.landed.as_slice();
+                for layer in &mut run.layers {
+                    let Some((counts, rest)) = told.split_at_checked(layer.told_in()) else {
+                        break;
+                    };
+                    told = rest;
+                    if let Some(plan) = &mut layer.deep {
+                        match plan.stage {
+                            Stage::Pilot => plan.piloted(counts),
+                            Stage::Window => plan.swept(counts),
+                            Stage::Plot => {}
+                        }
+                    } else if layer.orbit {
+                        layer.done = u64::from(counts[1]);
+                    } else {
+                        layer.landed = u64::from(counts[0]);
+                        layer.sparse = (layer.landed as f64) < deep::IN_VIEW * layer.plotted * layer.done as f64;
+                        #[cfg(test)]
+                        if self.plain.is_some() {
+                            layer.sparse = false;
+                        }
+                        layer.checked |= !layer.sparse;
+                        sparse |= layer.sparse && shallow;
                     }
-                    layer.done = u64::from(counts[1]);
                 }
                 // A card that would take longer than the processor is told to stop: the processor renders. Its
-                // own work counts, not the wait for its shaders or for a frame.
+                // own work counts, not the wait for its shaders or for a frame. A point of a deep view costs
+                // the processor more steps too.
                 let since = run.started.elapsed().as_secs_f32();
                 let took = at.duration_since(run.submitted).as_secs_f32().max(1e-4);
                 let worked = run.spent + took;
                 let least = run.layers.iter().map(|layer| layer.done).min().unwrap_or(0);
+                let plans = run.layers.iter().filter_map(|layer| layer.deep.as_ref());
+                let cost = plans.map(deep::Plan::cost).max().unwrap_or(1) as f32;
                 let slow = least < run.goal
                     && run.limit.is_some_and(|limit| {
                         let share = if least == 0 {
@@ -979,19 +1108,21 @@ impl Chaos {
                         } else {
                             run.goal as f32 / least as f32
                         };
-                        worked * share > limit
+                        worked * share > limit * cost
                     });
                 let idle = least == 0 && run.batches >= IDLE_BATCHES;
-                let hung = took * 1000.0 > self.longest.load(Ordering::Relaxed) as f32;
-                if hung {
-                    log::warn!("the chaos game on the graphics card is off: a batch took {took:.2} s");
+                let late = took * 1000.0 > self.longest.load(Ordering::Relaxed) as f32;
+                if late {
+                    log::warn!("the graphics card took {took:.2} s for one batch: the picture is given up");
                 }
-                if flight.broken || sparse || slow || idle || hung {
-                    if flight.broken || hung {
+                if flight.broken || sparse || slow || idle || late {
+                    if flight.broken {
                         self.failed.store(true, Ordering::Relaxed);
                     }
                     drop(flight);
-                    self.refused = self.run.take().map(|run| run.keys);
+                    if let Some(run) = self.run.take() {
+                        self.refuse(run.keys);
+                    }
                     return Step::Refused;
                 }
                 if run.pictured() {
@@ -1006,11 +1137,16 @@ impl Chaos {
                     let pace = PACE.max(2.5 * run.fastest);
                     let next = (run.sent as f32 * pace / took) as u32;
                     let least = run.goal.div_ceil(u64::from(run.walkers) * MOST_BATCHES) as u32;
+                    #[cfg(test)]
+                    let least = if self.plain.is_some() { 1 } else { least };
                     run.steps = next.clamp(run.sent / 4, run.sent.saturating_mul(4)).max(least).max(1);
-                    let speed =
-                        f64::from(run.sent) * f64::from(run.walkers) * run.layers.len() as f64 / f64::from(took);
-                    let most = self.speeds.entry(run.class.clone()).or_insert(0.0);
-                    *most = most.max(speed);
+                    // Walkers whose points fall outside the picture write nothing: their pace is not the card's.
+                    if run.layers.iter().all(|layer| layer.checked && layer.deep.is_none()) {
+                        let speed =
+                            f64::from(run.sent) * f64::from(run.walkers) * run.layers.len() as f64 / f64::from(took);
+                        let most = self.speeds.entry(run.class.clone()).or_insert(0.0);
+                        *most = most.max(speed);
+                    }
                 }
                 if run.layers.iter().all(|layer| layer.settled(run.goal)) {
                     run.full.get_or_insert(since);
@@ -1026,6 +1162,79 @@ impl Chaos {
         };
         let cells = f64::from(run.size[0]) * f64::from(run.size[1]);
         let (device, failed) = (self.device.clone(), self.failed.clone());
+        let deeper = run.layers.iter().any(|layer| layer.sparse && layer.deep.is_none());
+        let particles = match self.particles.get() {
+            Some(particles) => particles.as_ref(),
+            None if deeper => return Step::Waiting,
+            None => None,
+        };
+        if deeper {
+            if particles.is_none() {
+                if let Some(run) = self.run.take() {
+                    self.refuse(run.keys);
+                }
+                return Step::Refused;
+            }
+            guarded(&device, &failed, ctx, || {
+                let buffer = |label, size: u64, usage| {
+                    self.device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some(label),
+                        size,
+                        usage,
+                        mapped_at_creation: false,
+                    })
+                };
+                let (storage, moved) = (
+                    wgpu::BufferUsages::STORAGE,
+                    wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
+                );
+                for layer in run
+                    .layers
+                    .iter_mut()
+                    .filter(|layer| layer.sparse && layer.deep.is_none())
+                {
+                    let Some(work) = &mut layer.work else {
+                        continue;
+                    };
+                    let count = deep::particles(cells as u64, GROUP);
+                    let slots = buffer("fractique particles", u64::from(count) * deep::SLOT * 4, storage);
+                    let notes = buffer(
+                        "fractique notes",
+                        (deep::HEAD as u64 + 2 * u64::from(count)) * 4,
+                        storage | moved,
+                    );
+                    work.batch = buffer(
+                        "fractique batch",
+                        size_of::<deep::Batch>() as u64,
+                        wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    );
+                    work.walking = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("fractique particles"),
+                        layout: &pipelines.walking,
+                        entries: &[
+                            bound(0, &work.flame),
+                            bound(1, &work.batch),
+                            bound(2, &slots),
+                            bound(3, &work.histogram),
+                            bound(4, &notes),
+                        ],
+                    });
+                    work.landed = notes;
+                    layer.deep = Some(deep::Plan::new(layer.zoom, layer.plotted, count));
+                    (layer.done, layer.resolved) = (0, 0);
+                }
+                let told: usize = run.layers.iter().map(Layer::told_in).sum();
+                run.staging = buffer(
+                    "fractique landed",
+                    4 * told as u64,
+                    wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                );
+            });
+            if failed.load(Ordering::Relaxed) {
+                self.run = None;
+                return Step::Refused;
+            }
+        }
         // Before the submission: a graphics card that is the processor in disguise works inside it.
         run.submitted = Instant::now();
         let (mut sent, mut working) = (0, 0);
@@ -1035,14 +1244,18 @@ impl Chaos {
             });
             let (goal, walkers, count) = (run.goal, run.walkers, run.layers.len() as u64);
             let bounded = run.bounded;
+            let shorter = run.size[0].min(run.size[1]);
+            let mut told = 0;
             for (index, layer) in run.layers.iter_mut().enumerate() {
+                let (from, telling) = (told, 4 * layer.told_in() as u64);
+                told += telling;
                 let Some(work) = &layer.work else {
                     continue;
                 };
                 let look = &layer.kernels;
-                let resolve = |encoder: &mut wgpu::CommandEncoder, points: u64| {
-                    let scale = [(layer.zoom * layer.zoom * cells / points as f64) as f32, 0.0, 0.0, 0.0];
-                    self.queue.write_buffer(&work.look, 16, bytemuck::bytes_of(&scale));
+                let resolve = |encoder: &mut wgpu::CommandEncoder, scale: f64| {
+                    self.queue
+                        .write_buffer(&work.look, 16, bytemuck::bytes_of(&[scale as f32, 0.0, 0.0, 0.0]));
                     let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                         label: Some("fractique levels"),
                         timestamp_writes: None,
@@ -1053,12 +1266,98 @@ impl Chaos {
                     pass.set_pipeline(&pipelines.resolve);
                     pass.dispatch_workgroups(look.size[0].div_ceil(8), look.size[1].div_ceil(8), 1);
                 };
+                let plain = |points: u64| layer.zoom * layer.zoom * cells / points as f64;
+                #[cfg(test)]
+                let before = layer.done.max(1);
+                #[cfg(test)]
+                let plain = |points: u64| match self.plain {
+                    Some(exposure) => exposure * cells / (layer.landed.max(1) as f64 * points as f64 / before as f64),
+                    None => plain(points),
+                };
+                let left = goal.saturating_sub(layer.done);
+                if let (Some(plan), Some(particles)) = (&layer.deep, particles) {
+                    let few = u64::from(plan.particles);
+                    let cost = plan.cost();
+                    let steps = if plan.stage == Stage::Plot && plan.exposure > 0.0 && left > 0 {
+                        let points = u64::from(run.steps) * u64::from(walkers) / cost;
+                        points
+                            .min(MOST_DEEP / (cost * layer.weight))
+                            .min(left)
+                            .div_ceil(few)
+                            .max(1)
+                    } else {
+                        0
+                    };
+                    let batch = plan.batch(run.seed, index as u32, shorter, steps as u32);
+                    self.queue.write_buffer(&work.batch, 0, bytemuck::bytes_of(&batch));
+                    if plan.stage != Stage::Plot {
+                        self.queue
+                            .write_buffer(&work.landed, 0, bytemuck::cast_slice(&[0u32; deep::HEAD]));
+                    }
+                    if plan.stage == Stage::Pilot {
+                        encoder.clear_buffer(&work.histogram, 0, None);
+                    }
+                    if plan.stage == Stage::Window {
+                        let after = 4 * (deep::HEAD as u64 + few);
+                        self.queue
+                            .write_buffer(&work.landed, after, bytemuck::cast_slice(&plan.sources()));
+                    }
+                    if plan.stage != Stage::Plot || steps > 0 {
+                        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                            label: Some("fractique particles"),
+                            timestamp_writes: None,
+                        });
+                        pass.set_bind_group(0, &work.walking, &[]);
+                        let groups = plan.particles / GROUP;
+                        match plan.stage {
+                            Stage::Pilot => {
+                                pass.set_pipeline(&particles.pilot);
+                                pass.dispatch_workgroups(groups, 1, 1);
+                                working += few * u64::from(deep::MEMORY + batch.steps) * layer.weight;
+                            }
+                            Stage::Window => {
+                                pass.set_pipeline(&particles.refill);
+                                pass.dispatch_workgroups(groups, 1, 1);
+                                pass.set_pipeline(&particles.sweep);
+                                for _ in 0..deep::SWEEPS {
+                                    pass.dispatch_workgroups(groups, 1, 1);
+                                }
+                                if plan.more() {
+                                    pass.set_pipeline(&particles.mark);
+                                    pass.dispatch_workgroups(groups, 1, 1);
+                                }
+                                working += few * u64::from(deep::SWEEPS) * plan.sweep() * layer.weight;
+                            }
+                            Stage::Plot => {
+                                pass.set_pipeline(&particles.sweep);
+                                pass.dispatch_workgroups(groups, 1, 1);
+                                working += steps * few * cost * layer.weight;
+                                sent = sent.max((steps * few * cost).div_ceil(u64::from(walkers)) as u32);
+                            }
+                        }
+                    }
+                    if plan.stage == Stage::Plot {
+                        // A view the flame has nothing in is a picture too.
+                        layer.done = if plan.exposure > 0.0 {
+                            layer.done + steps * few
+                        } else {
+                            goal
+                        };
+                        let first = (u64::from(FIRST_SAMPLES) * cells as u64).min(goal);
+                        if layer.done >= first && layer.done > layer.resolved {
+                            resolve(&mut encoder, plan.exposure * cells / layer.done as f64);
+                            layer.resolved = layer.done;
+                        }
+                    }
+                    encoder.copy_buffer_to_buffer(&work.landed, 0, &run.staging, from, telling);
+                    continue;
+                }
                 if layer.orbit && layer.done > layer.resolved {
-                    resolve(&mut encoder, layer.done);
+                    resolve(&mut encoder, plain(layer.done));
                     layer.resolved = layer.done;
                 }
-                let left = goal.saturating_sub(layer.done);
                 if left == 0 {
+                    encoder.copy_buffer_to_buffer(&work.landed, 0, &run.staging, from, telling);
                     continue;
                 }
                 let few = u64::from(walkers);
@@ -1097,11 +1396,11 @@ impl Chaos {
                     pass.dispatch_workgroups(few as u32 / GROUP, 1, 1);
                 }
                 if !layer.orbit {
-                    resolve(&mut encoder, layer.done);
+                    resolve(&mut encoder, plain(layer.done));
                 }
                 sent = sent.max((steps * few).div_ceil(u64::from(walkers)) as u32);
                 working += (budget + u64::from(fuse)) * few * layer.weight;
-                encoder.copy_buffer_to_buffer(&work.landed, 0, &run.staging, 16 * index as u64, 16);
+                encoder.copy_buffer_to_buffer(&work.landed, 0, &run.staging, from, telling);
             }
             self.queue.submit([encoder.finish()])
         });
@@ -1201,7 +1500,7 @@ pub(crate) mod tests {
         let ctx = egui::Context::default();
         let chaos = Chaos::new(&adapter, &device, &queue, &ctx)?;
         let preview = Preview::new(&adapter, &device, &queue, &ctx)?;
-        while chaos.pending() {
+        while chaos.pending() || chaos.works() && chaos.particles.get().is_none() {
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
         eprintln!("graphics: {:?}", adapter.get_info());
@@ -1289,7 +1588,6 @@ pub(crate) mod tests {
                 .chunks(stride as usize)
                 .flat_map(|row| row[..size[0] as usize * 4].iter().copied())
                 .collect();
-            self.chaos.end();
             Some((rgba, first, full))
         }
     }
@@ -1414,15 +1712,57 @@ pub(crate) mod tests {
         }
     }
 
+    // The preset magnified so many times about a point of its picture that is lit as half of the lit ones are.
+    fn magnified(name: &str, by: f64) -> Scene {
+        let mut scene = presets::get(name).expect("the preset exists");
+        let whole = RenderOptions {
+            samples_per_pixel: 8,
+            ..options(320, 200)
+        };
+        let picture = fractique_core::render(&scene, &whole, &Control::default()).expect("it renders");
+        let light = |at: &usize| {
+            picture.rgba[at * 4..at * 4 + 3]
+                .iter()
+                .map(|c| u32::from(*c))
+                .sum::<u32>()
+        };
+        let mut lit: Vec<usize> = (0..320 * 200).filter(|at| light(at) > 96).collect();
+        lit.sort_by_key(light);
+        let middle = lit[lit.len() / 2];
+        let (right, down) = ((middle % 320) as f64 + 0.5 - 160.0, (middle / 320) as f64 + 0.5 - 100.0);
+        let camera = scene.layers[0].camera_mut();
+        *camera = camera.looking_at(right / 200.0, down / 200.0, by);
+        scene
+    }
+
     #[test]
-    fn a_view_with_little_of_the_flame_is_left_to_the_processor() {
+    fn a_view_with_little_of_the_flame_is_drawn_from_particles() {
         let Some(mut card) = card() else {
             return;
         };
-        let mut scene = presets::get("aurora-spiral").expect("the preset exists");
-        let camera = scene.layers[0].camera_mut();
-        (camera.center, camera.zoom) = ([-0.9, 0.56], 24.0);
-        assert!(card.drawn(&scene, &options(320, 200)).is_none());
+        let options = options(320, 200);
+        for by in [4.0, 40.0] {
+            let scene = magnified("aurora-spiral", by);
+            let exact = fractique_core::render(&scene, &options, &Control::default()).expect("it renders");
+            let (quick, _, _) = card
+                .drawn(&scene, &options)
+                .expect("the graphics card draws a deep view");
+            let run = card.chaos.run.as_ref().expect("the run is kept");
+            assert!(
+                run.layers[0].deep.is_some(),
+                "{by} times: the view is not drawn from particles"
+            );
+            // A deep view is as far from itself with other random numbers: the processor's tells how far.
+            let mut other = scene.clone();
+            other.seed += 1;
+            let again = fractique_core::render(&other, &options, &Control::default()).expect("it renders");
+            let (grain, _) = apart(&again.rgba, &exact.rgba, 320, 200);
+            let (mean, _) = apart(&quick, &exact.rgba, 320, 200);
+            assert!(
+                mean < 2.0 * grain + 1.0,
+                "{by} times: {mean:.2} on average, the processor's own {grain:.2}"
+            );
+        }
         let request = fractique_core::wallpaper::Request {
             layout: None,
             material: None,
@@ -1431,7 +1771,133 @@ pub(crate) mod tests {
             hue: None,
         };
         let wallpaper = fractique_core::wallpaper::random_wallpaper(3, &request);
-        assert!(card.drawn(&wallpaper, &options(320, 200)).is_none());
+        assert!(card.drawn(&wallpaper, &options).is_none());
+    }
+
+    // FRACTIQUE_COMPARE=folder cargo test --release -p fractique-app --lib deep_views -- --ignored --nocapture
+    // writes the table of differences and times for three presets magnified 3 to 1000 times, and for each the
+    // picture of the graphics card above the processor's. FRACTIQUE_COMPARE_SIZE, _SAMPLES and _ONLY as below.
+    #[test]
+    #[ignore = "a report, not a check"]
+    fn deep_views_on_the_graphics_card_beside_the_processor() {
+        let mut card = card().expect("a graphics card with compute shaders");
+        let samples = std::env::var("FRACTIQUE_COMPARE_SAMPLES")
+            .ok()
+            .and_then(|samples| samples.parse().ok())
+            .unwrap_or(32);
+        let folder = std::env::var_os("FRACTIQUE_COMPARE").map(PathBuf::from);
+        let size: Vec<u32> = std::env::var("FRACTIQUE_COMPARE_SIZE")
+            .unwrap_or_else(|_| "640x360".to_owned())
+            .split('x')
+            .filter_map(|side| side.parse().ok())
+            .collect();
+        let only = std::env::var("FRACTIQUE_COMPARE_ONLY").ok();
+        let options = RenderOptions {
+            samples_per_pixel: samples,
+            ..options(size[0], size[1])
+        };
+        println!("| Scene | Mean | Largest | Another seed | First picture, s | All samples, s | Processor, s |");
+        println!("| --- | --- | --- | --- | --- | --- | --- |");
+        for preset in ["aurora-spiral", "solar-mandala", "ember-vortex"] {
+            for by in [3.0, 14.0, 100.0, 1000.0] {
+                let name = format!("{preset} × {by}");
+                if only.as_ref().is_some_and(|only| !name.contains(only.as_str())) {
+                    continue;
+                }
+                let scene = magnified(preset, by);
+                let started = Instant::now();
+                let exact = fractique_core::render(&scene, &options, &Control::default()).expect("it renders");
+                let slow = started.elapsed().as_secs_f32();
+                let Some((quick, first, full)) = card.drawn(&scene, &options) else {
+                    println!("| {name} | not drawn | | | | | {slow:.2} |");
+                    continue;
+                };
+                let (mean, largest) = apart(&quick, &exact.rgba, size[0] as usize, size[1] as usize);
+                // How far the processor's own picture is from itself with other random numbers.
+                let mut other = scene.clone();
+                other.seed += 1;
+                let again = fractique_core::render(&other, &options, &Control::default()).expect("it renders");
+                let (grain, _) = apart(&again.rgba, &exact.rgba, size[0] as usize, size[1] as usize);
+                println!("| {name} | {mean:.2} | {largest:.1} | {grain:.2} | {first:.3} | {full:.3} | {slow:.2} |");
+                let batches: Vec<String> = card
+                    .chaos
+                    .batches()
+                    .iter()
+                    .map(|(took, steps)| format!("{:.0}/{:.1}", took * 1000.0, *steps as f64 / 1e6))
+                    .collect();
+                eprintln!("batches, ms/million steps: {}", batches.join(" "));
+                if let Some(folder) = &folder {
+                    let both: Vec<u8> = quick.iter().chain(&exact.rgba).copied().collect();
+                    save(
+                        &folder.join(format!("deep-{preset}-{by}.png")),
+                        &both,
+                        size[0],
+                        size[1] * 2,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_picture_the_card_is_late_with_costs_that_picture_only() {
+        let Some(mut card) = card() else {
+            return;
+        };
+        let options = options(320, 200);
+        let late = presets::get("solar-mandala").expect("the preset exists");
+        let patient = card.chaos.longest.swap(0, Ordering::Relaxed);
+        assert!(card.drawn(&late, &options).is_none());
+        card.chaos.longest.store(patient, Ordering::Relaxed);
+        assert!(card.chaos.works());
+        assert!(card.drawn(&late, &options).is_none());
+        let other = presets::get("aurora-spiral").expect("the preset exists");
+        assert!(card.drawn(&other, &options).is_some());
+    }
+
+    // Draws three deep views with particles and, with as many points in the picture, with the plain chaos game,
+    // which takes the card a minute, and prints how far each is from the other and from the processor's.
+    #[test]
+    #[ignore = "a report, not a check"]
+    fn a_deep_view_beside_the_plain_chaos_game() {
+        let mut card = card().expect("a graphics card with compute shaders");
+        let folder = std::env::var_os("FRACTIQUE_COMPARE").map(PathBuf::from);
+        let options = options(640, 360);
+        println!("| Scene | Points in view | Card to plain | Processor to plain | Card to processor |");
+        println!("| --- | --- | --- | --- | --- |");
+        for (preset, by) in [
+            ("aurora-spiral", 14.0),
+            ("aurora-spiral", 100.0),
+            ("ember-vortex", 14.0),
+        ] {
+            let scene = magnified(preset, by);
+            let exact = fractique_core::render(&scene, &options, &Control::default()).expect("it renders");
+            let (quick, _, _) = card
+                .drawn(&scene, &options)
+                .expect("the graphics card draws a deep view");
+            let plan = card.chaos.run.as_ref().and_then(|run| run.layers[0].deep.as_ref());
+            let (exposure, share) = plan
+                .map(|plan| (plan.exposure, plan.share()))
+                .expect("the view is deep");
+            card.chaos.plain = Some(exposure);
+            let all = RenderOptions {
+                samples_per_pixel: (32.0 / share).min(3.0e5) as u32,
+                ..options
+            };
+            let (plain, _, full) = card
+                .drawn(&scene, &all)
+                .expect("the graphics card plays the chaos game");
+            card.chaos.plain = None;
+            let (deep, _) = apart(&quick, &plain, 640, 360);
+            let (processor, _) = apart(&exact.rgba, &plain, 640, 360);
+            let (both, _) = apart(&quick, &exact.rgba, 640, 360);
+            println!("| {preset} × {by} | {share:.1e} | {deep:.2} | {processor:.2} | {both:.2} |");
+            eprintln!("the plain chaos game took {full:.1} s");
+            if let Some(folder) = &folder {
+                let three: Vec<u8> = quick.iter().chain(&plain).chain(&exact.rgba).copied().collect();
+                save(&folder.join(format!("plain-{preset}-{by}.png")), &three, 640, 1080);
+            }
+        }
     }
 
     // A flame of two plain transforms and one that is the variation alone, framed by the randomizer's camera.

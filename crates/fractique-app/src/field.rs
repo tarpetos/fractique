@@ -767,6 +767,7 @@ pub(crate) struct Report {
     pub(crate) spent: f32,
     pub(crate) first: Option<f32>,
     pub(crate) full: Option<f32>,
+    pub(crate) late: bool,
 }
 
 struct Going {
@@ -911,10 +912,11 @@ impl Chain {
             going.report.batches += 1;
             going.report.slowest = going.report.slowest.max(took);
             going.report.spent += took;
-            // The shaders are bounded in steps, not in time: a card this slow at them is not given another batch.
+            // The shaders are bounded in steps, not in time: a card this slow at this picture is not given
+            // another batch of it.
             if took * 1000.0 > crate::chaos::LONGEST as f32 {
-                log::warn!("the graphics card took {took:.2} s for one batch of a fractal: it is off");
-                self.failed.store(true, Ordering::Relaxed);
+                log::warn!("the graphics card took {took:.2} s for one batch of a fractal: the picture is given up");
+                going.report.late = true;
                 going.stopped = true;
             }
             if going.layers.iter().all(|layer| layer.drew()) {

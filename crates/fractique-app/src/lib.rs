@@ -4,6 +4,7 @@ mod android;
 mod association;
 mod blur;
 mod chaos;
+mod deep;
 #[cfg(not(target_arch = "wasm32"))]
 mod export;
 mod field;
@@ -513,6 +514,16 @@ const MIN_MAGNIFICATION: f64 = 1e-4;
 const SETTLE: f32 = 0.18;
 
 impl View {
+    // A view of a test run's FRACTIQUE_THEN: zoom, or zoom:right:down.
+    fn asked(text: &str) -> Option<View> {
+        let numbers: Vec<f64> = text.split(':').filter_map(|number| number.parse().ok()).collect();
+        match *numbers.as_slice() {
+            [zoom] => Some(View { zoom, ..WHOLE }),
+            [zoom, right, down] => Some(View { right, down, zoom }),
+            _ => None,
+        }
+    }
+
     fn moved(&mut self, by: [f64; 2]) {
         self.right = (self.right - by[0] / self.zoom).clamp(-1e6, 1e6);
         self.down = (self.down - by[1] / self.zoom).clamp(-1e6, 1e6);
@@ -751,6 +762,7 @@ struct App {
     toolbar_size: egui::Vec2,
     languages_open: bool,
     picture: Option<[u32; 2]>,
+    then: Vec<View>,
     custom: [String; 2],
     // A text of a fractal while it is typed, by its layer and name: what is typed need not be valid yet.
     typed: Option<(String, String)>,
@@ -1230,6 +1242,10 @@ impl App {
                 .ok()
                 .or_else(|| stored("picture"))
                 .and_then(|text| parsed_size(&text)),
+            then: std::env::var("FRACTIQUE_THEN").map_or_else(
+                |_| Vec::new(),
+                |views| views.split(',').rev().filter_map(View::asked).collect(),
+            ),
             custom: Default::default(),
             typed: None,
             sizes_open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what == "sizes"),
@@ -3983,7 +3999,26 @@ impl App {
             ctx.request_repaint();
             return;
         }
-        if self.shown_frames == 0 {
+        // FRACTIQUE_THEN: the next view is shown when the picture of this one is whole, or the processor is long
+        // at it.
+        let tired = self.shown_frames == 0 && self.rendering && self.asked.elapsed().as_secs_f32() > 1.5;
+        if self.shown_frames == 0 && !tired {
+            if !self.then.is_empty() {
+                ctx.request_repaint_after(std::time::Duration::from_millis(300));
+            }
+            return;
+        }
+        if (self.shown_frames == 5 || tired)
+            && let Some(view) = self.then.pop()
+        {
+            self.view = view;
+            self.touched = Instant::now();
+            self.asked = Instant::now();
+            self.shown_frames = 0;
+            ctx.request_repaint();
+            return;
+        }
+        if tired {
             return;
         }
         self.shown_frames += 1;

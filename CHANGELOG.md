@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+* **Deep views on the graphics card:** with GPU acceleration on, a magnified view of a flame is drawn by the
+  graphics card at any depth its 32-bit numbers reach, as the whole flame is. Before, the card gave up a view
+  that held less than an eighth of the flame's points and the processor drew it: 33 to 48 s for a picture of
+  3840 × 2160 on a Ryzen 7 5700X. The card now draws it from particles, as the renderer does: on an RTX 4070 the
+  first picture of that size is there after 0.2 to 0.3 s and the whole one after 1.2 to 1.9 s
+  ([docs/performance.md](docs/performance.md#deep-views-on-the-graphics-card)). The picture differs from the
+  processor's as two of the processor's renders with different seeds differ. Exports at Standard, High and
+  Ultra, the command line tool, the MCP tools and the server render on the processor as before, and no golden
+  hash changed.
+
+* **A picture the graphics card gives up costs that picture only:** a batch that took longer than its time
+  ended the card's part until the app was started again, and that time is measured on the processor, which is
+  late itself while it renders at full load. Now the picture is given to the processor and the next one is the
+  card's again; only a submission that does not end, or an error of the card, ends its part for the session.
+
 * **New icon:** a white lowercase f whose hook winds into a spiral, over a Buddhabrot in blue-grey on near-black,
   on every platform: the window, the Windows program, the macOS and Linux packages, the browser tab, Android and
   iOS. Below 64 pixels the letter is drawn heavier and simpler. On iOS the same icon serves the light and the dark
