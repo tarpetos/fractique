@@ -171,6 +171,9 @@ number of pixels and with the number of sheets and shapes of the layout.
 | 1290×2796 | 1 s |
 | 3840×2160 | 1 to 2 s |
 
+In the app with GPU acceleration on, the graphics card draws the wallpaper
+([below](#wallpapers-on-the-graphics-card)).
+
 ## In the app
 
 The picture on the screen is rendered in passes, so that something shows at once
@@ -377,6 +380,30 @@ the same picture is beside it:
 At 640×400 the card took 0.03 to 0.26 s there and at 1280×720 0.10 to 0.69 s; the longest batch of all took
 49 ms, and the pictures differ from the processor's by 0.3 of 255 on average and by 4 at most. No other card
 was measured.
+
+### Wallpapers on the graphics card
+
+A wallpaper is drawn by the graphics card
+([architecture.md](architecture.md#wallpapers-on-the-graphics-card)). Measured by the test
+`how_fast_the_graphics_card_draws_wallpapers` of `sheets.rs`, without a window, on Windows 11 with an **NVIDIA
+GeForce RTX 4070** (Vulkan) and a Ryzen 7 5700X: the seconds from the request to the whole picture, of the card
+and of `fractique_core::render` on all threads, for seed 7 of six of the 14 layouts.
+
+| Layout | 1920×1080: card | Processor | 3840×2160: card | Batches | Processor |
+| --- | --- | --- | --- | --- | --- |
+| `bands` | 0.001 s | 0.05 s | 0.002 s | 6 | 0.19 s |
+| `waves` | 0.002 s | 0.22 s | 0.017 s | 24 | 0.88 s |
+| `burst` | 0.003 s | 0.15 s | 0.02 to 0.06 s | 28 | 0.59 s |
+| `tiles` | 0.001 s | 0.06 s | 0.013 s | 13 | 0.25 s |
+| `frames` | 0.001 s | 0.13 s | 0.022 s | 14 | 0.59 s |
+| `lines` | 0.002 s | 0.07 s | 0.022 s | 17 | 0.29 s |
+
+Over all 14 layouts the whole picture of 1920 × 1080 took 1 to 3 ms in 1 to 8 batches and that of 3840 × 2160
+2 to 62 ms in 6 to 29; the first picture of 3840 × 2160 was there after 1 to 10 ms, and the longest batch of
+all took 10 ms. The heaviest scene the format allows (48 sheets of 32 waves of 4 swells) at 96 × 64 took 5
+batches, the longest 2 ms. In the app, in a window nobody sees, the first picture of a wallpaper of
+3840 × 2160 came 4 ms after the request and the whole one after 20 ms, in 18 batches; at 1920 × 1080 the whole
+one came after 6 ms, where the processor took 0.24 s. No other card was measured.
 
 ## Memory
 

@@ -18,6 +18,7 @@ mod orbit;
 mod pace;
 mod phone;
 mod preview;
+mod sheets;
 #[cfg(any(feature = "store", test))]
 mod store;
 #[cfg(all(feature = "store", any(target_os = "ios", target_os = "macos")))]
@@ -918,9 +919,9 @@ fn heavy(kind: &str) -> bool {
     HEAVY.contains(&kind)
 }
 
-// The graphics card draws the scene by itself: as densities, or all of it pixel by pixel.
+// The graphics card draws the scene by itself: as densities, or all of it pixel by pixel, or as a wallpaper.
 fn on_card(scene: &Scene) -> bool {
-    all_densities(scene) || (scene.sheets.is_none() && scene.layers.iter().all(field::drawn))
+    sheets::drawn(scene) || all_densities(scene) || (scene.sheets.is_none() && scene.layers.iter().all(field::drawn))
 }
 
 // What the layers of a scene cost the processor at this size.
@@ -1077,6 +1078,9 @@ fn list_height(rows: usize, room: f32) -> f32 {
 
 fn chaos_keys(scene: &Scene, options: &RenderOptions) -> Vec<String> {
     let size = size_key(options);
+    if sheets::drawn(scene) {
+        return vec![size + &sheets::key(scene)];
+    }
     (0..scene.layers.len())
         .map(|index| source_key(scene, index, &size) + &field::key(&scene.layers[index]))
         .collect()
@@ -1534,10 +1538,10 @@ impl App {
     // The graphics card's own picture of the scene as it is now is on the screen. It follows the tone, the
     // opacities and the blends by itself, so nothing has to be rendered.
     fn card_shows(&self, size: [u32; 2]) -> bool {
-        if !self.chaotic || !self.gpu_on() || self.wall.live {
+        if !self.chaotic || !self.gpu_on() {
             return false;
         }
-        let keys = chaos_keys(&self.scene(), &fitted(size, FULL_SIDE, FULL_SAMPLES));
+        let keys = chaos_keys(&self.scene_at(size), &fitted(size, FULL_SIDE, FULL_SAMPLES));
         self.chaos.as_ref().is_some_and(|chaos| chaos.keys() == Some(&keys))
     }
 
@@ -1607,7 +1611,7 @@ impl App {
     // no other view.
     fn fast(&mut self, size: [u32; 2]) -> bool {
         let (view, zoom) = (self.view, self.adjust.zoom);
-        if view == WHOLE || self.wall.live || self.too_long == Some((view, zoom)) {
+        if view == WHOLE || self.wall.live || sheets::drawn(&self.base) || self.too_long == Some((view, zoom)) {
             return view == WHOLE;
         }
         let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
@@ -1871,7 +1875,7 @@ impl App {
     }
 
     fn begin_chaos(&mut self, ctx: &egui::Context, scene: &Scene, full: &RenderOptions) -> bool {
-        let drawn = self.gpu_on() && !self.wall.live && on_card(scene);
+        let drawn = self.gpu_on() && on_card(scene);
         self.swift = false;
         let Some(chaos) = &mut self.chaos else {
             return false;
@@ -1912,6 +1916,9 @@ impl App {
         if !goes_on {
             self.quick = (None, None);
             self.chaos_at = (self.view, self.adjust.zoom);
+        } else if self.wall.live && self.chaotic {
+            self.chaos_at = (self.view, self.adjust.zoom);
+            (self.shown, self.shown_zoom) = self.chaos_at;
         }
         self.swift = scene.layers.iter().all(field::drawn);
         true
@@ -2211,7 +2218,10 @@ impl App {
         if !fresh && !self.chaotic {
             return;
         }
-        let scene = self.scene_in(self.chaos_at.0, self.chaos_at.1);
+        let scene = match self.requested.filter(|_| self.wall.live) {
+            Some(size) => self.scene_at(size),
+            None => self.scene_in(self.chaos_at.0, self.chaos_at.1),
+        };
         let look = look_key(&scene);
         if !fresh && look == self.look {
             return;

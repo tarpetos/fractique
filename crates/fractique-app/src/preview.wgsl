@@ -1,6 +1,7 @@
 struct Uniforms {
     tone: vec4<f32>,  // brightness, 1 / gamma, vibrancy, highlight
     blend: vec4<f32>, // opacity, glow strength, taps a side, 1 when a blur keeps its weight inside the picture
+                      // or a layer is dithered
     reach: vec4<f32>, // source texels a target pixel (x, y), or the direction of a blur; sigma of a blur (texels);
                       // 1 for levels that are a color already
 };
@@ -37,13 +38,28 @@ fn developed(at: vec2<i32>) -> vec4<f32> {
     return vec4<f32>(value + (vec3<f32>(1.0) - value) * burn, alpha);
 }
 
+// fractique-core's render.rs: the threshold of its ordered dither.
+fn threshold(at: vec2<u32>) -> f32 {
+    var rank = 0u;
+    for (var bit = 0u; bit < 3u; bit++) {
+        let x = (at.x >> bit) & 1u;
+        let y = (at.y >> bit) & 1u;
+        rank |= ((x ^ y) << (5u - 2u * bit)) | (y << (4u - 2u * bit));
+    }
+    return (f32(rank) + 0.5) / 64.0;
+}
+
 @fragment
 fn fs_layer(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     var color = developed(vec2<i32>(pos.xy));
     let covered = vec2<f32>(textureDimensions(image)) * u.reach.xy;
     color = color + textureSampleLevel(image, smp, pos.xy / covered, 0.0) * u.blend.y;
     color.a = min(color.a, 1.0);
-    return clamp(color * u.blend.x, vec4<f32>(0.0), vec4<f32>(1.0));
+    color = clamp(color * u.blend.x, vec4<f32>(0.0), vec4<f32>(1.0));
+    if (u.blend.w > 0.5) {
+        return vec4<f32>(floor(color.rgb * 255.0 + threshold(vec2<u32>(pos.xy))) / 255.0, color.a);
+    }
+    return color;
 }
 
 @fragment

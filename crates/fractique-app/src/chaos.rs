@@ -9,9 +9,10 @@ use fractique_core::{Flame, Kind, RenderOptions, Scene, Tone, math, palette};
 use web_time::Instant;
 
 use crate::deep::{self, Stage};
-use crate::field::{self, Chain, Fields, Planned};
+use crate::field::{self, Batched, Chain, Fields, Planned};
 use crate::orbit::{self, Recipe};
 use crate::preview::{LEVELS, guarded};
+use crate::sheets;
 
 const TRANSFORMS: usize = 64;
 const VARIATIONS: usize = 256;
@@ -739,18 +740,27 @@ impl Chaos {
         if self.refused.iter().any(|refused| refused == keys) {
             return false;
         }
-        if scene.sheets.is_none() && !scene.layers.is_empty() && scene.layers.iter().all(field::drawn) {
+        let pixelwise = scene.sheets.is_none() && !scene.layers.is_empty() && scene.layers.iter().all(field::drawn);
+        if pixelwise || sheets::drawn(scene) {
             if options.width.max(options.height) > self.largest_side {
                 return false;
             }
-            let mut layers = Vec::new();
+            let mut layers: Vec<Box<dyn Batched>> = Vec::new();
+            let mut levels = Vec::new();
+            if !pixelwise {
+                let Some(layer) = self.fields.stacks.layer(scene, options, ctx) else {
+                    return false;
+                };
+                levels.push(layer.levels().clone());
+                layers.push(layer);
+            }
             for fractal in scene.layers.iter().filter_map(|layer| layer.fractal()) {
                 let Planned::Ready(layer) = self.fields.layer(fractal, options, scene.layers.len(), ctx) else {
                     return false;
                 };
-                layers.push(*layer);
+                levels.push(layer.levels().clone());
+                layers.push(layer);
             }
-            let levels = layers.iter().map(|layer| layer.levels().clone()).collect();
             let (device, queue) = (&self.device, &self.queue);
             #[cfg(not(test))]
             self.longest.store(LONGEST, Ordering::Relaxed);
@@ -1799,7 +1809,8 @@ pub(crate) mod tests {
             dark: true,
             hue: None,
         };
-        let wallpaper = fractique_core::wallpaper::random_wallpaper(3, &request);
+        let mut wallpaper = fractique_core::wallpaper::random_wallpaper(3, &request);
+        wallpaper.layers = presets::get("aurora-spiral").expect("the preset exists").layers;
         assert!(card.drawn(&wallpaper, &options).is_none());
     }
 

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+* **Wallpapers on the graphics card:** with GPU acceleration on, the wallpapers of the Shapes tab are drawn by
+  the graphics card, as flames and fractals are, so the switch means the same in every tab. A new wallpaper, a
+  swipe, another layout, material, color, light or dark is on the screen at once: on an RTX 4070 a wallpaper of
+  1920 × 1080 takes 1 to 3 ms and one of 3840 × 2160 2 to 62 ms, where the processor takes 0.05 to 0.2 s and 0.2
+  to 0.9 s ([docs/performance.md](docs/performance.md#wallpapers-on-the-graphics-card)). The picture is the
+  processor's but for one step of 255 in two to four of a hundred numbers, and for a line one pixel wide across
+  the corners of square tiles. An Instant export saves it; exports at Standard, High and Ultra, the command
+  line tool, the MCP tools and the server render on the processor as before, `fractique-core` did not change
+  and no golden hash changed.
+
 * **No view waits longer than 10 seconds:** a moved or zoomed view is drawn anew only when its picture is
   expected within 10 seconds on what would draw it. Otherwise the app keeps the picture it has and shows it
   magnified, as the first versions did, and the status line says **magnified picture**; nothing renders and

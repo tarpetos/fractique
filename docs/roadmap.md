@@ -26,6 +26,7 @@ built on it.
 | 19 | **Geometric fractals** on the same registry: the Apollonian gasket, Kleinian limit sets (Grandma's and Maskit's recipes), L-systems with their rules as text in the scene, the Lyapunov fractal ([scene-format.md](scene-format.md#geometric-kinds)) | Done |
 | 20 | **Escape-time and root-finding kinds on the graphics card:** the nine kinds are drawn pixel by pixel by the graphics card alone, in batches whose work is bounded before they are sent and that follow one another without waiting for the window ([architecture.md](architecture.md#fractals-drawn-pixel-by-pixel-on-the-graphics-card)) | Done; measured on Windows with a GeForce GTX 1650 and on Linux with a Radeon Vega 3 ([performance.md](performance.md#fractals-on-the-graphics-card)) |
 | 21 | **Deep views on the graphics card:** a magnified view that holds little of a flame is drawn by the card from particles, as the renderer draws it, so zooming and moving a flame stays on the card ([architecture.md](architecture.md#deep-views-on-the-graphics-card)) | Done; measured on Windows with an NVIDIA RTX 4070 and run on Linux with a software graphics card ([performance.md](performance.md#deep-views-on-the-graphics-card)). Not run on another card |
+| 22 | **Wallpapers on the graphics card:** with GPU acceleration on, a wallpaper is drawn by the graphics card alone, pixel for pixel as the processor draws it but for a step of one in a few numbers, in batches whose work is bounded before they are sent ([architecture.md](architecture.md#wallpapers-on-the-graphics-card)) | Done; measured on Windows with an NVIDIA RTX 4070 and run on Linux with a software graphics card ([performance.md](performance.md#wallpapers-on-the-graphics-card)). Not run on another card |
 
 ## App, next
 
@@ -36,8 +37,9 @@ What the app does not do yet:
   have to wait for the graphics card's picture first.
 - Choosing a wallpaper's color on a computer (a phone has it in its styles).
 - More fractals of other kinds on the graphics card: it draws flames, the Clifford, De Jong and Lorenz
-  attractors ([architecture.md](architecture.md#orbits-on-the-graphics-card)) and the escape-time and
-  root-finding kinds ([architecture.md](architecture.md#fractals-drawn-pixel-by-pixel-on-the-graphics-card)); a
+  attractors ([architecture.md](architecture.md#orbits-on-the-graphics-card)), the escape-time and
+  root-finding kinds ([architecture.md](architecture.md#fractals-drawn-pixel-by-pixel-on-the-graphics-card)) and
+  wallpapers; a
   scene with a geometric kind or a solid in it, or with a flame beside a kind drawn pixel by pixel, is rendered
   by the processor alone.
 - The density estimation of the graphics card in bands, a few rows a submission: for a picture of 3840 × 2160 its

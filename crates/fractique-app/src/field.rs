@@ -8,6 +8,7 @@ use fractique_core::{Camera, Fractal, RenderOptions, fractal, math, palette, sce
 use web_time::Instant;
 
 use crate::preview::{LEVELS, guarded};
+use crate::sheets::Stacks;
 
 const HEAD: &str = include_str!("field.wgsl");
 const ESCAPE: &str = include_str!("field_escape.wgsl");
@@ -512,6 +513,7 @@ pub(crate) struct Fields {
     asked: Mutex<Vec<bool>>,
     rates: Arc<Mutex<Vec<Rate>>>,
     spare: Arc<Mutex<Vec<Sheet>>>,
+    pub(crate) stacks: Stacks,
     pub(crate) unbounded: bool,
 }
 
@@ -587,6 +589,7 @@ impl Fields {
         Self {
             device: device.clone(),
             queue: queue.clone(),
+            stacks: Stacks::new(adapter, device, queue, failed.clone()),
             failed,
             able,
             layouts: Arc::new(Layouts::new(device)),
@@ -601,10 +604,8 @@ impl Fields {
     // A shader is being compiled: the kind that asked for it cannot be drawn yet, and soon can.
     pub(crate) fn pending(&self) -> bool {
         let asked = self.asked.lock().unwrap_or_else(|e| e.into_inner());
-        asked
-            .iter()
-            .zip(self.pipes.iter())
-            .any(|(asked, pipes)| *asked && pipes.get().is_none())
+        let kinds = asked.iter().zip(self.pipes.iter());
+        self.stacks.pending() || kinds.into_iter().any(|(asked, pipes)| *asked && pipes.get().is_none())
     }
 
     fn compile(&self, kind: usize, ctx: &egui::Context) {
@@ -782,8 +783,17 @@ pub(crate) struct Report {
     pub(crate) late: bool,
 }
 
+// What a chain sends batch after batch: a layer drawn pixel by pixel, or a wallpaper.
+pub(crate) trait Batched: wgpu::WasmNotSend {
+    fn send(&mut self, encoder: &mut wgpu::CommandEncoder);
+    fn took(&mut self, counted: u32, seconds: f32);
+    fn counter(&self) -> &wgpu::Buffer;
+    fn drew(&self) -> bool;
+    fn done(&self) -> bool;
+}
+
 struct Going {
-    layers: Vec<Layer>,
+    layers: Vec<Box<dyn Batched>>,
     started: Instant,
     submitted: Instant,
     busy: bool,
@@ -807,7 +817,7 @@ pub(crate) struct Chain {
 
 impl Chain {
     pub(crate) fn new(
-        layers: Vec<Layer>,
+        layers: Vec<Box<dyn Batched>>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         failed: &Arc<AtomicBool>,
@@ -946,7 +956,7 @@ impl Chain {
 
 // The part of the picture a batch of so many pixels draws next, in bands across it; a batch smaller than a band
 // takes a piece of one. The place moves past it.
-fn strip(at: &mut [u32; 2], pixels: u64, [width, height]: [u32; 2]) -> [u32; 4] {
+pub(crate) fn strip(at: &mut [u32; 2], pixels: u64, [width, height]: [u32; 2]) -> [u32; 4] {
     let band = u64::from(width) * u64::from(BAND);
     if at[0] == 0 && pixels >= band {
         let rows = ((pixels / band) as u32).saturating_mul(BAND).min(height - at[1]);
@@ -1174,6 +1184,28 @@ impl Layer {
     // A picture of the layer is in its levels.
     pub(crate) fn drew(&self) -> bool {
         self.drew
+    }
+}
+
+impl Batched for Layer {
+    fn send(&mut self, encoder: &mut wgpu::CommandEncoder) {
+        Layer::send(self, encoder);
+    }
+
+    fn took(&mut self, counted: u32, seconds: f32) {
+        Layer::took(self, counted, seconds);
+    }
+
+    fn counter(&self) -> &wgpu::Buffer {
+        Layer::counter(self)
+    }
+
+    fn drew(&self) -> bool {
+        Layer::drew(self)
+    }
+
+    fn done(&self) -> bool {
+        Layer::done(self)
     }
 }
 
