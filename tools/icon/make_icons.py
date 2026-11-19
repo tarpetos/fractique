@@ -29,9 +29,6 @@ OVERSAMPLE = 2
 CORNER = 230
 CROP = (82, 62, 942, 922)
 GROUND = "#06080d"
-PAPER = "#eef1f6"
-INK = "#0b0e16"
-HAZE = "#4a5f7e"
 FIT = (0.56, 0.79)
 # From this many pixels up: the weight of the stroke, the turns of the spiral, the blur of the Buddhabrot, the growth.
 DETAIL = [(64, 1.0, 1.45, 0, 1.0), (48, 1.1, 1.4, 0, 1.0), (24, 1.25, 1.1, 40, 1.05), (0, 1.4, 0.85, 60, 1.1)]
@@ -98,20 +95,16 @@ def buddhabrot(reach, blur):
     return light
 
 
-def draw(side=SIZE, ground=GROUND, ink="#ffffff", corner=CORNER, keep=0.45, gain=0.9, fit=FIT, reach=1.0):
+def draw(side=SIZE, ground=GROUND, corner=CORNER, keep=0.45, gain=0.9, fit=FIT, reach=1.0):
     weight, turns, blur, growth = next(row[1:] for row in DETAIL if side >= row[0])
     letter_mask = mark(weight, turns, (fit[0] * growth, fit[1] * growth), (0.004, 0.0))
     shape = np.asarray(letter_mask, dtype=np.float32)[..., None] / 255
     shade = np.asarray(letter_mask.filter(ImageFilter.GaussianBlur(22)), dtype=np.float32)[..., None] / 255
     light = buddhabrot(reach, blur)
     grey = light.mean(axis=2, keepdims=True)
-    if ground == PAPER:
-        image = rgb(PAPER) + (rgb(HAZE) - rgb(PAPER)) * np.clip(grey * 1.5, 0, 1)
-        image = image + (1 - image) * 0.5 * shade
-    else:
-        image = rgb(ground) + (grey * (1 - keep) + light * keep) * gain
-        image = image * (1 - 0.6 * shade)
-    image = image * (1 - shape) + rgb(ink) * shape
+    image = rgb(ground) + (grey * (1 - keep) + light * keep) * gain
+    image = image * (1 - 0.6 * shade)
+    image = image * (1 - shape) + shape
     out = Image.fromarray((np.clip(image, 0, 1) * 255 + 0.5).astype(np.uint8)).convert("RGBA")
     if corner:
         big = SIZE * OVERSAMPLE
@@ -129,8 +122,6 @@ def main():
             icon.save(OUT / f"icon-{side}.png")
     icons[256].save(OUT / "icon.ico", sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)], append_images=[icons[s] for s in (16, 24, 32, 48, 64, 128)])
     icons[1024].save(OUT / "icon.icns", append_images=[icons[s] for s in (16, 32, 64, 128, 256, 512)])
-    draw(ground=PAPER, ink=INK).save(OUT / "icon-light-1024.png")
-    draw(keep=0.0).save(OUT / "icon-mono-1024.png")
 
     # iOS rounds the corners itself. It turns the tinted icon to grey and tints it: white on black, as Apple asks.
     draw(corner=0).convert("RGB").save(IOS / "light.png")
