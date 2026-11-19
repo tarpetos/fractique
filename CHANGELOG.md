@@ -26,8 +26,9 @@
   swipe, another layout, material, color, light or dark is on the screen at once: on an RTX 4070 a wallpaper of
   1920 × 1080 takes 1 to 3 ms and one of 3840 × 2160 2 to 62 ms, where the processor takes 0.05 to 0.2 s and 0.2
   to 0.9 s ([docs/performance.md](docs/performance.md#wallpapers-on-the-graphics-card)). The picture is the
-  processor's but for one step of 255 in two to four of a hundred numbers, and for a line one pixel wide across
-  the corners of square tiles. An Instant export saves it; exports at Standard, High and Ultra, the command
+  processor's but for one step of 255 in two to four of a hundred numbers, in every layout: across the corners
+  of square tiles, where the processor's own rounding decides how bright a line one pixel wide is, the card is
+  told what the processor finds. An Instant export saves it; exports at Standard, High and Ultra, the command
   line tool, the MCP tools and the server render on the processor as before, `fractique-core` did not change
   and no golden hash changed.
 

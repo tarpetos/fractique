@@ -581,6 +581,7 @@ one such picture. A zoomed view is not drawn: the whole wallpaper is, and the sc
 | --- | --- |
 | Shader | `sheets.wgsl` repeats `sheets.rs` of `fractique-core` for one pixel in 32-bit floats: the distance to a box, a petal, a ring and a wave, with the same early answer for a shape farther away than the shadow reaches; the nearest shape of a sheet, the shadow it casts, its coverage, the rise of the distance over 0.001 for the rim, the bevel, the gradient and the blend. It is compiled in a thread of its own when a wallpaper is first asked for; until then a draft from the processor stands in |
 | Numbers | `sheets.rs` of the app packs a shape into seven rows of four numbers, as `Solid::new` works them out in 64 bits (the center, the turn, the reach, the extent, the kind's own numbers, a wave's swells), and a sheet into three (its colors, its opacity, where its shapes begin). The shapes are one storage buffer, the sheets a uniform |
+| Ties | On the diagonal of a corner of a box that is not turned two sides are equally near, and with both steps of the rise leading away from that corner the processor's rise there is nothing where its 64-bit numbers tie, and across only or down only where their last bit differs: which of the three is rounding, and 32-bit floats cannot tell. So for every such box whose diagonal runs through the centers of pixels (within a sixteenth of one), `sheets.rs` of the app works the processor's rise out in 64 bits for each of those pixels, with the same arithmetic, and adds the answers after the shapes, two bits a pixel; the shader takes its rise from them there. The squares of the layout `tiles` are such boxes at every size |
 | Levels | A pixel's color is written to the half-float texture [the preview](#the-preview-on-the-graphics-card) starts from. The preview draws it onto the canvas as it is, with the ordered dither of `render.rs`, so that a number of the picture is the processor's or one step from it |
 | The bound | The work of a pixel is counted in units: 1 for a shape that is too far to matter, 4 for one whose distance is worked out, 3 more for every swell of a wave. A pixel takes at most twice the units of all the shapes of its sheets plus twice the dearest shape of each (the two looks for the nearest shape, the two more for the rise): 48 to 304 for the 14 layouts, 50 688 for 48 sheets of 32 waves of 4 swells. Before a batch is sent, its pixels times that are held to the units the card has shown it works in 0.05 s, and never above 100 000 000; a card is taken to work at least 50 000 000 a second. The loops of the shader end at 48 sheets, 32 shapes and 4 swells whatever the buffers say |
 | Passes | When one sample a pixel would not fit in a batch, the whole picture is drawn first with one sample a block of 2 to 64 pixels a side. Then every pixel is drawn, in bands of 8 rows. The edges are smooth by the coverage, so nothing is drawn twice |
@@ -597,11 +598,9 @@ What the processor renders:
 
 Compared on a GeForce RTX 4070, every layout with every material, light and dark, three seeds each, at
 1920 × 1080 and 1080 × 2400 (1008 pictures): 2.0 to 3.8 of a hundred numbers of a picture differ from the
-processor's, by one step of 255 (by up to 3 in one pair), and blocks of 8 × 8 pixels differ by 0.035 on average
-and by 0.3 at most. The tiles are the exception. Along the diagonal of a square's corner two sides are equally
-near; where the center of a pixel lies exactly on it, the processor's rise of the distance is nothing in both
-directions and the rim is dimmer there, a line one pixel wide, while 32-bit floats put the pixel on one side
-or the other. A number differs by up to 119 on such a line and a block by up to 6.5.
+processor's, by one step of 255 (by up to 4 in a few pairs), and blocks of 8 × 8 pixels differ by 0.035 on average
+and by 0.3 at most. The layouts `tiles` and `slats` were compared at 2560 × 1440 and 3840 × 2160 too, with
+the same result; the largest difference of a number, 4, is in the tiles.
 [performance.md](performance.md#wallpapers-on-the-graphics-card) has the times.
 
 ### When the graphics card is used
