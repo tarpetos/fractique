@@ -14,8 +14,8 @@
   their side. The large button has a new drawing, a die seen from a corner, and **Mutate** a wand with a star.
   On a low screen the switch of the tabs and the row of colors stand closer to the top and to one another.
   **Back** is never dim any more, on a phone and in the computer's toolbar: pressed with no older picture in the
-  tab it changes nothing, and a phone gives one short haptic tick (Android through the view's own feedback,
-  which needs no permission; an iPhone a light impact).
+  tab it changes nothing, and a phone gives one short tick (Android through its vibrator, with the permission
+  to vibrate, which is granted without a dialog; an iPhone a light impact).
   The placard shows a mutation as a small dim tag under the picture's name (**MUTATION 1**) instead of a second
   large line that read as part of the name, and shows it for names of two words too.
   Every sheet, list and panel without a handle now has the same round button with a cross in its top right corner, on a phone and
