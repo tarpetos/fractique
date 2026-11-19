@@ -1106,15 +1106,9 @@ impl App {
                     ui.set_width(inner);
                     ui.spacing_mut().item_spacing = vec2(8.0, 2.0);
                     let top = ui.cursor().top();
-                    ui.horizontal(|ui| {
-                        ui.vertical(|ui| self.inspector_head(ui));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                            ui.add_space(14.0);
-                            let (spot, _) =
-                                ui.allocate_exact_size(vec2(widgets::CLOSE, widgets::CLOSE), Sense::hover());
-                            done = widgets::close_at(ui, spot.center(), &self.t("close"));
-                        });
-                    });
+                    self.inspector_head(ui);
+                    let spot = widgets::close_spot(top, widgets::line(ui, 30.0), panel.right() - 22.0);
+                    done = widgets::close_at(ui, spot, &self.t("close"));
                     ui.add_space(4.0);
                     let room = panel.height() - 30.0 - (ui.cursor().top() - top);
                     let mut bar = egui::style::ScrollStyle::floating();
@@ -1305,6 +1299,7 @@ impl App {
                         scroll.bar_width = 5.0;
                         scroll.floating_allocated_width = 0.0;
                         ui.spacing_mut().scroll = scroll;
+                        let heading = ui.cursor().top() + 14.0;
                         egui::ScrollArea::vertical()
                             .max_height(rect.height() - 60.0)
                             .min_scrolled_height(rect.height() - 60.0)
@@ -1336,6 +1331,8 @@ impl App {
                                         tune = widgets::pill(ui, &self.t("fine_tune"), false, ui.available_width());
                                     });
                             });
+                        let spot = widgets::close_spot(heading, widgets::line(ui, 11.0), rect.right() - 18.0);
+                        close |= widgets::close_at(ui, spot, &self.t("close"));
                     });
             });
         panes.push((rect, 28.0, true));
