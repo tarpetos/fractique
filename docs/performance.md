@@ -18,11 +18,11 @@ given to WSL2 on Windows 11, release build. They show what to expect, not a guar
 
 | Level | Size | Time |
 | --- | --- | --- |
-| `draft` | 1920×1080 | 0.9 s |
-| `mobile` | 1080×2400 | 1.4 s |
-| `standard` | 1920×1080 | 2.2 s |
-| `high` | 1920×1080 | 6.9 s |
-| `high` | 3840×2160 | 30.4 s |
+| `draft` | 1920×1080 | 1.0 s |
+| `mobile` | 1080×2400 | 1.6 s |
+| `standard` | 1920×1080 | 2.4 s |
+| `high` | 1920×1080 | 7.5 s |
+| `high` | 3840×2160 | 34.7 s |
 
 The time grows with `samples per pixel × width × height` and falls with the number of cores. A view magnified
 until it holds less than an eighth of the flame costs five to ten times as much
@@ -31,8 +31,8 @@ until it holds less than an eighth of the flame costs five to ten times as much
 ## Fractals of other kinds
 
 Measured with `fractique render`, with the PNG written, on the presets named and on all 12 threads. Every render
-was run at least twice, one at a time, and the fastest time is the one given: other work started on the machine now
-and then, and a render that ran beside it was slower. A fractal drawn per pixel does not depend on the samples per
+was run three times, one at a time, with nothing else rendering or compiling on the machine, and the fastest time is
+the one given. A fractal drawn per pixel does not depend on the samples per
 pixel as a flame does: the quality level only sets how many samples the pixels along edges get (9 at `standard`, 36
 at `high`), so its time follows the iterations and how much of the picture is edge. `mandelbrot-whole` is mostly
 smooth, `mandelbrot-spiral` is a view magnified 60 000 times with edges everywhere. `clifford` is a density like a
@@ -40,32 +40,32 @@ flame and costs about as much.
 
 | Preset | Level | 1920×1080 | 3840×2160 |
 | --- | --- | --- | --- |
-| `mandelbrot-whole` | `standard` | 0.5 s | 2.0 s |
-| `mandelbrot-whole` | `high` | 0.6 s | 2.4 s |
-| `mandelbrot-seahorse-valley` | `standard` | 0.8 s | 3.1 s |
-| `mandelbrot-seahorse-valley` | `high` | 1.7 s | 6.5 s |
-| `mandelbrot-spiral` | `standard` | 1.1 s | 4.2 s |
-| `mandelbrot-spiral` | `high` | 2.4 s | 9.1 s |
-| `julia-dragon` | `standard` | 0.7 s | 2.6 s |
-| `julia-dragon` | `high` | 1.1 s | 4.4 s |
-| `clifford-classic` | `standard` | 1.6 s | 7.8 s |
-| `clifford-classic` | `high` | 5.6 s | 36.2 s |
+| `mandelbrot-whole` | `standard` | 1.1 s | 4.5 s |
+| `mandelbrot-whole` | `high` | 1.4 s | 5.0 s |
+| `mandelbrot-seahorse-valley` | `standard` | 1.0 s | 4.7 s |
+| `mandelbrot-seahorse-valley` | `high` | 2.5 s | 7.5 s |
+| `mandelbrot-spiral` | `standard` | 1.3 s | 4.9 s |
+| `mandelbrot-spiral` | `high` | 2.7 s | 9.9 s |
+| `julia-dragon` | `standard` | 0.7 s | 2.9 s |
+| `julia-dragon` | `high` | 1.2 s | 4.6 s |
+| `clifford-classic` | `standard` | 1.8 s | 9.1 s |
+| `clifford-classic` | `high` | 6.6 s | 40.2 s |
 
 The other kinds of the `orbit` family are densities too and cost about what `clifford` does, here at `standard`
 with `clifford-classic` given again as the yardstick:
 
 | Preset | 1920×1080 | 3840×2160 |
 | --- | --- | --- |
-| `clifford-classic` | 1.6 s | 7.8 s |
-| `de_jong-classic` | 1.9 s | 10.3 s |
-| `gumowski_mira-feathers` | 1.2 s | 5.4 s |
-| `hopalong-web` | 1.6 s | 8.9 s |
-| `lorenz-butterfly` | 1.6 s | 9.3 s |
-| `lorenz-veil` | 1.6 s | 8.5 s |
-| `buddhabrot-classic` | 2.0 s | 14.2 s |
-| `buddhabrot-nebula` | 2.0 s | 11.1 s |
-| `buddhabrot-filigree` | 2.2 s | 11.2 s |
-| `buddhabrot-anti` | 1.4 s | 8.8 s |
+| `clifford-classic` | 1.8 s | 9.1 s |
+| `de_jong-classic` | 2.2 s | 12.0 s |
+| `gumowski_mira-feathers` | 1.3 s | 6.6 s |
+| `hopalong-web` | 1.7 s | 10.7 s |
+| `lorenz-butterfly` | 1.9 s | 9.3 s |
+| `lorenz-veil` | 1.8 s | 10.4 s |
+| `buddhabrot-classic` | 2.3 s | 13.7 s |
+| `buddhabrot-nebula` | 2.2 s | 13.2 s |
+| `buddhabrot-filigree` | 2.4 s | 13.3 s |
+| `buddhabrot-anti` | 1.8 s | 10.2 s |
 
 A `buddhabrot` plots as many points as any density, so its time does not grow with its iterations: what it adds
 is the orbits it starts and does not draw. Dividing the plane into cells takes 2 to 8 ms before a render. Of the
@@ -88,22 +88,22 @@ edge and are drawn from 9 samples.
 
 | Preset | 1920×1080 | 3840×2160 |
 | --- | --- | --- |
-| `mandelbrot-seahorse-valley` (for scale) | 0.8 s | 3.1 s |
-| `burning_ship-whole` | 0.5 s | 1.8 s |
-| `burning_ship-ship` | 0.7 s | 2.8 s |
-| `burning_ship-towers` | 1.0 s | 4.0 s |
-| `tricorn-whole` | 0.5 s | 1.9 s |
-| `tricorn-spiral` | 2.1 s | 8.2 s |
-| `multibrot-cubic` | 0.5 s | 2.0 s |
-| `multibrot-sunflower` (power 6) | 2.8 s | 11.2 s |
-| `phoenix-ushiki` | 0.6 s | 2.4 s |
-| `phoenix-feathers` | 2.2 s | 9.1 s |
-| `magnet-first` | 0.8 s | 3.1 s |
-| `magnet-pearls` | 1.6 s | 6.1 s |
-| `newton-cubic` | 0.5 s | 2.0 s |
-| `newton-swirl` | 0.8 s | 2.7 s |
-| `nova-whole` | 0.8 s | 3.0 s |
-| `nova-sapphire` | 1.8 s | 7.1 s |
+| `mandelbrot-seahorse-valley` (for scale) | 1.0 s | 4.7 s |
+| `burning_ship-whole` | 0.5 s | 2.1 s |
+| `burning_ship-ship` | 0.8 s | 3.2 s |
+| `burning_ship-towers` | 1.1 s | 4.6 s |
+| `tricorn-whole` | 0.6 s | 2.2 s |
+| `tricorn-spiral` | 2.4 s | 9.5 s |
+| `multibrot-cubic` | 0.6 s | 2.3 s |
+| `multibrot-sunflower` (power 6) | 3.2 s | 12.6 s |
+| `phoenix-ushiki` | 0.7 s | 2.7 s |
+| `phoenix-feathers` | 2.6 s | 10.1 s |
+| `magnet-first` | 0.9 s | 3.6 s |
+| `magnet-pearls` | 1.8 s | 7.1 s |
+| `newton-cubic` | 0.6 s | 2.2 s |
+| `newton-swirl` | 0.8 s | 3.1 s |
+| `nova-whole` | 1.0 s | 3.5 s |
+| `nova-sapphire` | 2.1 s | 8.1 s |
 
 A step of `magnet` costs two complex divisions and one of `multibrot` a multiplication for every unit of its
 power, so they are slower than `mandelbrot` at the same depth; a power that is not whole costs a logarithm, a
@@ -115,16 +115,16 @@ Measured the same way as the tables above; `clifford-classic` and `mandelbrot-wh
 
 | Preset | 1920×1080, `standard` | 3840×2160, `standard` |
 | --- | --- | --- |
-| `apollonian-classic` | 0.3 s | 1.4 s |
-| `apollonian-gap` | 0.4 s | 1.6 s |
-| `lyapunov-ribbons` (400 iterations) | 1.5 s | 4.8 s |
-| `lyapunov-lattice` (800 iterations) | 3.3 s | 13.9 s |
-| `l_system-dragon` | 0.8 s | 4.2 s |
-| `l_system-plant` | 0.8 s | 4.5 s |
-| `kleinian-pearls` | 0.9 s | 5.3 s |
-| `kleinian-lace` | 2.7 s | 10.7 s |
-| `mandelbrot-whole`, for scale | 0.5 s | 2.0 s |
-| `clifford-classic`, for scale | 1.6 s | 7.8 s |
+| `apollonian-classic` | 0.4 s | 1.5 s |
+| `apollonian-gap` | 0.5 s | 1.8 s |
+| `lyapunov-ribbons` (400 iterations) | 2.4 s | 7.3 s |
+| `lyapunov-lattice` (800 iterations) | 5.1 s | 18.1 s |
+| `l_system-dragon` | 1.4 s | 9.8 s |
+| `l_system-plant` | 1.2 s | 5.2 s |
+| `kleinian-pearls` | 1.3 s | 7.2 s |
+| `kleinian-lace` | 3.5 s | 14.7 s |
+| `mandelbrot-whole`, for scale | 1.1 s | 4.5 s |
+| `clifford-classic`, for scale | 1.8 s | 9.1 s |
 
 At `high` and 1920×1080: `apollonian-classic` 0.4 s, `lyapunov-ribbons` 3.6 s, `kleinian-pearls` 3.6 s,
 `l_system-dragon` 2.6 s. At `mobile` and 1080×2400: 0.4 s, 1.4 s, 0.6 s and 0.6 s.
@@ -143,12 +143,12 @@ Measured the same way as the tables above.
 
 | Preset | `standard` 1920×1080 | `standard` 3840×2160 | `high` 1920×1080 |
 | --- | --- | --- | --- |
-| `mandelbulb-classic` | 1.0 s | 4.4 s | 2.2 s |
-| `mandelbulb-coral` | 3.8 s | 17.0 s | 9.6 s |
-| `mandelbox-cube` | 1.0 s | 4.4 s | 2.3 s |
-| `mandelbox-station` | 3.7 s | 18.2 s | 10.2 s |
-| `menger_sponge-classic` | 0.6 s | 2.2 s | 1.2 s |
-| `menger_sponge-courtyard` | 1.5 s | 5.4 s | 3.6 s |
+| `mandelbulb-classic` | 1.1 s | 5.1 s | 2.7 s |
+| `mandelbulb-coral` | 4.2 s | 18.6 s | 13.8 s |
+| `mandelbox-cube` | 1.5 s | 4.9 s | 2.7 s |
+| `mandelbox-station` | 4.6 s | 20.1 s | 12.6 s |
+| `menger_sponge-classic` | 0.6 s | 2.6 s | 1.4 s |
+| `menger_sponge-courtyard` | 1.7 s | 6.4 s | 4.1 s |
 
 A solid seen whole (`mandelbulb-classic`, `mandelbox-cube`, `menger_sponge-classic`) leaves much of the picture
 empty and its rays reach it in a few steps. A view from near or inside (`mandelbulb-coral`, `mandelbox-station`)
@@ -243,9 +243,10 @@ took about 0.1 s in these runs, so the whole picture comes that much later for e
 | `aurora-spiral` | 2560×1440 | 0.04 s | 30 | 0.99 s | 46 ms | 3.86 s | |
 | `solar-mandala` | 2560×1440 | 0.08 s | 58 | 4.24 s | 76 ms | 10.26 s | |
 
-A picture of 3840×2160 is the processor's on every card: `aurora-spiral` took it 14.4 s on this laptop. With the
-bound on the density estimation lifted for a measurement, the same card needed up to 153 ms a batch for one layer
-of that size and up to 282 ms for two, which is why the bound is where it is.
+These runs were made while a flame was held to the bounds of the attractors, which left a picture of 3840×2160 to
+the processor (`aurora-spiral` took it 14.4 s on this laptop). A flame is no longer held to them and a picture of
+that size is the card's again; with the bound lifted for a measurement this card needed up to 153 ms a batch for
+one layer of that size and up to 282 ms for two. It has not been timed on this laptop since.
 
 The same build on a Debian 13 box with the graphics chip of its processor, an **AMD Radeon Vega 3** (Vulkan,
 RADV), far weaker: at 1920×1080 the longest batch took 120 ms for `clifford-classic`, 148 ms for
