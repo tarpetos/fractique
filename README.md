@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique makes three kinds of pictures. Fractal flames: the glowing, wispy kind of fractal made of thin curves and soft light. Classic fractals: the Mandelbrot set, Julia sets and strange attractors, in smooth color and down to a deep zoom. And wallpapers: flat sheets with lit edges and soft shadows, each in a light and a dark version. You pick a preset, roll a random picture or layer several flames over each other, and export it at any size, from a phone screen to a 4K monitor. A scene is one small file, and the same file always renders to exactly the same pixels, on Windows, macOS, Linux, Android and iOS alike.
+Fractique makes three kinds of pictures. Fractal flames: the glowing, wispy kind of fractal made of thin curves and soft light. Classic fractals of 22 kinds, from the Mandelbrot set, Julia sets and strange attractors to the Mandelbulb in three dimensions. And wallpapers: flat sheets with lit edges and soft shadows, each in a light and a dark version. You pick a preset, roll a random picture or layer several flames over each other, and export it at any size, from a phone screen to a 4K monitor. A scene is one small file, and the same file always renders to exactly the same pixels, on Windows, macOS, Linux, Android and iOS alike.
 
 <p align="center">
   <img src="docs/samples/aurora-spiral.png" alt="The aurora-spiral preset: teal and green spiral wisps on a dark background" width="880">
@@ -17,20 +17,21 @@ Fractique makes three kinds of pictures. Fractal flames: the glowing, wispy kind
 ## What it does
 
 - **Flames:** 49 variations, layers with blend modes, rotational and mirror symmetry, density estimation, glow, and 29 built-in presets.
-- **Fractals:** the Mandelbrot set, Julia sets and the Clifford attractor, each with presets and a picture for every seed; they share the palettes, the layers and the deep zoom of the flames.
+- **Fractals:** 19 kinds in the plane: escape-time (Mandelbrot, Julia, Burning Ship, Tricorn, Multibrot, Phoenix, Magnet), root-finding (Newton, Nova), orbits drawn as densities (Buddhabrot, Clifford, De Jong, Lorenz, Gumowski-Mira, Hopalong) and geometric (Apollonian gasket, Kleinian group, L-system, Lyapunov), each with presets and a picture for every seed; they share the palettes, the layers and the deep zoom of the flames.
 - **Solids:** the Mandelbulb, the Mandelbox and the Menger sponge in three dimensions, with light, shadows and fog; turn around them or go inside.
 - **Wallpapers:** one for every seed, out of 14 layouts and 6 materials, each in a light and a dark version, laid out for the size of the screen.
-- **The app:** one codebase for Windows, macOS, Linux, Android, iOS and the web. The picture fills the window and glass panels float over it; on the desktop the app has a glass title bar of its own. In 15 languages.
+- **The app:** one codebase for Windows, macOS, Linux, Android, iOS and the web. The picture fills the window and glass panels float over it; on the desktop the app has a glass title bar of its own. Three tabs, **Flames**, **Fractals** and **Shapes** (the wallpapers), each keep their own picture and their recent pictures. In 15 languages.
+- **GPU acceleration:** where the graphics card is clearly faster than the processor, it draws the flames, three attractors and the escape-time and root-finding fractals itself, and the processor stays free. Exports at the three higher quality levels are always rendered by the processor, exactly.
 - **Randomize and Mutate:** every seed is a picture; flames that would be a dot or a filled square are skipped. Mutate makes a variant of the one you like.
 - **Layers:** add a flame from the presets or a random one, remove it, reorder, and set the blend (add, screen, over) and the opacity of each. Up to 16 layers.
-- **Picture size:** the window's own, one of 59 screens (computers up to 4K, Android phones and tablets, iPhones and iPads), or any width and height from 16 to 16384 pixels.
+- **Picture size:** the window's own, one of 59 screens (computers up to 4K, Android phones and tablets, iPhones, iPads, Macs and Apple Watch), or any width and height from 16 to 16384 pixels.
 - **Deep zoom:** drag, wheel and pinch move the view and magnify it up to ten thousand million times. The picture follows at once and is redrawn sharp when the view rests.
-- **Phones:** a screen of its own. One round button makes a new picture, a swipe goes to the next wallpaper, a sheet of small live pictures chooses the style, and the pictures you keep form a collection.
+- **Phones:** a screen of its own. One round button makes a new picture, a swipe goes to the next wallpaper, a sheet of small live pictures chooses the style, and the pictures you keep form a collection. The kinds of fractal that take the processor long to draw are left out there.
 - **Export:** a PNG at any size: at once, as it is on the screen, or rendered in the background at three higher quality levels. On a phone it is saved to Photos or the gallery, or shared. Every feature is free on every platform; only the App Store version (iPhone, iPad, Mac) asks for a one-time purchase, Fractique Pro, to export at 2560 × 1440 pixels or more or at a custom size.
 - **Project files:** a `.frcq` file keeps the scene with its view, tone and size, so it opens as it was saved ([docs/scene-format.md](docs/scene-format.md)). Plain `.json` scenes and `.flame` files of flam3 and Apophysis open too. Between launches the app comes back to the session it was left with.
 - **Updates:** a window lists every released version with its notes and installs any of them. On Windows the app is one portable `.exe` that replaces itself.
 - **Exact repeatability:** the same scene gives the same pixels on every machine, checked by tests on Linux, Windows and macOS ([docs/determinism.md](docs/determinism.md)).
-- **The command line tool** (`fractique`): renders flames and wallpapers to PNG, makes random scenes and variants, converts `.flame` files.
+- **The command line tool** (`fractique`): renders flames, fractals and wallpapers to PNG, makes random scenes and variants, converts `.flame` and `.frcq` files.
 - **MCP server** (`fractique mcp`): an AI agent makes, changes and renders scenes ([docs/mcp.md](docs/mcp.md)).
 - **HTTP server** (`fractique-server`): an HTTP API with a render queue and limits, MCP for AI agents at `/mcp`, serves the web app, ships as a Docker image ([docs/server.md](docs/server.md)).
 
@@ -47,6 +48,15 @@ Fractals of other kinds: the Mandelbrot set, a Julia set and the Clifford attrac
 | --- | --- | --- |
 | ![mandelbrot](docs/samples/fractal-mandelbrot.png) | ![julia](docs/samples/fractal-julia.png) | ![clifford](docs/samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+
+More escape-time fractals and the root-finding ones: Burning Ship, Tricorn, Multibrot, Phoenix, Magnet, Newton, Nova:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![burning_ship](docs/samples/fractal-burning_ship.png) | ![tricorn](docs/samples/fractal-tricorn.png) | ![multibrot](docs/samples/fractal-multibrot.png) | ![phoenix](docs/samples/fractal-phoenix.png) |
+| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| ![magnet](docs/samples/fractal-magnet.png) | ![newton](docs/samples/fractal-newton.png) | ![nova](docs/samples/fractal-nova.png) | |
+| `magnet-pearls` | `newton-seven` | `nova-star` | |
 
 Orbits drawn as densities: the Buddhabrot and the De Jong, Lorenz, Gumowski-Mira and Hopalong attractors:
 

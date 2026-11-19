@@ -235,7 +235,7 @@ Newton fractal, a strange attractor. It blends with the layers around it as a fl
 | --- | --- | --- | --- |
 | `kind` | a name | required | Which fractal: one of the kinds below. `fractique fractals` lists those of the build you run. |
 | `camera` | [camera](#camera) | centered, zoom 1 | The part of the plane the image shows, as for a flame. |
-| `tone` | [tone](#tone) | see below | How the layer is lit. A kind uses the fields its way of drawing has a use for. |
+| `tone` | [tone](#tone) | see below | How the layer is lit. A kind uses the fields its way of drawing has a use for. Left out, it is the defaults of the [tone](#tone) table, not the tone the kind's presets and random scenes carry. |
 | `palette` | [palette](#palette) | required | The colors of the layer. |
 | `params` | object of numbers | empty | The parameters of the kind, by name. One that is left out has its default; an unknown name or a value outside the parameter's range is refused. |
 | `text` | object of strings | empty | The parameters of the kind that are text, by name: the axiom and the rules of an `l_system`, the sequence of a `lyapunov`. One that is left out has its default; an unknown name, a text longer than 2000 bytes or one the kind cannot read is refused. A kind without such parameters takes none. |
@@ -298,7 +298,7 @@ R = 0.02 / `fade`², which lets the colors fade to dark away from the set. `edge
 | `phoenix` | z → z² + c + p z₋₁, with z₋₁ the value one step before (0 at the start) and p = `feedback`. `form` 1 is the Julia form: z starts at the point and c = `real` + i × `imaginary`. `form` 0 is the map of the constants: c is the point and z starts at 0. The plane is turned a quarter, as the phoenix is always shown: the point x + i y stands for y − i x | `form` (0 or 1, default 1), `real` (−2 to 2, default 0.56667), `imaginary` (−2 to 2, default 0), `feedback` (−1.5 to 1.5, default −0.5) |
 | `magnet` | `type` 1: z → ((z² + c − 1) / (2z + c − 2))². `type` 2: z → ((z³ + 3(c − 1)z + (c − 1)(c − 2)) / (3z² + 3(c − 2)z + (c − 1)(c − 2) + 1))². Both from z = 0, with c the point | `type` (1 or 2, default 1) |
 
-The default tone of all of them is `brightness` 0.92, `glow_radius` 0.006 and `glow_strength` 0.12.
+The tone of their presets and random scenes is `brightness` 0.92, `glow_radius` 0.006 and `glow_strength` 0.12.
 
 Where a kind differs from the two above:
 
@@ -329,10 +329,10 @@ The steps allowed are `iterations`, times 1 + log₁₀(zoom) / 2 where the came
 never arrives stays clear, and so does one where p′ is 0.
 
 The smooth count ν of a point that arrives at step n is n − 1 plus the part of the last step it needed: with d₋₁
-the distance before the step, d the distance after it and t the distance that counts as arrived, the part is
-ln(ln t / ln d₋₁) / ln(ln d / ln d₋₁) where the distance is squared at every step (a = 1), and
-(ln t − ln d₋₁) / (ln d − ln d₋₁) where it shrinks by a factor (any other a). The light of a point is
-1 / (1 + (`shade` × ν / h)²): the more steps a point took, the darker it is.
+the distance before the step, d the distance after it and t the distance that counts as arrived, the part is ln(ln
+t / ln d₋₁) / ln(ln d / ln d₋₁) where the distance is squared at every step (`newton` with a = 1), and (ln t − ln
+d₋₁) / (ln d − ln d₋₁) where it shrinks by a factor (`newton` with any other a, and `nova` always). The light of a
+point is 1 / (1 + (`shade` × ν / h)²): the more steps a point took, the darker it is.
 
 | Parameter | Range | Default | Meaning |
 | --- | --- | --- | --- |
@@ -358,8 +358,8 @@ The polynomials of `newton`:
 | 4 | z⁵ − 3i z³ − (5 + 2i) z² + 3z + 1 | 5, with no symmetry |
 | 5 | z⁴ + 3z² − 4 | 4: ±1 and ±2i |
 
-`degree` is used by polynomial 0 only. The default tone of both kinds is `glow_radius` 0.004 and `glow_strength`
-0.06.
+`degree` is used by polynomial 0 only. The tone of the presets and random scenes of both kinds is `glow_radius`
+0.004 and `glow_strength` 0.06.
 
 ### Orbit kinds
 
@@ -434,8 +434,8 @@ Most starting points give nothing to draw, so they are not chosen blindly. The u
 into square cells, from a side of 0.25 down to 1/128 where it matters, and a cell is left out only when no point
 of it can start an orbit that is drawn:
 
-- all four corners lie in the main cardioid, or all four in the disc of period 2: both are convex above the real
-  axis, so the cell lies inside the set;
+- for the Buddhabrot, all four corners lie in the main cardioid, or all four in the disc of period 2: both are
+  convex above the real axis, so the cell lies inside the set;
 - all four corners lie outside |c| = 2;
 - for the Buddhabrot, every corner leaves at least 8 steps sooner than `shortest` and is, by the distance
   estimate, at least 1.4 sides of the cell away from the set. The potential of the set is a positive harmonic
@@ -444,18 +444,18 @@ of it can start an orbit that is drawn:
 - for the Anti-Buddhabrot, every corner leaves at least 8 steps sooner than `iterations` and is as far from the
   set.
 
-The cells that remain are visited in a fixed order that returns to each in proportion to its area (a stride of
-the golden ratio through their areas, from a starting place of the stream's own), and the point inside the cell
-is random. A point in the cardioid or the disc of period 2 is refused by their formulas, and one whose orbit
-comes back to a value it had is given up. The sampling stays even over the starting points that count, so the
-picture is the same Buddhabrot as from blind sampling. With `shortest` 10 the cells cover 39 % of the half disc,
-with `shortest` 200 or more 7 %.
+The cells that remain are visited in a fixed order that returns to each in proportion to its area (a stride of the
+golden ratio through their areas, from a starting place of the stream's own), and the point inside the cell is
+random. A point in the cardioid or the disc of period 2 is settled by their formulas (refused for the Buddhabrot,
+taken at once for the Anti-Buddhabrot), and one whose orbit comes back to a value it had is given up. The sampling
+stays even over the starting points that count, so the picture is the same Buddhabrot as from blind sampling. With
+`shortest` 10 the cells cover 39 % of the half disc, with `shortest` 200 or more 7 %.
 
 #### Tone and views
 
-The default tone of `clifford`, `de_jong`, `gumowski_mira`, `hopalong` and `lorenz` is `brightness` 1.1,
-`gamma` 2.8, `highlight` 0.2, `glow_radius` 0.006 and `glow_strength` 0.5; that of `buddhabrot` is `brightness`
-2.2, `gamma` 1.7, `highlight` 0.2, `glow_radius` 0.004 and `glow_strength` 0.3.
+The tone of the presets and random scenes of `clifford`, `de_jong`, `gumowski_mira`, `hopalong` and `lorenz` is
+`brightness` 1.1, `gamma` 2.8, `highlight` 0.2, `glow_radius` 0.006 and `glow_strength` 0.5; that of `buddhabrot`
+is `brightness` 2.2, `gamma` 1.7, `highlight` 0.2, `glow_radius` 0.004 and `glow_strength` 0.3.
 
 An orbit kind has no deep views as a flame has: a view that holds little of the picture is drawn from the few
 points that land in it. A view magnified z times gets 1 / z² of them, so at 100 samples per pixel an attractor
@@ -507,7 +507,8 @@ generation n (the number of mirrorings), a curvature k, and one of the four firs
 
 With e = (R² − d²) / 2R, which is the distance to the circle's edge near it, the light of a disc is darkened by
 √(e / r) where e is under r; a ring's light is 1 / (1 + (e / r)²) and the glow's 1 / (1 + e / 4r), and a point
-where either is under 0.004 is clear. The default tone is `glow_radius` 0.004 and `glow_strength` 0.1.
+where either is under 0.004 is clear. The tone of the presets and random scenes is `glow_radius` 0.004 and
+`glow_strength` 0.1.
 
 The gaskets whose curvatures are all whole numbers, scaled to the outer circle:
 
@@ -547,7 +548,8 @@ the curve.
 
 Both traces 2 give the Apollonian gasket; real traces above 2 give a circle. The pictures worth having lie near
 the edge of the traces whose groups are discrete; past it the search does not end and the picture is a tangle.
-The default tone is `gamma` 2.6, `highlight` 0.15, `glow_radius` 0.005, `glow_strength` 0.45 and `smoothing` 0.6.
+The tone of the presets and random scenes is `gamma` 2.6, `highlight` 0.15, `glow_radius` 0.005, `glow_strength`
+0.45 and `smoothing` 0.6.
 
 #### `l_system`
 
@@ -583,9 +585,10 @@ shows whole.
 | --- | --- | --- | --- |
 | `iterations` | 0 to 30, whole | 12 | How many times the rules are applied. |
 | `angle` | 0 to 180 | 90 | The turn of `+` and `-`, in degrees. |
-| `color_from` | 0, 1, 2 | 0 | What the place on the palette follows, from 0 to 1: 0 the way along the drawing, 1 how many `[` deep a step is, 2 the step's heading. It is multiplied by `color_density` and added to `color_shift`. |
+| `color_from` | 0, 1, 2 | 0 | What the place on the palette follows, from 0 to 1: 0 the way along the drawing, 1 how many `[` deep a step is, 2 the step's heading (which goes from 0 to 2 over a full turn). It is multiplied by `color_density` and added to `color_shift`. |
 
-The default texts are the dragon curve, `FX` with `X=X+YF+,Y=-FX-Y`. The default tone is that of `kleinian`.
+The default texts are the dragon curve, `FX` with `X=X+YF+,Y=-FX-Y`. The tone of the presets and random scenes is
+that of `kleinian`.
 
 #### `lyapunov`
 
@@ -607,7 +610,8 @@ first coordinate at an `A` and its second at a `B`. After `warmup` steps the Lya
 | `chaos` | 0 to 1 | 0.3 | The brightness of the chaotic part. |
 
 The pictures of the books lie where both coordinates are between 2 and 4, so the camera's `center` is there.
-The default `sequence` is `AB`, and the default tone is `glow_radius` 0.004 and `glow_strength` 0.1.
+The default `sequence` is `AB`, and the tone of the presets and random scenes is `glow_radius` 0.004 and
+`glow_strength` 0.1.
 
 ### Solid kinds
 
@@ -667,9 +671,9 @@ A pixel of a solid is drawn again from the grid of samples where it differs from
 | `mandelbox` | The points c whose orbit v → `scale` × ball(box(v)) + c from v = c stays bounded: box replaces each coordinate x outside ±`fold` by ±2 × `fold` − x, and ball multiplies v by 1 / `inner_radius`² where r < `inner_radius` and by 1 / r² where r < 1. The estimate is r / r′ at the end, with r′ → `scale` × (the factor of ball) × r′ + 1 from 1; the orbit ends past r = 1000. A `scale` between −1.2 and 1.2 is taken for −1.2 or 1.2: nearer to zero the solid has no end. Trap: half the least r after box | `scale` (−4 to 4, default 2), `fold` (0.5 to 2, default 1), `inner_radius` (0.05 to 1, default 0.5), `iterations` (2 to 100, whole, default 14), `distance` (0.1 to 150, default 30) |
 | `menger_sponge` | `iterations` times: the point is turned `twist` degrees about the z axis, its coordinates are made positive and sorted, x the largest, it is turned `bend` degrees about the x axis, then x → s x − (s − 1), y → s y − (s − 1), z → (s − 1) / 2 − \|s z − (s − 1) / 2\| with s the `scale`. The estimate is the distance from the result to the cube from −1 to 1, divided by s to the power `iterations`. With `scale` 3 and no `twist` or `bend` it is the Menger sponge of that level in the cube from −1 to 1, and the estimate is a true bound; other values fold it into other shapes. Trap: half the least distance of the point from the origin after a step | `iterations` (1 to 30, whole, default 5), `scale` (2 to 4, default 3), `twist` and `bend` (−45 to 45, default 0), `distance` (0.05 to 30, default 5) |
 
-The default tone of the three is `glow_radius` 0.004 and `glow_strength` 0.1. The `mandelbox` of `scale` 2 is a
-cube 12 wide and that of a negative `scale` one 4 wide, both times `fold`; the `mandelbulb` of `power` 8 is
-about 2.2 across.
+The tone of the presets and random scenes of the three is `glow_radius` 0.004 and `glow_strength` 0.1. The
+`mandelbox` of `scale` 2 is a cube 12 wide and that of a negative `scale` one 4 wide, both times `fold`; the
+`mandelbulb` of `power` 8 is about 2.2 across.
 
 ### How far a view goes
 
@@ -747,10 +751,10 @@ layers, and is named `wallpaper-SEED`.
 | Layout | What it stacks |
 | --- | --- |
 | `bands`, `discs`, `tiles`, `bars`, `fan` | Rounded boxes: wide bands, circles, a grid of quarter circles, slanted bars, an opened fan |
-| `burst` | Petals around a middle |
+| `burst` | Petals, or rounded boxes, around a middle |
 | `arcs` | Rings and arcs |
 | `waves`, `ribbons` | Waves: filled under the curve, or as ribbons |
-| `slats`, `steps`, `frames` | Boxes with square corners: slanted slats, steps, nested frames |
+| `slats`, `steps`, `frames` | Boxes, with square corners but for some `frames`: slanted slats, steps, nested frames |
 | `planes`, `lines` | Waves without swells, which are straight: large tilted planes, thin lines |
 
 | Material | What it sets |
@@ -872,6 +876,7 @@ The document is the app's session, so a file opens as it was saved:
 | `view` | `[right, down, zoom]` | Where the picture was moved to, in shorter sides of the picture from its middle, and the magnification. |
 | `picture` | `[width, height]` or `null` | The picture's size; `null` is the window's own. |
 | `layer` | integer | The chosen layer, from 0. |
+| `palette` | a name or `null` | The palette chosen in the app (`aurora`, `emerald`, `ember`, `violet`, `ice`, `sunset`, `orchid`, `gold`), or `null` for the scene's own colors. |
 | `inspector` | `true`, `false`, `null` | Whether the controls were open. |
 | `optics` | `[refraction, depth, bezel]` | The fine tuning of the glass. |
 | `wall` | object | The wallpaper choices: `on` (wallpapers or flames), `live` (a wallpaper is shown), `layout` and `material` (a name, or `null` for any), `held` (the layout and material kept by Mutate), `dark`, `hue` (degrees, or `null`). |

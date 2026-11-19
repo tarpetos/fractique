@@ -43,7 +43,7 @@ On Windows the program is `fractique.exe`.
 | `list_presets` | none | The names of the built-in scenes |
 | `get_preset` | `name` | That scene as JSON; the presets of the fractals (`mandelbrot-whole`, ...) are listed by `list_fractals` |
 | `randomize_scene` | `seed`; `fractal` | The random scene of the seed, framed: a flame, or with `fractal` a fractal of that kind |
-| `list_fractals` | none | The kinds of fractal besides flames, with their parameters, defaults, ranges and presets |
+| `list_fractals` | none | The kinds of fractal besides flames, with their parameters, defaults, ranges, texts and presets |
 | `list_wallpaper_styles` | none | The layouts and the materials a wallpaper can have |
 | `randomize_wallpaper` | `seed`; `layout`, `material`, `dark` (false), `width` (1290), `height` (2796) | The wallpaper of the seed as a scene, laid out for those proportions |
 | `mutate_scene` | `scene`, `seed`, `strength` (0 to 1, default 0.3) | A variant of the scene |
@@ -93,7 +93,7 @@ shapes out for the size it renders:
 ```
 
 A scene with `sheets` is a scene like any other, so `validate_scene` and `render_scene` take one, also one
-written by hand from `describe_scene_format`. `fit_camera` and `mutate_scene` change flames only and leave the
+written by hand from `describe_scene_format`. `fit_camera` and `mutate_scene` change the layers only and leave the
 sheets as they are.
 
 ### Files of the app
