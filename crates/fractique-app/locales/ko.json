@@ -23,6 +23,8 @@
   "bezel": "베벨",
   "export": "내보내기",
   "export_title": "이미지 내보내기",
+  "export_magnified": "이 보기는 확대한 이미지로 표시되며, 보이는 그대로 내보냅니다.",
+  "magnified": "확대한 이미지",
   "size": "크기",
   "quality": "품질",
   "size_window": "자동",

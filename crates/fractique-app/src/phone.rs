@@ -685,7 +685,7 @@ impl App {
             None => {}
         }
 
-        if self.view.zoom != 1.0 && !self.wall.live {
+        if self.view.zoom != 1.0 {
             ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::unique("phone_zoom")))
                 .text(
                     egui::pos2(content.left() + 22.0, below),

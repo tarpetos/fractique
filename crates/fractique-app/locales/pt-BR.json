@@ -23,6 +23,8 @@
   "bezel": "Chanfro",
   "export": "Exportar",
   "export_title": "Exportar imagem",
+  "export_magnified": "Esta vista é mostrada como imagem ampliada e é exportada como aparece.",
+  "magnified": "imagem ampliada",
   "size": "TAMANHO",
   "quality": "QUALIDADE",
   "size_window": "Auto",

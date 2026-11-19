@@ -73,10 +73,15 @@ impl Job {
     }
 
     pub fn save(image: Arc<Image>, path: PathBuf, ctx: egui::Context) -> Self {
+        Self::made(move || image, path, ctx)
+    }
+
+    pub fn made(make: impl FnOnce() -> Arc<Image> + Send + 'static, path: PathBuf, ctx: egui::Context) -> Self {
         let (progress, cancel) = (Arc::new(AtomicU32::new(0)), Arc::new(AtomicBool::new(false)));
         let (sender, done) = mpsc::channel();
         let shown = progress.clone();
         std::thread::spawn(move || {
+            let image = make();
             let outcome = match crate::save_png(&path, &image.rgba, [image.width as usize, image.height as usize]) {
                 Ok(()) => Outcome::Saved(path),
                 Err(error) => Outcome::Failed(error),

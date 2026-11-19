@@ -23,6 +23,8 @@
   "bezel": "Faza",
   "export": "Eksport",
   "export_title": "Eksportuj obraz",
+  "export_magnified": "Ten widok jest pokazany jako powiększony obraz i tak zostanie wyeksportowany.",
+  "magnified": "powiększony obraz",
   "size": "ROZMIAR",
   "quality": "JAKOŚĆ",
   "size_window": "Auto",

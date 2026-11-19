@@ -23,6 +23,8 @@
   "bezel": "Bezel",
   "export": "Export",
   "export_title": "Export image",
+  "export_magnified": "This view is shown as a magnified picture, and is exported as shown.",
+  "magnified": "magnified picture",
   "size": "SIZE",
   "quality": "QUALITY",
   "size_window": "Auto",
