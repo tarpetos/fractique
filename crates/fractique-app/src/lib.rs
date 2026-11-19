@@ -14,10 +14,12 @@ mod i18n;
 mod instance;
 #[cfg(target_os = "ios")]
 mod ios;
+mod motion;
 mod orbit;
 mod pace;
 mod phone;
 mod preview;
+mod probe;
 mod sheets;
 #[cfg(any(feature = "store", test))]
 mod store;
@@ -539,6 +541,8 @@ const SCENE_FILE: &str = "frcq";
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 static OPEN_FIRST: OnceLock<PathBuf> = OnceLock::new();
 
+pub use probe::started;
+
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 pub fn open_at_start(path: PathBuf) {
     let _ = OPEN_FIRST.set(path);
@@ -567,6 +571,37 @@ fn lock_screen_texts() -> (String, String) {
     }
     #[cfg(not(target_os = "ios"))]
     (String::new(), "9:41".to_owned())
+}
+
+// A sheet on its way in or out: the name its height is kept under, the point it hangs from and how far it is shown.
+struct Leaf {
+    height: &'static str,
+    at: egui::Pos2,
+    pivot: egui::Align2,
+    shown: f32,
+}
+
+// A picture on the screen: the view it was drawn for, and the size of the window it was drawn for.
+#[derive(Clone, Copy)]
+struct Picture {
+    view: View,
+    zoom: f64,
+    size: [u32; 2],
+}
+
+// How a picture drawn for a window of one size lies in a window of another, before it is drawn again: its
+// aspect over the screen's, and how many times larger it is shown. A picture of a chosen size is fitted whole;
+// one that follows the window keeps the scale the new picture will have, which goes by the shorter side.
+fn laid(drawn: [u32; 2], window: [u32; 2], fixed: bool, screen: egui::Vec2) -> (f32, f32) {
+    let [width, height] = drawn.map(|side| side.max(1) as f32);
+    if fixed || drawn == window {
+        return ((width / height) / (screen.x / screen.y).max(0.001), 1.0);
+    }
+    let [new_width, new_height] = window.map(|side| side.max(1) as f32);
+    let scale = width.min(height) / new_width.min(new_height);
+    let (across, along) = (new_width * scale / width, new_height * scale / height);
+    let stretch = along / across;
+    (stretch, if stretch > 1.0 { 1.0 / across } else { 1.0 / along })
 }
 
 const GLASS: (f32, f32) = (0.4, 0.7);
@@ -840,6 +875,19 @@ struct App {
     tuning: bool,
     inspector_open: Option<bool>,
     panes: Vec<(egui::Rect, f32, bool)>,
+    fades: Vec<f32>,
+    stage: motion::Stage,
+    cover: f32,
+    wide: Option<bool>,
+    veil: motion::Veil,
+    fresh: motion::Motion,
+    fading: bool,
+    veiled: bool,
+    past: Option<Picture>,
+    shown_size: Option<[u32; 2]>,
+    aimed_size: [u32; 2],
+    stood: motion::Rest<[u32; 2]>,
+    leaf_top: f32,
     toolbar_size: egui::Vec2,
     languages_open: bool,
     picture: Option<[u32; 2]>,
@@ -885,6 +933,7 @@ struct App {
     asking: Option<([u32; 2], bool)>,
     last: Option<(u64, Arc<Image>)>,
     last_frame: Instant,
+    trace: probe::Probe,
     #[cfg(not(target_arch = "wasm32"))]
     export: export::Sheet,
     #[cfg(feature = "store")]
@@ -1243,6 +1292,8 @@ impl App {
     fn new(cc: &eframe::CreationContext<'_>, screenshot: Option<PathBuf>) -> Self {
         #[cfg(target_os = "ios")]
         join_scene(cc);
+        let mut probe = probe::Probe::new();
+        probe.stage("app");
         let stored = |key: &str| cc.storage.and_then(|storage| storage.get_string(key));
         let lang = Lang::forced()
             .or_else(|| stored("language").map(|code| Lang::from_locale(&code)))
@@ -1250,7 +1301,9 @@ impl App {
         let texts = Texts::new(lang);
         let glass = |key: &str, default: f32| stored(key).and_then(|text| text.parse().ok()).unwrap_or(default);
         let (opacity, blur) = (glass("glass_opacity", GLASS.0), glass("glass_blur", GLASS.1));
+        probe.stage("texts");
         widgets::install_fonts(&cc.egui_ctx, texts.lang);
+        probe.stage("fonts");
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         // The window comes back where and as large as it was, on the same screen, but never in full screen.
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -1261,9 +1314,10 @@ impl App {
                 let card = state.adapter.get_info();
                 eprintln!("times: {} on {:?}", card.name, card.backend);
             }
-            let gfx = Gfx::new(&state.device, state.target_format);
+            let gfx = Gfx::new(&state.device, &state.queue, state.target_format);
             state.renderer.write().callback_resources.insert(gfx);
         }
+        probe.stage("glass");
         // The card accelerates only where it can play the chaos game; elsewhere the app is the processor's alone. A
         // browser page renders on the thread that draws, so there the card's picture would wait for it.
         // FRACTIQUE_GPU makes a test run a device that cannot (none), one whose card is slow (slow), one that is
@@ -1275,6 +1329,7 @@ impl App {
             .as_ref()
             .filter(|state| able && Chaos::able(&state.adapter, &state.device))
             .and_then(|state| Preview::new(&state.adapter, &state.device, &state.queue, &cc.egui_ctx));
+        probe.stage("preview");
         let info = cc.wgpu_render_state.as_ref().map(|state| state.adapter.get_info());
         let card = info.as_ref().map_or_else(String::new, |card| {
             let api = match card.backend {
@@ -1391,6 +1446,19 @@ impl App {
             tuning: opens("tuning"),
             inspector_open: None,
             panes: Vec::new(),
+            fades: Vec::new(),
+            stage: motion::Stage::default(),
+            cover: 0.0,
+            wide: None,
+            veil: motion::Veil::new(),
+            fresh: motion::Motion::at(1.0),
+            fading: false,
+            veiled: false,
+            past: None,
+            shown_size: None,
+            aimed_size: [0; 2],
+            stood: motion::Rest::new(),
+            leaf_top: 0.0,
             toolbar_size: egui::Vec2::ZERO,
             languages_open: opens("languages"),
             language_anchor: egui::Pos2::ZERO,
@@ -1454,6 +1522,7 @@ impl App {
             asking: None,
             last: None,
             last_frame: Instant::now(),
+            trace: probe,
             #[cfg(not(target_arch = "wasm32"))]
             export: export::Sheet {
                 open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.starts_with("export")),
@@ -1470,6 +1539,7 @@ impl App {
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             arrivals: instance::watch(&cc.egui_ctx),
         };
+        app.trace.stage("made");
         if let Some(session) = session {
             let _ = app.restore(&session);
         }
@@ -1490,6 +1560,7 @@ impl App {
         {
             app.adjust = adjust;
         }
+        app.trace.stage("ready");
         app
     }
 
@@ -1608,6 +1679,7 @@ impl App {
         match rest.picture {
             Some((mut picture, size)) if Some(size) == self.requested => {
                 picture.generation = self.generation;
+                self.aimed_size = size;
                 self.drawn = Some((rest.view, self.adjust.zoom));
                 self.aimed = (picture.view, picture.zoom);
                 self.magnified = picture.view != rest.view;
@@ -1680,7 +1752,12 @@ impl App {
         let (Some(gfx), Some((picture, soft))) = (renderer.callback_resources.get_mut::<Gfx>(), preview.views()) else {
             return false;
         };
-        gfx.show(&state.device, picture, soft);
+        let turn = !self.previewing && !self.chaotic && !self.fresh.moving(self.stage.now);
+        gfx.show(&state.device, picture, soft, turn);
+        drop(renderer);
+        if turn {
+            self.turn_picture();
+        }
         self.previewing = true;
         true
     }
@@ -1779,6 +1856,8 @@ impl App {
         self.aimed = (self.view, self.adjust.zoom);
         self.rendering = true;
         self.asked = Instant::now();
+        self.aimed_size = size;
+        self.trace.renders += 1;
 
         let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
         let mut passes = vec![(true, fitted(size, DRAFT_SIDE, DRAFT_SAMPLES)), (false, full)];
@@ -1897,6 +1976,24 @@ impl App {
         work();
     }
 
+    // Another picture takes the screen: the one shown fades into it, unless it is itself still fading in, when
+    // the new one takes its place in that fade.
+    fn turn_picture(&mut self) -> bool {
+        let now = self.stage.now;
+        if self.fresh.moving(now) {
+            return false;
+        }
+        self.past = Some(Picture {
+            view: self.shown,
+            zoom: self.shown_zoom,
+            size: self.shown_size.unwrap_or(self.aimed_size),
+        });
+        self.fresh = motion::Motion::at(0.0);
+        self.fresh.aim(1.0, now, motion::span(motion::PANEL), 1.0);
+        self.fading = true;
+        true
+    }
+
     fn receive(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
         if (self.previewing || self.chaotic) && !self.gpu_on() {
             self.previewing = false;
@@ -1947,6 +2044,7 @@ impl App {
                         .as_ref()
                         .is_some_and(|preview| preview.take(&held.sources, ctx))
             });
+            let fresh = self.turn_picture();
             self.shown_zoom = done.zoom;
             if let Some(state) = frame.wgpu_render_state()
                 && let Some(gfx) = state.renderer.write().callback_resources.get_mut::<Gfx>()
@@ -1958,8 +2056,11 @@ impl App {
                     &state.queue,
                     (&image.rgba, image.width, image.height),
                     soft,
+                    fresh,
                 );
             }
+            self.shown_size = Some(self.aimed_size);
+            self.trace.stage(if done.draft { "draft" } else { "picture" });
             self.shown = done.view;
             self.light = lightness(&done.image.rgba, 97);
             self.last = (!done.draft).then(|| (done.generation, Arc::new(done.image.clone())));
@@ -2028,6 +2129,7 @@ impl App {
         } else if self.wall.live && self.chaotic {
             self.chaos_at = (self.view, self.adjust.zoom);
             (self.shown, self.shown_zoom) = self.chaos_at;
+            self.shown_size = Some(self.aimed_size);
         }
         self.swift = scene.layers.iter().all(field::drawn);
         true
@@ -2348,7 +2450,9 @@ impl App {
         let (Some(gfx), Some((picture, soft))) = (renderer.callback_resources.get_mut::<Gfx>(), preview.views()) else {
             return;
         };
-        gfx.show(&state.device, picture, soft);
+        let turn = !self.chaotic && !self.fresh.moving(self.stage.now);
+        gfx.show(&state.device, picture, soft, turn);
+        self.trace.stage("card");
         let (measured, wake) = (self.measured.clone(), ctx.clone());
         let read = preview.read(true, ctx, move |pixels| {
             if let Some((rgba, _)) = pixels {
@@ -2362,7 +2466,11 @@ impl App {
         self.chaotic = true;
         self.previewing = false;
         self.look = look;
+        if turn {
+            self.turn_picture();
+        }
         (self.shown, self.shown_zoom) = self.chaos_at;
+        self.shown_size = Some(self.aimed_size);
         (self.latest, self.last) = (None, None);
     }
 
@@ -2983,20 +3091,121 @@ impl App {
         self.phone.tune = false;
     }
 
-    fn reset_button(&mut self, ctx: &egui::Context, at: egui::Pos2) -> egui::Rect {
+    fn sheet(id: &'static str, at: egui::Pos2, pivot: egui::Align2, live: bool) -> egui::Area {
+        egui::Area::new(egui::Id::unique(id))
+            .fixed_pos(at)
+            .pivot(pivot)
+            .order(egui::Order::Foreground)
+            .interactable(live)
+            .fade_in(false)
+    }
+
+    // A sheet's texts fade with it, and what a sheet that grows has not reached yet stays unseen.
+    fn unfold(&mut self, ui: &mut egui::Ui, leaf: &Leaf) {
+        ui.set_opacity(leaf.shown);
+        self.leaf_top = ui.max_rect().top();
+        if let Some(tall) = self.stage.peek(leaf.height) {
+            let mut clip = ui.clip_rect();
+            clip.max.y = clip.max.y.min(self.leaf_top + tall);
+            ui.set_clip_rect(clip);
+        }
+    }
+
+    // A sheet whose content changes height grows or shrinks to it around the point it hangs from; egui would
+    // jump there, a frame late.
+    fn leaf(
+        &mut self,
+        ctx: &egui::Context,
+        panes: &mut phone::Panes,
+        response: &egui::Response,
+        leaf: &Leaf,
+        radius: f32,
+        dark: bool,
+    ) {
+        let span = if leaf.shown == 0.0 { 0.0 } else { motion::SMALL };
+        let tall = self.stage.glide(leaf.height, response.rect.height(), span);
+        let top = leaf.at.y - leaf.pivot.y().to_factor() * tall + (1.0 - leaf.shown) * motion::SHIFT;
+        let by = egui::vec2(0.0, top - self.leaf_top);
+        ctx.set_transform_layer(response.layer_id, egui::emath::TSTransform::from_translation(by));
+        let from = panes.len();
+        let rect = egui::Rect::from_min_size(
+            egui::pos2(response.rect.left(), top),
+            egui::vec2(response.rect.width(), tall),
+        );
+        panes.push((rect, radius, dark));
+        self.faded(panes, from, leaf.shown);
+    }
+
+    // A pane that comes and goes: its texts and its glass rise and fade as one.
+    fn pane(
+        &mut self,
+        ctx: &egui::Context,
+        panes: &mut phone::Panes,
+        response: &egui::Response,
+        radius: f32,
+        dark: bool,
+        shown: f32,
+    ) {
+        let by = egui::vec2(0.0, (1.0 - shown) * motion::SHIFT);
+        ctx.set_transform_layer(response.layer_id, egui::emath::TSTransform::from_translation(by));
+        let from = panes.len();
+        panes.push((response.rect.translate(by), radius, dark));
+        self.faded(panes, from, shown);
+    }
+
+    pub(crate) fn faded(&mut self, panes: &phone::Panes, from: usize, shown: f32) {
+        self.fades.resize(from, 1.0);
+        self.fades.resize(panes.len(), shown);
+    }
+
+    fn glaze(&mut self, glass: &mut glass::Frame<'_>, panes: phone::Panes) {
+        self.fades.resize(panes.len(), 1.0);
+        for ((rect, radius, dark), opacity) in panes.iter().zip(&self.fades) {
+            let mut optics = Optics {
+                radius: *radius,
+                ..self.optics
+            };
+            if *dark {
+                optics.tint = optics.tint.max(0.82);
+                optics.blur = 1.0;
+            }
+            if self.phone.clear.contains(rect) {
+                optics.tint = if self.light > phone::LIGHT {
+                    0.6
+                } else {
+                    optics.tint * 0.25
+                };
+                optics.blur *= 0.5;
+            } else if self.light > 0.3 {
+                // The texts are white: over a light picture the glass has to be dark enough to read them.
+                optics.tint = optics.tint.max((0.3 + 0.75 * self.light).min(0.92));
+            }
+            glass.pane(*rect, optics, *opacity);
+        }
+        self.panes = panes;
+    }
+
+    pub(crate) fn reset_button(&mut self, ctx: &egui::Context, at: egui::Pos2, shown: f32, live: bool) -> egui::Rect {
         let area = egui::Area::new(egui::Id::unique("reset_view"))
             .fixed_pos(at)
             .pivot(egui::Align2::CENTER_BOTTOM)
+            .interactable(live)
+            .fade_in(false)
             .show(ctx, |ui| {
+                ui.set_opacity(shown);
                 let ink = egui::Color32::WHITE;
                 let galley = ui
                     .painter()
                     .layout_no_wrap(self.t("reset_view"), font(14.0, MEDIUM), ink);
                 let (rect, response) =
                     ui.allocate_exact_size(egui::vec2(galley.size().x + 40.0, 42.0), egui::Sense::click());
-                if response.hovered() {
-                    ui.painter()
-                        .rect_filled(rect, egui::CornerRadius::same(21), egui::Color32::from_white_alpha(22));
+                let fill = (22.0 * widgets::lit(ui, &response)) as u8;
+                if fill > 0 {
+                    ui.painter().rect_filled(
+                        rect,
+                        egui::CornerRadius::same(21),
+                        egui::Color32::from_white_alpha(fill),
+                    );
                 }
                 ui.painter().galley(
                     egui::pos2(rect.left() + 20.0, rect.center().y - galley.size().y * 0.5),
@@ -3277,7 +3486,7 @@ impl App {
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-    fn title_bar(&mut self, ctx: &egui::Context, screen: egui::Rect) -> egui::Rect {
+    fn title_bar(&mut self, ctx: &egui::Context, screen: egui::Rect, shown: f32) -> egui::Rect {
         let bar = egui::Rect::from_min_max(
             screen.min + egui::vec2(BAR_GAP, BAR_GAP),
             egui::pos2(screen.right() - BAR_GAP, screen.top() + BAR_GAP + BAR),
@@ -3285,7 +3494,9 @@ impl App {
         let is_full = ctx.input(|input| input.viewport().fullscreen.unwrap_or(false));
         egui::Area::new(egui::Id::unique("title bar"))
             .fixed_pos(bar.min)
+            .fade_in(false)
             .show(ctx, |ui| {
+                ui.set_opacity(shown);
                 let (rect, grip) = ui.allocate_exact_size(bar.size(), egui::Sense::click_and_drag());
                 if grip.double_clicked() {
                     self.toggle_maximized(ctx);
@@ -3312,7 +3523,7 @@ impl App {
                     egui::vec2(galley.size().x + 22.0, 26.0),
                 );
                 let version = ui.interact(chip, egui::Id::unique("title bar version"), egui::Sense::click());
-                let lift = if version.hovered() { 22 } else { 0 };
+                let lift = (22.0 * widgets::lit(ui, &version)) as u8;
                 let fill = if newer.is_some() { 225 } else { 30 + lift };
                 painter.rect_filled(
                     chip,
@@ -3335,11 +3546,12 @@ impl App {
                 );
                 for button in ["close", "maximize", "minimize", "full", "hide"] {
                     let pressed = ui.interact(slot, egui::Id::unique(("title bar", button)), egui::Sense::click());
-                    let fill = match (pressed.hovered(), button) {
-                        (true, "close") => egui::Color32::from_rgb(214, 58, 44),
-                        (true, _) => egui::Color32::from_white_alpha(56),
-                        _ => egui::Color32::from_white_alpha(30),
+                    let lit = if button == "close" {
+                        egui::Color32::from_rgb(214, 58, 44)
+                    } else {
+                        egui::Color32::from_white_alpha(56)
                     };
+                    let fill = egui::Color32::from_white_alpha(30).lerp_to_gamma(lit, widgets::lit(ui, &pressed));
                     painter.circle_filled(slot.center(), 15.0, fill);
                     let (c, r) = (slot.center(), 4.5);
                     let line = |from: egui::Vec2, to: egui::Vec2| {
@@ -3387,11 +3599,8 @@ impl App {
                     egui::pos2(slot.right(), rect.center().y + 15.0),
                 );
                 let language = ui.interact(chip, egui::Id::unique("title bar language"), egui::Sense::click());
-                let lift = if language.hovered() || self.languages_open {
-                    26
-                } else {
-                    0
-                };
+                let lit = language.hovered() || self.languages_open;
+                let lift = (26.0 * widgets::glided(ui, language.id.with("lit"), lit)) as u8;
                 painter.rect_filled(
                     chip,
                     egui::CornerRadius::same(15),
@@ -3831,10 +4040,11 @@ impl App {
         }
     }
 
-    fn toolbar(&mut self, ui: &mut egui::Ui, wide: bool, room: f32) {
-        let gap = if wide { 8.0 } else { 6.0 };
+    // `wide`: 0 in a narrow window, 1 in a wide one; the buttons grow from one to the other.
+    fn toolbar(&mut self, ui: &mut egui::Ui, wide: f32, room: f32) {
+        let gap = egui::lerp(6.0..=8.0, wide);
         ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
-        ui.spacing_mut().button_padding.x = if wide { 18.0 } else { 12.0 };
+        ui.spacing_mut().button_padding.x = egui::lerp(12.0..=18.0, wide);
         let keys: &[&str] = if cfg!(target_arch = "wasm32") {
             &["randomize", "mutate", "controls"]
         } else {
@@ -4412,7 +4622,11 @@ impl App {
 
     fn take_screenshot(&mut self, ctx: &egui::Context) {
         if self.screenshot_done.load(Ordering::Relaxed) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            if self.trace.pending() {
+                ctx.request_repaint();
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
             return;
         }
         #[cfg(not(target_arch = "wasm32"))]
@@ -4422,6 +4636,13 @@ impl App {
         }
         if self.verdict == Verdict::Unknown {
             ctx.request_repaint();
+            return;
+        }
+        if self.trace.recording() {
+            ctx.request_repaint();
+            if let Some(step) = self.trace.next(&mut self.steps) {
+                self.step(ctx, &step);
+            }
             return;
         }
         // FRACTIQUE_THEN: the next view is shown when the picture of this one is whole, or the processor is long
@@ -4452,32 +4673,10 @@ impl App {
         if self.shown_frames == 5
             && let Some(step) = self.steps.pop()
         {
-            let numbers: Vec<f32> = step.split(':').skip(1).filter_map(|part| part.parse().ok()).collect();
-            if let Some(code) = step.strip_prefix("lang:") {
-                self.set_language(ctx, Lang::from_locale(code));
-                self.shown_frames = 1;
-                ctx.request_repaint();
-                return;
-            }
-            if step.starts_with("tap:") || step == "wait" {
-                if let [across, down] = numbers[..] {
-                    let screen = ctx.content_rect();
-                    self.tap = Some((screen.min + screen.size() * egui::vec2(across, down), 0));
-                }
-                self.shown_frames = 1;
-                ctx.request_repaint();
-                return;
-            }
-            match step.as_str() {
-                "back" | "forward" => self.travel(step == "back"),
-                key => self.act(key),
-            }
-            self.asked = Instant::now();
-            self.shown_frames = 0;
-            ctx.request_repaint();
+            self.step(ctx, &step);
             return;
         }
-        if self.phone.busy() {
+        if self.phone.busy() || self.stage.moving() || self.fresh.moving(self.stage.now) || self.veiled {
             ctx.request_repaint();
             return;
         }
@@ -4508,6 +4707,57 @@ impl App {
     }
 }
 
+impl App {
+    fn step(&mut self, ctx: &egui::Context, step: &str) {
+        ctx.request_repaint();
+        let numbers: Vec<f32> = step.split(':').skip(1).filter_map(|part| part.parse().ok()).collect();
+        if self.trace.begin(step) {
+            self.shown_frames = 1;
+            return;
+        }
+        if step.starts_with("size:")
+            && let [width, height] = numbers[..]
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(width, height)));
+            self.shown_frames = 1;
+            return;
+        }
+        if step.starts_with("zoom:")
+            && let [by] = numbers[..]
+        {
+            let most = self.deepest();
+            self.view.magnified(f64::from(by), [0.0; 2], most);
+            self.touched = Instant::now();
+            self.asked = Instant::now();
+            self.shown_frames = 0;
+            return;
+        }
+        if step.starts_with("tap:") || step == "wait" {
+            if let [across, down] = numbers[..] {
+                let screen = ctx.content_rect();
+                self.tap = Some((screen.min + screen.size() * egui::vec2(across, down), 0));
+            }
+            self.shown_frames = 1;
+            return;
+        }
+        if let Some(code) = step.strip_prefix("lang:") {
+            self.set_language(ctx, Lang::from_locale(code));
+            self.shown_frames = 1;
+            return;
+        }
+        match step {
+            "back" | "forward" => self.travel(step == "back"),
+            key => self.act(key),
+        }
+        if matches!(step, "export" | "controls") {
+            self.shown_frames = 1;
+            return;
+        }
+        self.asked = Instant::now();
+        self.shown_frames = 0;
+    }
+}
+
 fn tick(strong: bool) {
     #[cfg(target_os = "ios")]
     ios::tick(strong);
@@ -4535,6 +4785,10 @@ fn save_png(path: &std::path::Path, rgba: &[u8], size: [usize; 2]) -> Result<(),
 
 impl eframe::App for App {
     fn raw_input_hook(&mut self, _ctx: &egui::Context, input: &mut egui::RawInput) {
+        if self.trace.fixed_clock {
+            input.time = Some(self.trace.frame as f64 / 60.0);
+            input.predicted_dt = 1.0 / 60.0;
+        }
         let Some((pos, phase)) = self.tap else {
             return;
         };
@@ -4554,7 +4808,61 @@ impl eframe::App for App {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        self.trace.stage("frame");
+        let began = Instant::now();
+        self.trace.slept = 0.0;
+        self.draw(ui, frame);
+        if self.trace.on() || self.trace.recording() {
+            let work = began.elapsed().as_secs_f32() * 1000.0 - self.trace.slept;
+            self.trace
+                .frame(ui.ctx(), work, [&self.panes, &self.panes], &self.fades);
+        }
+    }
+
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        storage.set_string("language", self.texts.lang.code().to_owned());
+        storage.set_string("glass_opacity", self.optics.tint.to_string());
+        storage.set_string("glass_blur", self.optics.blur.to_string());
+        if std::env::var_os("FRACTIQUE_GPU").is_none() {
+            storage.set_string("gpu", if self.gpu { "on" } else { "off" }.to_owned());
+            let verdict = match self.verdict {
+                Verdict::Fast(Some(rate)) => Some(format!("fast|{rate}")),
+                Verdict::Slow if !self.card_key.is_empty() && self.measured_slow => Some(SLOW.to_owned()),
+                _ => None,
+            };
+            if let Some(verdict) = verdict {
+                storage.set_string("card", format!("{}|{verdict}", self.card_key));
+            }
+        }
+        let picture = self
+            .picture
+            .map_or("auto".to_owned(), |[width, height]| format!("{width}x{height}"));
+        storage.set_string("picture", picture);
+        storage.set_string("session", self.session());
+        storage.set_string("kept", self.phone.kept_text());
+        storage.set_string("recent", self.phone.recent_text());
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        if let Some(path) = std::env::var_os("FRACTIQUE_DOCUMENT") {
+            let _ = std::fs::write(path, self.document());
+        }
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn on_exit(&mut self) {
+        self.updates.on_exit();
+    }
+
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        [0.012, 0.014, 0.045, 1.0]
+    }
+}
+
+impl App {
+    fn draw(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        let now = ctx.input(|input| input.time);
+        self.stage.begin(now);
+        self.fades.clear();
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         self.arrive(&ctx);
         // Every mouse move asks for a redraw; at a 240 Hz screen's pace that makes a graphics card whine.
@@ -4564,6 +4872,7 @@ impl eframe::App for App {
             let since = self.last_frame.elapsed();
             if since < pace {
                 std::thread::sleep(pace - since);
+                self.trace.slept = (pace - since).as_secs_f32() * 1000.0;
             }
             self.last_frame = Instant::now();
         }
@@ -4628,7 +4937,13 @@ impl eframe::App for App {
                 .and_then(|state| Chaos::new(&state.adapter, &state.device, &state.queue, &ctx));
             self.compiling = self.chaos.as_ref().is_some_and(Chaos::pending);
         }
-        if window[0] > 0 && window[1] > 0 {
+        // A window whose edge is dragged keeps its picture, laid out for the new size, until the size has stood.
+        let wait = self.stood.wait(window, now, motion::span(SETTLE));
+        let resizing = wait > 0.0 && self.requested.is_some();
+        if resizing {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f32(wait));
+        }
+        if window[0] > 0 && window[1] > 0 && !resizing {
             if self.requested != Some(size) {
                 if self.card_shows(size) {
                     self.requested = Some(size);
@@ -4649,7 +4964,23 @@ impl eframe::App for App {
             }
         }
         self.chaos_frame(&ctx, frame);
-        let stretch = (size[0] as f32 / size[1] as f32) / (screen.width() / screen.height()).max(0.001);
+        let (veil, wake) = self.veil.step(self.rendering || resizing, now);
+        if let Some(wake) = wake {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f32(wake));
+        }
+        let fresh = self.fresh.value(now);
+        if self.fresh.moving(now) {
+            ctx.request_repaint();
+        } else if std::mem::take(&mut self.fading)
+            && let Some(state) = frame.wgpu_render_state()
+            && let Some(gfx) = state.renderer.write().callback_resources.get_mut::<Gfx>()
+        {
+            gfx.forget_past(&state.device);
+        }
+        self.veiled = veil > 0.0;
+        if self.trace.on() {
+            self.trace.note = format!("veil {veil:.3} fresh {fresh:.3}");
+        }
 
         let painter = ctx.layer_painter(egui::LayerId::background()).with_clip_rect(screen);
         if std::env::var_os("FRACTIQUE_DEBUG_LAYOUT").is_some() {
@@ -4673,38 +5004,33 @@ impl eframe::App for App {
                 self.shown_frames = 2;
             }
         }
-        let mut glass = glass::Frame::new(&painter, screen, {
-            let [across, along, larger] = if self.adjust.zoom == self.shown_zoom || !self.gpu_on() {
-                self.view.within(&self.shown, size)
+        let fixed = self.picture.is_some();
+        let lay = |shown: &Picture| {
+            let [across, along, larger] = if self.adjust.zoom == shown.zoom || !self.gpu_on() {
+                self.view.within(&shown.view, shown.size)
             } else {
                 self.view
                     .scaled(self.adjust.zoom)
-                    .within(&self.shown.scaled(self.shown_zoom), size)
+                    .within(&shown.view.scaled(shown.zoom), shown.size)
             };
-            [across, along, larger, stretch]
-        });
-        for (rect, radius, dark) in &self.panes {
-            let mut optics = Optics {
-                radius: *radius,
-                ..self.optics
-            };
-            if *dark {
-                optics.tint = optics.tint.max(0.82);
-                optics.blur = 1.0;
-            }
-            if self.phone.clear.contains(rect) {
-                optics.tint = if self.light > phone::LIGHT {
-                    0.6
-                } else {
-                    optics.tint * 0.25
-                };
-                optics.blur *= 0.5;
-            } else if self.light > 0.3 {
-                // The texts are white: over a light picture the glass has to be dark enough to read them.
-                optics.tint = optics.tint.max((0.3 + 0.75 * self.light).min(0.92));
-            }
-            glass.pane(*rect, optics);
-        }
+            let (stretch, closer) = laid(shown.size, size, fixed, screen.size());
+            [across, along, larger * closer, stretch]
+        };
+        let shown = Picture {
+            view: self.shown,
+            zoom: self.shown_zoom,
+            size: self.shown_size.unwrap_or(size),
+        };
+        let mut glass = glass::Frame::new(
+            &painter,
+            screen,
+            glass::Shown {
+                view: lay(&shown),
+                past: lay(&self.past.unwrap_or(shown)),
+                fresh,
+                veil: veil * self.trace.veil.unwrap_or(motion::VEIL),
+            },
+        );
 
         if self.bare || self.phone.preview {
             let mut panes = Vec::new();
@@ -4713,21 +5039,24 @@ impl eframe::App for App {
                     panes.push((rect, rect.height() * 0.5, false));
                 }
             }
-            if self.view != WHOLE && !self.phone.preview {
-                let rect = self.reset_button(&ctx, egui::pos2(content.center().x, content.bottom() - 20.0));
+            let reset = self.view != WHOLE && !self.phone.preview;
+            if let Some(shown) = self.stage.shown("reset", reset, motion::SMALL) {
+                let from = panes.len();
+                let at = egui::pos2(content.center().x, content.bottom() - 20.0);
+                let rect = self.reset_button(&ctx, at, shown, reset);
                 panes.push((rect, rect.height() * 0.5, false));
+                self.faded(&panes, from, shown);
             }
-            if panes != self.panes {
-                self.panes = panes;
-                ctx.request_repaint();
-            }
+            self.glaze(&mut glass, panes);
+            self.stage.keep_moving(&ctx);
             if self.screenshot.is_some() {
                 self.take_screenshot(&ctx);
             }
             return;
         }
 
-        let wide = content.width() >= 700.0;
+        let wide = motion::latch(self.wide, content.width(), 700.0, motion::BAND);
+        self.wide = Some(wide);
         let open = *self.inspector_open.get_or_insert(wide);
         // A sheet's glass is drawn under every text, so a panel it would cover hides while the sheet is open.
         #[cfg(not(target_arch = "wasm32"))]
@@ -4742,63 +5071,34 @@ impl eframe::App for App {
         #[cfg(not(target_arch = "wasm32"))]
         let open = open && !self.export.open && !self.pro_open();
         let open = open && !(sheet && content.width() < 1320.0);
+        let covered = sheet || self.languages_open;
+        // What a sheet covered comes back once the sheet has mostly gone: the two are never both whole.
+        let cover = self.cover;
+        let back = |stage: &motion::Stage, key: &'static str, wanted: bool| {
+            wanted && (cover < 0.5 || stage.aim_of(key) == Some(1.0))
+        };
+        let open = back(&self.stage, "inspector", open);
         let column = (content.width() - 84.0).min(248.0);
         let beside = content.left() + 20.0 + column + 44.0 + 16.0;
-        let fits = wide && open && content.center().x - self.toolbar_size.x * 0.5 >= beside;
-        let lifted = if self.view != WHOLE { 56.0 } else { 0.0 };
-        let under = if wide && (fits || !open) {
-            0.0
-        } else {
-            self.toolbar_size.y.max(60.0) + 12.0 + lifted
-        };
         let mut panes = Vec::new();
         if self.phone.on {
-            let covered = sheet || self.languages_open;
             self.phone_home(&ctx, content, size, &mut panes, covered);
         } else {
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-            panes.push((self.title_bar(&ctx, screen), BAR * 0.5, false));
-            if open {
-                let corner = content.min + egui::vec2(20.0, 20.0);
-                let inspector = egui::Area::new(egui::Id::unique("inspector"))
-                    .fixed_pos(corner)
-                    .show(&ctx, |ui| {
-                        let pad = widgets::PAD as i8;
-                        let margin = egui::Margin {
-                            left: pad,
-                            right: pad - 14,
-                            top: pad,
-                            bottom: pad,
-                        };
-                        egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
-                            let room = content.height() - 40.0 - 44.0 - under;
-                            let mut bar = egui::style::ScrollStyle::floating();
-                            bar.bar_width = 5.0;
-                            bar.floating_allocated_width = 0.0;
-                            ui.spacing_mut().scroll = bar;
-                            scrolled(egui::ScrollArea::vertical())
-                                .max_height(room)
-                                .min_scrolled_height(room)
-                                .show(ui, |ui| {
-                                    let gutter = egui::Margin {
-                                        right: 14,
-                                        ..Default::default()
-                                    };
-                                    egui::Frame::NONE
-                                        .inner_margin(gutter)
-                                        .show(ui, |ui| self.inspector(ui, column));
-                                });
-                        });
-                    });
-                panes.push((inspector.response.rect, self.optics.radius, false));
+            if let Some(shown) = self.stage.shown("title", true, motion::PANEL) {
+                panes.push((self.title_bar(&ctx, screen, shown), BAR * 0.5, false));
+                self.faded(&panes, 0, shown);
             }
 
-            let covered = sheet || self.languages_open;
-            if !covered {
+            let bar_on = back(&self.stage, "toolbar", !covered);
+            if let Some(shown) = self.stage.shown("toolbar", bar_on, motion::GIVE) {
                 let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
                     .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
                     .pivot(egui::Align2::CENTER_BOTTOM)
+                    .interactable(bar_on)
+                    .fade_in(false)
                     .show(&ctx, |ui| {
+                        ui.set_opacity(shown);
                         egui::Frame::NONE.inner_margin(egui::Margin::same(9)).show(ui, |ui| {
                             let detail = self.detail();
                             let name = ui.painter().layout_no_wrap(
@@ -4826,121 +5126,220 @@ impl eframe::App for App {
                                 egui::Color32::WHITE,
                             );
                             ui.add_space(5.0);
-                            self.toolbar(ui, wide, content.width() - 58.0);
+                            let tight = egui::remap_clamp(content.width(), 676.0..=724.0, 0.0..=1.0);
+                            self.toolbar(ui, tight, content.width() - 58.0);
                         });
                     });
                 self.toolbar_size = toolbar.response.rect.size();
+                let from = panes.len();
                 panes.push((
                     toolbar.response.rect,
                     (toolbar.response.rect.height() * 0.5).min(28.0),
                     false,
                 ));
+                self.faded(&panes, from, shown);
             }
 
-            if self.view != WHOLE && !covered {
+            // The panel grows shorter as the buttons come to stand under it, over the last points before they do.
+            let apart = content.center().x - self.toolbar_size.x * 0.5 - beside;
+            let clear = if wide {
+                (apart / motion::RAMP).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let lifted = if self.view != WHOLE { 56.0 } else { 0.0 };
+            let lifted = self.stage.glide("lifted", lifted, motion::SMALL);
+            let under = (1.0 - clear) * (self.toolbar_size.y.max(60.0) + 12.0 + lifted);
+            let span = if covered { motion::GIVE } else { motion::PANEL };
+            if let Some(shown) = self.stage.shown("inspector", open, span) {
+                let corner = content.min + egui::vec2(20.0, 20.0);
+                let inspector = egui::Area::new(egui::Id::unique("inspector"))
+                    .fixed_pos(corner)
+                    .interactable(open)
+                    .fade_in(false)
+                    .show(&ctx, |ui| {
+                        ui.set_opacity(shown);
+                        let pad = widgets::PAD as i8;
+                        let margin = egui::Margin {
+                            left: pad,
+                            right: pad - 14,
+                            top: pad,
+                            bottom: pad,
+                        };
+                        egui::Frame::NONE.inner_margin(margin).show(ui, |ui| {
+                            let room = content.height() - 40.0 - 44.0 - under;
+                            let mut bar = egui::style::ScrollStyle::floating();
+                            bar.bar_width = 5.0;
+                            bar.floating_allocated_width = 0.0;
+                            ui.spacing_mut().scroll = bar;
+                            scrolled(egui::ScrollArea::vertical())
+                                .max_height(room)
+                                .min_scrolled_height(room)
+                                .show(ui, |ui| {
+                                    let gutter = egui::Margin {
+                                        right: 14,
+                                        ..Default::default()
+                                    };
+                                    egui::Frame::NONE
+                                        .inner_margin(gutter)
+                                        .show(ui, |ui| self.inspector(ui, column));
+                                });
+                        });
+                    });
+                self.pane(&ctx, &mut panes, &inspector.response, self.optics.radius, false, shown);
+            }
+
+            let reset = back(&self.stage, "reset", self.view != WHOLE && !covered);
+            if let Some(shown) = self.stage.shown("reset", reset, motion::SMALL) {
                 let above = content.bottom() - 20.0 - self.toolbar_size.y - 10.0;
-                let rect = self.reset_button(&ctx, egui::pos2(content.center().x, above));
+                let from = panes.len();
+                let rect = self.reset_button(&ctx, egui::pos2(content.center().x, above), shown, reset);
                 panes.push((rect, rect.height() * 0.5, false));
+                self.faded(&panes, from, shown);
             }
         }
 
+        let mut cover: f32 = 0.0;
         #[cfg(not(target_arch = "wasm32"))]
-        if self.export.open {
-            let sheet = egui::Area::new(egui::Id::unique("export"))
-                .fixed_pos(content.center())
-                .pivot(egui::Align2::CENTER_CENTER)
-                .order(egui::Order::Foreground)
-                .show(&ctx, |ui| {
-                    widgets::pane().show(ui, |ui| {
-                        let low = content.width() > content.height() && content.height() < 560.0;
-                        let width = sheet_width(content.width(), if low { 604.0 } else { 300.0 }, self.phone.on);
-                        self.export_sheet(ui, window, content.height(), (width, low));
-                        if widgets::close(ui, &self.t("close")) {
-                            self.export.open = false;
-                        }
-                    });
+        if let Some(shown) = self.stage.shown("export", self.export.open, motion::PANEL) {
+            cover = cover.max(shown);
+            let leaf = Leaf {
+                height: "export_tall",
+                at: content.center(),
+                pivot: egui::Align2::CENTER_CENTER,
+                shown,
+            };
+            let sheet = Self::sheet(
+                "export",
+                content.center(),
+                egui::Align2::CENTER_CENTER,
+                self.export.open,
+            )
+            .show(&ctx, |ui| {
+                self.unfold(ui, &leaf);
+                widgets::pane().show(ui, |ui| {
+                    let low = content.width() > content.height() && content.height() < 560.0;
+                    let width = sheet_width(content.width(), if low { 604.0 } else { 300.0 }, self.phone.on);
+                    self.export_sheet(ui, window, content.height(), (width, low));
+                    if widgets::close(ui, &self.t("close")) {
+                        self.export.open = false;
+                    }
                 });
-            panes.push((sheet.response.rect, self.optics.radius, true));
+            });
+            self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
         }
 
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        if self.updates.open {
+        if let Some(shown) = self.stage.shown("updates", self.updates.open, motion::PANEL) {
+            cover = cover.max(shown);
             let width = (content.width() - 84.0).min(600.0);
-            let sheet = egui::Area::new(egui::Id::unique("updates"))
-                .fixed_pos(content.center())
-                .pivot(egui::Align2::CENTER_CENTER)
-                .order(egui::Order::Foreground)
-                .show(&ctx, |ui| {
-                    widgets::pane().show(ui, |ui| {
-                        self.updates.ui(ui, &self.texts, width);
-                        if widgets::close(ui, &self.t("close")) {
-                            self.updates.open = false;
-                        }
-                    });
+            let leaf = Leaf {
+                height: "updates_tall",
+                at: content.center(),
+                pivot: egui::Align2::CENTER_CENTER,
+                shown,
+            };
+            let sheet = Self::sheet(
+                "updates",
+                content.center(),
+                egui::Align2::CENTER_CENTER,
+                self.updates.open,
+            )
+            .show(&ctx, |ui| {
+                self.unfold(ui, &leaf);
+                widgets::pane().show(ui, |ui| {
+                    self.updates.ui(ui, &self.texts, width);
+                    if widgets::close(ui, &self.t("close")) {
+                        self.updates.open = false;
+                    }
                 });
-            panes.push((sheet.response.rect, self.optics.radius, true));
+            });
+            self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
         }
 
         #[cfg(feature = "store")]
-        if self.pro.is_some() {
+        if let Some(shown) = self.stage.shown("pro", self.pro.is_some(), motion::PANEL) {
+            cover = cover.max(shown);
             let width = sheet_width(content.width(), 300.0, self.phone.on).min(content.width() - 84.0);
-            let sheet = egui::Area::new(egui::Id::unique("pro"))
-                .fixed_pos(content.center())
-                .pivot(egui::Align2::CENTER_CENTER)
-                .order(egui::Order::Foreground)
-                .show(&ctx, |ui| {
+            let leaf = Leaf {
+                height: "pro_tall",
+                at: content.center(),
+                pivot: egui::Align2::CENTER_CENTER,
+                shown,
+            };
+            let sheet = Self::sheet("pro", content.center(), egui::Align2::CENTER_CENTER, self.pro.is_some()).show(
+                &ctx,
+                |ui| {
+                    self.unfold(ui, &leaf);
                     widgets::pane().show(ui, |ui| {
                         self.pro_sheet(ui, width);
                         if widgets::close(ui, &self.t("close")) {
                             self.leave_pro();
                         }
                     });
-                });
-            panes.push((sheet.response.rect, self.optics.radius, true));
+                },
+            );
+            self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
         }
 
-        if self.presets_open {
+        if let Some(shown) = self.stage.shown("presets", self.presets_open, motion::PANEL) {
+            cover = cover.max(shown);
+            let live = self.presets_open;
             let (at, pivot, room) = list_place(content, self.phone.on);
+            if live {
+                self.list_backdrop(&ctx, screen);
+            }
             let natural = if self.listing == Listing::Recent { 380.0 } else { 260.0 };
             let width = sheet_width(content.width(), natural, self.phone.on);
-            self.list_backdrop(&ctx, screen);
-            let sheet = egui::Area::new(egui::Id::unique("presets"))
-                .fixed_pos(at)
-                .pivot(pivot)
-                .order(egui::Order::Foreground)
-                .show(&ctx, |ui| {
-                    widgets::pane().show(ui, |ui| {
-                        self.preset_sheet(ui, room, width);
-                        if widgets::close(ui, &self.t("close")) {
-                            self.presets_open = false;
-                        }
-                    });
+            let leaf = Leaf {
+                height: "presets_tall",
+                at,
+                pivot,
+                shown,
+            };
+            let sheet = Self::sheet("presets", at, pivot, live).show(&ctx, |ui| {
+                self.unfold(ui, &leaf);
+                widgets::pane().show(ui, |ui| {
+                    self.preset_sheet(ui, room, width);
+                    if widgets::close(ui, &self.t("close")) {
+                        self.presets_open = false;
+                    }
                 });
+            });
             ctx.move_to_top(sheet.response.layer_id);
-            panes.push((sheet.response.rect, self.optics.radius, true));
+            self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
         }
 
-        if self.sizes_open {
+        if let Some(shown) = self.stage.shown("sizes", self.sizes_open, motion::PANEL) {
+            cover = cover.max(shown);
+            let live = self.sizes_open;
             let (at, pivot, room) = list_place(content, self.phone.on);
-            self.list_backdrop(&ctx, screen);
-            let sheet = egui::Area::new(egui::Id::unique("sizes"))
-                .fixed_pos(at)
-                .pivot(pivot)
-                .order(egui::Order::Foreground)
-                .show(&ctx, |ui| {
-                    widgets::pane().show(ui, |ui| {
-                        let width = sheet_width(content.width(), 300.0, self.phone.on);
-                        self.size_sheet(ui, window, room, width);
-                        if widgets::close(ui, &self.t("close")) {
-                            self.sizes_open = false;
-                        }
-                    });
+            if live {
+                self.list_backdrop(&ctx, screen);
+            }
+            let leaf = Leaf {
+                height: "sizes_tall",
+                at,
+                pivot,
+                shown,
+            };
+            let sheet = Self::sheet("sizes", at, pivot, live).show(&ctx, |ui| {
+                self.unfold(ui, &leaf);
+                widgets::pane().show(ui, |ui| {
+                    let width = sheet_width(content.width(), 300.0, self.phone.on);
+                    self.size_sheet(ui, window, room, width);
+                    if widgets::close(ui, &self.t("close")) {
+                        self.sizes_open = false;
+                    }
                 });
+            });
             ctx.move_to_top(sheet.response.layer_id);
-            panes.push((sheet.response.rect, self.optics.radius, true));
+            self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
         }
 
-        if self.languages_open {
+        if let Some(shown) = self.stage.shown("languages", self.languages_open, motion::PANEL) {
+            cover = cover.max(shown);
+            let live = self.languages_open;
             let (at, pivot, room) =
                 if self.phone.on || cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
                     list_place(content, self.phone.on)
@@ -4949,45 +5348,50 @@ impl eframe::App for App {
                     (at, egui::Align2::RIGHT_TOP, content.height())
                 };
             let mut chosen = self.texts.lang;
-            let width = sheet_width(content.width(), 196.0, self.phone.on);
-            self.list_backdrop(&ctx, screen);
-            let menu = egui::Area::new(egui::Id::unique("languages"))
-                .fixed_pos(at)
-                .pivot(pivot)
-                .order(egui::Order::Foreground)
-                .show(&ctx, |ui| {
-                    widgets::pane().show(ui, |ui| {
-                        ui.set_width(width);
-                        ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-                        widgets::heading(ui, &self.t("language"));
-                        let mut bar = egui::style::ScrollStyle::floating();
-                        bar.bar_width = 5.0;
-                        ui.spacing_mut().scroll = bar;
-                        let tall = list_height(Lang::ALL.len(), room);
-                        egui::ScrollArea::vertical()
-                            .max_height(tall)
-                            .min_scrolled_height(tall)
-                            .show(ui, |ui| {
-                                for lang in Lang::ALL {
-                                    if widgets::row(ui, lang.name(), lang == chosen) {
-                                        chosen = lang;
-                                        self.languages_open = false;
-                                    }
+            if live {
+                self.list_backdrop(&ctx, screen);
+            }
+            let leaf = Leaf {
+                height: "languages_tall",
+                at,
+                pivot,
+                shown,
+            };
+            let menu = Self::sheet("languages", at, pivot, live).show(&ctx, |ui| {
+                self.unfold(ui, &leaf);
+                widgets::pane().show(ui, |ui| {
+                    ui.set_width(sheet_width(content.width(), 196.0, self.phone.on));
+                    ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+                    widgets::heading(ui, &self.t("language"));
+                    let mut bar = egui::style::ScrollStyle::floating();
+                    bar.bar_width = 5.0;
+                    ui.spacing_mut().scroll = bar;
+                    let tall = list_height(Lang::ALL.len(), room);
+                    egui::ScrollArea::vertical()
+                        .max_height(tall)
+                        .min_scrolled_height(tall)
+                        .show(ui, |ui| {
+                            for lang in Lang::ALL {
+                                if widgets::row(ui, lang.name(), lang == chosen) {
+                                    chosen = lang;
+                                    self.languages_open = false;
                                 }
-                            });
-                        if widgets::close(ui, &self.t("close")) {
-                            self.languages_open = false;
-                        }
-                    });
+                            }
+                        });
+                    if widgets::close(ui, &self.t("close")) {
+                        self.languages_open = false;
+                    }
                 });
+            });
             ctx.move_to_top(menu.response.layer_id);
             if chosen != self.texts.lang {
                 self.set_language(&ctx, chosen);
             }
-            panes.push((menu.response.rect, self.optics.radius, true));
+            self.leaf(&ctx, &mut panes, &menu.response, &leaf, self.optics.radius, true);
         }
+        self.cover = cover;
 
-        if self.tuning {
+        if let Some(shown) = self.stage.shown("tuning", self.tuning, motion::PANEL) {
             // In a narrow window the toolbar reaches under this panel's place: the panel stands above it.
             let wide = 220.0 + 2.0 * widgets::PAD;
             let reach = content.center().x + self.toolbar_size.x * 0.5 + 12.0;
@@ -4996,10 +5400,14 @@ impl eframe::App for App {
             } else {
                 0.0
             };
+            let lift = self.stage.glide("tuning_lift", lift, motion::SMALL);
             let tuning = egui::Area::new(egui::Id::unique("tuning"))
                 .fixed_pos(egui::pos2(content.right() - 20.0, content.bottom() - 20.0 - lift))
                 .pivot(egui::Align2::RIGHT_BOTTOM)
+                .interactable(self.tuning)
+                .fade_in(false)
                 .show(&ctx, |ui| {
+                    ui.set_opacity(shown);
                     widgets::pane().show(ui, |ui| {
                         self.tuning(ui);
                         if widgets::close(ui, &self.t("close")) {
@@ -5007,14 +5415,11 @@ impl eframe::App for App {
                         }
                     });
                 });
-            panes.push((tuning.response.rect, self.optics.radius, false));
+            self.pane(&ctx, &mut panes, &tuning.response, self.optics.radius, false, shown);
         }
 
-        // The panes are drawn under the widgets, so they use the places measured one frame earlier.
-        if panes != self.panes {
-            self.panes = panes;
-            ctx.request_repaint();
-        }
+        self.glaze(&mut glass, panes);
+        self.stage.keep_moving(&ctx);
         if self.screenshot.is_some() {
             self.take_screenshot(&ctx);
         }
@@ -5042,43 +5447,6 @@ impl eframe::App for App {
             eframe::App::save(self, storage);
             storage.flush();
         }
-    }
-
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        storage.set_string("language", self.texts.lang.code().to_owned());
-        storage.set_string("glass_opacity", self.optics.tint.to_string());
-        storage.set_string("glass_blur", self.optics.blur.to_string());
-        if std::env::var_os("FRACTIQUE_GPU").is_none() {
-            storage.set_string("gpu", if self.gpu { "on" } else { "off" }.to_owned());
-            let verdict = match self.verdict {
-                Verdict::Fast(Some(rate)) => Some(format!("fast|{rate}")),
-                Verdict::Slow if !self.card_key.is_empty() && self.measured_slow => Some(SLOW.to_owned()),
-                _ => None,
-            };
-            if let Some(verdict) = verdict {
-                storage.set_string("card", format!("{}|{verdict}", self.card_key));
-            }
-        }
-        let picture = self
-            .picture
-            .map_or("auto".to_owned(), |[width, height]| format!("{width}x{height}"));
-        storage.set_string("picture", picture);
-        storage.set_string("session", self.session());
-        storage.set_string("kept", self.phone.kept_text());
-        storage.set_string("recent", self.phone.recent_text());
-        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        if let Some(path) = std::env::var_os("FRACTIQUE_DOCUMENT") {
-            let _ = std::fs::write(path, self.document());
-        }
-    }
-
-    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-    fn on_exit(&mut self) {
-        self.updates.on_exit();
-    }
-
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        [0.012, 0.014, 0.045, 1.0]
     }
 }
 
@@ -5313,6 +5681,28 @@ fn generator_of(session: &serde_json::Value) -> Generator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_picture_keeps_its_scale_while_the_window_changes_size() {
+        let screen = |[width, height]: [u32; 2]| egui::vec2(width as f32, height as f32);
+        let same = [1280, 800];
+        assert_eq!(laid(same, same, false, screen(same)), (1.0, 1.0));
+        // Narrower with the same shorter side: the picture is cut at its sides, not squeezed.
+        let narrow = [1000, 800];
+        let (stretch, closer) = laid(same, narrow, false, screen(narrow));
+        assert!((stretch - 1.28).abs() < 1e-4 && (closer - 1.28).abs() < 1e-4);
+        // Wider: as large as it was, with room beside it.
+        let wide = [1600, 800];
+        let (stretch, closer) = laid(same, wide, false, screen(wide));
+        assert!((stretch - 0.8).abs() < 1e-4 && (closer - 1.0).abs() < 1e-4);
+        // A shorter side half as long shows the picture half as large.
+        let low = [1280, 400];
+        let (stretch, closer) = laid(same, low, false, screen(low));
+        assert!((stretch - 0.5).abs() < 1e-4 && (closer - 1.0).abs() < 1e-4);
+        // A picture of a chosen size is fitted whole into any window.
+        let (stretch, closer) = laid([1920, 1080], narrow, true, screen(narrow));
+        assert!((stretch - (16.0 / 9.0) / 1.25).abs() < 1e-4 && closer == 1.0);
+    }
 
     #[test]
     fn a_long_list_on_a_phone_leaves_the_same_edge_above_and_below() {

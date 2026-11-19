@@ -8,7 +8,7 @@ use fractique_core::{Control, RenderOptions, Scene, fractal, palette, presets, r
 use serde_json::{Value, json};
 
 use crate::widgets::{self, MEDIUM, SEMIBOLD, font};
-use crate::{App, WHOLE, named, shown};
+use crate::{App, WHOLE, motion, named, shown};
 
 pub const SWIPE: f32 = 56.0;
 const TILE_RATIO: f32 = 1.6;
@@ -168,6 +168,7 @@ pub struct Phone {
     drawn: (mpsc::Sender<Thumb>, mpsc::Receiver<Thumb>),
     pub pressing: bool,
     pub share_from: Rect,
+    pub shown: f32,
 }
 
 type Thumb = (String, [usize; 2], Vec<u8>);
@@ -218,6 +219,7 @@ impl Phone {
             drawn: mpsc::channel(),
             pressing: false,
             share_from: Rect::ZERO,
+            shown: 1.0,
         }
     }
 }
@@ -589,7 +591,7 @@ fn gradient_disc(painter: &egui::Painter, at: Pos2, reach: f32, shade: impl Fn(f
     painter.add(egui::Shape::mesh(mesh));
 }
 
-type Panes = Vec<(Rect, f32, bool)>;
+pub(crate) type Panes = Vec<(Rect, f32, bool)>;
 
 pub(crate) const LIGHT: f32 = 0.55;
 
@@ -851,17 +853,35 @@ impl App {
         covered: bool,
     ) {
         // A list's glass is drawn under every text: what it would cover hides while the list is open.
-        if covered {
-            return;
+        let cover = self.cover;
+        let back = |stage: &motion::Stage, key: &'static str, wanted: bool| {
+            wanted && (cover < 0.5 || stage.aim_of(key) == Some(1.0))
+        };
+        let tune = back(&self.stage, "phone_tune", self.phone.tune && !covered);
+        if let Some(shown) = self.stage.shown("phone_tune", tune, motion::PANEL) {
+            self.phone_tune(ctx, content, panes, shown, tune);
         }
-        if self.phone.tune {
-            self.phone_tune(ctx, content, panes);
-            return;
+        let sheet = back(
+            &self.stage,
+            "phone_sheet",
+            self.phone.sheet && !self.phone.tune && !covered,
+        );
+        if let Some(shown) = self.stage.shown("phone_sheet", sheet, motion::PANEL) {
+            self.phone_sheet(ctx, content, size, panes, shown, sheet);
         }
-        if self.phone.sheet {
-            self.phone_sheet(ctx, content, size, panes);
+        let over = ["phone_sheet", "phone_tune"]
+            .into_iter()
+            .filter_map(|key| self.stage.peek(key))
+            .fold(cover, f32::max);
+        let live = !covered
+            && !self.phone.tune
+            && !self.phone.sheet
+            && (over < 0.5 || self.stage.aim_of("phone_home") == Some(1.0));
+        let Some(shown) = self.stage.shown("phone_home", live, motion::GIVE) else {
             return;
-        }
+        };
+        self.phone.shown = shown;
+        let first_pane = panes.len();
         let ink = self.ink();
 
         self.phone.clear.clear();
@@ -878,7 +898,10 @@ impl App {
         let pill = egui::Area::new(egui::Id::unique("phone_mode"))
             .fixed_pos(egui::pos2(content.center().x, content.top() + lift))
             .pivot(Align2::CENTER_TOP)
+            .interactable(live)
+            .fade_in(false)
             .show(ctx, |ui| {
+                ui.set_opacity(shown);
                 egui::Frame::NONE.inner_margin(egui::Margin::same(4)).show(ui, |ui| {
                     ui.spacing_mut().item_spacing = vec2(2.0, 0.0);
                     ui.horizontal(|ui| {
@@ -909,7 +932,10 @@ impl App {
         let strip = egui::Area::new(egui::Id::unique("phone_colors"))
             .fixed_pos(egui::pos2(content.center().x, pill.response.rect.bottom() + space))
             .pivot(Align2::CENTER_TOP)
+            .interactable(live)
+            .fade_in(false)
             .show(ctx, |ui| {
+                ui.set_opacity(shown);
                 egui::Frame::NONE
                     .inner_margin(egui::Margin::symmetric(8, 3))
                     .show(ui, |ui| self.colors(ui, 20.0));
@@ -950,7 +976,10 @@ impl App {
             let button = egui::Area::new(id)
                 .fixed_pos(at)
                 .pivot(Align2::CENTER_CENTER)
+                .interactable(live)
+                .fade_in(false)
                 .show(ctx, |ui| {
+                    ui.set_opacity(shown);
                     let (rect, response) = ui.allocate_exact_size(vec2(side, side), Sense::click());
                     if matches!(which, Icon::New) {
                         let held = response.is_pointer_button_down_on();
@@ -1022,23 +1051,28 @@ impl App {
                     Align2::LEFT_TOP,
                     format!("{}×", self.view.label()),
                     font(30.0, SEMIBOLD),
-                    on_picture,
+                    on_picture.gamma_multiply(shown),
                 );
         }
 
         self.placard(ctx, content, [right, foot], size, on_picture);
 
-        if self.view != WHOLE {
-            let rect = self.reset_button(ctx, egui::pos2(content.center().x, below + 44.0));
+        self.faded(panes, first_pane, shown);
+        let reset = live && self.view != WHOLE;
+        if let Some(shown) = self.stage.shown("reset", reset, motion::SMALL) {
+            let from = panes.len();
+            let rect = self.reset_button(ctx, egui::pos2(content.center().x, below + 44.0), shown, reset);
             panes.push((rect, rect.height() * 0.5, false));
+            self.faded(panes, from, shown);
         }
     }
 
     fn placard(&self, ctx: &egui::Context, content: Rect, [right, foot]: [f32; 2], size: [u32; 2], ink: Color32) {
-        let painter = ctx.layer_painter(egui::LayerId::new(
+        let mut painter = ctx.layer_painter(egui::LayerId::new(
             egui::Order::Middle,
             egui::Id::unique("phone_placard"),
         ));
+        painter.set_opacity(self.phone.shown);
         let soft = ink.gamma_multiply(0.72);
         let mut tag = String::new();
         let (first, second) = if self.wall.live {
@@ -1087,14 +1121,17 @@ impl App {
         line(first, font(34.0, SEMIBOLD), ink, 4.0);
     }
 
-    fn phone_tune(&mut self, ctx: &egui::Context, content: Rect, panes: &mut Panes) {
+    fn phone_tune(&mut self, ctx: &egui::Context, content: Rect, panes: &mut Panes, shown: f32, live: bool) {
         let panel = content.shrink(widgets::OUTER);
         // On its side a phone is wide and low: the controls go in two columns.
         let lying = content.width() > content.height();
         let mut done = false;
-        egui::Area::new(egui::Id::unique("phone_tune"))
+        let area = egui::Area::new(egui::Id::unique("phone_tune"))
             .fixed_pos(panel.min)
+            .interactable(live)
+            .fade_in(false)
             .show(ctx, |ui| {
+                ui.set_opacity(shown);
                 let pad = widgets::PAD as i8;
                 let margin = egui::Margin {
                     left: pad,
@@ -1141,7 +1178,11 @@ impl App {
                         });
                 });
             });
-        panes.push((panel, self.optics.radius, false));
+        let by = vec2(0.0, (1.0 - shown) * motion::SHIFT);
+        ctx.set_transform_layer(area.response.layer_id, egui::emath::TSTransform::from_translation(by));
+        let from = panes.len();
+        panes.push((panel.translate(by), self.optics.radius, false));
+        self.faded(panes, from, shown);
         if done {
             self.phone.tune = false;
         }
@@ -1220,15 +1261,15 @@ impl App {
         let (rect, response) = ui.allocate_exact_size(vec2(side[0], side[1] + 20.0), Sense::click());
         let frame = Rect::from_min_size(rect.min, vec2(side[0], side[1]));
         let round = CornerRadius::same(10);
-        match picture {
-            Some(id) => {
-                egui::Image::from_texture(egui::load::SizedTexture::new(id, frame.size()))
-                    .corner_radius(round)
-                    .paint_at(ui, frame);
-            }
-            None => {
-                ui.painter().rect_filled(frame, round, Color32::from_white_alpha(18));
-            }
+        let arrived = widgets::glided(ui, response.id.with("picture"), picture.is_some());
+        if arrived < 1.0 {
+            ui.painter().rect_filled(frame, round, Color32::from_white_alpha(18));
+        }
+        if let Some(id) = picture {
+            egui::Image::from_texture(egui::load::SizedTexture::new(id, frame.size()))
+                .corner_radius(round)
+                .tint(Color32::WHITE.gamma_multiply(arrived))
+                .paint_at(ui, frame);
         }
         let edge = if chosen {
             Stroke::new(2.0, Color32::WHITE)
@@ -1255,18 +1296,34 @@ impl App {
         response.clicked()
     }
 
-    fn phone_sheet(&mut self, ctx: &egui::Context, content: Rect, size: [u32; 2], panes: &mut Panes) {
+    fn phone_sheet(
+        &mut self,
+        ctx: &egui::Context,
+        content: Rect,
+        size: [u32; 2],
+        panes: &mut Panes,
+        shown: f32,
+        live: bool,
+    ) {
         let high = content.height();
         let top = content.top() + (high * self.phone.lift + self.phone.pull).clamp(high * SHEET_TALL, high * 0.92);
+        // Let go, the sheet glides to where it stays; under a finger and as it opens it is where it is put.
+        let held = self.phone.pull != 0.0 || shown == 0.0;
+        let top = self
+            .stage
+            .glide("phone_sheet_top", top, if held { 0.0 } else { motion::PANEL });
         let edge = widgets::OUTER;
         let rect = Rect::from_min_max(egui::pos2(content.left() + edge, top), content.max - vec2(edge, edge));
         let scale = ctx.pixels_per_point();
         let mut close = false;
         let mut tune = false;
-        egui::Area::new(egui::Id::unique("phone_sheet"))
+        let area = egui::Area::new(egui::Id::unique("phone_sheet"))
             .fixed_pos(rect.min)
             .order(egui::Order::Foreground)
+            .interactable(live)
+            .fade_in(false)
             .show(ctx, |ui| {
+                ui.set_opacity(shown);
                 ui.set_min_size(rect.size());
                 ui.set_max_size(rect.size());
                 egui::Frame::NONE
@@ -1334,7 +1391,11 @@ impl App {
                             });
                     });
             });
-        panes.push((rect, 28.0, true));
+        let by = vec2(0.0, (1.0 - shown) * motion::SHIFT);
+        ctx.set_transform_layer(area.response.layer_id, egui::emath::TSTransform::from_translation(by));
+        let from = panes.len();
+        panes.push((rect.translate(by), 28.0, true));
+        self.faded(panes, from, shown);
         if tune {
             self.phone.sheet = false;
             self.phone.tune = true;

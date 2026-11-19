@@ -6,6 +6,8 @@ fn main() -> eframe::Result {
     use eframe::egui;
     use std::path::PathBuf;
 
+    fractique_app::started();
+
     let mut args = std::env::args().skip(1);
     let mut screenshot = None;
     let mut size = [1280.0, 800.0];

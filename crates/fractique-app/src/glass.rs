@@ -11,6 +11,8 @@ pub struct Uniforms {
     pub shape: [f32; 4],
     pub optics: [f32; 4],
     pub view: [f32; 4],
+    pub past: [f32; 4],
+    pub blend: [f32; 4],
 }
 
 struct Slot {
@@ -24,6 +26,52 @@ pub struct Gfx {
     glass: wgpu::RenderPipeline,
     sampler: wgpu::Sampler,
     slots: Vec<Slot>,
+    now: (wgpu::TextureView, wgpu::TextureView),
+    past: Option<(wgpu::TextureView, wgpu::TextureView)>,
+}
+
+// The picture and how it is laid over the window: the picture before it while one fades into the other, and the
+// blur over both while a new one is drawn.
+#[derive(Clone, Copy)]
+pub struct Shown {
+    pub view: [f32; 4],
+    pub past: [f32; 4],
+    pub fresh: f32,
+    pub veil: f32,
+}
+
+fn one_pixel(device: &wgpu::Device, queue: &wgpu::Queue, rgba: [u8; 4]) -> wgpu::TextureView {
+    let size = wgpu::Extent3d {
+        width: 1,
+        height: 1,
+        depth_or_array_layers: 1,
+    };
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("fractique no picture"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &rgba,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(4),
+            rows_per_image: Some(1),
+        },
+        size,
+    );
+    texture.create_view(&wgpu::TextureViewDescriptor::default())
 }
 
 fn pipeline(
@@ -61,7 +109,7 @@ fn pipeline(
 }
 
 impl Gfx {
-    pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let texture = |binding| wgpu::BindGroupLayoutEntry {
             binding,
             visibility: wgpu::ShaderStages::FRAGMENT,
@@ -87,6 +135,8 @@ impl Gfx {
                 },
                 texture(1),
                 texture(2),
+                texture(4),
+                texture(5),
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::FRAGMENT,
@@ -121,13 +171,19 @@ impl Gfx {
                 bind_group: None,
             })
             .collect();
-        Self {
+        // The colour around a picture, as `AROUND` of the shader and the window's clear colour.
+        let dark = one_pixel(device, queue, [3, 4, 11, 255]);
+        let mut gfx = Self {
             background: pipeline(device, &pipeline_layout, &module, "fs_background", format),
             glass: pipeline(device, &pipeline_layout, &module, "fs_glass", format),
             layout,
             sampler,
             slots,
-        }
+            now: (dark.clone(), dark),
+            past: None,
+        };
+        gfx.bind(device);
+        gfx
     }
 
     pub fn set_images(
@@ -136,6 +192,7 @@ impl Gfx {
         queue: &wgpu::Queue,
         flame: (&[u8], u32, u32),
         soft: (&[u8], u32, u32),
+        fresh: bool,
     ) {
         let upload = |(bytes, width, height): (&[u8], u32, u32)| {
             let size = wgpu::Extent3d {
@@ -172,10 +229,29 @@ impl Gfx {
             texture.create_view(&wgpu::TextureViewDescriptor::default())
         };
         let (flame, soft) = (upload(flame), upload(soft));
-        self.show(device, &flame, &soft);
+        self.show(device, &flame, &soft, fresh);
     }
 
-    pub fn show(&mut self, device: &wgpu::Device, flame: &wgpu::TextureView, soft: &wgpu::TextureView) {
+    // `fresh`: another picture than the one shown, which stays as the one it fades from.
+    pub fn show(&mut self, device: &wgpu::Device, flame: &wgpu::TextureView, soft: &wgpu::TextureView, fresh: bool) {
+        let next = (flame.clone(), soft.clone());
+        if fresh {
+            self.past = Some(std::mem::replace(&mut self.now, next));
+        } else {
+            self.now = next;
+        }
+        self.bind(device);
+    }
+
+    pub fn forget_past(&mut self, device: &wgpu::Device) {
+        if self.past.take().is_some() {
+            self.bind(device);
+        }
+    }
+
+    fn bind(&mut self, device: &wgpu::Device) {
+        let (flame, soft) = &self.now;
+        let (past_flame, past_soft) = self.past.as_ref().unwrap_or(&self.now);
         for slot in &mut self.slots {
             slot.bind_group = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("fractique glass"),
@@ -197,6 +273,14 @@ impl Gfx {
                         binding: 3,
                         resource: wgpu::BindingResource::Sampler(&self.sampler),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: wgpu::BindingResource::TextureView(past_flame),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: wgpu::BindingResource::TextureView(past_soft),
+                    },
                 ],
             }));
         }
@@ -216,13 +300,17 @@ pub struct Optics {
 #[derive(Clone, Copy)]
 enum Kind {
     Background,
-    Pane { rect: egui::Rect, optics: Optics },
+    Pane {
+        rect: egui::Rect,
+        optics: Optics,
+        opacity: f32,
+    },
 }
 
 struct Draw {
     slot: usize,
     kind: Kind,
-    view: [f32; 4],
+    shown: Shown,
 }
 
 const SHADOW_REACH: f32 = 28.0;
@@ -250,9 +338,12 @@ impl egui_wgpu::CallbackTrait for Draw {
             rect: [0.0; 4],
             shape: [0.0; 4],
             optics: [0.0; 4],
-            view: self.view,
+            view: self.shown.view,
+            past: self.shown.past,
+            blend: [self.shown.fresh, self.shown.veil, 1.0, 0.0],
         };
-        if let Kind::Pane { rect, optics } = self.kind {
+        if let Kind::Pane { rect, optics, opacity } = self.kind {
+            uniforms.blend[2] = opacity;
             uniforms.rect = [
                 rect.min.x * scale,
                 rect.min.y * scale,
@@ -287,34 +378,47 @@ impl egui_wgpu::CallbackTrait for Draw {
 
 pub struct Frame<'a> {
     painter: &'a egui::Painter,
+    places: Vec<egui::layers::ShapeIdx>,
     next: usize,
-    view: [f32; 4],
+    shown: Shown,
 }
 
 impl<'a> Frame<'a> {
-    pub fn new(painter: &'a egui::Painter, screen: egui::Rect, view: [f32; 4]) -> Self {
+    // The panes are drawn under the widgets but placed after them, where the widgets were laid out: their places
+    // in the list of shapes are kept free until then.
+    pub fn new(painter: &'a egui::Painter, screen: egui::Rect, shown: Shown) -> Self {
         painter.add(egui_wgpu::Callback::new_paint_callback(
             screen,
             Draw {
                 slot: 0,
                 kind: Kind::Background,
-                view,
+                shown,
             },
         ));
-        Self { painter, next: 1, view }
+        let places = (1..SLOTS).map(|_| painter.add(egui::Shape::Noop)).collect();
+        Self {
+            painter,
+            places,
+            next: 0,
+            shown,
+        }
     }
 
-    pub fn pane(&mut self, rect: egui::Rect, optics: Optics) {
-        if self.next >= SLOTS {
+    pub fn pane(&mut self, rect: egui::Rect, optics: Optics, opacity: f32) {
+        let Some(place) = self.places.get(self.next) else {
+            return;
+        };
+        if opacity <= 0.0 {
             return;
         }
         let area = rect.expand(SHADOW_REACH);
         let draw = Draw {
-            slot: self.next,
-            kind: Kind::Pane { rect, optics },
-            view: self.view,
+            slot: self.next + 1,
+            kind: Kind::Pane { rect, optics, opacity },
+            shown: self.shown,
         };
-        self.painter.add(egui_wgpu::Callback::new_paint_callback(area, draw));
+        self.painter
+            .set(*place, egui_wgpu::Callback::new_paint_callback(area, draw));
         self.next += 1;
     }
 }

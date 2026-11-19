@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+* **Everything opens, closes and resizes smoothly:** every sheet, list and panel (the presets, **Recent**, the
+  types, the sizes, the languages, the export, the updates, Fractique Pro, the inspector, the glass panel of
+  **F2**, a phone's styles and controls) fades and rises in over 0.18 s and leaves the same way, glass and texts
+  together; closed midway it turns back from where it is. Before, each appeared at once, and its glass one frame
+  after its texts: for that frame the panes of what it replaced stood empty on the screen, and in a window that
+  was resized the glass trailed its panel by a frame at every step. What a sheet covers gives way in 0.08 s and
+  comes back when the sheet has mostly gone; a click acts at once, also while something moves. A sheet whose
+  content changes height (the updates when the list of releases arrives) grows to it instead of jumping. The
+  panel no longer loses 100 points of height at one width as the toolbar comes under it: it makes room over the
+  last 48 points, and the toolbar's buttons change their padding between 676 and 724 points of width instead of
+  at 700. On a phone the buttons no longer start a frame at the wrong place. A window that is resized keeps its
+  picture, at the scale the new one will have, and draws anew once its size has stood for 0.18 s; before, every
+  step of the drag started a render (161 for 161 steps) and a frame of the drag took 25 ms where the graphics
+  card draws, now 9 ms. A new picture fades in over the one before it, the first over the dark window, and the
+  window's panes fade in with it. While a picture is drawn for longer than 0.14 s, the one on the screen is
+  blurred (to 70 % of the blurred copy the panes already use, at no cost of its own) and the blur leaves as the
+  new picture arrives; shorter work never blurs, and a view that is only magnified has none. Controls light up
+  under the pointer over 0.12 s, a switch slides, the mark of a chosen segment glides and a small picture fades
+  in when it is drawn. Where Windows is set to show no animations, nothing is animated. Test runs:
+  `FRACTIQUE_TRACE`, `FRACTIQUE_FRAMES`, `FRACTIQUE_FIRST`, `FRACTIQUE_CLOCK`, `FRACTIQUE_VEIL`,
+  `FRACTIQUE_MOTION` and the steps `frames`, `sweep`, `size`, `zoom`, `skip`, `rest`
+  ([architecture.md](docs/architecture.md#motion)).
+
 * **One set of measures for every pane, lists in the middle of a phone's screen:** every sheet, list and panel
   now has the same padding on all four sides, 22 points, and the close button fills the corner of it: 22 points
   from the top and from the right edge, on the title's line. Before, the list of languages had 10, the glass

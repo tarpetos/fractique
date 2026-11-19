@@ -325,6 +325,8 @@ always is.
 | `orbit.rs`, `orbit.wgsl` | The orbit kinds the graphics card draws: what the shader reads of each, and their walkers, which plot into the same histogram |
 | `field.rs`, `field.wgsl`, `field_escape.wgsl`, `field_root.wgsl` | The escape-time and root-finding kinds the graphics card draws pixel by pixel |
 | `widgets.rs` | The controls: rows, pills, sliders, switches; the fonts; the measures of a pane |
+| `motion.rs` | [Motion](#motion): the times and the easing of every transition, what is on the screen and how far, the blur over a picture that is being drawn |
+| `probe.rs` | A test run's record: a line a frame, and consecutive frames as pictures |
 | `i18n.rs`, `locales/` | The texts, in 15 languages: one file a language, and in `locales/fractals/` one file a family of fractals with the names of its kinds, parameters, choices and presets in every language, and `flame.json` with the names of the flame presets |
 | `android.rs`, `ios.rs` | The gallery, Photos and sharing |
 | `store.rs`, `storekit.rs` | The App Store builds only (the `store` feature): which sizes need the purchase, its states, StoreKit ([The purchase](#the-purchase-in-the-app-store-builds)) |
@@ -336,7 +338,7 @@ How the picture reaches the screen:
 
 | Step | What happens |
 | --- | --- |
-| A change | The scene, the size or the view changes. The render in progress is cancelled and a new one starts. A moved or zoomed view waits until it has rested for 0.18 s; until then the picture already on the screen is moved and scaled by the graphics card |
+| A change | The scene, the size or the view changes. The render in progress is cancelled and a new one starts. A moved or zoomed view, and a window whose size changes, wait until they have rested for 0.18 s; until then the picture already on the screen is moved and scaled by the graphics card |
 | A view that would take too long | `pace.rs`. A view is rendered when its picture is expected within 10 s (`LONGEST`); otherwise no render starts and the picture the app has is shown magnified and moved, as during a drag: the one on the screen while it covers the view, the whole view's (rendered again from the kept layers, or by the card) once it does not. The status line says so. The graphics card is taken to be fast for every view it draws (`Chaos::draws` asks without sending anything). For the processor the time is the work of the picture, the samples of its flames and attractors and the steps of its fractals drawn pixel by pixel, over the most work a second a render of that kind has shown in this session, kept apart for whole and for deep views; the trial's rate stands in for flames until one is measured. A view magnified 2.83 times or more counts as deep (an eighth of the scene, from where `deep.rs` of the core takes over), and a deep view of a flame is taken to cost ten times a whole one until one has been rendered. A render whose progress after a second says it will pass 10 s is stopped and its view magnified too. The whole view is always rendered. A wallpaper has no view of its own: it is only ever magnified. An export of a magnified view saves what the screen shows, resampled to the export's size |
 | Passes | A draft first (480 pixels on its longer side, 12 samples per pixel), then the full picture. A view magnified more than 4 times gets a pass in between (1280 pixels, 16 samples). The picture is shown after each. Where the graphics card plays [the chaos game](#the-chaos-game-on-the-graphics-card) of the scene, none of these passes runs |
 | The full picture | At the chosen size, up to 4096 pixels a side with 32 samples per pixel on a computer, 1600 and 18 on a phone, 900 and 14 in a browser |
@@ -383,6 +385,46 @@ of the top padding, and the gap under a title depends on what follows it (a capt
 Glass shows what lies under it, so two panes never overlap: a list or a sheet hides the panel it would cover, and
 a pane that would reach another one in a small window moves (the glass panel of **F2** stands above the toolbar
 there). A test run writes the rectangles of its panes beside its screenshot (`.panes`), for a script to check.
+
+### Motion
+
+Nothing on the screen appears, goes, moves or changes size at once. `motion.rs` holds the times and the easing
+every transition uses, so they are changed in one place.
+
+| Constant | Value | What takes that long |
+| --- | --- | --- |
+| `PANEL` | 0.18 s | A sheet, a list or a panel coming or going; the picture fading into the next one; the blur over the picture |
+| `SMALL` | 0.12 s | A control lighting up under the pointer, a switch, the mark of a chosen segment, a small picture arriving, a sheet growing to its content |
+| `GIVE` | 0.08 s | What a sheet covers (the toolbar, the panel, a phone's buttons) going away under it |
+| `SHIFT` | 12 points | How far a pane rises while it fades in |
+| `PATIENCE` | 0.14 s | Work shorter than this never blurs the picture |
+| `VEIL` | 0.7 | The share of its blurred copy the picture is shown as while a new one is drawn |
+| `RAMP` | 48 points | The stretch of a window's width over which the panel makes room for the toolbar |
+
+Everything eases out (`ease`, a cubic), and nothing takes longer than a quarter of a second: the file refuses to
+compile otherwise. Where Windows is set to show no animations (`SPI_GETCLIENTAREAANIMATION`), and with
+`FRACTIQUE_MOTION=off`, every time is zero.
+
+| Part | How |
+| --- | --- |
+| Coming and going | `Stage` keeps, by name, how far each part is shown, from 0 to 1 (`Motion`). A sheet is drawn while that is above zero, so it is still drawn while it closes; closing, it takes no clicks and its backdrop is gone, so a click meant for what is under it lands at once. A motion turned back midway goes on from where it is and takes the share of the time that is left |
+| Glass and texts as one | The panes are drawn under the widgets but must stand where the widgets are. Their places in the list of shapes are kept free when the frame begins and filled once the widgets are laid out, so a pane and its texts use the same rectangle in the same frame, with the same opacity and the same rise |
+| What a sheet covers | A sheet's glass is under every text, so what it would cover goes (`GIVE`) while the sheet comes (`PANEL`), and comes back only when the sheet has fallen under half. Two panes are never both whole in one place |
+| A sheet that changes height | egui places a centred sheet by the size it had a frame ago, so a sheet whose content grew would jump, a frame late. `leaf` lets the height glide (`SMALL`) around the point the sheet hangs from and hides what the sheet has not grown to yet |
+| Layouts at a width | The panel grows shorter as the toolbar comes to stand under it, over `RAMP` points before it does, not at one width; the toolbar's buttons grow from their narrow to their wide padding between 676 and 724 points of width. A threshold that is a switch (`latch`) turns on above its band and off below it |
+| A window that is resized | The picture is drawn anew when the window's size has stood for 0.18 s (`Rest`), not at every step of the drag. Until then the picture on the screen is laid out for the new size at the scale the new one will have, which goes by the window's shorter side: it is cut or gets room beside it, and is never squeezed (`laid`) |
+| One picture after another | The shader holds the picture and the one before it, each with its own view, and shows a share of each: a new picture fades in over the old one, the first over the dark window. A picture that arrives while the one before it still fades in (the full picture after a draft) takes its place in that fade. The card's own pictures are refined in the same texture and only fade when they replace a processor's |
+| The blur while a picture is drawn | `Veil`. While a render runs, or a resized window waits, the picture on the screen is shown as a share of its blurred copy, the one the panes already use, so the blur costs no pass and no texture: one more `mix` in `glass.wgsl`. It comes after `PATIENCE`, stays while the work runs and leaves as the picture arrives; work that goes on keeps it, so a zoom in steps does not pulse. A view that is only magnified ([too long to render](#the-app)) has no work pending and no blur. Nothing of it reaches an export, a small picture or a saved file: those are made from the render, not from the screen |
+| Repaints | A motion asks for the next frame only while it moves; the wait of `PATIENCE` and of a resized window is one `request_repaint_after`. Nothing polls |
+
+For a test: `FRACTIQUE_TRACE=file` writes a line a frame (the time since the start, the time the frame took, the
+window's size, how many renders have started, each pane's rectangle and opacity, the blur and the fade of the
+picture) and the times of the start (`start app`, `start frame`, `start draft`, `start card`);
+`FRACTIQUE_FRAMES=folder` with the steps `frames:60` or `sweep:1280:640:20:800` (from a width to a width by a
+step, at a height) saves that many consecutive frames, and `FRACTIQUE_FIRST=30` the first of the run; while
+frames are recorded the steps after it are taken one a frame, `skip:8` waits and `rest` ends that;
+`size:900:700` sets the window's size and `zoom:2` magnifies the view; `FRACTIQUE_CLOCK=1` makes every frame a
+sixtieth of a second, so a run repeats; `FRACTIQUE_VEIL=1` sets another strength of the blur.
 
 ### The purchase in the App Store builds
 

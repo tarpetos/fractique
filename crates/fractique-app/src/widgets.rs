@@ -3,6 +3,7 @@ use std::sync::Arc;
 use fractique_core::math;
 
 use crate::i18n::Lang;
+use crate::motion;
 
 use eframe::egui::{self, Align2, Color32, CornerRadius, FontFamily, FontId, Sense, Ui, vec2};
 
@@ -66,6 +67,19 @@ pub const OUTER: f32 = 12.0;
 pub const SECTION: f32 = 14.0;
 const CAPTION: f32 = 2.0;
 const HEAD: f32 = 4.0;
+
+// A state that is entered and left over a short time instead of at once: 0 off, 1 on.
+pub fn glided(ui: &Ui, id: egui::Id, on: bool) -> f32 {
+    ui.ctx().animate_bool_with_time(id, on, motion::span(motion::SMALL))
+}
+
+pub fn lit(ui: &Ui, response: &egui::Response) -> f32 {
+    glided(ui, response.id.with("lit"), response.hovered())
+}
+
+fn lift(from: u8, by: f32, lit: f32) -> u8 {
+    (f32::from(from) + by * lit).round().clamp(0.0, 255.0) as u8
+}
 
 pub fn pane() -> egui::Frame {
     egui::Frame::NONE.inner_margin(egui::Margin::same(PAD as i8))
@@ -137,13 +151,7 @@ fn plain_row(ui: &mut Ui, text: &str, selected: bool) -> (egui::Rect, egui::Resp
 }
 
 fn row_text(ui: &Ui, rect: egui::Rect, response: &egui::Response, text: &str, selected: bool, indent: f32, room: f32) {
-    let fill = if selected {
-        40
-    } else if response.hovered() {
-        18
-    } else {
-        0
-    };
+    let fill = if selected { 40 } else { lift(0, 18.0, lit(ui, response)) };
     if fill > 0 {
         ui.painter().rect_filled(rect, CornerRadius::same(9), white(fill));
     }
@@ -191,15 +199,15 @@ pub fn picture_row(
     }
     let frame = egui::Rect::from_min_size(rect.min + vec2(4.0, 4.0), PICTURE);
     let round = CornerRadius::same(7);
-    match picture {
-        Some(id) => {
-            egui::Image::from_texture(egui::load::SizedTexture::new(id, frame.size()))
-                .corner_radius(round)
-                .paint_at(ui, frame);
-        }
-        None => {
-            ui.painter().rect_filled(frame, round, white(18));
-        }
+    let arrived = glided(ui, response.id.with("picture"), picture.is_some());
+    if arrived < 1.0 {
+        ui.painter().rect_filled(frame, round, white(18));
+    }
+    if let Some(id) = picture {
+        egui::Image::from_texture(egui::load::SizedTexture::new(id, frame.size()))
+            .corner_radius(round)
+            .tint(Color32::WHITE.gamma_multiply(arrived))
+            .paint_at(ui, frame);
     }
     let edge = egui::Stroke::new(0.6, white(70));
     ui.painter().rect_stroke(frame, round, edge, egui::StrokeKind::Inside);
@@ -210,12 +218,12 @@ pub const BACK: f32 = 38.0;
 
 pub fn back(ui: &mut Ui, hint: &str) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(BACK, BACK), Sense::click());
-    let lift = match (response.is_pointer_button_down_on(), response.hovered()) {
-        (true, _) => 20,
-        (false, true) => 50,
-        _ => 30,
+    let fill = if response.is_pointer_button_down_on() {
+        20
+    } else {
+        lift(30, 20.0, lit(ui, &response))
     };
-    ui.painter().circle_filled(rect.center(), BACK * 0.5, white(lift));
+    ui.painter().circle_filled(rect.center(), BACK * 0.5, white(fill));
     let ink = egui::Stroke::new(1.6, white(240));
     let tip = rect.center() - vec2(6.5, 0.0);
     for to in [vec2(13.0, 0.0), vec2(5.5, -5.5), vec2(5.5, 5.5)] {
@@ -243,12 +251,12 @@ pub fn close_at(ui: &mut Ui, center: egui::Pos2, hint: &str) -> bool {
     // A finger needs 44 points; the circle drawn is smaller.
     let touch = egui::Rect::from_center_size(center, egui::Vec2::splat(44.0));
     let response = ui.interact(touch, ui.scope_id().with("close"), Sense::click());
-    let lift = match (response.is_pointer_button_down_on(), response.hovered()) {
-        (true, _) => 14,
-        (false, true) => 50,
-        _ => 30,
+    let fill = if response.is_pointer_button_down_on() {
+        14
+    } else {
+        lift(30, 20.0, lit(ui, &response))
     };
-    ui.painter().circle_filled(center, CLOSE * 0.5, white(lift));
+    ui.painter().circle_filled(center, CLOSE * 0.5, white(fill));
     let ink = egui::Stroke::new(1.5, white(240));
     for turn in [1.0, -1.0] {
         ui.painter()
@@ -259,8 +267,8 @@ pub fn close_at(ui: &mut Ui, center: egui::Pos2, hint: &str) -> bool {
 
 pub fn round(ui: &mut Ui, kind: &str, enabled: bool) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
-    let lift = if enabled && response.hovered() { 24 } else { 0 };
-    ui.painter().circle_filled(rect.center(), 14.0, white(26 + lift));
+    let fill = lift(26, if enabled { 24.0 } else { 0.0 }, lit(ui, &response));
+    ui.painter().circle_filled(rect.center(), 14.0, white(fill));
     let ink = egui::Stroke::new(1.4, white(if enabled { 235 } else { 70 }));
     let (c, r) = (rect.center(), 4.5);
     let line = |from: egui::Vec2, to: egui::Vec2| {
@@ -316,6 +324,14 @@ pub fn segments(ui: &mut Ui, labels: &[String], chosen: usize) -> Option<usize> 
         .fold(1.0, f32::max);
     let size = (13.5 * ((each - 14.0) / widest).min(1.0)).max(8.0);
     let mut picked = None;
+    // The mark of the chosen one glides to the next instead of jumping there.
+    let glide = ui.scope_id().with(("segments", labels.first()));
+    let marked = ui
+        .ctx()
+        .animate_value_with_time(glide, chosen as f32, motion::span(motion::SMALL));
+    let mark = egui::Rect::from_min_size(track.min + vec2(each * marked, 0.0), vec2(each, track.height()));
+    ui.painter()
+        .rect_filled(mark.shrink(2.0), CornerRadius::same(8), white(52));
     for (index, label) in labels.iter().enumerate() {
         let cell = egui::Rect::from_min_size(track.min + vec2(each * index as f32, 0.0), vec2(each, track.height()));
         // Two switches in one panel must not share ids: a click on one would count for the other.
@@ -325,12 +341,10 @@ pub fn segments(ui: &mut Ui, labels: &[String], chosen: usize) -> Option<usize> 
             Sense::click(),
         );
         let selected = index == chosen;
-        if selected {
+        let fill = lift(0, 16.0, lit(ui, &response));
+        if !selected && fill > 0 {
             ui.painter()
-                .rect_filled(cell.shrink(2.0), CornerRadius::same(8), white(52));
-        } else if response.hovered() {
-            ui.painter()
-                .rect_filled(cell.shrink(2.0), CornerRadius::same(8), white(16));
+                .rect_filled(cell.shrink(2.0), CornerRadius::same(8), white(fill));
         }
         let (font, color) = if selected {
             (font(size, MEDIUM), white(255))
@@ -375,8 +389,8 @@ pub fn choice(ui: &mut Ui, label: &str, names: &[String], chosen: usize) -> Opti
 
 pub fn add_row(ui: &mut Ui, enabled: bool) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
-    let lift = if enabled && response.hovered() { 18 } else { 0 };
-    ui.painter().rect_filled(rect, CornerRadius::same(9), white(12 + lift));
+    let fill = lift(12, if enabled { 18.0 } else { 0.0 }, lit(ui, &response));
+    ui.painter().rect_filled(rect, CornerRadius::same(9), white(fill));
     let ink = egui::Stroke::new(1.5, white(if enabled { 220 } else { 70 }));
     let c = rect.center();
     ui.painter().line_segment([c - vec2(5.0, 0.0), c + vec2(5.0, 0.0)], ink);
@@ -418,18 +432,12 @@ pub fn pill(ui: &mut Ui, text: &str, primary: bool, min_width: f32) -> bool {
         (galley, width)
     };
     let (rect, response) = ui.allocate_exact_size(vec2(width, 38.0), Sense::click());
-    let lift = if response.is_pointer_button_down_on() {
-        -10
-    } else if response.hovered() {
-        20
+    let by = if response.is_pointer_button_down_on() {
+        -10.0
     } else {
-        0
+        20.0 * lit(ui, &response)
     };
-    let fill = if primary {
-        white((225 + lift).clamp(0, 255) as u8)
-    } else {
-        white((30 + lift).clamp(0, 255) as u8)
-    };
+    let fill = white(lift(if primary { 225 } else { 30 }, by, 1.0));
     ui.painter().rect_filled(rect, CornerRadius::same(19), fill);
     ui.painter().galley(rect.center() - galley.size() * 0.5, galley, color);
     response.clicked()
@@ -455,12 +463,10 @@ pub fn toggle(ui: &mut Ui, label: &str, on: &mut bool) -> bool {
         galley,
         ink,
     );
-    painter.rect_filled(track, CornerRadius::same(11), white(if *on { 215 } else { 45 }));
-    let (at, knob) = if *on {
-        (track.right() - 11.0, Color32::from_rgb(14, 18, 34))
-    } else {
-        (track.left() + 11.0, Color32::WHITE)
-    };
+    let turned = glided(ui, response.id.with("on"), *on);
+    painter.rect_filled(track, CornerRadius::same(11), white(lift(45, 170.0, turned)));
+    let at = egui::lerp(track.left() + 11.0..=track.right() - 11.0, turned);
+    let knob = Color32::WHITE.lerp_to_gamma(Color32::from_rgb(14, 18, 34), turned);
     painter.circle_filled(egui::pos2(at, track.center().y), 8.0, knob);
     response.clicked()
 }
@@ -581,11 +587,8 @@ pub fn slider_to(
     let painter = ui.painter();
     painter.rect_filled(track(rect.left(), rect.right()), CornerRadius::same(2), white(45));
     painter.rect_filled(track(rect.left(), at), CornerRadius::same(2), white(215));
-    let grown = if response.hovered() || response.dragged() {
-        1.5
-    } else {
-        0.0
-    };
+    let held = response.hovered() || response.dragged();
+    let grown = 1.5 * glided(ui, response.id.with("held"), held);
     painter.circle_filled(
         egui::pos2(at, middle + 1.5),
         knob + grown + 1.0,
