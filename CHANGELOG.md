@@ -109,10 +109,10 @@
   ([docs/architecture.md](docs/architecture.md#orbits-on-the-graphics-card)).
 * **GPU acceleration, safer:** what the graphics card is given in one go now has a hard bound that is known before
   it is sent: at most 4 steps a pixel and 4 194 304 steps for the walkers of all layers, and a density estimation
-  over at most 1 610 612 736 cells. Before, a batch could grow to all the samples of a picture and was given 20 s.
-  A batch that takes longer than 0.5 s now ends the card's part for the session. The price: a picture takes more
-  batches, so the last samples come later than before, and a picture of 3840×2160, or one of 2560×1440 with
-  more than two layers, is rendered by the processor
+  over at most 17 179 869 184 cells, which leaves the card a picture of 3840×2160 with five layers. Before, a
+  batch could grow to all the samples of a picture and was given 20 s. A batch that takes longer than 0.5 s now
+  ends the card's part for the session. The price: a picture takes more batches, so the last samples come later
+  than before
   ([docs/architecture.md](docs/architecture.md#the-work-of-one-submission)).
 * **GPU acceleration:** the trial of a built-in graphics chip gives way when a picture is asked for and begins
   again when the app rests; its verdict is kept again, so a slow phone is tried once, not at every start. The
