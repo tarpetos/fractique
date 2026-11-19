@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique membuat tiga jenis gambar. Api fraktal: fraktal bercahaya dan halus yang terbentuk dari kurva tipis dan cahaya lembut. Fraktal klasik: himpunan Mandelbrot, himpunan Julia, dan penarik aneh, dengan warna halus dan zoom yang dalam. Dan wallpaper: lembaran datar dengan tepi bercahaya dan bayangan lembut, masing-masing dalam versi terang dan gelap. Anda memilih preset, membuat gambar acak, atau menumpuk beberapa api, lalu mengekspornya dalam ukuran apa pun, dari layar ponsel hingga monitor 4K. Sebuah adegan adalah satu berkas kecil, dan berkas yang sama selalu menghasilkan piksel yang persis sama, di Windows, macOS, Linux, Android, dan iOS.
+Fractique membuat tiga jenis gambar. Api fraktal: fraktal bercahaya dan halus yang terbentuk dari kurva tipis dan cahaya lembut. Fraktal klasik dari 22 jenis: dari himpunan Mandelbrot, himpunan Julia, dan penarik aneh hingga Mandelbulb tiga dimensi. Dan wallpaper: lembaran datar dengan tepi bercahaya dan bayangan lembut, masing-masing dalam versi terang dan gelap. Anda memilih preset, membuat gambar acak, atau menumpuk beberapa api, lalu mengekspornya dalam ukuran apa pun, dari layar ponsel hingga monitor 4K. Sebuah adegan adalah satu berkas kecil, dan berkas yang sama selalu menghasilkan piksel yang persis sama, di Windows, macOS, Linux, Android, dan iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Preset aurora-spiral: untaian spiral toska dan hijau di atas latar gelap" width="880">
@@ -17,20 +17,21 @@ Fractique membuat tiga jenis gambar. Api fraktal: fraktal bercahaya dan halus ya
 ## Yang dilakukan Fractique
 
 - **Api:** 49 variasi, lapisan dengan mode blend, simetri putar dan cermin, estimasi kerapatan, pendar, dan 29 preset bawaan.
-- **Fraktal:** himpunan Mandelbrot, himpunan Julia, dan penarik Clifford, masing-masing dengan preset dan satu gambar untuk setiap seed; palet, lapisan, dan zoom dalamnya sama dengan milik api.
+- **Fraktal:** 19 jenis pada bidang: waktu lolos (Mandelbrot, Julia, Burning Ship, Tricorn, Multibrot, Phoenix, Magnet), pencarian akar (Newton, Nova), orbit yang digambar sebagai kerapatan (Buddhabrot, Clifford, De Jong, Lorenz, Gumowski-Mira, Hopalong), dan geometris (Gasket Apollonius, Grup Klein, Sistem-L, Lyapunov), masing-masing dengan preset dan satu gambar untuk setiap seed; palet, lapisan, dan zoom dalamnya sama dengan milik api.
 - **Benda padat:** Mandelbulb, Mandelbox, dan spons Menger dalam tiga dimensi, dengan cahaya, bayangan, dan kabut; kelilingi atau masuki bagian dalamnya.
 - **Wallpaper:** satu untuk setiap seed, dari 14 tata letak dan 6 bahan, masing-masing dalam versi terang dan gelap, ditata sesuai ukuran layar.
-- **Aplikasi:** satu basis kode untuk Windows, macOS, Linux, Android, iOS, dan web. Gambar memenuhi jendela dan panel kaca melayang di atasnya; di desktop aplikasi memiliki bilah judul kaca sendiri. Dalam 15 bahasa.
+- **Aplikasi:** satu basis kode untuk Windows, macOS, Linux, Android, iOS, dan web. Gambar memenuhi jendela dan panel kaca melayang di atasnya; di desktop aplikasi memiliki bilah judul kaca sendiri. Tiga tab, “Api”, “Fraktal”, dan “Bentuk” (wallpaper), masing-masing menyimpan gambarnya sendiri dan gambar-gambar terbarunya. Dalam 15 bahasa.
+- **Akselerasi GPU:** di perangkat yang kartu grafisnya jelas lebih cepat daripada prosesor, kartu grafis itu sendiri yang menggambar api, tiga penarik, serta fraktal waktu lolos dan pencarian akar, dan prosesor tetap bebas. Ekspor pada tiga tingkat kualitas yang lebih tinggi selalu dirender oleh prosesor, secara persis.
 - **“Acak” dan “Mutasi”:** setiap seed adalah sebuah gambar; api yang hanya akan menjadi titik atau kotak penuh dilewati. “Mutasi” membuat varian dari gambar yang Anda sukai.
 - **Lapisan:** tambahkan api dari preset atau api acak, hapus, ubah urutannya, dan atur blend (“Tambah”, “Layar”, “Timpa”) serta opasitas masing-masing. Hingga 16 lapisan.
-- **Ukuran gambar:** ukuran jendela itu sendiri, salah satu dari 59 layar (komputer hingga 4K, ponsel dan tablet Android, iPhone dan iPad), atau lebar dan tinggi berapa pun dari 16 hingga 16384 piksel.
+- **Ukuran gambar:** ukuran jendela itu sendiri, salah satu dari 59 layar (komputer hingga 4K, ponsel dan tablet Android, iPhone, iPad, Mac, dan Apple Watch), atau lebar dan tinggi berapa pun dari 16 hingga 16384 piksel.
 - **Zoom dalam:** seret, roda mouse, dan cubit menggeser tampilan dan memperbesarnya hingga sepuluh miliar kali. Gambar langsung mengikuti dan digambar ulang dengan tajam saat tampilan berhenti.
-- **Ponsel:** layar tersendiri. Satu tombol bulat membuat gambar baru, usapan berpindah ke wallpaper berikutnya, sebuah lembar berisi gambar-gambar kecil yang hidup dipakai untuk memilih gaya, dan gambar yang Anda simpan menjadi koleksi.
+- **Ponsel:** layar tersendiri. Satu tombol bulat membuat gambar baru, usapan berpindah ke wallpaper berikutnya, sebuah lembar berisi gambar-gambar kecil yang hidup dipakai untuk memilih gaya, dan gambar yang Anda simpan menjadi koleksi. Jenis fraktal yang lama digambar oleh prosesor tidak ditampilkan di sana.
 - **Ekspor:** PNG dalam ukuran apa pun: seketika, seperti yang tampil di layar, atau dirender di latar belakang dengan tiga tingkat kualitas yang lebih tinggi. Di ponsel, gambar disimpan ke Foto atau galeri, atau dibagikan. Semua fitur gratis di semua platform; hanya versi App Store (iPhone, iPad, Mac) yang meminta pembelian satu kali, Fractique Pro, untuk mengekspor pada 2560 × 1440 piksel ke atas atau dalam ukuran kustom.
 - **Berkas proyek:** berkas `.frcq` menyimpan adegan beserta tampilan, rona, dan ukurannya, sehingga terbuka persis seperti saat disimpan ([docs/scene-format.md](../scene-format.md)). Adegan `.json` biasa dan berkas `.flame` dari flam3 dan Apophysis juga dapat dibuka. Saat dijalankan lagi, aplikasi kembali ke sesi yang terakhir ditinggalkan.
 - **Pembaruan:** sebuah jendela menampilkan setiap versi yang dirilis beserta catatannya dan memasang versi mana pun. Di Windows aplikasinya adalah satu `.exe` portabel yang mengganti dirinya sendiri.
 - **Keterulangan yang persis:** adegan yang sama menghasilkan piksel yang sama di semua mesin, diperiksa oleh pengujian di Linux, Windows, dan macOS ([docs/determinism.md](../determinism.md)).
-- **Alat baris perintah** (`fractique`): merender api dan wallpaper ke PNG, membuat adegan acak dan varian, mengonversi berkas `.flame`.
+- **Alat baris perintah** (`fractique`): merender api, fraktal, dan wallpaper ke PNG, membuat adegan acak dan varian, mengonversi berkas `.flame` dan `.frcq`.
 - **Server MCP** (`fractique mcp`): agen AI membuat, mengubah, dan merender adegan ([docs/mcp.md](../mcp.md)).
 - **Server HTTP** (`fractique-server`): API HTTP dengan antrean render dan batasan, MCP untuk agen AI di `/mcp`, menyajikan aplikasi web, tersedia sebagai image Docker ([docs/server.md](../server.md)).
 
@@ -47,6 +48,15 @@ Fraktal jenis lain: himpunan Mandelbrot, himpunan Julia, dan penarik Clifford:
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+
+Fraktal waktu lolos lainnya dan fraktal pencarian akar: Burning Ship, Tricorn, Multibrot, Phoenix, Magnet, Newton, Nova:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
+| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
+| `magnet-pearls` | `newton-seven` | `nova-star` | |
 
 Orbit yang digambar sebagai kerapatan: Buddhabrot serta penarik De Jong, Lorenz, Gumowski-Mira, dan Hopalong:
 

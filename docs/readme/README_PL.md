@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique tworzy obrazy trzech rodzajów. Fraktalne płomienie: świetliste, zwiewne fraktale z cienkich krzywych i miękkiego światła. Klasyczne fraktale: zbiór Mandelbrota, zbiory Julii i dziwne atraktory, z płynnymi kolorami i głębokim powiększeniem. Oraz tapety: płaskie arkusze z podświetlonymi krawędziami i miękkimi cieniami, każda w wersji jasnej i ciemnej. Wybierasz preset, losujesz obraz albo nakładasz na siebie kilka płomieni i eksportujesz wynik w dowolnym rozmiarze, od ekranu telefonu po monitor 4K. Scena to jeden mały plik, a ten sam plik zawsze daje dokładnie te same piksele w systemach Windows, macOS, Linux, Android i iOS.
+Fractique tworzy obrazy trzech rodzajów. Fraktalne płomienie: świetliste, zwiewne fraktale z cienkich krzywych i miękkiego światła. Klasyczne fraktale 22 rodzajów: od zbioru Mandelbrota, zbiorów Julii i dziwnych atraktorów po Mandelbulb w trzech wymiarach. Oraz tapety: płaskie arkusze z podświetlonymi krawędziami i miękkimi cieniami, każda w wersji jasnej i ciemnej. Wybierasz preset, losujesz obraz albo nakładasz na siebie kilka płomieni i eksportujesz wynik w dowolnym rozmiarze, od ekranu telefonu po monitor 4K. Scena to jeden mały plik, a ten sam plik zawsze daje dokładnie te same piksele w systemach Windows, macOS, Linux, Android i iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Preset aurora-spiral: turkusowe i zielone spiralne smugi na ciemnym tle" width="880">
@@ -17,20 +17,21 @@ Fractique tworzy obrazy trzech rodzajów. Fraktalne płomienie: świetliste, zwi
 ## Co potrafi Fractique
 
 - **Płomienie:** 49 wariacji, warstwy z trybami mieszania, symetria obrotowa i lustrzana, estymacja gęstości, poświata oraz 29 wbudowanych presetów.
-- **Fraktale:** zbiór Mandelbrota, zbiory Julii i atraktor Clifforda, każdy z presetami i obrazem dla każdego ziarna; mają te same palety, warstwy i głębokie powiększenie co płomienie.
+- **Fraktale:** 19 rodzajów na płaszczyźnie: czasu ucieczki (Mandelbrot, Julia, Płonący statek, Tricorn, Multibrot, Feniks, Magnet), szukania pierwiastków (Newton, Nova), orbity rysowane jako gęstości (Buddhabrot, Clifford, De Jong, Lorenz, Gumowski-Mira, Hopalong) i geometryczne (Uszczelka Apoloniusza, Grupa Kleina, L-system, Lapunow), każdy z presetami i obrazem dla każdego ziarna; mają te same palety, warstwy i głębokie powiększenie co płomienie.
 - **Bryły:** Mandelbulb, Mandelbox i gąbka Mengera w trzech wymiarach, ze światłem, cieniami i mgłą; można je obejść dookoła albo wejść do środka.
 - **Tapety:** osobna dla każdego ziarna, z 14 układów i 6 materiałów, każda w wersji jasnej i ciemnej, rozłożona pod rozmiar ekranu.
-- **Aplikacja:** jedna baza kodu dla systemów Windows, macOS, Linux, Android, iOS i dla przeglądarki. Obraz wypełnia okno, a nad nim unoszą się szklane panele; na komputerze aplikacja ma własny szklany pasek tytułu. W 15 językach.
+- **Aplikacja:** jedna baza kodu dla systemów Windows, macOS, Linux, Android, iOS i dla przeglądarki. Obraz wypełnia okno, a nad nim unoszą się szklane panele; na komputerze aplikacja ma własny szklany pasek tytułu. Trzy karty, „Płomienie”, „Fraktale” i „Kształty” (tapety), zachowują każda swój obraz i swoje ostatnie obrazy. W 15 językach.
+- **Akceleracja GPU:** tam, gdzie karta graficzna jest wyraźnie szybsza od procesora, sama rysuje płomienie, trzy atraktory oraz fraktale czasu ucieczki i szukania pierwiastków, a procesor pozostaje wolny. Eksport na trzech wyższych poziomach jakości zawsze renderuje procesor, dokładnie.
 - **„Losuj” i „Mutuj”:** każde ziarno to obraz; płomienie, które byłyby kropką albo wypełnionym kwadratem, są pomijane. „Mutuj” tworzy wariant tego, który ci się podoba.
 - **Warstwy:** dodaj płomień z presetów albo losowy, usuń go, zmień kolejność i ustaw dla każdej mieszanie („Suma”, „Ekran”, „Nad”) oraz krycie. Do 16 warstw.
-- **Rozmiar obrazu:** rozmiar samego okna, jeden z 59 ekranów (komputery do 4K, telefony i tablety z Androidem, iPhone’y i iPady) albo dowolna szerokość i wysokość od 16 do 16384 pikseli.
+- **Rozmiar obrazu:** rozmiar samego okna, jeden z 59 ekranów (komputery do 4K, telefony i tablety z Androidem, iPhone’y, iPady, Maki i Apple Watch) albo dowolna szerokość i wysokość od 16 do 16384 pikseli.
 - **Głęboki zoom:** przeciąganie, kółko myszy i szczypanie przesuwają widok i powiększają go do dziesięciu miliardów razy. Obraz podąża od razu, a gdy widok się zatrzyma, jest rysowany na nowo, ostro.
-- **Telefony:** własny ekran. Jeden okrągły przycisk tworzy nowy obraz, przesunięcie palcem prowadzi do następnej tapety, arkusz z małymi żywymi obrazkami wybiera styl, a zachowane obrazy tworzą kolekcję.
+- **Telefony:** własny ekran. Jeden okrągły przycisk tworzy nowy obraz, przesunięcie palcem prowadzi do następnej tapety, arkusz z małymi żywymi obrazkami wybiera styl, a zachowane obrazy tworzą kolekcję. Rodzajów fraktali, które procesor rysuje długo, tam nie ma.
 - **Eksport:** PNG w dowolnym rozmiarze: natychmiast, taki jak na ekranie, albo renderowany w tle na trzech wyższych poziomach jakości. Na telefonie trafia do Zdjęć lub galerii albo jest udostępniany. Wszystkie funkcje są darmowe na każdej platformie; tylko wersja z App Store (iPhone, iPad, Mac) wymaga jednorazowego zakupu Fractique Pro, aby eksportować w rozmiarze 2560 × 1440 pikseli i większym albo we własnym rozmiarze.
 - **Pliki projektu:** plik `.frcq` przechowuje scenę razem z widokiem, tonem i rozmiarem, więc otwiera się taka, jaka została zapisana ([docs/scene-format.md](../scene-format.md)). Otwierają się też zwykłe sceny `.json` i pliki `.flame` z flam3 i Apophysis. Między uruchomieniami aplikacja wraca do sesji, w której ją zostawiono.
 - **Aktualizacje:** okno pokazuje każdą wydaną wersję z jej opisem i instaluje dowolną z nich. W systemie Windows aplikacja to jeden przenośny plik `.exe`, który sam siebie podmienia.
 - **Dokładna powtarzalność:** ta sama scena daje te same piksele na każdej maszynie, co sprawdzają testy w systemach Linux, Windows i macOS ([docs/determinism.md](../determinism.md)).
-- **Narzędzie wiersza poleceń** (`fractique`): renderuje płomienie i tapety do PNG, tworzy losowe sceny i warianty, konwertuje pliki `.flame`.
+- **Narzędzie wiersza poleceń** (`fractique`): renderuje płomienie, fraktale i tapety do PNG, tworzy losowe sceny i warianty, konwertuje pliki `.flame` i `.frcq`.
 - **Serwer MCP** (`fractique mcp`): agent AI tworzy, zmienia i renderuje sceny ([docs/mcp.md](../mcp.md)).
 - **Serwer HTTP** (`fractique-server`): API HTTP z kolejką renderowania i limitami, MCP dla agentów AI pod `/mcp`, udostępnia aplikację webową, dostępny jako obraz Dockera ([docs/server.md](../server.md)).
 
@@ -47,6 +48,15 @@ Fraktale innych rodzajów: zbiór Mandelbrota, zbiór Julii i atraktor Clifforda
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+
+Inne fraktale czasu ucieczki oraz fraktale szukania pierwiastków: Płonący statek, Tricorn, Multibrot, Feniks, Magnet, Newton, Nova:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
+| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
+| `magnet-pearls` | `newton-seven` | `nova-star` | |
 
 Orbity rysowane jako gęstości: Buddhabrot oraz atraktory De Jonga, Lorenza, Gumowskiego-Miry i Hopalong:
 

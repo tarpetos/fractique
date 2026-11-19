@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique crea tre tipi di immagini. Fiamme frattali: frattali luminosi ed eterei fatti di curve sottili e luce morbida. Frattali classici: l’insieme di Mandelbrot, gli insiemi di Julia e attrattori strani, con colori sfumati e zoom profondo. E sfondi: fogli piatti con bordi illuminati e ombre morbide, ciascuno in versione chiara e scura. Scegli un preset, generi un’immagine casuale o sovrapponi più fiamme, ed esporti il risultato a qualsiasi dimensione, dallo schermo di un telefono a un monitor 4K. Una scena è un unico piccolo file, e lo stesso file dà sempre esattamente gli stessi pixel, su Windows, macOS, Linux, Android e iOS.
+Fractique crea tre tipi di immagini. Fiamme frattali: frattali luminosi ed eterei fatti di curve sottili e luce morbida. Frattali classici di 22 tipi: dall’insieme di Mandelbrot, dagli insiemi di Julia e dagli attrattori strani fino al Mandelbulb in tre dimensioni. E sfondi: fogli piatti con bordi illuminati e ombre morbide, ciascuno in versione chiara e scura. Scegli un preset, generi un’immagine casuale o sovrapponi più fiamme, ed esporti il risultato a qualsiasi dimensione, dallo schermo di un telefono a un monitor 4K. Una scena è un unico piccolo file, e lo stesso file dà sempre esattamente gli stessi pixel, su Windows, macOS, Linux, Android e iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Il preset aurora-spiral: volute a spirale turchesi e verdi su sfondo scuro" width="880">
@@ -17,20 +17,21 @@ Fractique crea tre tipi di immagini. Fiamme frattali: frattali luminosi ed etere
 ## Che cosa fa Fractique
 
 - **Fiamme:** 49 variazioni, livelli con metodi di fusione, simmetria rotazionale e speculare, stima della densità, bagliore e 29 preset integrati.
-- **Frattali:** l’insieme di Mandelbrot, gli insiemi di Julia e l’attrattore di Clifford, ciascuno con i suoi preset e un’immagine per ogni seme; condividono le palette, i livelli e lo zoom profondo delle fiamme.
+- **Frattali:** 19 tipi nel piano: a tempo di fuga (Mandelbrot, Julia, Burning Ship, Tricorn, Multibrot, Fenice, Magnet), di ricerca delle radici (Newton, Nova), orbite disegnate come densità (Buddhabrot, Clifford, De Jong, Lorenz, Gumowski-Mira, Hopalong) e geometrici (Guarnizione apolloniana, Gruppo kleiniano, Sistema L, Lyapunov), ciascuno con i suoi preset e un’immagine per ogni seme; condividono le palette, i livelli e lo zoom profondo delle fiamme.
 - **Solidi:** il Mandelbulb, la Mandelbox e la spugna di Menger in tre dimensioni, con luce, ombre e nebbia; giraci intorno o entra al loro interno.
 - **Sfondi:** uno per ogni seme, da 14 disposizioni e 6 materiali, ciascuno in versione chiara e scura, disposto per la dimensione dello schermo.
-- **L’app:** un’unica base di codice per Windows, macOS, Linux, Android, iOS e il web. L’immagine riempie la finestra e sopra fluttuano pannelli di vetro; sul desktop l’app ha una propria barra del titolo di vetro. In 15 lingue.
+- **L’app:** un’unica base di codice per Windows, macOS, Linux, Android, iOS e il web. L’immagine riempie la finestra e sopra fluttuano pannelli di vetro; sul desktop l’app ha una propria barra del titolo di vetro. Tre schede, «Fiamme», «Frattali» e «Forme» (gli sfondi), conservano ciascuna la propria immagine e quelle recenti. In 15 lingue.
+- **Accelerazione GPU:** dove la scheda grafica è nettamente più veloce del processore, disegna da sé le fiamme, tre attrattori e i frattali a tempo di fuga e di ricerca delle radici, e il processore resta libero. Le esportazioni ai tre livelli di qualità superiori sono sempre renderizzate dal processore, in modo esatto.
 - **«Casuale» e «Muta»:** ogni seme è un’immagine; le fiamme che sarebbero un punto o un quadrato pieno vengono scartate. «Muta» crea una variante di quella che ti piace.
 - **Livelli:** aggiungi una fiamma dai preset o una casuale, rimuovila, cambia l’ordine e imposta per ciascuna la fusione («Somma», «Scolora», «Sopra») e l’opacità. Fino a 16 livelli.
-- **Dimensione dell’immagine:** quella della finestra, uno dei 59 schermi (computer fino al 4K, telefoni e tablet Android, iPhone e iPad) oppure qualsiasi larghezza e altezza da 16 a 16384 pixel.
+- **Dimensione dell’immagine:** quella della finestra, uno dei 59 schermi (computer fino al 4K, telefoni e tablet Android, iPhone, iPad, Mac e Apple Watch) oppure qualsiasi larghezza e altezza da 16 a 16384 pixel.
 - **Zoom profondo:** trascinamento, rotellina e pizzico spostano la vista e la ingrandiscono fino a dieci miliardi di volte. L’immagine segue subito e viene ridisegnata nitida quando la vista si ferma.
-- **Telefoni:** una schermata dedicata. Un pulsante rotondo crea una nuova immagine, uno scorrimento passa allo sfondo successivo, un foglio di piccole immagini vive sceglie lo stile e le immagini che tieni formano una collezione.
+- **Telefoni:** una schermata dedicata. Un pulsante rotondo crea una nuova immagine, uno scorrimento passa allo sfondo successivo, un foglio di piccole immagini vive sceglie lo stile e le immagini che tieni formano una collezione. I tipi di frattale che il processore impiega molto a disegnare lì non compaiono.
 - **Esportazione:** un PNG di qualsiasi dimensione: subito, così com’è sullo schermo, oppure renderizzato in background in tre livelli di qualità superiori. Su un telefono viene salvato in Foto o nella galleria, oppure condiviso. Tutte le funzioni sono gratuite su ogni piattaforma; solo la versione dell’App Store (iPhone, iPad, Mac) chiede un acquisto una tantum, Fractique Pro, per esportare da 2560 × 1440 pixel in su o in una dimensione personalizzata.
 - **File di progetto:** un file `.frcq` conserva la scena con vista, tono e dimensione, così si riapre com’era stata salvata ([docs/scene-format.md](../scene-format.md)). Si aprono anche le scene `.json` semplici e i file `.flame` di flam3 e Apophysis. Tra un avvio e l’altro l’app torna alla sessione in cui era stata lasciata.
 - **Aggiornamenti:** una finestra elenca ogni versione pubblicata con le sue note e installa una qualsiasi di esse. Su Windows l’app è un unico `.exe` portatile che sostituisce sé stesso.
 - **Ripetibilità esatta:** la stessa scena dà gli stessi pixel su ogni macchina, come verificano i test su Linux, Windows e macOS ([docs/determinism.md](../determinism.md)).
-- **Lo strumento da riga di comando** (`fractique`): renderizza fiamme e sfondi in PNG, crea scene casuali e varianti, converte i file `.flame`.
+- **Lo strumento da riga di comando** (`fractique`): renderizza fiamme, frattali e sfondi in PNG, crea scene casuali e varianti, converte i file `.flame` e `.frcq`.
 - **Server MCP** (`fractique mcp`): un agente IA crea, modifica e renderizza scene ([docs/mcp.md](../mcp.md)).
 - **Server HTTP** (`fractique-server`): un’API HTTP con coda di rendering e limiti, MCP per agenti IA su `/mcp`, serve l’app web, distribuito come immagine Docker ([docs/server.md](../server.md)).
 
@@ -47,6 +48,15 @@ Frattali di altri tipi: l’insieme di Mandelbrot, un insieme di Julia e l’att
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+
+Altri frattali a tempo di fuga e quelli di ricerca delle radici: Burning Ship, Tricorn, Multibrot, Fenice, Magnet, Newton, Nova:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
+| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
+| `magnet-pearls` | `newton-seven` | `nova-star` | |
 
 Orbite disegnate come densità: il Buddhabrot e gli attrattori di De Jong, Lorenz, Gumowski-Mira e Hopalong:
 

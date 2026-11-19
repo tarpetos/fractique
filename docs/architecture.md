@@ -134,8 +134,9 @@ supersampling (`mobile`: 30 samples per pixel). Density estimation is what keeps
 A layer is a flame or a fractal of another kind (`Content` in `scene.rs`). A fractal names its kind and carries a
 camera, a tone, a palette and the kind's parameters by name ([scene-format.md](scene-format.md#fractal)).
 Everything a kind is lives in one file, as a `Spec`: its name, its family, its parameters with their ranges, its
-default tone, how it is drawn, its randomizer, its mutation and its presets. The command line tool, the MCP
-tools, the HTTP server and the app read the kinds from the registry, so none of them knows a kind by name.
+default tone, how it is drawn, its randomizer, its mutation and its presets. The command line tool, the MCP tools,
+the HTTP server and the app read the kinds from the registry. Only the app names kinds: those the graphics card
+draws (`orbit.rs`, `field.rs`) and those it marks as heavy (`HEAVY` in `lib.rs`).
 
 | Part | Where | What |
 | --- | --- | --- |
@@ -197,18 +198,22 @@ pictures of seeds 1 to 40 of each:
    registration: a test refuses a list out of order, a kind without a preset, a random scene that does not
    validate and a preset whose name is a flame's.
 3. Add the texts to `crates/fractique-app/locales/fractals/<family>.json`: `p_<parameter>` for each new
-   parameter, in all 15 languages. The names of the 22 planned kinds are there already as `f_<kind>`
-   (`f_burning_ship`, `f_de_jong`, `f_gumowski_mira`, `f_l_system`, `f_apollonian`, `f_kleinian`,
-   `f_menger_sponge` and the plain ones): name the kind accordingly. Run `tools/i18n/make_fonts.py` after it.
+   parameter and `n_<kind>_<preset>` for each preset, in all 15 languages. The names of the 22 planned kinds are
+   there already as `f_<kind>` (`f_burning_ship`, `f_de_jong`, `f_gumowski_mira`, `f_l_system`, `f_apollonian`,
+   `f_kleinian`, `f_menger_sponge` and the plain ones): name the kind accordingly. Run `tools/i18n/make_fonts.py`
+   after it.
 4. Document the kind in its family's section of [scene-format.md](scene-format.md#fractal) and add it to the
    table of families there; add a line to `CHANGELOG.md`.
 5. Look at 40 seeds of `fractique render --random SEED --fractal <kind>` and tune the randomizer until most are
    pictures worth keeping.
 
-Nothing else changes: the app's list and tiles, its sliders, `fractique fractals`, `--fractal`, the MCP tools
-and `GET /fractals` take the kind from the registry. The rules of [determinism.md](determinism.md) hold for a
-kind as for the rest of the core: `math.rs` for every transcendental function, `fractal::stream` or the `Rng`
-it is handed for every random number, no state shared between samples or walks.
+Nothing else changes: the app's list and tiles, its sliders, `fractique fractals`, `--fractal`, the MCP tools and
+`GET /fractals` take the kind from the registry. In the app an escape-time or a root-finding kind also needs its
+function in `field_escape.wgsl` or `field_root.wgsl` and its entry in `KINDS` of `field.rs` (a test refuses one
+without), and a kind that takes the processor long is added to `HEAVY` in `lib.rs`. The rules of
+[determinism.md](determinism.md) hold for a kind as for the rest of the core: `math.rs` for every transcendental
+function, `fractal::stream` or the `Rng` it is handed for every random number, no state shared between samples or
+walks.
 
 A kind whose parameters are not all numbers (the rules of an L-system, the sequence of a Lyapunov fractal) lists
 them as `Text`s in `Draw::PixelText` or `Draw::DensityText`, and its builder is handed the whole `Fractal`; a
@@ -299,10 +304,10 @@ its `Limits`, for `/render` and `/mcp` alike.
 ## The app
 
 `fractique-app` is built with `egui` and `eframe` on `wgpu`. The graphics card shows the picture and draws the
-glass over it. Who makes the picture depends on the device. Where the graphics card is
-[clearly faster than the processor](#when-the-graphics-card-is-used) and **GPU acceleration** is on, the card
-plays [the chaos game](#the-chaos-game-on-the-graphics-card) of a flame, or walks the orbits of a Clifford, a De
-Jong or a Lorenz attractor, itself and its picture is the screen's:
+glass over it. Who makes the picture depends on the device. Where the graphics card is [clearly faster than the
+processor](#when-the-graphics-card-is-used) and **GPU acceleration** is on, the card plays [the chaos
+game](#the-chaos-game-on-the-graphics-card) of a flame, walks the orbits of a Clifford, a De Jong or a Lorenz
+attractor, or draws an escape-time or a root-finding kind pixel by pixel, itself and its picture is the screen's:
 the processor renders nothing for the screen. Everywhere else, and for what the card does not draw, the picture is
 rendered by `fractique-core` on the processor, in a thread of its own, as an export at Standard, High or Ultra
 always is.
@@ -318,8 +323,9 @@ always is.
 | `chaos.rs`, `flame.wgsl`, `chaos.wgsl`, `levels.wgsl` | The chaos game on the graphics card: a flame's transforms and variations (`flame.wgsl`), the walkers and the histogram in one compute shader, the density estimation in another |
 | `deep.rs`, `deep.wgsl` | [Deep views on the graphics card](#deep-views-on-the-graphics-card): the plan of a view that holds little of the flame, and the particles it is drawn from |
 | `orbit.rs`, `orbit.wgsl` | The orbit kinds the graphics card draws: what the shader reads of each, and their walkers, which plot into the same histogram |
+| `field.rs`, `field.wgsl`, `field_escape.wgsl`, `field_root.wgsl` | The escape-time and root-finding kinds the graphics card draws pixel by pixel |
 | `widgets.rs` | The controls: rows, pills, sliders, switches; the fonts |
-| `i18n.rs`, `locales/` | The texts, in 15 languages: one file a language, and in `locales/fractals/` one file a family of fractals with the names of its kinds and parameters in every language |
+| `i18n.rs`, `locales/` | The texts, in 15 languages: one file a language, and in `locales/fractals/` one file a family of fractals with the names of its kinds, parameters, choices and presets in every language, and `flame.json` with the names of the flame presets |
 | `android.rs`, `ios.rs` | The gallery, Photos and sharing |
 | `store.rs`, `storekit.rs` | The App Store builds only (the `store` feature): which sizes need the purchase, its states, StoreKit ([The purchase](#the-purchase-in-the-app-store-builds)) |
 | `main.rs` | The start on a computer and in a browser; a file given at start |
@@ -338,11 +344,14 @@ How the picture reaches the screen:
 | Events | A finished pass is sent over a channel and asks for a repaint. Nothing polls |
 
 The **Fractals** tab holds a scene like the **Flames** tab, with its own picture kept while another tab is shown.
-Its list of types, its tiles on a phone and its sliders are made from the registry of the core: a slider for
-every parameter of the chosen layer's kind, labelled by the text `p_<parameter>`. **Randomize** puts the random
-fractal of the next seed into the chosen layer, **Mutate** calls the core's mutation. A scene with a fractal in
-any layer is the processor's alone: it is not previewed by the graphics card and the chaos game is not played
-for it, so it renders with drafts as it does with GPU acceleration off, and its layers are kept like any others.
+Its list of types, its tiles on a phone and its sliders are made from the registry of the core: a slider for every
+parameter of the chosen layer's kind, labelled by the text `p_<parameter>`. The nine kinds of `HEAVY` are marked in
+the list and left out of the tiles. **Randomize** puts the random fractal of the next seed into the chosen layer,
+**Mutate** calls the core's mutation. A scene with a fractal the card has no shader for
+([orbits](#orbits-on-the-graphics-card), [kinds drawn pixel by
+pixel](#fractals-drawn-pixel-by-pixel-on-the-graphics-card)) is the processor's alone: it is not previewed by the
+graphics card and the chaos game is not played for it, so it renders with drafts as it does with GPU acceleration
+off, and its layers are kept like any others.
 
 For a test, `FRACTIQUE_SHOW=fractals` starts the app in that tab, `FRACTIQUE_FRACTAL=julia` with another kind
 than the first, `FRACTIQUE_SHOW=kinds` with the list of types open, and `fractals-phone` and
@@ -433,7 +442,7 @@ What else follows from a picture that never leaves the card:
 | **Instant** export | Saves the picture that is on the screen: it is copied back from the card and written as a PNG. While samples are still being plotted the export waits for the last batch. An export at another size than the picture's, and one of a picture the card gave up meanwhile, is rendered by the processor as before |
 | Light or dark ink, darker glass | The lightness that picks them is measured on the blurred picture under the panes, copied back from the card after each drawing |
 | **Recent** | A picture is remembered when its last batch is finished |
-| The two tabs | A tab keeps the processor's finished picture to come back to; the card's picture is not kept, so coming back to the flames plays the chaos game again |
+| The tabs | A tab keeps the processor's finished picture to come back to; the card's picture is not kept, so coming back to the flames plays the chaos game again |
 | Saved files, the session | They hold the scene, not pixels: nothing waits for a picture |
 
 What the processor still renders for the screen, with its drafts and passes as before:
@@ -568,7 +577,7 @@ no preview, so the app behaves as it did before either.
 | Step | What happens |
 | --- | --- |
 | Able | Asked once, when the app starts: compute shaders, a half-float texture a compute shader can write, 64 invocations a workgroup, 4096 workgroups, 3 storage buffers and 1 storage texture a stage, 17 kB of uniforms. WebGL2 and OpenGL ES 3.0 have no compute shaders. A browser is counted as not able: the page renders on the thread that draws |
-| The trial | A card that is able and not known yet is tried once the first picture is on the screen (rendered by the processor) and no render runs: `aurora-spiral` at 1280 × 720 with the samples of the full pass, first on the card, then on the processor. The card's time is the sum of its batches; the processor's counts only when no other render ran beside it, and is taken again otherwise |
+| The trial | A graphics card of its own, not one that shares the processor's chip, is used without a trial. Any other card that is able and not known yet is tried once the first picture is on the screen (rendered by the processor) and no render runs: `aurora-spiral` at 1280 × 720 with the samples of the full pass, first on the card, then on the processor. The card's time is the best of up to three runs, each the sum of its batches; the processor's counts only when no other render ran beside it, and is taken again otherwise |
 | The verdict | The card is used when the processor needed at least 1.3 times the card's time. The margin was two with a trial of 800 × 450; an Adreno 740 phone, whose card is plainly worth using, came out at 1.7 there, because so small a picture is over before the card's fixed costs stop counting. A card that is merely as fast is still left out: it is not worth pictures that differ from device to device |
 | Remembered | The verdict is kept in the app's settings with the card's name, the driver's version and the app's version, together with the processor's samples a second. The trial runs again when one of the three changes |
 | Errors | A shader the card refuses, no memory for a histogram or a texture, a submission that does not end: the card's part ends for the session, the switch goes and the processor renders. During the trial the same ends as a verdict against the card |

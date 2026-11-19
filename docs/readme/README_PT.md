@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-O Fractique cria três tipos de imagem. Chamas fractais: fractais luminosos e etéreos feitos de curvas finas e luz suave. Fractais clássicos: o conjunto de Mandelbrot, os conjuntos de Julia e atratores estranhos, com cores suaves e zoom profundo. E papéis de parede: folhas planas com bordas iluminadas e sombras suaves, cada um em versão clara e escura. Você escolhe uma predefinição, gera uma imagem aleatória ou sobrepõe várias chamas e exporta o resultado em qualquer tamanho, da tela de um celular a um monitor 4K. Uma cena é um único arquivo pequeno, e o mesmo arquivo sempre gera exatamente os mesmos pixels, no Windows, macOS, Linux, Android e iOS.
+O Fractique cria três tipos de imagem. Chamas fractais: fractais luminosos e etéreos feitos de curvas finas e luz suave. Fractais clássicos de 22 tipos: do conjunto de Mandelbrot, dos conjuntos de Julia e dos atratores estranhos ao Mandelbulb em três dimensões. E papéis de parede: folhas planas com bordas iluminadas e sombras suaves, cada um em versão clara e escura. Você escolhe uma predefinição, gera uma imagem aleatória ou sobrepõe várias chamas e exporta o resultado em qualquer tamanho, da tela de um celular a um monitor 4K. Uma cena é um único arquivo pequeno, e o mesmo arquivo sempre gera exatamente os mesmos pixels, no Windows, macOS, Linux, Android e iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="A predefinição aurora-spiral: fios em espiral turquesa e verdes sobre um fundo escuro" width="880">
@@ -17,20 +17,21 @@ O Fractique cria três tipos de imagem. Chamas fractais: fractais luminosos e et
 ## O que o Fractique faz
 
 - **Chamas:** 49 variações, camadas com modos de mesclagem, simetria rotacional e espelhada, estimativa de densidade, luminescência e 29 predefinições embutidas.
-- **Fractais:** o conjunto de Mandelbrot, os conjuntos de Julia e o atrator de Clifford, cada um com predefinições e uma imagem para cada semente; compartilham as paletas, as camadas e o zoom profundo das chamas.
+- **Fractais:** 19 tipos no plano: de tempo de escape (Mandelbrot, Julia, Burning Ship, Tricorn, Multibrot, Fênix, Magnet), de busca de raízes (Newton, Nova), órbitas desenhadas como densidades (Buddhabrot, Clifford, De Jong, Lorenz, Gumowski-Mira, Hopalong) e geométricos (Gaxeta de Apolônio, Grupo kleiniano, Sistema L, Lyapunov), cada um com predefinições e uma imagem para cada semente; compartilham as paletas, as camadas e o zoom profundo das chamas.
 - **Sólidos:** o Mandelbulb, a Mandelbox e a esponja de Menger em três dimensões, com luz, sombras e névoa; gire ao redor deles ou entre neles.
 - **Papéis de parede:** um para cada semente, a partir de 14 layouts e 6 materiais, cada um em versão clara e escura, disposto para o tamanho da tela.
-- **O aplicativo:** uma única base de código para Windows, macOS, Linux, Android, iOS e a web. A imagem preenche a janela e painéis de vidro flutuam sobre ela; no desktop o aplicativo tem sua própria barra de título de vidro. Em 15 idiomas.
+- **O aplicativo:** uma única base de código para Windows, macOS, Linux, Android, iOS e a web. A imagem preenche a janela e painéis de vidro flutuam sobre ela; no desktop o aplicativo tem sua própria barra de título de vidro. Três abas, “Chamas”, “Fractais” e “Formas” (os papéis de parede), mantêm cada uma a sua imagem e as suas imagens recentes. Em 15 idiomas.
+- **Aceleração por GPU:** onde a placa de vídeo é claramente mais rápida que o processador, ela mesma desenha as chamas, três atratores e os fractais de tempo de escape e de busca de raízes, e o processador fica livre. As exportações nos três níveis de qualidade mais altos são sempre renderizadas pelo processador, com exatidão.
 - **“Aleatório” e “Mutar”:** cada semente é uma imagem; chamas que seriam um ponto ou um quadrado preenchido são descartadas. “Mutar” cria uma variante daquela de que você gostou.
 - **Camadas:** adicione uma chama das predefinições ou uma aleatória, remova, reordene e defina a mesclagem (“Soma”, “Tela”, “Sobre”) e a opacidade de cada uma. Até 16 camadas.
-- **Tamanho da imagem:** o da própria janela, uma de 59 telas (computadores até 4K, celulares e tablets Android, iPhones e iPads) ou qualquer largura e altura de 16 a 16384 pixels.
+- **Tamanho da imagem:** o da própria janela, uma de 59 telas (computadores até 4K, celulares e tablets Android, iPhones, iPads, Macs e Apple Watch) ou qualquer largura e altura de 16 a 16384 pixels.
 - **Zoom profundo:** arrastar, a roda do mouse e a pinça movem a vista e a ampliam até dez bilhões de vezes. A imagem acompanha na hora e é redesenhada nítida quando a vista para.
-- **Celulares:** uma tela própria. Um botão redondo cria uma nova imagem, um deslize passa para o próximo papel de parede, uma folha de pequenas imagens ao vivo escolhe o estilo, e as imagens que você guarda formam uma coleção.
+- **Celulares:** uma tela própria. Um botão redondo cria uma nova imagem, um deslize passa para o próximo papel de parede, uma folha de pequenas imagens ao vivo escolhe o estilo, e as imagens que você guarda formam uma coleção. Os tipos de fractal que o processador demora a desenhar não aparecem ali.
 - **Exportação:** um PNG de qualquer tamanho: na hora, como está na tela, ou renderizado em segundo plano em três níveis de qualidade superiores. No celular ele é salvo em Fotos ou na galeria, ou compartilhado. Todos os recursos são gratuitos em todas as plataformas; só a versão da App Store (iPhone, iPad, Mac) pede uma compra única, o Fractique Pro, para exportar em 2560 × 1440 pixels ou mais ou em um tamanho personalizado.
 - **Arquivos de projeto:** um arquivo `.frcq` guarda a cena com sua vista, tom e tamanho, então ela abre como foi salva ([docs/scene-format.md](../scene-format.md)). Cenas `.json` simples e arquivos `.flame` do flam3 e do Apophysis também abrem. Entre uma execução e outra, o aplicativo volta à sessão em que foi deixado.
 - **Atualizações:** uma janela lista cada versão lançada com suas notas e instala qualquer uma delas. No Windows o aplicativo é um único `.exe` portátil que substitui a si mesmo.
 - **Repetibilidade exata:** a mesma cena gera os mesmos pixels em qualquer máquina, o que é verificado por testes no Linux, Windows e macOS ([docs/determinism.md](../determinism.md)).
-- **A ferramenta de linha de comando** (`fractique`): renderiza chamas e papéis de parede em PNG, cria cenas aleatórias e variantes, converte arquivos `.flame`.
+- **A ferramenta de linha de comando** (`fractique`): renderiza chamas, fractais e papéis de parede em PNG, cria cenas aleatórias e variantes, converte arquivos `.flame` e `.frcq`.
 - **Servidor MCP** (`fractique mcp`): um agente de IA cria, altera e renderiza cenas ([docs/mcp.md](../mcp.md)).
 - **Servidor HTTP** (`fractique-server`): uma API HTTP com fila de renderização e limites, MCP para agentes de IA em `/mcp`, serve o aplicativo web, distribuído como imagem Docker ([docs/server.md](../server.md)).
 
@@ -47,6 +48,15 @@ Fractais de outros tipos: o conjunto de Mandelbrot, um conjunto de Julia e o atr
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+
+Mais fractais de tempo de escape e os de busca de raízes: Burning Ship, Tricorn, Multibrot, Fênix, Magnet, Newton, Nova:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
+| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
+| `magnet-pearls` | `newton-seven` | `nova-star` | |
 
 Órbitas desenhadas como densidades: o Buddhabrot e os atratores de De Jong, Lorenz, Gumowski-Mira e Hopalong:
 

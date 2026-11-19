@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique erzeugt drei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fraktale aus feinen Kurven und weichem Licht. Klassische Fraktale: die Mandelbrot-Menge, Julia-Mengen und seltsame Attraktoren, mit weichen Farbverläufen und tiefem Zoom. Und Hintergrundbilder: flache Blätter mit beleuchteten Kanten und weichen Schatten, jedes in einer hellen und einer dunklen Fassung. Du wählst eine Vorlage, würfelst ein zufälliges Bild oder legst mehrere Flammen übereinander und exportierst das Ergebnis in jeder Größe, vom Handybildschirm bis zum 4K-Monitor. Eine Szene ist eine kleine Datei, und dieselbe Datei ergibt immer exakt dieselben Pixel, unter Windows, macOS, Linux, Android und iOS.
+Fractique erzeugt drei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fraktale aus feinen Kurven und weichem Licht. Klassische Fraktale in 22 Arten: von der Mandelbrot-Menge, Julia-Mengen und seltsamen Attraktoren bis zum Mandelbulb in drei Dimensionen. Und Hintergrundbilder: flache Blätter mit beleuchteten Kanten und weichen Schatten, jedes in einer hellen und einer dunklen Fassung. Du wählst eine Vorlage, würfelst ein zufälliges Bild oder legst mehrere Flammen übereinander und exportierst das Ergebnis in jeder Größe, vom Handybildschirm bis zum 4K-Monitor. Eine Szene ist eine kleine Datei, und dieselbe Datei ergibt immer exakt dieselben Pixel, unter Windows, macOS, Linux, Android und iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Die Vorlage aurora-spiral: türkise und grüne Spiralschleier auf dunklem Hintergrund" width="880">
@@ -17,20 +17,21 @@ Fractique erzeugt drei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fr
 ## Was Fractique kann
 
 - **Flammen:** 49 Variationen, Ebenen mit Mischmodi, Dreh- und Spiegelsymmetrie, Dichteschätzung, Leuchten und 29 eingebaute Vorlagen.
-- **Fraktale:** die Mandelbrot-Menge, Julia-Mengen und der Clifford-Attraktor, jeweils mit Vorlagen und einem Bild für jeden Seed; sie teilen Paletten, Ebenen und den tiefen Zoom mit den Flammen.
+- **Fraktale:** 19 Arten in der Ebene: Fluchtzeit-Fraktale (Mandelbrot, Julia, Burning Ship, Tricorn, Multibrot, Phönix, Magnet), Nullstellensuche (Newton, Nova), als Dichte gezeichnete Bahnen (Buddhabrot, Clifford, De Jong, Lorenz, Gumowski-Mira, Hopalong) und geometrische Fraktale (Apollonisches Netz, Kleinsche Gruppe, L-System, Ljapunow), jeweils mit Vorlagen und einem Bild für jeden Seed; sie teilen Paletten, Ebenen und den tiefen Zoom mit den Flammen.
 - **Körper:** Mandelbulb, Mandelbox und Menger-Schwamm in drei Dimensionen, mit Licht, Schatten und Nebel; man kann um sie herumgehen oder hineinfliegen.
 - **Hintergrundbilder:** eines für jeden Seed, aus 14 Layouts und 6 Materialien, jedes in einer hellen und einer dunklen Fassung, passend zur Größe des Bildschirms angeordnet.
-- **Die App:** eine Codebasis für Windows, macOS, Linux, Android, iOS und das Web. Das Bild füllt das Fenster, darüber schweben Glasflächen; auf dem Desktop hat die App eine eigene gläserne Titelleiste. In 15 Sprachen.
+- **Die App:** eine Codebasis für Windows, macOS, Linux, Android, iOS und das Web. Das Bild füllt das Fenster, darüber schweben Glasflächen; auf dem Desktop hat die App eine eigene gläserne Titelleiste. Drei Tabs, „Flammen“, „Fraktale“ und „Formen“ (die Hintergrundbilder), behalten jeweils ihr eigenes Bild und ihre zuletzt gezeigten Bilder. In 15 Sprachen.
+- **GPU-Beschleunigung:** wo die Grafikkarte deutlich schneller ist als der Prozessor, zeichnet sie Flammen, drei Attraktoren sowie die Fraktale der Fluchtzeit und der Nullstellensuche selbst, und der Prozessor bleibt frei. Exporte in den drei höheren Qualitätsstufen rendert immer der Prozessor, exakt.
 - **„Zufall“ und „Mutieren“:** jeder Seed ist ein Bild; Flammen, die nur ein Punkt oder ein gefülltes Quadrat wären, werden übersprungen. „Mutieren“ erzeugt eine Variante des Bildes, das dir gefällt.
 - **Ebenen:** eine Flamme aus den Vorlagen oder eine zufällige hinzufügen, entfernen, umsortieren und für jede den Mischmodus („Summe“, „Screen“, „Darüber“) und die Deckkraft einstellen. Bis zu 16 Ebenen.
-- **Bildgröße:** die des Fensters, einer von 59 Bildschirmen (Computer bis 4K, Android-Handys und -Tablets, iPhones und iPads) oder jede Breite und Höhe von 16 bis 16384 Pixeln.
+- **Bildgröße:** die des Fensters, einer von 59 Bildschirmen (Computer bis 4K, Android-Handys und -Tablets, iPhones, iPads, Macs und Apple Watch) oder jede Breite und Höhe von 16 bis 16384 Pixeln.
 - **Tiefer Zoom:** Ziehen, Mausrad und Zwei-Finger-Geste bewegen die Ansicht und vergrößern sie bis zu zehnmilliardenfach. Das Bild folgt sofort und wird scharf neu gezeichnet, sobald die Ansicht ruht.
-- **Handys:** ein eigener Bildschirm. Ein runder Knopf erzeugt ein neues Bild, ein Wisch führt zum nächsten Hintergrundbild, ein Blatt mit kleinen Live-Bildern wählt den Stil, und die Bilder, die du behältst, bilden eine Sammlung.
+- **Handys:** ein eigener Bildschirm. Ein runder Knopf erzeugt ein neues Bild, ein Wisch führt zum nächsten Hintergrundbild, ein Blatt mit kleinen Live-Bildern wählt den Stil, und die Bilder, die du behältst, bilden eine Sammlung. Die Fraktalarten, für die der Prozessor lange braucht, fehlen dort.
 - **Export:** ein PNG in jeder Größe: sofort, so wie es auf dem Bildschirm ist, oder im Hintergrund in drei höheren Qualitätsstufen gerendert. Auf dem Handy wird es in Fotos oder der Galerie gespeichert oder geteilt. Alle Funktionen sind auf jeder Plattform kostenlos; nur die Version aus dem App Store (iPhone, iPad, Mac) verlangt für den Export ab 2560 × 1440 Pixeln oder in einer eigenen Größe den einmaligen Kauf von Fractique Pro.
 - **Projektdateien:** eine `.frcq`-Datei enthält die Szene samt Ansicht, Ton und Größe und öffnet sich so, wie sie gespeichert wurde ([docs/scene-format.md](../scene-format.md)). Einfache `.json`-Szenen und `.flame`-Dateien von flam3 und Apophysis lassen sich ebenfalls öffnen. Zwischen zwei Starts kehrt die App zu der Sitzung zurück, in der sie verlassen wurde.
 - **Updates:** ein Fenster listet jede veröffentlichte Version mit ihren Hinweisen auf und installiert jede beliebige davon. Unter Windows ist die App eine einzige portable `.exe`, die sich selbst ersetzt.
 - **Exakte Wiederholbarkeit:** dieselbe Szene ergibt auf jedem Rechner dieselben Pixel, geprüft durch Tests unter Linux, Windows und macOS ([docs/determinism.md](../determinism.md)).
-- **Das Kommandozeilenwerkzeug** (`fractique`): rendert Flammen und Hintergrundbilder als PNG, erzeugt zufällige Szenen und Varianten, konvertiert `.flame`-Dateien.
+- **Das Kommandozeilenwerkzeug** (`fractique`): rendert Flammen, Fraktale und Hintergrundbilder als PNG, erzeugt zufällige Szenen und Varianten, konvertiert `.flame`- und `.frcq`-Dateien.
 - **MCP-Server** (`fractique mcp`): ein KI-Agent erstellt, ändert und rendert Szenen ([docs/mcp.md](../mcp.md)).
 - **HTTP-Server** (`fractique-server`): eine HTTP-API mit Render-Warteschlange und Grenzen, MCP für KI-Agenten unter `/mcp`, liefert die Web-App aus, gibt es als Docker-Image ([docs/server.md](../server.md)).
 
@@ -47,6 +48,15 @@ Fraktale anderer Art: die Mandelbrot-Menge, eine Julia-Menge und der Clifford-At
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+
+Weitere Fluchtzeit-Fraktale und die der Nullstellensuche: Burning Ship, Tricorn, Multibrot, Phönix, Magnet, Newton, Nova:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
+| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
+| `magnet-pearls` | `newton-seven` | `nova-star` | |
 
 Als Dichte gezeichnete Bahnen: das Buddhabrot und die Attraktoren von De Jong, Lorenz, Gumowski-Mira und Hopalong:
 

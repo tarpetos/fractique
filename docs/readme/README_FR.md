@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique crée trois sortes d’images. Des flammes fractales : ces fractales lumineuses et vaporeuses faites de courbes fines et de lumière douce. Des fractales classiques : l’ensemble de Mandelbrot, les ensembles de Julia et des attracteurs étranges, aux couleurs lisses et au zoom profond. Et des fonds d’écran : des feuilles plates aux bords éclairés et aux ombres douces, chacun en version claire et en version sombre. Vous choisissez un préréglage, tirez une image au hasard ou superposez plusieurs flammes, puis vous exportez le résultat à n’importe quelle taille, de l’écran d’un téléphone à un moniteur 4K. Une scène est un seul petit fichier, et le même fichier donne toujours exactement les mêmes pixels, sous Windows, macOS, Linux, Android et iOS.
+Fractique crée trois sortes d’images. Des flammes fractales : ces fractales lumineuses et vaporeuses faites de courbes fines et de lumière douce. Des fractales classiques de 22 sortes : de l’ensemble de Mandelbrot, des ensembles de Julia et des attracteurs étranges au Mandelbulb en trois dimensions. Et des fonds d’écran : des feuilles plates aux bords éclairés et aux ombres douces, chacun en version claire et en version sombre. Vous choisissez un préréglage, tirez une image au hasard ou superposez plusieurs flammes, puis vous exportez le résultat à n’importe quelle taille, de l’écran d’un téléphone à un moniteur 4K. Une scène est un seul petit fichier, et le même fichier donne toujours exactement les mêmes pixels, sous Windows, macOS, Linux, Android et iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Le préréglage aurora-spiral : des volutes en spirale turquoise et vertes sur fond sombre" width="880">
@@ -17,20 +17,21 @@ Fractique crée trois sortes d’images. Des flammes fractales : ces fractales l
 ## Ce que fait Fractique
 
 - **Flammes :** 49 variations, des calques avec modes de fusion, symétrie de rotation et en miroir, estimation de densité, lueur, et 29 préréglages intégrés.
-- **Fractales :** l’ensemble de Mandelbrot, les ensembles de Julia et l’attracteur de Clifford, chacun avec ses préréglages et une image pour chaque graine ; elles partagent les palettes, les calques et le zoom profond des flammes.
+- **Fractales :** 19 sortes dans le plan : à temps d’échappement (Mandelbrot, Julia, Burning Ship, Tricorn, Multibrot, Phénix, Magnet), à recherche de racines (Newton, Nova), orbites dessinées comme des densités (Buddhabrot, Clifford, De Jong, Lorenz, Gumowski-Mira, Hopalong) et géométriques (Baderne d’Apollonius, Groupe kleinien, L-système, Liapounov), chacune avec ses préréglages et une image pour chaque graine ; elles partagent les palettes, les calques et le zoom profond des flammes.
 - **Solides :** le Mandelbulb, la Mandelbox et l’éponge de Menger en trois dimensions, avec lumière, ombres et brouillard ; tournez autour ou entrez à l’intérieur.
 - **Fonds d’écran :** un pour chaque graine, parmi 14 dispositions et 6 matières, chacun en version claire et en version sombre, disposé pour la taille de l’écran.
-- **L’application :** une seule base de code pour Windows, macOS, Linux, Android, iOS et le web. L’image remplit la fenêtre et des panneaux de verre flottent au-dessus ; sur ordinateur, l’application a sa propre barre de titre en verre. En 15 langues.
+- **L’application :** une seule base de code pour Windows, macOS, Linux, Android, iOS et le web. L’image remplit la fenêtre et des panneaux de verre flottent au-dessus ; sur ordinateur, l’application a sa propre barre de titre en verre. Trois onglets, « Flammes », « Fractales » et « Formes » (les fonds d’écran), gardent chacun son image et ses images récentes. En 15 langues.
+- **Accélération GPU :** là où la carte graphique est nettement plus rapide que le processeur, elle dessine elle-même les flammes, trois attracteurs et les fractales à temps d’échappement et à recherche de racines, et le processeur reste libre. Les exports aux trois niveaux de qualité supérieurs sont toujours rendus par le processeur, exactement.
 - **« Aléatoire » et « Muter » :** chaque graine est une image ; les flammes qui ne seraient qu’un point ou un carré plein sont écartées. « Muter » crée une variante de celle qui vous plaît.
 - **Calques :** ajoutez une flamme tirée des préréglages ou au hasard, supprimez-la, changez l’ordre, et réglez pour chacune la fusion (« Somme », « Écran », « Dessus ») et l’opacité. Jusqu’à 16 calques.
-- **Taille de l’image :** celle de la fenêtre, l’un des 59 écrans (ordinateurs jusqu’à la 4K, téléphones et tablettes Android, iPhone et iPad), ou toute largeur et hauteur de 16 à 16384 pixels.
+- **Taille de l’image :** celle de la fenêtre, l’un des 59 écrans (ordinateurs jusqu’à la 4K, téléphones et tablettes Android, iPhone, iPad, Mac et Apple Watch), ou toute largeur et hauteur de 16 à 16384 pixels.
 - **Zoom profond :** le glisser, la molette et le pincement déplacent la vue et l’agrandissent jusqu’à dix milliards de fois. L’image suit aussitôt et est redessinée nette dès que la vue s’immobilise.
-- **Téléphones :** un écran à part. Un bouton rond crée une nouvelle image, un balayage passe au fond d’écran suivant, une feuille de petites images vivantes choisit le style, et les images que vous gardez forment une collection.
+- **Téléphones :** un écran à part. Un bouton rond crée une nouvelle image, un balayage passe au fond d’écran suivant, une feuille de petites images vivantes choisit le style, et les images que vous gardez forment une collection. Les sortes de fractales que le processeur met longtemps à dessiner n’y figurent pas.
 - **Export :** un PNG de n’importe quelle taille : tout de suite, tel qu’il est à l’écran, ou rendu en arrière-plan en trois niveaux de qualité supérieurs. Sur un téléphone, il est enregistré dans Photos ou dans la galerie, ou partagé. Toutes les fonctions sont gratuites sur toutes les plateformes ; seule la version de l’App Store (iPhone, iPad, Mac) demande un achat unique, Fractique Pro, pour exporter en 2560 × 1440 pixels et plus ou dans une taille personnalisée.
 - **Fichiers de projet :** un fichier `.frcq` garde la scène avec sa vue, son ton et sa taille, si bien qu’elle s’ouvre telle qu’elle a été enregistrée ([docs/scene-format.md](../scene-format.md)). Les scènes `.json` simples et les fichiers `.flame` de flam3 et d’Apophysis s’ouvrent aussi. D’un lancement à l’autre, l’application retrouve la session où elle a été quittée.
 - **Mises à jour :** une fenêtre liste chaque version publiée avec ses notes et installe n’importe laquelle. Sous Windows, l’application est un seul `.exe` portable qui se remplace lui-même.
 - **Répétabilité exacte :** la même scène donne les mêmes pixels sur toutes les machines, ce que vérifient des tests sous Linux, Windows et macOS ([docs/determinism.md](../determinism.md)).
-- **L’outil en ligne de commande** (`fractique`) : fait le rendu des flammes et des fonds d’écran en PNG, crée des scènes aléatoires et des variantes, convertit les fichiers `.flame`.
+- **L’outil en ligne de commande** (`fractique`) : fait le rendu des flammes, des fractales et des fonds d’écran en PNG, crée des scènes aléatoires et des variantes, convertit les fichiers `.flame` et `.frcq`.
 - **Serveur MCP** (`fractique mcp`) : un agent d’IA crée et modifie des scènes, et en fait le rendu ([docs/mcp.md](../mcp.md)).
 - **Serveur HTTP** (`fractique-server`) : une API HTTP avec une file d’attente de rendus et des limites, MCP pour les agents d’IA sur `/mcp`, sert l’application web, livré comme image Docker ([docs/server.md](../server.md)).
 
@@ -47,6 +48,15 @@ Des fractales d’autres sortes : l’ensemble de Mandelbrot, un ensemble de Jul
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+
+D’autres fractales à temps d’échappement et celles à recherche de racines : Burning Ship, Tricorn, Multibrot, Phénix, Magnet, Newton, Nova :
+
+| | | | |
+| --- | --- | --- | --- |
+| ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
+| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
+| `magnet-pearls` | `newton-seven` | `nova-star` | |
 
 Des orbites dessinées comme des densités : le Buddhabrot et les attracteurs de De Jong, de Lorenz, de Gumowski-Mira et Hopalong :
 

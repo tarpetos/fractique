@@ -8,7 +8,7 @@
   </sub></p>
 </div>
 
-Fractique üç tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumuşak ışıktan oluşan, parlayan, tül gibi fraktallar. Klasik fraktallar: yumuşak renk geçişleri ve derin yakınlaştırmayla Mandelbrot kümesi, Julia kümeleri ve garip çekiciler. Ve duvar kâğıtları: kenarları aydınlatılmış, yumuşak gölgeli düz levhalar; her birinin açık ve koyu sürümü vardır. Bir hazır ayar seçer, rastgele bir görüntü üretir ya da birkaç alevi üst üste bindirirsiniz ve sonucu telefon ekranından 4K monitöre kadar istediğiniz boyutta dışa aktarırsınız. Bir sahne tek bir küçük dosyadır ve aynı dosya Windows, macOS, Linux, Android ve iOS’ta her zaman tam olarak aynı pikselleri verir.
+Fractique üç tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumuşak ışıktan oluşan, parlayan, tül gibi fraktallar. 22 türde klasik fraktal: Mandelbrot kümesi, Julia kümeleri ve garip çekicilerden üç boyutlu Mandelbulb’a kadar. Ve duvar kâğıtları: kenarları aydınlatılmış, yumuşak gölgeli düz levhalar; her birinin açık ve koyu sürümü vardır. Bir hazır ayar seçer, rastgele bir görüntü üretir ya da birkaç alevi üst üste bindirirsiniz ve sonucu telefon ekranından 4K monitöre kadar istediğiniz boyutta dışa aktarırsınız. Bir sahne tek bir küçük dosyadır ve aynı dosya Windows, macOS, Linux, Android ve iOS’ta her zaman tam olarak aynı pikselleri verir.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="aurora-spiral hazır ayarı: koyu bir arka planda turkuaz ve yeşil sarmal tüller" width="880">
@@ -17,20 +17,21 @@ Fractique üç tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yum
 ## Fractique neler yapar
 
 - **Alevler:** 49 varyasyon, karıştırma modlu katmanlar, dönme ve ayna simetrisi, yoğunluk kestirimi, ışıltı ve 29 yerleşik hazır ayar.
-- **Fraktallar:** Mandelbrot kümesi, Julia kümeleri ve Clifford çekicisi; her birinin hazır ayarları ve her tohum için bir görüntüsü vardır. Paletleri, katmanları ve derin yakınlaştırmayı alevlerle paylaşırlar.
+- **Fraktallar:** düzlemde 19 tür: kaçış zamanı (Mandelbrot, Julia, Burning Ship, Tricorn, Multibrot, Anka, Magnet), kök bulma (Newton, Nova), yoğunluk olarak çizilen yörüngeler (Buddhabrot, Clifford, De Jong, Lorenz, Gumowski-Mira, Hopalong) ve geometrik (Apollonius contası, Klein grubu, L-sistemi, Lyapunov); her birinin hazır ayarları ve her tohum için bir görüntüsü vardır. Paletleri, katmanları ve derin yakınlaştırmayı alevlerle paylaşırlar.
 - **Katı cisimler:** üç boyutta Mandelbulb, Mandelbox ve Menger süngeri; ışık, gölge ve sisle. Çevrelerinde dönebilir ya da içlerine girebilirsiniz.
 - **Duvar kâğıtları:** her tohum için bir tane; 14 düzen ve 6 malzemeden, her biri açık ve koyu sürümüyle, ekranın boyutuna göre yerleştirilir.
-- **Uygulama:** Windows, macOS, Linux, Android, iOS ve web için tek kod tabanı. Görüntü pencereyi doldurur, üzerinde cam paneller süzülür; masaüstünde uygulamanın kendi cam başlık çubuğu vardır. 15 dilde.
+- **Uygulama:** Windows, macOS, Linux, Android, iOS ve web için tek kod tabanı. Görüntü pencereyi doldurur, üzerinde cam paneller süzülür; masaüstünde uygulamanın kendi cam başlık çubuğu vardır. Üç sekme, “Alevler”, “Fraktallar” ve “Şekiller” (duvar kâğıtları), her biri kendi görüntüsünü ve son görüntülerini saklar. 15 dilde.
+- **GPU hızlandırma:** ekran kartının işlemciden belirgin biçimde hızlı olduğu yerde alevleri, üç çekiciyi ve kaçış zamanı ile kök bulma fraktallarını ekran kartı kendisi çizer, işlemci boşta kalır. Üç yüksek kalite düzeyindeki dışa aktarımları her zaman işlemci, tam olarak işler.
 - **“Rastgele” ve “Mutasyon”:** her tohum bir görüntüdür; bir nokta ya da dolu bir kare olacak alevler atlanır. “Mutasyon”, beğendiğinizin bir varyantını üretir.
 - **Katmanlar:** hazır ayarlardan ya da rastgele bir alev ekleyin, kaldırın, sırasını değiştirin ve her birinin karıştırmasını (“Ekle”, “Ekran”, “Üstüne”) ve opaklığını ayarlayın. En çok 16 katman.
-- **Görüntü boyutu:** pencerenin kendi boyutu, 59 ekrandan biri (4K’ya kadar bilgisayarlar, Android telefon ve tabletler, iPhone ve iPad’ler) ya da 16 ile 16384 piksel arasında herhangi bir genişlik ve yükseklik.
+- **Görüntü boyutu:** pencerenin kendi boyutu, 59 ekrandan biri (4K’ya kadar bilgisayarlar, Android telefon ve tabletler, iPhone, iPad, Mac ve Apple Watch’lar) ya da 16 ile 16384 piksel arasında herhangi bir genişlik ve yükseklik.
 - **Derin yakınlaştırma:** sürükleme, tekerlek ve kıstırma hareketi görünümü kaydırır ve on milyar kata kadar büyütür. Görüntü hemen izler, görünüm durduğunda da net olarak yeniden çizilir.
-- **Telefonlar:** kendine ait bir ekran. Yuvarlak bir düğme yeni bir görüntü üretir, bir kaydırma sonraki duvar kâğıdına geçer, küçük canlı görüntülerden oluşan bir sayfa stili seçtirir ve sakladığınız görüntüler bir koleksiyon oluşturur.
+- **Telefonlar:** kendine ait bir ekran. Yuvarlak bir düğme yeni bir görüntü üretir, bir kaydırma sonraki duvar kâğıdına geçer, küçük canlı görüntülerden oluşan bir sayfa stili seçtirir ve sakladığınız görüntüler bir koleksiyon oluşturur. İşlemcinin uzun sürede çizdiği fraktal türleri orada yer almaz.
 - **Dışa aktarma:** istediğiniz boyutta bir PNG: ekrandaki haliyle anında ya da üç daha yüksek kalite düzeyinde arka planda işlenerek. Telefonda Fotoğraflar’a ya da galeriye kaydedilir veya paylaşılır. Tüm özellikler her platformda ücretsizdir; yalnızca App Store sürümünde (iPhone, iPad, Mac) 2560 × 1440 piksel ve üzeri ya da özel bir boyutta dışa aktarmak için tek seferlik Fractique Pro satın alımı gerekir.
 - **Proje dosyaları:** `.frcq` dosyası sahneyi görünümü, tonu ve boyutuyla birlikte saklar; böylece kaydedildiği gibi açılır ([docs/scene-format.md](../scene-format.md)). Düz `.json` sahneleri ile flam3 ve Apophysis’in `.flame` dosyaları da açılır. Uygulama, açılışlar arasında bırakıldığı oturuma geri döner.
 - **Güncellemeler:** bir pencere yayımlanan her sürümü notlarıyla listeler ve istediğinizi kurar. Windows’ta uygulama, kendi kendini değiştiren tek bir taşınabilir `.exe` dosyasıdır.
 - **Tam yinelenebilirlik:** aynı sahne her makinede aynı pikselleri verir; bunu Linux, Windows ve macOS’taki testler doğrular ([docs/determinism.md](../determinism.md)).
-- **Komut satırı aracı** (`fractique`): alevleri ve duvar kâğıtlarını PNG olarak işler, rastgele sahneler ve varyantlar üretir, `.flame` dosyalarını dönüştürür.
+- **Komut satırı aracı** (`fractique`): alevleri, fraktalları ve duvar kâğıtlarını PNG olarak işler, rastgele sahneler ve varyantlar üretir, `.flame` ve `.frcq` dosyalarını dönüştürür.
 - **MCP sunucusu** (`fractique mcp`): bir yapay zekâ ajanı sahneler oluşturur, değiştirir ve işler ([docs/mcp.md](../mcp.md)).
 - **HTTP sunucusu** (`fractique-server`): işleme kuyruğu ve sınırları olan bir HTTP API’si; `/mcp` adresinde yapay zekâ ajanları için MCP; web uygulamasını sunar, Docker imajı olarak gelir ([docs/server.md](../server.md)).
 
@@ -47,6 +48,15 @@ Başka türden fraktallar: Mandelbrot kümesi, bir Julia kümesi ve Clifford çe
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
 | `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+
+Diğer kaçış zamanı fraktalları ve kök bulma fraktalları: Burning Ship, Tricorn, Multibrot, Anka, Magnet, Newton, Nova:
+
+| | | | |
+| --- | --- | --- | --- |
+| ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
+| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
+| `magnet-pearls` | `newton-seven` | `nova-star` | |
 
 Yoğunluk olarak çizilen yörüngeler: Buddhabrot ile De Jong, Lorenz, Gumowski-Mira ve Hopalong çekicileri:
 

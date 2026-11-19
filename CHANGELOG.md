@@ -23,8 +23,7 @@
   appearance, dimmed in the dark one.
 
 * **Recent pictures of each tab:** Flames, Fractals and Shapes each keep their own recent pictures, 20 of them,
-  and the list a tab opens holds only its own, with the picture on screen marked. Before, one list of 24 served
-  all three, and the name under **Recent** changed with every change of tab.
+  and the list a tab opens holds only its own, with the picture on screen marked.
 
 * **Names of fractals in every language:** the names of the kinds, of their presets and of the flame presets are
   shown in the app's language, in all 15 (the kinds were kept in English for a while, the presets always were). The default
@@ -45,7 +44,7 @@
   * **App:** a third tab, **Fractals**, between **Flames** and **Shapes**: the type (a list on a computer, tiles
     with small pictures on a phone), the presets of the type, **Randomize** and **Mutate**, a slider for every
     parameter, and the palettes, layers, tone, view, recent pictures, collection, export, session and `.frcq`
-    files as for flames. These kinds are rendered by the processor; GPU acceleration is for flames.
+    files as for flames. Which of the kinds the graphics card draws is in the entries on GPU acceleration below.
   * **Command line:** `fractique fractals` lists the kinds with their parameters and presets; `--fractal KIND`
     with `render --random SEED` and `randomize SEED` makes the random fractal of a seed; `--preset` and
     `preset` take the fractal presets (`mandelbrot-seahorse-valley`, `julia-dragon`, `clifford-wings`, ...).
@@ -134,7 +133,7 @@
 * **GPU acceleration, safer for the new kinds:** what the graphics card is given in one go for a scene with an
   attractor in it has a hard bound that is known before it is sent: at most 4 steps a pixel and 4 194 304 steps
   for the walkers of all layers, and a density estimation over at most 17 179 869 184 cells; a batch that takes
-  longer than 0.5 s ends the card's part for the session. A scene of flames alone is drawn by the card as it
+  longer than 0.5 s gives its picture to the processor. A scene of flames alone is drawn by the card as it
   always was: its batches grow with the card's pace and it is given 20 s
   ([docs/architecture.md](docs/architecture.md#the-work-of-one-submission)).
 * **GPU acceleration:** the trial of a built-in graphics chip gives way when a picture is asked for and begins
@@ -153,10 +152,10 @@
   to 0.3 s on an NVIDIA RTX 4070. Tone, opacity and blend follow at once. **Instant** export saves that picture,
   copied back from the card, once all of its samples are there; exports at Standard, High and Ultra are rendered
   by the processor and exact as before, and so are the command line tool, the MCP tools and the server. What the
-  card does not draw (wallpapers, deep views) is rendered as before.
+  card does not draw (wallpapers) is rendered as before.
 * **App:** the **Graphics** section is shown only where the graphics card helps. The app tries the card against the
   processor once, after its first picture, and remembers the answer for that card and version; where the card has
-  no compute shaders or is not at least twice as fast, there is no switch and the app works on the processor
+  no compute shaders or is not at least 1.3 times as fast, there is no switch and the app works on the processor
   alone, as it did before any acceleration. A card that turns out slow on one picture gives that picture to the
   processor at once, and an error of the card takes the switch away for the session. Under the switch are the
   card's name and the note, which now says that an Instant export can differ between devices too.
@@ -179,7 +178,7 @@
 * **App:** with GPU acceleration on, the graphics card plays the chaos game itself, so a new flame is on the screen
   in a fraction of a second: at 3840×2160 the first picture comes after about 0.03 s and all of its samples after
   0.2 to 0.4 s on an NVIDIA RTX 4070, where the processor takes 4 to 12 s. The picture is at the full size from the
-  start and grows finer with every frame. Wallpapers, views that hold little of the flame and graphics cards
+  start and grows finer with every frame. Wallpapers and graphics cards
   without compute shaders are left to the processor, and so is everything when the switch is off
   ([docs/architecture.md](docs/architecture.md#the-chaos-game-on-the-graphics-card)).
 
@@ -191,13 +190,13 @@
   follows a sideways move only, and a vertical one scrolls.
 * **App:** GPU acceleration, a switch in the controls, on at first and kept between launches. While a tone slider,
   the zoom, a layer's opacity or its blend moves, the graphics card draws the picture from the layers already
-  rendered, so it answers at once; when the control rests, the processor renders the picture and replaces the
-  preview. A change to a layer's tone no longer runs the chaos game again. The rendered picture and every export
-  are the processor's, as before; with the switch off the app renders as it did.
+  rendered, so it answers at once. A change to a layer's tone no longer runs the chaos game again. Exports at
+  Standard, High and Ultra are the processor's, as before; with the switch off the app renders as it did.
 * **Renderer:** `render_density` and `develop` split `render_layer` in two, before and after the tone mapping,
   and give the same layer bit for bit. Existing scenes render as before.
-* **App:** the last 24 pictures are remembered. **Recent** in the inspector lists them, and the styles of a phone
-  show them as a row of small pictures; a click brings one back. The list is kept between launches.
+* **App:** the last pictures are remembered, 20 of each tab. **Recent** in the inspector lists them, and the
+  styles of a phone show them as a row of small pictures; a click brings one back. The list is kept between
+  launches.
 * **MCP over HTTP:** `fractique-server` speaks MCP at `POST /mcp` (Streamable HTTP, revisions `2025-06-18` and
   `2025-03-26`) with the tools of `fractique mcp`, from the same code ([docs/mcp.md](docs/mcp.md#over-http)). A
   tool call is answered as an event stream with its progress; `notifications/cancelled`, the end of the session
@@ -250,8 +249,9 @@
   ribbons, burst, arcs, tiles, bars, fan, slats, planes, steps, frames, lines), six materials (relief, paper,
   glass, glow, steel, carbon) and generated colors, each with a light and a dark version. Scenes without `sheets`
   render as before.
-* **App:** a Flames and Wallpapers switch in the controls. In wallpaper mode the layout, the material and light or
-  dark are chosen there; Randomize makes a new wallpaper and Mutate another of the same layout and material.
+* **App:** a switch in the controls between flames and wallpapers, the tabs **Flames** and **Shapes**. In wallpaper
+  mode the layout, the material and light or dark are chosen there; Randomize makes a new wallpaper and Mutate
+  another of the same layout and material.
 * **Phones:** the app has a screen of its own on a phone. The picture fills it, with its name and number as a
   placard. A round glass button makes a new one; four small ones keep it, make a similar one, open the styles and
   export. A swipe goes to the next or the previous wallpaper. The styles are a sheet of small live pictures of every
