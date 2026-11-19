@@ -406,6 +406,14 @@ fn note(recent: &mut Vec<Piece>, mut piece: Piece, step: Step, at: usize, now: u
             };
         }
     }
+    // The picture that was on the screen comes right after the new one, so that Back returns to it.
+    if at > 0
+        && !matches!(step, Step::Picked | Step::Visited)
+        && let Some(&seen) = rows.get(at)
+    {
+        let last = recent.remove(seen);
+        recent.insert(0, last);
+    }
     recent.retain(|other| other.key() != key);
     recent.insert(0, piece);
     let mut kept = 0;
@@ -1501,6 +1509,17 @@ mod tests {
             kind: Kind::Flame(Box::new(scene)),
             origin: Origin::default(),
         }
+    }
+
+    #[test]
+    fn a_new_picture_after_going_back_comes_before_the_one_that_was_shown() {
+        let mut recent = Vec::new();
+        for seed in 1..=4 {
+            note(&mut recent, wall(seed), Step::Fresh, 0, 100);
+        }
+        assert!(kinds(&recent) == kinds(&[wall(4), wall(3), wall(2), wall(1)]));
+        assert_eq!(note(&mut recent, wall(9), Step::Fresh, 2, 200), 0);
+        assert!(kinds(&recent) == kinds(&[wall(9), wall(2), wall(4), wall(3), wall(1)]));
     }
 
     fn kinds(recent: &[Piece]) -> Vec<Kind> {
