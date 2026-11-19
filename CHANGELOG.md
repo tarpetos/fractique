@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+* **Random flames without squares:** the second random generator no longer draws the variation `rectangles`,
+  which tiled a flame into a grid of squares in about one random scene in seven. A seed that drew it gives another
+  scene now (a breaking change for those seeds); every other seed gives the scene it gave, and no golden hash
+  changed. The variation itself is as it was, in scene files and in imported `.flame` files.
+
 * **Wallpapers on the graphics card:** with GPU acceleration on, the wallpapers of the Shapes tab are drawn by
   the graphics card, as flames and fractals are, so the switch means the same in every tab. A new wallpaper, a
   swipe, another layout, material, color, light or dark is on the screen at once: on an RTX 4070 a wallpaper of

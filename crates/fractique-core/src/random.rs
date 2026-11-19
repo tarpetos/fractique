@@ -156,14 +156,15 @@ fn second_params(kind: Kind, rng: &mut Rng) -> Vec<f64> {
             rng.range(0.5, 1.5),
             rng.range(0.5, 1.5),
         ],
-        Kind::Rectangles => vec![rng.range(0.2, 0.9), rng.range(0.2, 0.9)],
         _ => Vec::new(),
     }
 }
 
 fn second_variation(rng: &mut Rng, weight: f64, refused: fn(Kind) -> bool) -> Variation {
+    // `rectangles` tiles a flame into squares: it is drawn again. It keeps its place among the choices so that
+    // the seeds that never drew it keep their scenes.
     let mut kind = pick_kind(rng, &SECOND_CHOICES);
-    while refused(kind) {
+    while refused(kind) || kind == Kind::Rectangles {
         kind = pick_kind(rng, &SECOND_CHOICES);
     }
     Variation {
@@ -604,10 +605,10 @@ mod tests {
     }
 
     #[test]
-    fn the_second_generator_uses_every_variation_and_the_first_its_own() {
+    fn the_second_generator_uses_every_variation_but_rectangles_and_the_first_its_own() {
         let second = kinds_of(Generator::Second, 400);
         for kind in Kind::ALL {
-            assert!(second.contains(&kind), "{kind:?} is never drawn");
+            assert_eq!(second.contains(&kind), kind != Kind::Rectangles, "{kind:?}");
         }
         let first = kinds_of(Generator::First, 200);
         assert!(

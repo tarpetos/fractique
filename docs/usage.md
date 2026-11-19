@@ -262,7 +262,7 @@ fractique render scene.json -o mine.png
 ```
 
 There are two random generators, and the same number is a different scene in each. `--generator 1`, the one
-used when the option is left out, draws from the first 27 variations. `--generator 2` draws from all 49, gives the
+used when the option is left out, draws from the first 27 variations. `--generator 2` draws from 48 of the 49 (all but `rectangles`, which tiles a flame into squares), gives the
 parametric ones (`blob`, `pdj`, `ngon`, `juliascope` and the rest) random parameters, and skips more of the
 pictures that come out as specks, a dim haze or an even fog:
 
