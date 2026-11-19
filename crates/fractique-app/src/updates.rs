@@ -226,11 +226,7 @@ impl Updates {
         let dim = egui::Color32::from_white_alpha(170);
         ui.set_width(width);
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-        ui.label(
-            egui::RichText::new(texts.get("updates_title"))
-                .font(font(17.0, SEMIBOLD))
-                .color(egui::Color32::WHITE),
-        );
+        widgets::title(ui, &texts.get("updates_title"), 17.0);
         ui.add_space(4.0);
         let own = texts.get("you_have").replace("{v}", update::current());
         let about = match self.kind {

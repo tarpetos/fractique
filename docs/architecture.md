@@ -324,7 +324,7 @@ always is.
 | `deep.rs`, `deep.wgsl` | [Deep views on the graphics card](#deep-views-on-the-graphics-card): the plan of a view that holds little of the flame, and the particles it is drawn from |
 | `orbit.rs`, `orbit.wgsl` | The orbit kinds the graphics card draws: what the shader reads of each, and their walkers, which plot into the same histogram |
 | `field.rs`, `field.wgsl`, `field_escape.wgsl`, `field_root.wgsl` | The escape-time and root-finding kinds the graphics card draws pixel by pixel |
-| `widgets.rs` | The controls: rows, pills, sliders, switches; the fonts |
+| `widgets.rs` | The controls: rows, pills, sliders, switches; the fonts; the measures of a pane |
 | `i18n.rs`, `locales/` | The texts, in 15 languages: one file a language, and in `locales/fractals/` one file a family of fractals with the names of its kinds, parameters, choices and presets in every language, and `flame.json` with the names of the flame presets |
 | `android.rs`, `ios.rs` | The gallery, Photos and sharing |
 | `store.rs`, `storekit.rs` | The App Store builds only (the `store` feature): which sizes need the purchase, its states, StoreKit ([The purchase](#the-purchase-in-the-app-store-builds)) |
@@ -360,6 +360,29 @@ than the first, `FRACTIQUE_SHOW=kinds` with the list of types open, and `fractal
 
 An export is a separate render at the size and quality chosen, with the scene as it is on the screen. The session
 is written whenever it changes, not at exit: a phone ends an app without telling it.
+
+### The measures of a pane
+
+Every pane of glass (a sheet, a list, the inspector, the phone's controls) is laid out with the same few numbers,
+kept in `widgets.rs`, so that no pane has its own:
+
+| Measure | Points | What |
+| --- | --- | --- |
+| `PAD` | 22 | From each of a pane's four edges to its content. `widgets::pane()` is the frame that has it |
+| `OUTER` | 12 | On a phone, from the screen's safe edges to a pane: at its sides always, above and below when the pane is as high as the screen allows |
+| `CLOSE` | 28 | The round close button. A pane's first line (`widgets::title`, `widgets::heading`) is that high, with the text centred in it, so the button fills the corner of the padding: `PAD` from the top and from the right edge. Beside a taller title (the controls' "Fractique") it stands on the title's line |
+| `HEAD` | 4 | Under a list's heading, before its first row |
+| `SECTION`, `CAPTION` | 14, 2 | Above a section's caption, and between the caption and its control |
+
+On a phone every sheet is as wide as the screen leaves inside `OUTER` and `PAD` (`sheet_width`), up to a width
+that reads well on a phone held on its side; on a computer each sheet has its own width. A list is centred
+(`list_place`) and grows until `OUTER` is left above and below it; its rows end `PAD` above the pane's edge, and
+while it is scrolled a row may be cut there. Two things stand apart by design: the styles' handle takes the place
+of the top padding, and the gap under a title depends on what follows it (a caption, a line of text, a row).
+
+Glass shows what lies under it, so two panes never overlap: a list or a sheet hides the panel it would cover, and
+a pane that would reach another one in a small window moves (the glass panel of **F2** stands above the toolbar
+there). A test run writes the rectangles of its panes beside its screenshot (`.panes`), for a script to check.
 
 ### The purchase in the App Store builds
 

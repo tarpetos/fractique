@@ -59,10 +59,38 @@ fn white(alpha: u8) -> Color32 {
     Color32::from_white_alpha(alpha)
 }
 
+// The one measure of every pane: its content stands this far from each of its four edges.
+pub const PAD: f32 = 22.0;
+// On a phone a pane stands this far from the screen's safe edges.
+pub const OUTER: f32 = 12.0;
+pub const SECTION: f32 = 14.0;
+const CAPTION: f32 = 2.0;
+const HEAD: f32 = 4.0;
+
+pub fn pane() -> egui::Frame {
+    egui::Frame::NONE.inner_margin(egui::Margin::same(PAD as i8))
+}
+
 pub fn section(ui: &mut Ui, title: &str) {
-    ui.add_space(14.0);
+    ui.add_space(SECTION);
     ui.label(egui::RichText::new(title).font(font(11.0, SEMIBOLD)).color(white(120)));
-    ui.add_space(2.0);
+    ui.add_space(CAPTION);
+}
+
+// A pane's first line is as high as the close button beside it, so the button fills the corner's padding exactly.
+fn head(ui: &mut Ui, text: &str, font: FontId, color: Color32) {
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), CLOSE), Sense::hover());
+    ui.painter()
+        .text(rect.left_center(), egui::Align2::LEFT_CENTER, text, font, color);
+}
+
+pub fn title(ui: &mut Ui, text: &str, size: f32) {
+    head(ui, text, font(size, SEMIBOLD), Color32::WHITE);
+}
+
+pub fn heading(ui: &mut Ui, title: &str) {
+    head(ui, title, font(11.0, SEMIBOLD), white(120));
+    ui.add_space(HEAD);
 }
 
 pub fn row(ui: &mut Ui, text: &str, selected: bool) -> bool {
@@ -198,13 +226,6 @@ pub fn back(ui: &mut Ui, hint: &str) -> bool {
 
 pub const CLOSE: f32 = 28.0;
 
-pub fn heading(ui: &mut Ui, title: &str) {
-    let around = (CLOSE - line(ui, 11.0)) * 0.5;
-    ui.add_space(around);
-    ui.label(egui::RichText::new(title).font(font(11.0, SEMIBOLD)).color(white(120)));
-    ui.add_space(around + 4.0);
-}
-
 pub fn line(ui: &Ui, size: f32) -> f32 {
     ui.fonts_mut(|fonts| fonts.row_height(&font(size, SEMIBOLD)))
 }
@@ -213,9 +234,9 @@ pub fn close_spot(top: f32, line: f32, right: f32) -> egui::Pos2 {
     egui::pos2(right - CLOSE * 0.5, top + line * 0.5)
 }
 
-pub fn close(ui: &mut Ui, line: f32, hint: &str) -> bool {
+pub fn close(ui: &mut Ui, hint: &str) -> bool {
     let rect = ui.min_rect();
-    close_at(ui, close_spot(rect.top(), line, rect.right()), hint)
+    close_at(ui, close_spot(rect.top(), CLOSE, rect.right()), hint)
 }
 
 pub fn close_at(ui: &mut Ui, center: egui::Pos2, hint: &str) -> bool {
@@ -589,33 +610,32 @@ mod tests {
     }
 
     #[test]
-    fn the_close_button_stands_on_the_title_line_in_the_title_margin() {
-        for (margin, radius, line) in [
-            (22.0, 30.0, 20.0),
-            (20.0, 30.0, 18.0),
-            (22.0, 30.0, 36.0),
-            (18.0, 28.0, 13.0),
-        ] {
-            for width in [120.0, 196.0, 260.0, 300.0, 604.0] {
-                let content = egui::Rect::from_min_size(egui::pos2(40.0, 60.0), vec2(width, 200.0));
-                let pane = content.expand(margin);
-                let at = close_spot(content.top(), line, content.right());
-                assert_eq!(at.y, content.top() + line * 0.5);
-                assert_eq!(pane.right() - (at.x + CLOSE * 0.5), content.left() - pane.left());
-                assert!(inside(pane, radius, at), "{margin} {radius} {line} {width}");
-            }
+    fn the_close_button_fills_the_corner_of_the_padding() {
+        for width in [120.0, 196.0, 260.0, 300.0, 604.0] {
+            let content = egui::Rect::from_min_size(egui::pos2(40.0, 60.0), vec2(width, 200.0));
+            let pane = content.expand(PAD);
+            let at = close_spot(content.top(), CLOSE, content.right());
+            let (above, beside) = (at.y - CLOSE * 0.5 - pane.top(), pane.right() - at.x - CLOSE * 0.5);
+            assert_eq!((above, beside), (PAD, PAD));
+            assert!(inside(pane, 30.0, at), "{width}");
         }
     }
 
     #[test]
-    fn over_a_list_the_gap_above_the_close_button_is_the_gap_beside_it() {
-        for (margin, radius) in [(22.0, 30.0), (10.0, 22.0)] {
-            let content = egui::Rect::from_min_size(egui::pos2(40.0, 60.0), vec2(196.0, 300.0));
-            let pane = content.expand(margin);
-            let at = close_spot(content.top(), CLOSE, content.right());
-            let (above, beside) = (at.y - CLOSE * 0.5 - pane.top(), pane.right() - at.x - CLOSE * 0.5);
-            assert_eq!((above, beside), (margin, margin));
-            assert!(inside(pane, radius, at));
-        }
+    fn beside_a_taller_title_the_close_button_stands_on_its_line() {
+        let content = egui::Rect::from_min_size(egui::pos2(34.0, 34.0), vec2(292.0, 700.0));
+        let pane = content.expand(PAD);
+        let at = close_spot(content.top(), 36.0, content.right());
+        assert_eq!(at.y, content.top() + 18.0);
+        assert_eq!(pane.right() - at.x - CLOSE * 0.5, PAD);
+        assert!(inside(pane, 30.0, at));
+    }
+
+    #[test]
+    fn the_measures_of_a_pane_are_these() {
+        assert_eq!(
+            (PAD, OUTER, SECTION, CAPTION, HEAD, CLOSE),
+            (22.0, 12.0, 14.0, 2.0, 4.0, 28.0)
+        );
     }
 }
