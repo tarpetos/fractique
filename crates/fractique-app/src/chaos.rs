@@ -424,6 +424,16 @@ impl Layer {
     }
 }
 
+// The steps a walker of the next batch, after one of `sent` plotted and `fused` unplotted steps a walker that took
+// so long. Every run begins with one plotted step, whatever other scenes have shown: a step of one flame costs
+// twenty times a step of another. That first batch is mostly unplotted steps, so the next is sized by all of its
+// work. An unplotted step writes nothing and is taken for a third of a plotted one: taken for a whole one, the
+// second batch of a flame at 3840 × 2160 took 12 to 18 ms of a slice of 8.3.
+fn following(sent: u32, fused: u32, took: f32, slice: f32) -> u32 {
+    let worked = f64::from(sent) + f64::from(fused) / 3.0;
+    (pace::next(worked, took, slice).floor() as u32).max(1)
+}
+
 // What a layer is drawn from.
 enum Plan {
     Flame(Box<Packed>, f64),
@@ -448,6 +458,8 @@ struct Run {
     walkers: u32,
     steps: u32,
     sent: u32,
+    // The steps every walker of the batch on its way takes unplotted, besides those.
+    fused: u32,
     batches: u32,
     goal: u64,
     staging: wgpu::Buffer,
@@ -500,9 +512,6 @@ pub struct Chaos {
     // should show, with the brightness of the deep view.
     #[cfg(test)]
     plain: Option<f64>,
-    // Samples a second, the most a batch has shown of layers of these kinds: the first batch of the next run
-    // is sized by it.
-    speeds: HashMap<String, f64>,
     // Rows of the levels a second, the last a strip has shown for such a scene at this size, of the first picture
     // and of the last: the next drawing begins with as many as fit the slice, not with the fewest.
     strips: HashMap<(String, [u32; 2], bool), f64>,
@@ -628,7 +637,6 @@ impl Chaos {
             finest: None,
             #[cfg(test)]
             plain: None,
-            speeds: HashMap::new(),
             strips: HashMap::new(),
             recipes: Vec::new(),
             run: None,
@@ -799,7 +807,6 @@ impl Chaos {
         };
         let size = [options.width, options.height];
         let cells = u64::from(size[0]) * u64::from(size[1]);
-        let layers = scene.layers.len() as u64;
         let bounded = scene.layers.iter().any(|layer| layer.fractal().is_some());
         let Some((plans, walkers, weights)) = self.plans(scene, options) else {
             return false;
@@ -814,19 +821,6 @@ impl Chaos {
             .map(|layer| layer.fractal().map_or("flame", |shown| shown.kind.as_str()))
             .collect::<Vec<_>>()
             .join(" ");
-        let speed = self.speeds.get(&class).copied().unwrap_or(0.0);
-        // A card nothing is known of begins with a batch small enough for any: it is measured, and the next fits.
-        // A known one begins with what its best speed fits in the slice, less the steps its walkers take unplotted.
-        let unplotted = if scene.layers.iter().any(|layer| layer.flame().is_some()) {
-            f64::from(FUSE) * f64::from(walkers)
-        } else {
-            0.0
-        };
-        let first = if speed > 0.0 {
-            (speed * f64::from(pace::slice()) / layers as f64 - unplotted).max(f64::from(walkers))
-        } else {
-            f64::from(walkers)
-        };
         let (device, failed) = (self.device.clone(), self.failed.clone());
         let made = guarded(&device, &failed, ctx, || {
             let buffer = |label, size: u64, usage| {
@@ -970,8 +964,9 @@ impl Chaos {
                 seed: scene.seed,
                 layers,
                 walkers,
-                steps: ((first / f64::from(walkers)).ceil() as u32).max(1),
+                steps: 1,
                 sent: 0,
+                fused: 0,
                 batches: 0,
                 goal,
                 staging,
@@ -1224,14 +1219,7 @@ impl Chaos {
                     run.rows = rows.clamp(8, run.size[1].max(8));
                 }
                 if run.sent > 0 {
-                    run.steps = (pace::next(f64::from(run.sent), took, pace::slice()).ceil() as u32).max(1);
-                    // Walkers whose points fall outside the picture write nothing: their pace is not the card's.
-                    if run.layers.iter().all(|layer| layer.checked && layer.deep.is_none()) {
-                        let speed =
-                            f64::from(run.sent) * f64::from(run.walkers) * run.layers.len() as f64 / f64::from(took);
-                        let most = self.speeds.entry(run.class.clone()).or_insert(0.0);
-                        *most = most.max(speed);
-                    }
+                    run.steps = following(run.sent, run.fused, took, pace::slice());
                 }
                 if run.layers.iter().all(|layer| layer.settled(run.goal)) {
                     run.full.get_or_insert(since);
@@ -1324,7 +1312,7 @@ impl Chaos {
         }
         // Before the submission: a graphics card that is the processor in disguise works inside it.
         run.submitted = Instant::now();
-        let (mut sent, mut working, mut resolving, mut beginning) = (0, 0, false, false);
+        let (mut sent, mut fused, mut working, mut resolving, mut beginning) = (0, 0, 0, false, false);
         let index = guarded(&device, &failed, ctx, || {
             let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("fractique chaos"),
@@ -1477,6 +1465,7 @@ impl Chaos {
                 }
                 let few = u64::from(walkers);
                 let fuse = if run.batches == 0 && !layer.orbit { FUSE } else { 0 };
+                fused = fused.max(fuse);
                 let room = (MOST_STEPS * cells as u64).min(MOST_IN_ALL) / (count * few * layer.weight);
                 let most = if bounded {
                     room.saturating_sub(u64::from(fuse)).max(1)
@@ -1521,6 +1510,7 @@ impl Chaos {
             self.queue.submit([encoder.finish()])
         });
         run.sent = sent;
+        run.fused = fused;
         run.working = working;
         run.resolving = resolving;
         if beginning {
@@ -1754,6 +1744,36 @@ pub(crate) mod tests {
             samples_per_pixel: 32,
             supersample: 1,
         }
+    }
+
+    #[test]
+    fn the_first_batches_of_a_flame_fit_the_slice_whatever_the_flame_before_cost() {
+        let slice = pace::slice_of(false);
+        let walkers = 262_144.0;
+        // Seconds a step: a cheap flame, and one twenty times dearer that is drawn right after it.
+        // An unplotted step costs a third of a plotted one, or as much.
+        for (each, unplotted) in [(6.0e-11, 1.0 / 3.0), (1.2e-9, 1.0 / 3.0), (6.0e-11, 1.0), (1.2e-9, 1.0)] {
+            let seconds =
+                |sent: u32, fused: u32| ((f64::from(sent) + unplotted * f64::from(fused)) * walkers * each) as f32;
+            // The first batch is one plotted step and the unplotted ones, as small as a batch can be.
+            let (mut sent, mut fused) = (1, FUSE);
+            let mut took = seconds(sent, fused);
+            assert!(took <= slice, "{each}: the first batch takes {took} s");
+            let mut filled = 0;
+            for batch in 1..8 {
+                (sent, fused) = (following(sent, fused, took, slice), 0);
+                took = seconds(sent, fused);
+                assert!(
+                    took <= slice * 1.001,
+                    "{each} {unplotted}: batch {batch} takes {took} s"
+                );
+                filled += u32::from(took >= 0.6 * slice);
+            }
+            assert!(filled >= 4, "{each} {unplotted}: {filled}");
+        }
+        // A batch that overran is cut to the slice at once.
+        assert_eq!(following(100, 0, 2.0 * slice, slice), 50);
+        assert_eq!(following(1, 0, 9.0 * slice, slice), 1);
     }
 
     #[test]

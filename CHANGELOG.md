@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* **No long first batch of a picture:** the first batch of a flame was sized by the best speed any flame had
+  shown, so a flame that costs more a step began with a batch far over its slice of a frame: 35 to 119 ms in
+  seven of 23 pictures of a live run, a stutter at the start of each. Every run now begins with the smallest
+  batch there is and the next is sized by what that one took. Off screen, eight random flames at 3840 × 2160 one
+  after another: the first batch takes 1 ms (5 to 13 before) and no batch more than 9 ms (8 to 13 before); a
+  picture is finished after 0.37 to 0.51 s instead of 0.34 to 0.44 s, which is what staying inside the slice
+  costs.
+
 * **An export says what it is doing until the file is there, and is not offered where it cannot be made:** the
   bar of an export showed the render only: at 100 % the PNG was still to be written, on one thread with no
   sign of it, 7 s for 7680 × 4320 and about half a minute for 15360 × 8640. The bar now covers the rendering and
