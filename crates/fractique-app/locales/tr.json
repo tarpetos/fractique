@@ -24,6 +24,8 @@
   "export": "Dışa aktar",
   "export_title": "Görüntüyü dışa aktar",
   "export_magnified": "Bu görünüm büyütülmüş bir görüntü olarak gösterilir ve göründüğü gibi dışa aktarılır.",
+  "export_shape": "Ekrandaki resimden farklı bir biçim: resim yeniden çizilir, bu daha uzun sürer.",
+  "export_larger": "Ekrandaki resimden daha büyük: resim bu boyutta yeniden çizilir, bu daha uzun sürer.",
   "magnified": "büyütülmüş görüntü",
   "size": "BOYUT",
   "quality": "KALİTE",

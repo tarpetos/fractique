@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* **An Instant export from the picture on the screen, smaller or in tiles:** **Instant** saved the picture on the
+  screen only at that picture's very size; at any other it rendered the scene again on the processor. Now an
+  export of the picture's shape and smaller is the screen's picture made smaller, every pixel the mean of those
+  it covers, at once (1920 × 1080 from a window of 3840 × 2160: 0.11 s for the Burning Ship), and with a canvas
+  larger than the window that is the finer picture. An export larger than the picture on the screen, of a
+  fractal the graphics card draws pixel by pixel, is drawn on the card in tiles of at most 2048 pixels a side,
+  each with what its glow and its edges need around it, copied back and written to the file a row of tiles at a
+  time: the picture is never whole on the card. 15360 × 8640 of the Burning Ship is saved in 1.4 s where the
+  processor took 39 s, with the card's memory as it is for the screen; across the 11 borders of its 40 tiles
+  neighbouring columns and rows differ as those beside them do. A flame, an attractor and a wallpaper of a
+  larger size are rendered by the processor as before. The sheet says before the press when Instant is not
+  instant: the size has another shape than the picture on the screen, or is larger, so the picture is drawn
+  again.
+
 * **A chosen size is the picture, and the screen shows it with the window's pixels:** with 15360 × 8640 chosen the
   toolbar said "4096 × 2304": the picture on the screen was drawn at 4096 pixels a side, held on the graphics
   card at that size, and named by it. Now a chosen size is a canvas. The line under the picture names the size

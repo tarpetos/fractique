@@ -76,6 +76,18 @@ const FULL_SAMPLES: u32 = if cfg!(target_arch = "wasm32") {
     32
 };
 
+// An Instant export larger than the picture on the screen, drawn on the graphics card a tile at a time: the
+// tile on its way, and the scene of each.
+#[cfg(not(target_arch = "wasm32"))]
+struct Tiling {
+    tiles: export::Tiles,
+    scene: Scene,
+    size: [u32; 2],
+    cells: Vec<[u32; 4]>,
+    apron: u32,
+    next: usize,
+}
+
 #[derive(Clone)]
 struct Held {
     size: [u32; 2],
@@ -1113,6 +1125,8 @@ struct App {
     aimed_size: [u32; 2],
     fit_asked: [u32; 2],
     drawn_with: [u32; 2],
+    #[cfg(not(target_arch = "wasm32"))]
+    tiling: Option<Tiling>,
     stood: motion::Rest<[u32; 2]>,
     // The window in pixels, since when it has that shape, and what a picture of a chosen size was last drawn
     // with beside it for that shape.
@@ -1796,6 +1810,8 @@ impl App {
             aimed_size: [0; 2],
             fit_asked: [0; 2],
             drawn_with: [0; 2],
+            #[cfg(not(target_arch = "wasm32"))]
+            tiling: None,
             stood: motion::Rest::new(),
             window: [0; 2],
             shape_stood: motion::Rest::new(),
@@ -1883,6 +1899,9 @@ impl App {
                     .and_then(|index| index.parse().ok())
                     .filter(|index| *index < export::QUALITIES.len())
                     .unwrap_or(0),
+                size: std::env::var("FRACTIQUE_EXPORT_SIZE")
+                    .ok()
+                    .and_then(|text| parsed_size(&text)),
                 ..Default::default()
             },
             #[cfg(feature = "store")]
@@ -2806,9 +2825,10 @@ impl App {
                 && let Some(size) = self.requested
                 && let Some(path) = self.export_at.take()
             {
-                self.export_to(ctx, size, path);
+                self.export_to(ctx, self.export.size.unwrap_or(size), path);
             }
             self.hand_over(ctx);
+            self.tile_step(ctx);
         }
     }
 
@@ -2855,12 +2875,129 @@ impl App {
         };
         let saved = preview.read(false, margin, ctx, move |pixels| match (pixels, cut) {
             (Some((rgba, from)), Some(at)) => later.save(pace::magnified(&rgba, from, at, size), size),
-            (Some((rgba, from)), None) => later.save(rgba, from),
+            (Some((rgba, from)), None) if from == size => later.save(rgba, from),
+            (Some((rgba, from)), None) => later.shrunk(rgba, from, size),
             (None, _) => later.fail(),
         });
         if let Some(index) = saved {
             chaos.watch(index);
         }
+    }
+
+    // Begins an Instant export larger than the picture on the screen, for a scene the card draws pixel by pixel
+    // and whose tiles join without a seam: nothing of a tile reaches past it but the look at its neighbours.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn begin_tiles(&mut self, ctx: &egui::Context, size: [u32; 2], path: &std::path::Path) -> bool {
+        let scene = self.scene_at(size);
+        let tiled = scene.sheets.is_none() && !scene.layers.is_empty() && scene.layers.iter().all(field::drawn);
+        // A glow reaches from one tile into the next: a tile is drawn with as much around it as the widest does.
+        let shorter = f64::from(size[0].min(size[1]));
+        let reach = |layer: &Layer| {
+            let tone = layer.tone();
+            if tone.glow_strength > 0.0 {
+                4.0 * tone.glow_radius * shorter
+            } else {
+                0.0
+            }
+        };
+        let apron = export::APRON + scene.layers.iter().map(reach).fold(0.0, f64::max).ceil() as u32;
+        if !tiled || !self.gpu_on() || self.given_up || self.wall.live || apron > export::TILE / 4 {
+            return false;
+        }
+        let (across, cells) = export::tiles(size, export::TILE);
+        if !self.tile_begun(ctx, &scene, size, cells[0], apron) {
+            if timed() {
+                eprintln!("times: the graphics card does not draw the export in tiles");
+            }
+            return false;
+        }
+        let (job, tiles) = export::Job::tiled(size, across, cells.clone(), path.to_owned(), ctx.clone());
+        self.export.job = Some(job);
+        self.tiling = Some(Tiling {
+            tiles,
+            scene,
+            size,
+            cells,
+            apron,
+            next: 0,
+        });
+        true
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn tile_begun(&mut self, ctx: &egui::Context, scene: &Scene, size: [u32; 2], cell: [u32; 4], apron: u32) -> bool {
+        let options = RenderOptions {
+            width: size[0],
+            height: size[1],
+            samples_per_pixel: FULL_SAMPLES,
+            supersample: 1,
+        };
+        self.chaos
+            .as_mut()
+            .is_some_and(|chaos| chaos.begin_tile(scene, &options, cell, [apron; 2], ctx))
+    }
+
+    // Takes in the tile that is whole: it is drawn, copied back, handed to the file, and the next one begins. A
+    // tile the card gives up leaves the whole export to the processor.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn tile_step(&mut self, ctx: &egui::Context) {
+        let Some(mut tiling) = self.tiling.take() else {
+            return;
+        };
+        if tiling.tiles.cancelled() {
+            if let Some(chaos) = &mut self.chaos {
+                chaos.end_tile();
+            }
+            return;
+        }
+        let step = self.chaos.as_mut().map_or(Step::Refused, Chaos::advance_tile);
+        if step == Step::Waiting {
+            self.tiling = Some(tiling);
+            return;
+        }
+        let mut sent = false;
+        if step == Step::Drawn
+            && let (Some(chaos), Some(preview)) = (&mut self.chaos, &mut self.preview)
+            && let Some((size, levels)) = chaos.tile_levels()
+        {
+            // The glow is as wide as in the whole picture, whatever the tile's size.
+            if preview.draw_tile(&tiling.scene, size, tiling.size, &levels, ctx) {
+                let (to, index) = (tiling.tiles.sender(), tiling.next);
+                let read = preview.read_tile([tiling.apron; 2], ctx, move |pixels| {
+                    if let Some((rgba, _)) = pixels {
+                        let _ = to.send((index, rgba));
+                    }
+                });
+                if let Some(read) = read {
+                    chaos.watch(read);
+                    sent = true;
+                }
+            }
+            chaos.end_tile();
+        }
+        tiling.next += 1;
+        let more = tiling.next < tiling.cells.len();
+        if sent && (!more || self.tile_begun(ctx, &tiling.scene, tiling.size, tiling.cells[tiling.next], tiling.apron))
+        {
+            if more {
+                self.tiling = Some(tiling);
+            }
+            ctx.request_repaint();
+            return;
+        }
+        if timed() {
+            eprintln!("times: the graphics card gave a tile of the export up: the processor renders it");
+        }
+        let options = RenderOptions {
+            width: tiling.size[0],
+            height: tiling.size[1],
+            samples_per_pixel: FULL_SAMPLES,
+            supersample: 1,
+        };
+        let path = tiling.tiles.path();
+        let scene = tiling.scene.clone();
+        drop(tiling);
+        self.export.job = Some(export::Job::start(scene, options, path, ctx.clone(), render_pool()));
     }
 
     // The card draws a moved view of the scene small while it moves: the whole scene is drawn pixel by pixel, and
@@ -5810,21 +5947,52 @@ impl App {
             let ((size, _), margin) = (chaos.levels()?, chaos.margin());
             Some([size[0] - 2 * margin[0], size[1] - 2 * margin[1]])
         });
-        if as_shown && on_card == Some([width, height]) && self.requested.is_some_and(|size| self.card_shows(size)) {
-            let (job, later) = export::Job::later([width, height], path, ctx.clone());
-            self.export.job = Some(job);
-            self.instant = Some((later, [width, height], None));
-            ctx.request_repaint();
-            return;
+        if timed() {
+            let shows = self.requested.is_some_and(|size| self.card_shows(size));
+            eprintln!("times: an export of {width} × {height}, as shown {as_shown}, on the card {on_card:?} {shows}");
+        }
+        // The picture on the screen is the export, as it is or made smaller; a larger one is drawn in tiles.
+        if as_shown
+            && let Some(screen) = on_card
+            && self.requested.is_some_and(|size| self.card_shows(size))
+        {
+            match export::way(screen, [width, height]) {
+                export::Way::Shown | export::Way::Shrunk => {
+                    let (job, later) = export::Job::later([width, height], path, ctx.clone());
+                    self.export.job = Some(job);
+                    self.instant = Some((later, [width, height], None));
+                    ctx.request_repaint();
+                    return;
+                }
+                export::Way::Larger if self.begin_tiles(ctx, [width, height], &path) => return,
+                _ => {}
+            }
         }
         if as_shown
             && !self.rendering
             && let Some((generation, image)) = &self.last
             && *generation == self.generation
-            && [image.width, image.height] == [width, height]
         {
-            self.export.job = Some(export::Job::save(image.clone(), path, ctx.clone()));
-            return;
+            let from = [image.width, image.height];
+            match export::way(from, [width, height]) {
+                export::Way::Shown => {
+                    self.export.job = Some(export::Job::save(image.clone(), path, ctx.clone()));
+                    return;
+                }
+                export::Way::Shrunk => {
+                    let image = image.clone();
+                    let make = move || {
+                        Arc::new(Image {
+                            width,
+                            height,
+                            rgba: pace::shrunk(&image.rgba, from, [width, height]),
+                        })
+                    };
+                    self.export.job = Some(export::Job::made([width, height], make, path, ctx.clone()));
+                    return;
+                }
+                _ => {}
+            }
         }
         let options = RenderOptions {
             width,
@@ -5894,6 +6062,17 @@ impl App {
             ui.add_space(8.0);
             ui.label(
                 egui::RichText::new(format!("{} {}", self.t("q_only_here"), fitting.join(", ")))
+                    .size(12.5)
+                    .color(egui::Color32::from_white_alpha(190)),
+            );
+        }
+        // An Instant export that is not instant says why, before the press.
+        let drawn = self.full(self.requested.unwrap_or(self.aimed_size));
+        let instant = export::QUALITIES[self.export.quality].1 == export::AS_SHOWN && !self.magnified;
+        if instant && let Some(key) = export::slow([drawn.width, drawn.height], size) {
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new(self.t(key))
                     .size(12.5)
                     .color(egui::Color32::from_white_alpha(190)),
             );

@@ -577,6 +577,11 @@ pub struct Chaos {
     pixels: Option<Pixels>,
     // The batches of a picture drawn pixel by pixel that has ended: the next one sends its first after the last.
     draining: Option<Chain>,
+    // A tile of an export, drawn pixel by pixel beside the picture of the screen, which it leaves as it is.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    tile: Option<Pixels>,
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    tile_failed: Arc<AtomicBool>,
 }
 
 struct Base {
@@ -709,6 +714,8 @@ impl Chaos {
             fields: Fields::new(adapter, device, queue, failed.clone()),
             pixels: None,
             draining: None,
+            tile: None,
+            tile_failed: Arc::default(),
             device: device.clone(),
             queue: queue.clone(),
             failed,
@@ -999,6 +1006,97 @@ impl Chaos {
         ctx: &egui::Context,
     ) -> bool {
         self.warmed >= WARM.len() && self.started(scene, options, margin, keys, asked, limit, ctx)
+    }
+
+    // Begins a tile of an export: a scene drawn pixel by pixel, with so many pixels more on every side. What the
+    // card refuses of it costs the tile, not the card's part in the session.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub fn begin_tile(
+        &mut self,
+        scene: &Scene,
+        options: &RenderOptions,
+        part: [u32; 4],
+        margin: [u32; 2],
+        ctx: &egui::Context,
+    ) -> bool {
+        self.tile = None;
+        let size = [part[2] + 2 * margin[0], part[3] + 2 * margin[1]];
+        let pixelwise = scene.sheets.is_none() && !scene.layers.is_empty() && scene.layers.iter().all(field::drawn);
+        if !self.works() || self.warmed < WARM.len() || !pixelwise || size[0].max(size[1]) > self.largest_side {
+            return false;
+        }
+        self.tile_failed = Arc::default();
+        let (mut layers, mut levels): (Vec<Box<dyn Batched>>, Vec<_>) = (Vec::new(), Vec::new());
+        let failed = self.tile_failed.clone();
+        let made = guarded(&self.device, &failed, ctx, || {
+            for fractal in scene.layers.iter().filter_map(|layer| layer.fractal()) {
+                let layer = self
+                    .fields
+                    .layer_of(fractal, options, margin, Some(part), scene.layers.len(), ctx);
+                let Planned::Ready(layer) = layer else {
+                    return false;
+                };
+                levels.push(layer.levels().clone());
+                layers.push(layer);
+            }
+            true
+        });
+        if !made || failed.load(Ordering::Relaxed) {
+            return false;
+        }
+        let chain = Chain::new(
+            layers,
+            &self.device,
+            &self.queue,
+            &failed,
+            ctx,
+            self.waiter(),
+            Instant::now(),
+        );
+        chain.go();
+        self.tile = Some(Pixels {
+            keys: Vec::new(),
+            heard: Instant::now(),
+            size,
+            levels,
+            chain,
+            report: field::Report::default(),
+        });
+        true
+    }
+
+    // Drawn when the tile is whole, Refused when the card gave it up.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub fn advance_tile(&mut self) -> Step {
+        let Some(tile) = &mut self.tile else {
+            return Step::Refused;
+        };
+        tile.chain.go();
+        let fresh;
+        (tile.report, fresh) = tile.chain.look();
+        if fresh {
+            tile.heard = Instant::now();
+        }
+        let silent = tile.heard.elapsed().as_millis() > u128::from(SILENT);
+        let (late, whole) = (tile.report.late, tile.report.full.is_some());
+        if self.tile_failed.load(Ordering::Relaxed) || !self.works() || late || silent {
+            self.end_tile();
+            return Step::Refused;
+        }
+        if whole { Step::Drawn } else { Step::Waiting }
+    }
+
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub fn tile_levels(&self) -> Option<([u32; 2], Vec<&wgpu::TextureView>)> {
+        let tile = self.tile.as_ref()?;
+        Some((tile.size, tile.levels.iter().collect()))
+    }
+
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub fn end_tile(&mut self) {
+        if let Some(tile) = self.tile.take() {
+            tile.chain.stop();
+        }
     }
 
     // The cells beside the view, across and down, in the picture `levels` gives.
