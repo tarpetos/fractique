@@ -1323,6 +1323,52 @@ mod tests {
         }
     }
 
+    // How many colors a picture has, and how many pixels differ from the one to their right by more than a
+    // smooth shade does: a picture cut to fewer levels has fewer colors, one with seams has more such edges.
+    fn texture(rgba: &[u8], width: usize) -> (usize, usize) {
+        let colors: std::collections::HashSet<&[u8]> = rgba.chunks_exact(4).map(|pixel| &pixel[..3]).collect();
+        let edges = rgba
+            .chunks_exact(width * 4)
+            .flat_map(|row| row.chunks_exact(4).zip(row.chunks_exact(4).skip(1)))
+            .filter(|(one, next)| (0..3).any(|channel| one[channel].abs_diff(next[channel]) > 12))
+            .count();
+        (colors.len(), edges)
+    }
+
+    #[test]
+    fn a_picture_of_the_graphics_card_is_as_smooth_as_the_processors() {
+        let Some(mut card) = card() else {
+            eprintln!("no graphics card with compute shaders: not compared");
+            return;
+        };
+        let (width, height) = (960, 540);
+        let options = options(width, height);
+        for (name, magnified) in [
+            ("burning_ship-whole", 1.0),
+            ("burning_ship-whole", 0.72),
+            ("burning_ship-ship", 1.0),
+            ("mandelbrot-whole", 1.0),
+            ("mandelbrot-seahorse-valley", 1.0),
+            ("julia-dragon", 3.0),
+            ("newton-cubic", 1.0),
+            ("phoenix-ushiki", 1.0),
+        ] {
+            let mut scene = fractal::preset(name).expect("a preset");
+            let camera = scene.layers[0].camera_mut();
+            *camera = camera.looking_at(0.0, 0.0, magnified);
+            let exact = fractique_core::render(&scene, &options, &Control::default()).expect("it renders");
+            let (quick, _, _) = card.drawn(&scene, &options).expect("the card draws it");
+            let (mean, largest) = apart(&quick, &exact.rgba, width as usize, height as usize);
+            let (colors, edges) = texture(&quick, width as usize);
+            let (exact_colors, exact_edges) = texture(&exact.rgba, width as usize);
+            assert!(mean < 1.0 && largest < 40.0, "{name}: {mean} {largest}");
+            assert!(
+                2 * colors >= exact_colors && 20 * edges <= 21 * exact_edges + 4000,
+                "{name}: {colors} colors and {edges} edges, the processor {exact_colors} and {exact_edges}"
+            );
+        }
+    }
+
     #[test]
     fn layers_of_fractals_are_blended_as_the_processor_blends_them() {
         let Some(mut card) = card() else {

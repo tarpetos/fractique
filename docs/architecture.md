@@ -745,7 +745,11 @@ for every preset, for 20 seeds of each random generator, for every variation and
 every orbit kind, how far 32-bit floats reach into a flame and into an attractor, the differences and the times
 of deep views magnified 3 to 1000 times, and how far a deep view is from the plain chaos game with as many
 points in the picture. The tests of `field.rs` do the same for the kinds drawn
-pixel by pixel, and check their bound without a card. The tests of `sheets.rs` validate the shader, check that
+pixel by pixel, and check their bound without a card. One of them
+(`a_picture_of_the_graphics_card_is_as_smooth_as_the_processors`) draws presets of the escape-time and
+root-finding kinds, whole and at moderate views, and holds the card's picture to the processor's: the difference
+is bounded, the card's picture has no fewer than half the processor's colors, and no more pixels that differ
+sharply from their neighbour than the processor's has, so a picture cut to fewer levels or one with seams fails. The tests of `sheets.rs` validate the shader, check that
 every generated wallpaper is one the card takes and that the heaviest scene is bounded, and compare a wallpaper
 of every layout and the heaviest scene with the processor's render; two more, run with `--ignored`, print the
 differences for every layout and material and the times beside the processor's.
