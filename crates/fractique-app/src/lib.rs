@@ -4651,9 +4651,13 @@ impl eframe::App for App {
         self.chaos_frame(&ctx, frame);
         let stretch = (size[0] as f32 / size[1] as f32) / (screen.width() / screen.height()).max(0.001);
 
-        let painter = ctx.layer_painter(egui::LayerId::background()).with_clip_rect(screen);
+        // A layer's painter stops at the safe area, and `with_clip_rect` can only narrow that: the picture goes under
+        // the camera and the home bar, to the edges of the screen.
+        let mut painter = ctx.layer_painter(egui::LayerId::background());
+        painter.set_clip_rect(screen);
         if std::env::var_os("FRACTIQUE_DEBUG_LAYOUT").is_some() {
-            let ruler = ctx.layer_painter(egui::LayerId::debug()).with_clip_rect(screen);
+            let mut ruler = ctx.layer_painter(egui::LayerId::debug());
+            ruler.set_clip_rect(screen);
             let mut y = 0.0;
             while y <= screen.bottom() {
                 let color = egui::Color32::from_rgb(255, 60, 60);
