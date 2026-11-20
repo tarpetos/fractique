@@ -502,7 +502,7 @@ Without `-o` the JSON is printed. A scene packed this way opens in the app as a 
 tone. A `.frcq` file is about a seventh of the same scene as JSON.
 
 Files to try are in `docs/gallery/`, each beside its picture: a hundred flames, twelve fractals and twelve
-wallpapers ([gallery.md](gallery.md)).
+wallpapers ([gallery/README.md](gallery/README.md)).
 
 ## 12. Troubleshooting
 
@@ -564,10 +564,13 @@ The files were then made smaller without changing a pixel (`optipng -o2`).
 
 ## 14. The gallery
 
-[gallery.md](gallery.md) shows one hundred flames, twelve fractals of other kinds and twelve wallpapers. Each is two
-files in `docs/gallery/`: a `.frcq` file, the document the app opens and the commands render, and a `.webp` file
-of the same name, a small picture of it. Flames are `NNN-name`, fractals `FNN-name`, wallpapers `WNN-name`. The
-`.frcq` files are the source and the pictures are made from them:
+[gallery/README.md](gallery/README.md) shows one hundred flames, twelve fractals of other kinds and twelve
+wallpapers, in three folders: `docs/gallery/flames/`, `docs/gallery/fractals/` and `docs/gallery/wallpapers/`. Each
+picture is two files side by side: a `.frcq` file, the document the app opens and the commands render, and a
+`.webp` file of the same name, a small picture of it. Flames are `NNN-name`, fractals `FNN-name`, wallpapers
+`WNN-name`. Every folder has a `README.md` with its pictures, which GitHub shows when the folder is opened, and
+`docs/gallery/README.md` is the front page with the first four of each. The `.frcq` files are the source; the
+pictures and the four pages are made from them:
 
 ```sh
 cargo build --release
@@ -575,15 +578,16 @@ uv run --no-project --with pillow python tools/gallery/make_gallery.py
 ```
 
 The script renders every file at 960x540 and `--quality high`, saves the picture as WebP (quality 84, or the next of
-78, 72 and 66 that brings a picture under 110 KB) and writes `docs/gallery.md` anew, with the names taken from the
-files and a section for each of the three. `make_gallery.py 007 012 F W` draws only the files whose names start so,
-`--page-only` writes the page alone, and `--fractique PATH` names another build of the command line tool. Run it
-after a change that alters what scenes render to, so the pictures stay those of the files.
+78, 72 and 66 that brings a picture under 110 KB) and writes the four pages anew, with the names taken from the
+files. `make_gallery.py 007 012 F W` draws only the files whose names start so, `--page-only` writes the pages
+alone, and `--fractique PATH` names another build of the command line tool. Run it after a change that alters
+what scenes render to, so the pictures stay those of the files.
 
-To add a picture, save it from the app as a `.frcq` file with the next number of its section (or pack a scene with
-`fractique convert`), with the scene's `name` equal to the file's name after the number and the picture's size set
-to 3840 × 2160, and run the script. A test (`crates/fractique-cli/tests/gallery.rs`) loads every file of the
-gallery and counts each section, so a change that would stop one from loading fails the build.
+To add a picture, save it from the app as a `.frcq` file in the folder of its kind with the next number (or pack a
+scene with `fractique convert`), with the scene's `name` equal to the file's name after the number and the
+picture's size set to 3840 × 2160, and run the script. A test (`crates/fractique-cli/tests/gallery.rs`) loads every
+file of the gallery, counts each folder and follows every link of the four pages, so a change that would stop a
+file from loading or leave a link without its file fails the build.
 
 A wallpaper's file is the document the app saves in the **Shapes** tab: `wall` holds the layout, the material and
 light or dark, `seed` the seed, and `shown` the shapes as they were laid out for 3840 × 2160. The commands draw

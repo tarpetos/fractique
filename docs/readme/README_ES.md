@@ -42,7 +42,7 @@ Fractique crea tres tipos de imágenes. Llamas fractales: esos fractales luminos
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | Floración dorada | Mandala solar |
 
-Cien llamas más, además de fractales y fondos de pantalla, cada imagen con el archivo `.frcq` que la reproduce a cualquier tamaño: [la galería](../gallery.md).
+Cien llamas más, además de fractales y fondos de pantalla, cada imagen con el archivo `.frcq` que la reproduce a cualquier tamaño: [la galería](../gallery/README.md).
 
 Fractales de otros tipos: el conjunto de Mandelbrot, un conjunto de Julia y el atractor de Clifford:
 

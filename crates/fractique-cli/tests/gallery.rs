@@ -5,31 +5,15 @@ use fractique_core::{Scene, file};
 use fractique_mcp::load;
 use serde_json::{Value, json};
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum Section {
-    Flames,
-    Fractals,
-    Wallpapers,
+const AT_LEAST: [(&str, usize); 3] = [("flames", 100), ("fractals", 12), ("wallpapers", 12)];
+
+fn root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/gallery")
 }
 
-const AT_LEAST: [(Section, usize); 3] = [
-    (Section::Flames, 100),
-    (Section::Fractals, 12),
-    (Section::Wallpapers, 12),
-];
-
-fn section(path: &Path) -> Section {
-    match path.file_name().unwrap().to_string_lossy().chars().next() {
-        Some('F') => Section::Fractals,
-        Some('W') => Section::Wallpapers,
-        _ => Section::Flames,
-    }
-}
-
-fn gallery() -> Vec<PathBuf> {
-    let folder = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/gallery");
-    let mut files: Vec<PathBuf> = fs::read_dir(&folder)
-        .expect("docs/gallery")
+fn files_of(folder: &str) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = fs::read_dir(root().join(folder))
+        .unwrap_or_else(|error| panic!("docs/gallery/{folder}: {error}"))
         .map(|entry| entry.expect("an entry").path())
         .filter(|path| path.extension().is_some_and(|extension| extension == "frcq"))
         .collect();
@@ -37,28 +21,43 @@ fn gallery() -> Vec<PathBuf> {
     files
 }
 
+fn gallery() -> Vec<(&'static str, PathBuf)> {
+    AT_LEAST
+        .iter()
+        .flat_map(|(folder, _)| files_of(folder).into_iter().map(move |path| (*folder, path)))
+        .collect()
+}
+
+fn targets(page: &str) -> Vec<&str> {
+    page.split("](")
+        .skip(1)
+        .filter_map(|rest| rest.split(')').next())
+        .filter(|target| !target.starts_with("http"))
+        .map(|target| target.split('#').next().unwrap_or(target))
+        .collect()
+}
+
 #[test]
-fn every_file_of_the_gallery_loads_as_a_valid_scene_of_its_section() {
-    let files = gallery();
-    for (which, least) in AT_LEAST {
-        let found = files.iter().filter(|path| section(path) == which).count();
-        assert!(found >= least, "the gallery lost files: {found} {which:?}");
+fn every_file_of_the_gallery_loads_as_a_valid_scene_of_its_folder() {
+    for (folder, least) in AT_LEAST {
+        let found = files_of(folder).len();
+        assert!(found >= least, "the gallery lost files: {found} in {folder}");
     }
-    for path in &files {
+    for (folder, path) in gallery() {
         let at = path.display();
-        let scene = load(path).unwrap_or_else(|error| panic!("{error}"));
+        let scene = load(&path).unwrap_or_else(|error| panic!("{error}"));
         assert_eq!(path.file_stem().unwrap().to_string_lossy()[4..], scene.name, "{at}");
-        match section(path) {
-            Section::Flames => assert!(scene.layers.iter().all(|layer| layer.flame().is_some()), "{at}"),
-            Section::Fractals => assert!(scene.layers.iter().any(|layer| layer.flame().is_none()), "{at}"),
-            Section::Wallpapers => assert!(scene.sheets.is_some(), "{at}"),
+        match folder {
+            "flames" => assert!(scene.layers.iter().all(|layer| layer.flame().is_some()), "{at}"),
+            "fractals" => assert!(scene.layers.iter().any(|layer| layer.flame().is_none()), "{at}"),
+            _ => assert!(scene.sheets.is_some(), "{at}"),
         }
     }
 }
 
 #[test]
 fn every_file_of_the_gallery_is_a_document_the_app_opens() {
-    for path in gallery() {
+    for (folder, path) in gallery() {
         let at = path.display();
         let document = file::unpack(&fs::read(&path).unwrap()).unwrap_or_else(|error| panic!("{at}: {error}"));
         assert_eq!(document["fractique"], 1, "{at}");
@@ -73,35 +72,59 @@ fn every_file_of_the_gallery_is_a_document_the_app_opens() {
         assert!(document["seed"].is_u64(), "{at}");
         assert_eq!(document["picture"], json!([3840, 2160]), "{at}");
         let wall = &document["wall"];
-        let shapes = section(&path) == Section::Wallpapers;
         for key in ["on", "live"] {
-            assert_eq!(wall[key], Value::Bool(shapes), "{at}: {key}");
+            assert_eq!(wall[key], Value::Bool(folder == "wallpapers"), "{at}: {key}");
         }
         assert!(wall["dark"].is_boolean(), "{at}");
-        match section(&path) {
-            Section::Flames => {}
-            Section::Fractals => {
+        match folder {
+            "fractals" => {
                 assert_eq!(document["fractals"], true, "{at}");
                 assert_eq!(
                     document["kind"], document["shown"]["layers"][0]["fractal"]["kind"],
                     "{at}"
                 );
             }
-            Section::Wallpapers => {
+            "wallpapers" => {
                 for key in ["layout", "material"] {
                     assert!(wall[key].is_string(), "{at}: {key}");
                 }
             }
+            _ => {}
         }
     }
 }
 
 #[test]
-fn every_file_of_the_gallery_has_its_picture_and_its_place_on_the_page() {
-    let page = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/gallery.md")).unwrap();
-    for path in gallery() {
-        assert!(path.with_extension("webp").is_file(), "{}", path.display());
-        let name = path.file_name().unwrap().to_string_lossy().into_owned();
-        assert!(page.contains(&format!("(gallery/{name})")), "{name}");
+fn every_file_of_the_gallery_has_its_picture_and_its_place_on_the_page_of_its_folder() {
+    for (folder, _) in AT_LEAST {
+        let page = fs::read_to_string(root().join(folder).join("README.md")).unwrap();
+        for path in files_of(folder) {
+            assert!(path.with_extension("webp").is_file(), "{}", path.display());
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            let picture = name.replace(".frcq", ".webp");
+            assert!(page.contains(&format!("]({picture})]({name})")), "{name}");
+        }
+    }
+}
+
+#[test]
+fn every_link_of_the_pages_of_the_gallery_leads_to_a_file() {
+    let front = root().join("README.md");
+    let text = fs::read_to_string(&front).unwrap();
+    for (folder, _) in AT_LEAST {
+        assert!(text.contains(&format!("({folder}/README.md)")), "{folder}");
+    }
+    let pages = AT_LEAST.iter().map(|(folder, _)| root().join(folder).join("README.md"));
+    for page in std::iter::once(front).chain(pages) {
+        let text = fs::read_to_string(&page).unwrap();
+        let found = targets(&text);
+        assert!(!found.is_empty(), "{}", page.display());
+        for target in found {
+            assert!(
+                page.parent().unwrap().join(target).exists(),
+                "{}: {target}",
+                page.display()
+            );
+        }
     }
 }

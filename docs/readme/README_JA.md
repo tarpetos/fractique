@@ -42,7 +42,7 @@ Fractique は 3 種類の画像を作ります。ひとつはフラクタルの�
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | 黄金の開花 | 太陽の曼荼羅 |
 
-さらに 100 点の炎とフラクタル、壁紙、それぞれを任意のサイズで再現できる `.frcq` ファイル：[ギャラリー](../gallery.md)。
+さらに 100 点の炎とフラクタル、壁紙、それぞれを任意のサイズで再現できる `.frcq` ファイル：[ギャラリー](../gallery/README.md)。
 
 ほかの種類のフラクタル。マンデルブロ集合、ジュリア集合、クリフォードアトラクター：
 
