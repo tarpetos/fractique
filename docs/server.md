@@ -20,7 +20,8 @@ end. See [Limits](#limits) before you publish one.
 7. [MCP](#mcp)
 8. [The web app](#the-web-app)
 9. [Docker](#docker)
-10. [Publishing an instance](#publishing-an-instance)
+10. [Updating](#updating)
+11. [Publishing an instance](#publishing-an-instance)
 
 ## Run it
 
@@ -32,7 +33,8 @@ cargo build --release -p fractique-server
 ./target/release/fractique-server
 ```
 
-It listens on `127.0.0.1:8080`. Every setting is an option and an environment variable; the option wins:
+It listens on `127.0.0.1:8080`. Every setting is an option and an environment variable; the option wins.
+`fractique-server update` replaces the program with the newest release ([Updating](#updating)).
 
 | Option | Environment variable | Default | What |
 | --- | --- | --- | --- |
@@ -253,6 +255,29 @@ docker compose up --build
 
 `--build-arg JOBS=4` limits how many cores the build uses. The first build takes a while: it compiles the app for
 the browser.
+
+## Updating
+
+```sh
+fractique-server update --check    # is a newer version out? exit code 0: no, 10: yes, 1: could not find out
+fractique-server update            # replace this program with the newest release
+fractique-server update --version 0.2.0
+```
+
+`update` downloads this program's file of the release, checks it against the release's signature and puts it in
+the place of the program. It does not touch a server that is running, which stays the old version: restart it
+afterwards. The settings of the server (options, environment variables) play no part in `update`.
+
+It replaces a program that came as a release's `.tar.gz` or `.exe` and is in a folder it can write to. The
+program of the `.deb`, of the AppImage and of the macOS app is not replaced this way, and one built from the
+source is not either: for the Docker image, build the image again. Each says what to do instead; the rules, the
+exit codes and what is verified are in [releasing.md](releasing.md#how-the-other-programs-update).
+
+**The server never contacts the network by itself.** While it runs it makes no outgoing connection at all: no
+look for a newer version at start, in the background or on a timer, no telemetry. The only things that reach out
+are the `update` command, and `fractique-server --version` typed into a terminal, which waits at most 1.5 seconds
+to add a line when a newer release is out; in a script, a pipe or a unit file `--version` prints the version
+alone and asks no one, and `FRACTIQUE_NO_UPDATE_CHECK=1` switches the look off in a terminal too.
 
 ## Publishing an instance
 

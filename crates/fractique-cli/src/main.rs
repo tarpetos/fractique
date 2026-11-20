@@ -147,6 +147,8 @@ enum Command {
     Fractals,
     /// Run as an MCP server on stdin and stdout, for AI agents
     Mcp,
+    /// Replace this program with the newest release
+    Update(fractique_update::Options),
 }
 
 fn parse_size(text: &str) -> Result<(u32, u32), String> {
@@ -214,8 +216,8 @@ fn save_png(image: &Image, path: &Path) -> Result<(), String> {
     fs::write(path, encode_png(image)?).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-fn run(cli: Cli) -> Result<(), String> {
-    match cli.command {
+fn run(command: Command) -> Result<(), String> {
+    match command {
         Command::Render {
             scene,
             preset,
@@ -343,6 +345,7 @@ fn run(cli: Cli) -> Result<(), String> {
             output,
         } => convert(&input, document, output),
         Command::Mcp => mcp::serve(),
+        Command::Update(_) => Ok(()),
         Command::Fractals => {
             println!("{}", fractal_list());
             Ok(())
@@ -362,7 +365,14 @@ fn run(cli: Cli) -> Result<(), String> {
 }
 
 fn main() -> ExitCode {
-    match run(Cli::parse()) {
+    if let Some(answered) = fractique_update::start(fractique_update::CLI) {
+        return answered;
+    }
+    let command = match Cli::parse().command {
+        Command::Update(options) => return fractique_update::update(fractique_update::CLI, &options),
+        command => command,
+    };
+    match run(command) {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
             eprintln!("fractique: {message}");

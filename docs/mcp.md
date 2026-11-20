@@ -24,6 +24,28 @@ The HTTP server offers the same tools to a client on another machine, at `/mcp`:
 
 The `.tar.gz` files are for a machine that wants no app, a server above all.
 
+## Updating
+
+`fractique-mcp` started without an argument serves; the only other things it understands are `--version`,
+`--help` and `update`:
+
+```sh
+fractique-mcp update --check    # is a newer version out? exit code 0: no, 10: yes, 1: could not find out
+fractique-mcp update            # replace this program with the newest release
+fractique-mcp update --version 0.2.0
+```
+
+The download is checked against the signature of the release before the program is replaced. A server that a
+client has already started stays the old version: restart the client, or the server in it. The program of the
+`.deb`, of the AppImage and of the macOS app is not replaced this way, and says what to do instead; all of it
+is in [releasing.md](releasing.md#how-the-other-programs-update). `fractique update` does the same for the
+command line tool: each program updates only itself.
+
+While it serves, `fractique-mcp` never contacts the network: it does not look for a newer version at start, in
+the background or on a timer, and no tool does. `fractique-mcp --version` typed into a terminal is the one
+unasked look, at most 1.5 seconds long; a client that reads the output gets the version alone, and
+`FRACTIQUE_NO_UPDATE_CHECK=1` switches the look off altogether.
+
 ## Connect a client
 
 **Claude Code, inside this repository:** nothing to do. `.mcp.json` at the root registers the server; Claude Code

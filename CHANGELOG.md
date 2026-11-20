@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+* **The command line tool and the two servers update themselves on command:** the app updated itself and left
+  `fractique`, `fractique-mcp` and `fractique-server` beside it as old as they were. Now each has `update`: it
+  asks GitHub for the newest release, downloads this program's file for this system, checks it against the
+  release's signature with the key built into the program and puts it in the program's place; `update --check`
+  only reports (exit code 0: this is the newest, 10: a newer one is out, 1: could not find out) and
+  `update --version 0.2.0` installs a named version, an older one too. `--version` typed into a terminal adds a
+  line when a newer release is out, within 1.5 seconds or not at all; in a script it prints the version alone
+  and asks no one, and `FRACTIQUE_NO_UPDATE_CHECK=1` switches the look off. Nothing else contacts the network:
+  not the MCP server while it serves, not the HTTP server while it runs. A program of the `.deb`, of the
+  AppImage or of the macOS app, one in a folder it cannot write to and one built from the source are not
+  replaced and say what to do instead. A release now holds `tools.json` beside `latest.json`, and the three
+  programs are signed like the app; releases before this one have no `tools.json`, and `update` says so.
+  `fractique-mcp` still serves when started without an argument.
+  [docs/releasing.md](docs/releasing.md#how-the-other-programs-update) has the rules.
+
 * **Icons for the command line tool, the MCP server and the HTTP server:** on Windows only the app had an icon.
   `fractique.exe`, `fractique-mcp.exe` and `fractique-server.exe` now carry the app's picture in a color of their own
   (green, violet, amber) with a sign beside the letter (a prompt, a star, a rack), and their properties say

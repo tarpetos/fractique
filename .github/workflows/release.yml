@@ -87,7 +87,7 @@ jobs:
           path: out
           merge-multiple: true
 
-      - name: Release notes, update manifest and checksums
+      - name: Release notes, update manifests and checksums
         run: |
           awk -v v="## $VERSION" '$0 == v {on = 1; next} on && /^## / {exit} on {print}' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then echo "See CHANGELOG.md." > notes.md; fi
@@ -105,7 +105,7 @@ jobs:
           entry() {
             f="$(ls $2 2>/dev/null | head -n1)"
             if [ -z "$f" ] || [ ! -f "$f.sig" ]; then
-              echo "::warning::No signed $2: $1 gets no automatic update."
+              echo "::warning::No signed $2: $1 gets no automatic update." >&2
               return
             fi
             jq -n --arg k "$1" --arg url "$base/$f" --arg sig "$(cat "$f.sig")" --arg fmt "$3" \
@@ -119,10 +119,27 @@ jobs:
           } | jq -s 'add // {}' > ../platforms.json
           jq -n --arg v "$VERSION" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --rawfile n ../notes.md \
             --slurpfile p ../platforms.json '{version: $v, notes: $n, pub_date: $d, platforms: $p[0]}' > latest.json
-          # The updater reads each signature from latest.json, so the .sig files are not published.
+          # One program of tools.json for one system: its name, <os>-<arch> and a file pattern.
+          tool() {
+            f="$(ls $3 2>/dev/null | head -n1)"
+            if [ -z "$f" ] || [ ! -f "$f.sig" ]; then
+              echo "::warning::No signed $3: $1 does not update itself on $2." >&2
+              return
+            fi
+            jq -n --arg p "$1" --arg k "$2" --arg url "$base/$f" --arg sig "$(cat "$f.sig")" \
+              '{($p): {($k): {url: $url, signature: $sig}}}'
+          }
+          for p in fractique-cli fractique-mcp fractique-server; do
+            tool "$p" windows-x86_64 "${p}_*_x64.exe"
+            tool "$p" linux-x86_64 "${p}_*_x86_64-linux.tar.gz"
+            tool "$p" macos-aarch64 "${p}_*_aarch64-macos.tar.gz"
+          done | jq -s 'reduce .[] as $e ({}; . * $e)' > ../programs.json
+          jq -n --arg v "$VERSION" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --slurpfile p ../programs.json \
+            '{version: $v, pub_date: $d, programs: $p[0]}' > tools.json
+          # The updaters read each signature from latest.json and tools.json, so the .sig files are not published.
           rm -f ./*.sig
           sha256sum -- * > SHA256SUMS.txt
-          jq . latest.json
+          jq . latest.json tools.json
           ls -l
 
       - name: Publish

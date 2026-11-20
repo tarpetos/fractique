@@ -52,6 +52,7 @@ flowchart LR
 | `fractique-core` | works | The renderer, the scene format, presets, the randomizer, the fractals of other kinds, the wallpapers, the `.frcq` packing |
 | `fractique-cli` | works | The `fractique` command: renders scenes and wallpapers to PNG, converts `.flame` files and the app's `.frcq` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts |
 | `fractique-mcp` | works | The MCP tools and the JSON-RPC answers, without a transport: `fractique mcp` puts them on stdin and stdout, `fractique-server` on `/mcp` ([MCP](#mcp)) |
+| `fractique-update` | works | How `fractique`, `fractique-mcp` and `fractique-server` replace themselves with a release on command: the manifest, the signature, the swap of the file and where it refuses ([releasing.md](releasing.md#how-the-other-programs-update)). It also holds the public key of the releases, which is all the app takes from it |
 | `fractique-app` | works | The app, `fractique-gui`: one codebase for Windows, macOS, Linux, Android, iOS and the web ([The app](#the-app)) |
 | `fractique-server` | works | The `fractique-server` command: an HTTP API with a render queue and limits, MCP over HTTP at `/mcp` and a reference of the API at `/docs` (`docs.rs`, `openapi.json`), which also serves the web build of the app; the Docker image ([server.md](server.md)) |
 

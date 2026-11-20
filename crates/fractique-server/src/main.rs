@@ -3,12 +3,14 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use fractique_server::{Config, app};
 
 #[derive(Parser)]
 #[command(name = "fractique-server", version, about = "HTTP API and web UI for Fractique")]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
     /// Address and port to listen on
     #[arg(long, env = "FRACTIQUE_BIND", default_value = "127.0.0.1:8080")]
     bind: SocketAddr,
@@ -63,6 +65,12 @@ struct Args {
     docs: bool,
 }
 
+#[derive(Subcommand)]
+enum Command {
+    /// Replace this program with the newest release
+    Update(fractique_update::Options),
+}
+
 async fn stop_signal() {
     #[cfg(unix)]
     {
@@ -108,9 +116,18 @@ async fn run(args: Args) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-#[tokio::main]
-async fn main() -> ExitCode {
-    match run(Args::parse()).await {
+fn main() -> ExitCode {
+    if let Some(answered) = fractique_update::start(fractique_update::SERVER) {
+        return answered;
+    }
+    let args = Args::parse();
+    if let Some(Command::Update(options)) = &args.command {
+        return fractique_update::update(fractique_update::SERVER, options);
+    }
+    let served = tokio::runtime::Runtime::new()
+        .map_err(|e| e.to_string())
+        .and_then(|runtime| runtime.block_on(run(args)));
+    match served {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
             eprintln!("fractique-server: {message}");
