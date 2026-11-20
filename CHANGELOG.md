@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+* **No bars beside a picture of a chosen size:** with the size fixed (3840 × 2160, say) and the window of another
+  shape (a maximized window of 1920 × 1032 points is wider than 16 to 9), the picture, fitted whole, left a strip
+  of the window's flat dark at each side with a hard edge against the picture, and the title bar and the panel
+  showed them as dark blocks. At rest the strips were black; while the picture was moved, the fractal was drawn
+  there. Now the strips hold the scene itself wherever the app has it, the same at rest and while it moves. A
+  fractal the card draws pixel by pixel is drawn with what the window shows beside it (89 pixels a side of
+  3840 × 2160 in that window, 4.7 % more pixels; the picture in the middle is the one drawn alone), and so is
+  its draft while it moves; a window whose shape changes gets the picture again once it has stood. For a flame,
+  an attractor and a deep view the margin around the view is that content, and it now comes in a fade instead
+  of one frame. A wallpaper has nothing beside it, so it fills the window: up to 1.25 times larger than fitted,
+  cut above and below (by 4.4 % of its height in that window) or at its sides, and the whole view can be moved
+  over what is cut; what is seen is then slightly less than what is exported. Where none of that is to be had
+  (the processor's pictures, a card without a margin, the time before the margin is drawn, a strip wider than
+  half the picture) the picture is continued turned over at its edge, sharp where they meet, blurred from there
+  and fading into the dark, so no edge and no bar stands in the window. Measured in a window of that shape with
+  the interface hidden, before and after: the share of the strips that is the flat background 100 % and 0 for
+  the Burning Ship and for a wallpaper (4.5 % of the window and 0), 100 % and 0.4 to 2.7 % for a flame without
+  a margin, which is the flame's own dark; the step across the picture's edge, as the mean difference of
+  neighbouring columns, 8.3 and 0.02 (Burning Ship at rest), 94 and 1.3 (after a drag), 463 and 0.6 (wallpaper),
+  6 to 37 and 0.8 to 3.2 (flame without a margin), each as much as the columns around it differ. An export, a
+  small picture and Recent are the picture of the chosen size, as before (an Instant export of a fractal
+  differs from the one before in 2.5 % of its numbers by one step of 255: the glow is worked out over the
+  wider picture); the detail line names that size. Not marked on the screen yet: where the exported picture
+  ends.
+
+* **A wallpaper no longer stays blurred after the start:** where the wallpapers' shader was compiled within
+  the frame that asked for it, the render that waited for it never began again, and the first wallpaper stood
+  under the blur until something else was done (2 of 25 starts in test runs on an RTX 4070; none of 12 now).
+
 * **A flame, an attractor and a deep view have a margin around the view:** dragged sideways or made smaller, the
   picture ended where its view had ended, and two thirds of the window could be its blurred continuation until
   the new picture came. The card now draws the finished picture a second time, behind the one on the screen,

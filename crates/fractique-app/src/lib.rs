@@ -648,6 +648,38 @@ fn stand_in(larger: f32) -> f32 {
     }
 }
 
+// A wallpaper of a chosen size fills a window of another shape: it is shown up to this many times larger than
+// fitted whole, and what is over is cut. Past that its soft continuation is beside it.
+const FILL_MOST: f32 = 1.25;
+
+// How many times larger than fitted whole a picture that fills the window is shown, and the shares of it the
+// window then shows across and down. `stretch` is the picture's aspect over the window's.
+fn filled(stretch: f32) -> (f32, [f64; 2]) {
+    let cover = stretch.max(1.0 / stretch.max(1e-6));
+    let fill = cover.min(FILL_MOST);
+    let (cut, left) = (1.0 / f64::from(fill), f64::from(cover / fill));
+    (fill, if stretch > 1.0 { [cut, left] } else { [left, cut] })
+}
+
+// The pixels on each side of a picture of a chosen size that a window of another shape shows beside it: the
+// card draws them with the picture, up to half of its side.
+fn strips(picture: [u32; 2], window: [u32; 2]) -> [u32; 2] {
+    let [width, height] = picture.map(f64::from);
+    let [across, down] = window.map(|side| f64::from(side.max(1)));
+    let beside = |seen: f64, side: f64| {
+        let each = (seen - side) / 2.0;
+        if each < 0.5 {
+            0
+        } else {
+            (each.ceil() as u32 + 1).min(side as u32 / 2)
+        }
+    };
+    [
+        beside(height * across / down, width),
+        beside(width * down / across, height),
+    ]
+}
+
 const GLASS: (f32, f32) = (0.4, 0.7);
 const MAX_MAGNIFICATION: f64 = 1e10;
 const MIN_MAGNIFICATION: f64 = 1e-4;
@@ -747,24 +779,27 @@ impl View {
     }
 
     // The limits of a view. It is never smaller than `least` times the whole picture. A picture that is only ever
-    // shown as it is, larger (a wallpaper), always covers the window: no edge of it comes inside. A picture that
-    // is drawn anew for its view cannot be moved out of sight: smaller than the view, its framing stays inside
-    // the view; larger, the view stays inside its framing.
-    fn limited(&mut self, size: [u32; 2], least: f64, covering: bool) {
+    // shown as it is, larger (a wallpaper), always covers the window: no edge of it comes inside. `covering` is
+    // the share of it the window shows across and down when the view is the whole picture: 1, or less on the
+    // side where it fills a window of another shape and is cut. A picture that is drawn anew for its view cannot
+    // be moved out of sight: smaller than the view, its framing stays inside the view; larger, the view stays
+    // inside its framing.
+    fn limited(&mut self, size: [u32; 2], least: f64, covering: Option<[f64; 2]>) {
         self.zoom = self.zoom.max(least);
         let shorter = f64::from(size[0].min(size[1]).max(1));
         let seen = 1.0 / self.zoom;
-        let free = if covering {
-            0.5 * (1.0 - seen).max(0.0)
-        } else if self.zoom <= 1.0 {
+        let free = match covering {
+            Some(shares) => shares.map(|share| 0.5 * (1.0 - share * seen).max(0.0)),
             // The figure is smaller than the view: it stays inside it, whole.
-            0.5 * (seen - 1.0)
-        } else {
+            None if self.zoom <= 1.0 => [0.5 * (seen - 1.0); 2],
             // The view is smaller than the figure: it stays inside it, but for a tenth of a view, which it gains
             // over the first quarter of magnification so that nothing jumps at the whole picture.
-            0.5 * (1.0 - seen) + PAN_MARGIN * seen * ((self.zoom - 1.0) * 4.0).min(1.0)
+            None => [0.5 * (1.0 - seen) + PAN_MARGIN * seen * ((self.zoom - 1.0) * 4.0).min(1.0); 2],
         };
-        let (across, along) = (f64::from(size[0]) / shorter * free, f64::from(size[1]) / shorter * free);
+        let (across, along) = (
+            f64::from(size[0]) / shorter * free[0],
+            f64::from(size[1]) / shorter * free[1],
+        );
         self.right = self.right.clamp(-across, across);
         self.down = self.down.clamp(-along, along);
     }
@@ -1074,6 +1109,13 @@ struct App {
     shown_size: Option<[u32; 2]>,
     aimed_size: [u32; 2],
     stood: motion::Rest<[u32; 2]>,
+    // The window in pixels, since when it has that shape, and what a picture of a chosen size was last drawn
+    // with beside it for that shape.
+    window: [u32; 2],
+    shape_stood: motion::Rest<[u32; 2]>,
+    strips_asked: [u32; 2],
+    // The shares of a wallpaper the window shows across and down when the view is the whole of it.
+    seen: Option<[f64; 2]>,
     leaf_top: f32,
     toolbar_size: egui::Vec2,
     languages_open: bool,
@@ -1420,8 +1462,11 @@ fn list_height(rows: usize, room: f32) -> f32 {
     (rows as f32 * 32.0 - 2.0).clamp(30.0, (room - 110.0).max(90.0))
 }
 
-fn chaos_keys(scene: &Scene, options: &RenderOptions) -> Vec<String> {
-    let size = size_key(options);
+fn chaos_keys(scene: &Scene, options: &RenderOptions, margin: [u32; 2]) -> Vec<String> {
+    let mut size = size_key(options);
+    if margin != [0; 2] {
+        size += &format!("+{}+{} ", margin[0], margin[1]);
+    }
     if sheets::drawn(scene) {
         return vec![size + &sheets::key(scene)];
     }
@@ -1717,6 +1762,10 @@ impl App {
             shown_size: None,
             aimed_size: [0; 2],
             stood: motion::Rest::new(),
+            window: [0; 2],
+            shape_stood: motion::Rest::new(),
+            strips_asked: [0; 2],
+            seen: None,
             leaf_top: 0.0,
             toolbar_size: egui::Vec2::ZERO,
             languages_open: opens("languages"),
@@ -1995,7 +2044,8 @@ impl App {
         if !self.chaotic || !self.gpu_on() {
             return false;
         }
-        let keys = chaos_keys(&self.scene_at(size), &fitted(size, FULL_SIDE, FULL_SAMPLES));
+        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let keys = chaos_keys(&self.scene_at(size), &full, self.strips_asked);
         self.chaos.as_ref().is_some_and(|chaos| chaos.keys() == Some(&keys))
     }
 
@@ -2166,6 +2216,8 @@ impl App {
         }
         // The shaders are not compiled yet: a draft stands in, and the render begins again when they are.
         let soon = self.gpu_on() && on_card(&scene) && self.chaos.as_ref().is_some_and(Chaos::pending);
+        // A shader asked for here can be there before this frame looks at the card: the render then begins again.
+        self.compiling |= soon;
         if soon && chaos_only() {
             return;
         }
@@ -2411,10 +2463,12 @@ impl App {
     fn begin_chaos(&mut self, ctx: &egui::Context, scene: &Scene, full: &RenderOptions) -> bool {
         let drawn = self.gpu_on() && on_card(scene);
         self.swift = false;
+        let margin = self.strips_of(scene, full);
+        self.strips_asked = margin;
         let Some(chaos) = &mut self.chaos else {
             return false;
         };
-        let keys = chaos_keys(scene, full);
+        let keys = chaos_keys(scene, full, margin);
         if !drawn {
             if self.trial.is_none() {
                 chaos.end();
@@ -2441,7 +2495,7 @@ impl App {
             },
             ..*full
         };
-        if !chaos.begin(scene, &wanted, &keys, self.asked, limit, ctx) {
+        if !chaos.begin(scene, &wanted, margin, &keys, self.asked, limit, ctx) {
             if timed() && !chaos.pending() {
                 eprintln!("times: the graphics card does not draw this scene");
             }
@@ -2459,6 +2513,16 @@ impl App {
         }
         self.swift = scene.layers.iter().all(field::drawn);
         true
+    }
+
+    // What a window of another shape shows beside a picture of a chosen size, in the picture's pixels on each
+    // side: a scene the card draws pixel by pixel is drawn with that around it.
+    fn strips_of(&self, scene: &Scene, full: &RenderOptions) -> [u32; 2] {
+        let pixelwise = scene.sheets.is_none() && !scene.layers.is_empty() && scene.layers.iter().all(field::drawn);
+        if self.picture.is_none() || !pixelwise {
+            return [0; 2];
+        }
+        strips([full.width, full.height], self.window)
     }
 
     // The margins a picture of the scene may be drawn with, as shares of the view's sides, the widest first. A
@@ -2500,6 +2564,7 @@ impl App {
         if chaos.begin(
             &scene,
             &trial_options(),
+            [0; 2],
             &["trial".to_owned()],
             Instant::now(),
             None,
@@ -2542,6 +2607,7 @@ impl App {
                         chaos.begin(
                             &scene,
                             &trial_options(),
+                            [0; 2],
                             &["trial".to_owned()],
                             Instant::now(),
                             None,
@@ -2759,11 +2825,18 @@ impl App {
             samples_per_pixel: pace::DRAFT_SAMPLES,
             supersample: 1,
         };
+        // What the window shows beside the picture is beside the draft too, in the draft's pixels.
+        let beside = self.strips_of(&whole, &full);
+        let margin = [(beside[0], width, full.width), (beside[1], height, full.height)].map(|(strip, small, large)| {
+            (f64::from(strip) * f64::from(small) / (f64::from(large.max(1)) * pace::DRAFT_MARGIN)).ceil() as u32
+        });
         let Some(chaos) = &mut self.chaos else {
             return false;
         };
-        let keys = chaos_keys(&scene, &options);
-        if !chaos.draws(&whole, &full, false) || !chaos.begin(&scene, &options, &keys, Instant::now(), None, ctx) {
+        let keys = chaos_keys(&scene, &options, margin);
+        let begun = chaos.draws(&whole, &full, false)
+            && chaos.begin(&scene, &options, margin, &keys, Instant::now(), None, ctx);
+        if !begun {
             return false;
         }
         (self.draft_keys, self.draft_of, self.draft_view) = (Some(keys), eye, around);
@@ -2796,6 +2869,9 @@ impl App {
         if !preview.draw_draft(&scene, pixels, &levels, ctx) {
             return;
         }
+        let margin = chaos.margin();
+        let wide = [0, 1]
+            .map(|side| f64::from(pixels[side]) / f64::from(pixels[side].saturating_sub(2 * margin[side]).max(1)));
         let Some(state) = frame.wgpu_render_state() else {
             return;
         };
@@ -2811,7 +2887,7 @@ impl App {
         }
         gfx.show(&state.device, picture, soft, false);
         (self.shown, self.shown_zoom, self.shown_size) = (self.draft_view, self.draft_of.1, Some(size));
-        (self.shown_wide, self.shown_whole) = ([1.0; 2], false);
+        (self.shown_wide, self.shown_whole) = (wide, false);
         self.shown_eye = None;
         self.live_card = false;
         self.draft_shown = Some(self.draft_of);
@@ -2999,6 +3075,11 @@ impl App {
         let wide = [0, 1].map(|side| f64::from(size[side]) / f64::from(inner[side].max(1)));
         // The screen may show these very textures: it gets a copy of them before they are drawn into.
         let kept = (staged && self.live_card).then(|| preview.snapshot()).flatten();
+        // A margin the window shows beside a picture of a chosen size comes in a fade: the picture as it is on the
+        // screen fades into the same one with its margin.
+        let eased = !staged && self.live_card && self.picture.is_some() && !self.fresh.moving(self.stage.now);
+        let eased = eased && chaos.widened() && !self.wide_drawn;
+        let before = eased.then(|| preview.snapshot()).flatten();
         // A picture drawn again with a margin keeps the view it had: that is drawn from its own levels.
         let inset = chaos.inset();
         let inset = inset.as_ref().map(|(_, levels)| levels.as_slice());
@@ -3031,7 +3112,20 @@ impl App {
             } else if !self.live_card {
                 offer = Some((picture.clone(), soft.clone(), true));
             } else {
-                gfx.show(&state.device, picture, soft, false);
+                if let Some((flame, soft)) = &before {
+                    gfx.show(&state.device, flame, soft, false);
+                    self.past = Some(Picture {
+                        view: self.shown,
+                        zoom: self.shown_zoom,
+                        size: self.shown_size.unwrap_or(self.aimed_size),
+                        wide: self.shown_wide,
+                    });
+                    self.past_eye = None;
+                    self.fresh = motion::Motion::at(0.0);
+                    self.fresh.aim(1.0, self.stage.now, motion::span(motion::PANEL), 1.0);
+                    self.fading = true;
+                }
+                gfx.show(&state.device, picture, soft, before.is_some());
                 (self.shown, self.shown_zoom) = self.chaos_at;
                 self.shown_size = Some(self.aimed_size);
                 (self.shown_wide, self.shown_whole) = (wide, last || !staged);
@@ -3835,6 +3929,10 @@ impl App {
         if !self.chaotic || !self.shown_whole || self.shown_wide == [1.0; 2] || self.shown_size != Some(size) {
             return false;
         }
+        // A scene drawn pixel by pixel has a draft while it moves.
+        if self.swift {
+            return false;
+        }
         if self.shown_eye.is_some() || !(self.moved_only || !self.rendering) {
             return false;
         }
@@ -3976,6 +4074,11 @@ impl App {
         let fixed = self.picture.is_some();
         let now_eye = (self.view, self.adjust.zoom);
         self.last_eye = now_eye;
+        // A wallpaper of a chosen size fills the window; a picture of another kind after it glides back to its
+        // frame.
+        let stretch = (size[0] as f32 / size[1].max(1) as f32) / (screen.width() / screen.height()).max(0.001);
+        let fills = if fixed && self.covering() { 1.0 } else { 0.0 };
+        let fill = 1.0 + (filled(stretch).0 - 1.0) * self.stage.glide("fill", fills, motion::PANEL);
         let lay = |shown: &Picture, eye: Option<(View, f64)>| {
             let (view, zoom) = eye.unwrap_or(now_eye);
             let [across, along, larger] = if zoom == shown.zoom || !self.gpu_on() {
@@ -3984,7 +4087,7 @@ impl App {
                 view.scaled(zoom).within(&shown.view.scaled(shown.zoom), shown.size)
             };
             let (stretch, closer) = laid(shown.size, size, fixed, screen.size());
-            spread([across, along, stand_in(larger) * closer, stretch], shown.wide)
+            spread([across, along, stand_in(larger) * closer * fill, stretch], shown.wide)
         };
         let shown = Picture {
             view: self.shown,
@@ -3997,7 +4100,6 @@ impl App {
             past: lay(&self.past.unwrap_or(shown), self.past_eye.or(self.shown_eye)),
             fresh,
             veil: veil * self.trace.veil.unwrap_or(motion::VEIL),
-            moved: !fixed && (now_eye != (shown.view, shown.zoom) || shown.size != size),
         };
         if let Some(leap) = &mut self.leap {
             leap.aim(self.lay_was, laid.view, self.leap_from, screen);
@@ -4010,7 +4112,7 @@ impl App {
             let four = |lay: [f32; 4]| format!("{:.4},{:.4},{:.4},{:.4}", lay[0], lay[1], lay[2], lay[3]);
             let _ = write!(
                 self.trace.note,
-                " lay {} past {} px {}x{} scale {:.2} window {} bare {} wide {:.3}",
+                " lay {} past {} px {}x{} scale {:.2} window {} bare {} wide {:.3} strips {}x{}",
                 four(laid.view),
                 four(laid.past),
                 size[0],
@@ -4019,6 +4121,8 @@ impl App {
                 self.window_note(ctx),
                 u8::from(self.bare),
                 self.shown_wide[0],
+                self.strips_asked[0],
+                self.strips_asked[1],
             );
         }
         laid
@@ -4287,7 +4391,7 @@ impl App {
     fn zoom_by(&mut self, factor: f64, around: [f64; 2], size: [u32; 2]) {
         let (least, most) = self.reach(size);
         self.view.magnified(factor, around, least, most);
-        self.view.limited(size, least, self.covering());
+        self.view.limited(size, least, self.seen);
     }
 
     fn reset_view(&mut self) {
@@ -4317,6 +4421,17 @@ impl App {
             return;
         }
         let stretch = (size[0] as f32 / size[1] as f32) / (screen.width() / screen.height()).max(0.001);
+        // A wallpaper of a chosen size fills the window and is cut where it is over: the hand moves it as large
+        // as it is shown, and the view goes as far as what is cut.
+        let (fill, seen) = match (self.covering(), self.picture) {
+            (false, _) => (1.0, None),
+            (true, None) => (1.0, Some([1.0; 2])),
+            (true, Some(_)) => {
+                let (fill, shares) = filled(stretch);
+                (fill, Some(shares))
+            }
+        };
+        self.seen = seen;
         let before = self.view;
         let swiping = self.phone.on && self.wall.live;
         if picture.dragged() && !blocked {
@@ -4324,7 +4439,7 @@ impl App {
                 self.phone.swipe += picture.drag_delta();
             } else {
                 self.view
-                    .moved(sides(picture.drag_delta() / screen.size(), size, stretch));
+                    .moved(sides(picture.drag_delta() / screen.size() / fill, size, stretch));
             }
         }
         if picture.drag_stopped() {
@@ -4386,7 +4501,7 @@ impl App {
             });
             let factor = pinch * (1.0 + wheel * 0.004).clamp(0.5, 2.0);
             if factor != 1.0 {
-                let around = pointer.map_or(egui::Vec2::ZERO, |at| (at - screen.center()) / screen.size());
+                let around = pointer.map_or(egui::Vec2::ZERO, |at| (at - screen.center()) / screen.size() / fill);
                 self.zoom_by(f64::from(factor), sides(around, size, stretch), size);
             }
         }
@@ -4396,7 +4511,7 @@ impl App {
             ui.ctx().request_repaint();
         }
         self.view.zoom = self.view.zoom.min(self.most());
-        self.view.limited(size, self.least(), self.covering());
+        self.view.limited(size, self.least(), seen);
         if self.view != before {
             self.touched = Instant::now();
         }
@@ -6296,6 +6411,7 @@ impl App {
             (screen.height() * scale).round() as u32,
         ];
         let window = size;
+        self.window = window;
         let size = self.picture.unwrap_or(window);
         // An error of the graphics card ends its part for the session: the switch goes and the processor renders.
         let broken = self.preview.as_ref().is_some_and(|preview| !preview.works())
@@ -6322,6 +6438,7 @@ impl App {
         if resizing {
             ctx.request_repaint_after(std::time::Duration::from_secs_f32(wait));
         }
+        let reshaped = self.shape_stood.wait(window, now, motion::span(SETTLE));
         let clock = Instant::now();
         if window[0] > 0 && window[1] > 0 && !resizing {
             if self.requested != Some(size) {
@@ -6362,6 +6479,18 @@ impl App {
                     self.show_view(&ctx, size, self.drawn.is_none());
                 } else {
                     ctx.request_repaint_after(std::time::Duration::from_secs_f32(SETTLE - still));
+                }
+            } else if self.swift && self.chaotic && !self.rendering && !self.frozen && self.picture.is_some() {
+                // A window of another shape shows more or less beside a picture of a chosen size: once the shape
+                // has stood the card draws the picture with that beside it.
+                let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+                let other = !self.covering() && strips([full.width, full.height], window) != self.strips_asked;
+                if other && reshaped > 0.0 {
+                    ctx.request_repaint_after(std::time::Duration::from_secs_f32(reshaped));
+                } else if other && self.gpu_on() && self.fast(size) {
+                    self.moved_only = true;
+                    self.began = Instant::now();
+                    self.show_view(&ctx, size, false);
                 }
             }
         }
@@ -7148,7 +7277,7 @@ mod tests {
             down: -0.2,
             zoom: 0.174,
         };
-        view.limited(size, 1.0, true);
+        view.limited(size, 1.0, Some([1.0; 2]));
         assert_eq!(view, WHOLE);
         // Twice as large: half of the picture is seen, so the middle may move a quarter of it either way.
         let mut view = View {
@@ -7156,7 +7285,7 @@ mod tests {
             down: -5.0,
             zoom: 2.0,
         };
-        view.limited(size, 1.0, true);
+        view.limited(size, 1.0, Some([1.0; 2]));
         assert!((view.right - 0.4).abs() < 1e-12 && (view.down + 0.25).abs() < 1e-12);
         let [across, along, larger] = view.within(&WHOLE, size);
         let half = 0.5 / larger;
@@ -7168,16 +7297,62 @@ mod tests {
             zoom: 3.0,
         };
         let mut view = inside;
-        view.limited(size, 1.0, true);
+        view.limited(size, 1.0, Some([1.0; 2]));
         assert_eq!(view, inside);
         // The wheel stops at the whole picture and does not push the view aside.
         let mut view = WHOLE;
         view.magnified(0.5, [0.3, 0.2], 1.0, 1e10);
-        view.limited(size, 1.0, true);
+        view.limited(size, 1.0, Some([1.0; 2]));
         assert_eq!(view, WHOLE);
         // And at eight times the picture.
         view.magnified(1e6, [0.0; 2], 1.0, IMAGE_CEILING);
         assert_eq!(view.zoom, IMAGE_CEILING);
+    }
+
+    #[test]
+    fn a_wallpaper_of_a_chosen_size_fills_a_window_of_another_shape() {
+        // 16 to 9 in a maximized window of 1920 by 1032 points: 4.65 % larger, cut above and below.
+        let stretch = (16.0 / 9.0) / (1920.0 / 1032.0);
+        let (fill, [across, down]) = filled(stretch);
+        assert!((fill - 1.0465).abs() < 1e-3);
+        assert!((across - 1.0).abs() < 1e-6 && (down - 1.0 / 1.0465).abs() < 1e-3);
+        // In a window less wide than the picture it is cut at its sides.
+        let (fill, [across, down]) = filled(1.1);
+        assert!((fill - 1.1).abs() < 1e-6 && (across - 1.0 / 1.1).abs() < 1e-6 && (down - 1.0).abs() < 1e-6);
+        // A picture of another shape altogether is not cut by more than a fifth: it leaves the window's sides.
+        let (fill, [across, down]) = filled(0.25);
+        assert_eq!(fill, FILL_MOST);
+        assert!(across > 1.0 && (down - 0.8).abs() < 1e-6);
+        // The whole view moves over what is cut and no further, so all of the picture can be seen.
+        let mut view = View {
+            right: 1.0,
+            down: 1.0,
+            zoom: 1.0,
+        };
+        view.limited([3840, 2160], 1.0, Some(filled(stretch).1));
+        assert_eq!(view.right, 0.0);
+        assert!((view.down - 0.5 * (1.0 - 1.0 / 1.0465)).abs() < 1e-3);
+        // Where it leaves the window's sides it does not move across until it is larger than the window.
+        let mut view = View {
+            right: 1.0,
+            down: 0.0,
+            zoom: 2.0,
+        };
+        view.limited([1000, 2000], 1.0, Some(filled(0.25).1));
+        assert_eq!(view.right, 0.0);
+    }
+
+    #[test]
+    fn what_a_window_shows_beside_a_picture_of_a_chosen_size_is_drawn_with_it() {
+        // 3840 × 2160 in a maximized window of 2576 × 1385 pixels: 89 pixels a side, and one more.
+        assert_eq!(strips([3840, 2160], [2576, 1385]), [90, 0]);
+        assert_eq!(strips([3840, 2160], [1920, 1080]), [0, 0]);
+        // A window less wide than the picture shows more above and below.
+        assert_eq!(strips([3840, 2160], [1600, 1200]), [0, 361]);
+        // At most half of the picture's side: a portrait picture in a wide window.
+        assert_eq!(strips([1170, 2532], [1920, 1032]), [585, 0]);
+        // A picture fitted to the largest side the app draws keeps its shape but for the rounding.
+        assert_eq!(strips([4096, 2201], [1920, 1032]), [0, 0]);
     }
 
     #[test]
@@ -7187,12 +7362,12 @@ mod tests {
         let mut view = WHOLE;
         for _ in 0..40 {
             view.magnified(0.8, [0.0; 2], FLOOR, 1e10);
-            view.limited(size, FLOOR, false);
+            view.limited(size, FLOOR, None);
         }
         assert_eq!(view.zoom, FLOOR);
         // With the scale of the controls at 0.5 the wheel has half as far to go.
         let mut scaled = View { zoom: 0.009, ..WHOLE };
-        scaled.limited(size, FLOOR / 0.5, false);
+        scaled.limited(size, FLOOR / 0.5, None);
         assert_eq!(scaled.zoom * 0.5, FLOOR);
         // Larger than the view, dragged away: the view stays inside the figure but for a tenth of a view.
         let mut view = View {
@@ -7200,7 +7375,7 @@ mod tests {
             down: -40.0,
             zoom: 4.0,
         };
-        view.limited(size, FLOOR, false);
+        view.limited(size, FLOOR, None);
         let half = 3840.0 / 2160.0 / 2.0;
         assert!((view.right - half * 2.0 * (0.375 + 0.025)).abs() < 1e-12);
         assert!((view.down + 0.375 + 0.025).abs() < 1e-12);
@@ -7214,7 +7389,7 @@ mod tests {
                 down,
                 zoom: FLOOR,
             };
-            view.limited(size, FLOOR, false);
+            view.limited(size, FLOOR, None);
             let [across, along, larger] = view.within(&WHOLE, size);
             let seen = 0.5 / larger;
             assert!(across - seen <= 1e-6 && across + seen >= 1.0 - 1e-6);
@@ -7227,14 +7402,14 @@ mod tests {
             down: 0.3,
             zoom: 1.0,
         };
-        whole.limited(size, FLOOR, false);
+        whole.limited(size, FLOOR, None);
         assert_eq!(whole, WHOLE);
         let mut near = View {
             right: 9.0,
             down: 0.0,
             zoom: 1.001,
         };
-        near.limited(size, FLOOR, false);
+        near.limited(size, FLOOR, None);
         assert!(near.right < 0.002);
         // A view within its limits is not touched.
         let inside = View {
@@ -7243,7 +7418,7 @@ mod tests {
             zoom: 0.6,
         };
         let mut view = inside;
-        view.limited(size, FLOOR, false);
+        view.limited(size, FLOOR, None);
         assert_eq!(view, inside);
     }
 

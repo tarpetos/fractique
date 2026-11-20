@@ -975,17 +975,19 @@ impl Chaos {
     }
 
     // True when the graphics card draws this scene: a run for it goes on, or a new one has started. The keys
-    // name what the layers' histograms depend on.
+    // name what the layers' histograms depend on. `margin`: what a scene drawn pixel by pixel has beside its view.
+    #[allow(clippy::too_many_arguments)]
     pub fn begin(
         &mut self,
         scene: &Scene,
         options: &RenderOptions,
+        margin: [u32; 2],
         keys: &[String],
         asked: Instant,
         limit: Option<f32>,
         ctx: &egui::Context,
     ) -> bool {
-        self.warmed >= WARM.len() && self.started(scene, options, [0; 2], keys, asked, limit, ctx)
+        self.warmed >= WARM.len() && self.started(scene, options, margin, keys, asked, limit, ctx)
     }
 
     // The cells beside the view, across and down, in the picture `levels` gives.
@@ -1024,6 +1026,16 @@ impl Chaos {
             if options.width.max(options.height) > self.largest_side {
                 return false;
             }
+            // What lies beside the view is drawn with it where the card's textures and its 32-bit numbers hold it.
+            let wider = [options.width + 2 * margin[0], options.height + 2 * margin[1]];
+            let held = pixelwise
+                && wider[0].max(wider[1]) <= self.largest_side
+                && scene
+                    .layers
+                    .iter()
+                    .filter_map(|layer| layer.fractal())
+                    .all(|fractal| self.fields.draws(fractal, options, margin, scene.layers.len()));
+            let margin = if held { margin } else { [0; 2] };
             let mut layers: Vec<Box<dyn Batched>> = Vec::new();
             let mut levels = Vec::new();
             if !pixelwise {
@@ -1034,7 +1046,7 @@ impl Chaos {
                 layers.push(layer);
             }
             for fractal in scene.layers.iter().filter_map(|layer| layer.fractal()) {
-                let Planned::Ready(layer) = self.fields.layer(fractal, options, scene.layers.len(), ctx) else {
+                let Planned::Ready(layer) = self.fields.layer(fractal, options, margin, scene.layers.len(), ctx) else {
                     return false;
                 };
                 levels.push(layer.levels().clone());
@@ -1046,11 +1058,12 @@ impl Chaos {
             self.pixels = Some(Pixels {
                 keys: keys.to_vec(),
                 heard: Instant::now(),
-                size: [options.width, options.height],
+                size: [options.width + 2 * margin[0], options.height + 2 * margin[1]],
                 levels,
                 chain: Chain::new(layers, device, queue, &self.failed, ctx, self.waiter(), asked),
                 report: field::Report::default(),
             });
+            self.run_margin = margin;
             return true;
         }
         let pipelines = self.pipelines.clone();
@@ -1339,7 +1352,7 @@ impl Chaos {
         if scene.sheets.is_none() && !scene.layers.is_empty() && scene.layers.iter().all(field::drawn) {
             let fits = options.width.max(options.height) <= self.largest_side;
             let mut fractals = scene.layers.iter().filter_map(|layer| layer.fractal());
-            return fits && fractals.all(|fractal| self.fields.draws(fractal, options, scene.layers.len()));
+            return fits && fractals.all(|fractal| self.fields.draws(fractal, options, [0; 2], scene.layers.len()));
         }
         let bounded = scene.layers.iter().any(|layer| layer.fractal().is_some());
         if deep && (bounded || matches!(self.particles.get(), Some(None))) {
@@ -2201,7 +2214,10 @@ pub(crate) mod tests {
                 for units in [0, 1, 2, 5, 9] {
                     let keys = vec![format!("cut {first} {units}")];
                     card.chaos.end();
-                    while !card.chaos.begin(cut, &options, &keys, Instant::now(), None, &card.ctx) {
+                    while !card
+                        .chaos
+                        .begin(cut, &options, [0; 2], &keys, Instant::now(), None, &card.ctx)
+                    {
                         assert!(card.chaos.pending(), "the card draws the scene");
                         std::thread::sleep(std::time::Duration::from_millis(20));
                     }
