@@ -138,7 +138,7 @@ Fractique 生成三类图像。一类是分形火焰：由纤细曲线和柔和�
 | PC | Ubuntu 24.04 (WSL2) | AMD Ryzen 7 5700X | 无：仅处理器 |
 | 笔记本电脑, ASUS TUF Gaming FX505DT | Windows 11 | AMD Ryzen 5 3550H | NVIDIA GeForce GTX 1650 |
 | 笔记本电脑, HP 15-db1xxx | Debian 13 | AMD Ryzen 3 3200U | AMD Radeon Vega 3 |
-| MacBook Pro | macOS | Apple M5 Pro | Apple M5 Pro |
+| MacBook Pro | macOS 27 | Apple M5 Pro | Apple M5 Pro |
 | ZTE Blade A7 | Android 9 | MediaTek Helio P22 | PowerVR GE8320 |
 | Asus Zenfone 10 | Android 15 | Qualcomm Snapdragon 8 Gen 2 | Adreno 740 |
 | iPhone 13 Pro | iOS 27 | Apple A15 Bionic | Apple A15 |
