@@ -32,8 +32,8 @@ Fractique erzeugt drei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fr
 - **Updates:** ein Fenster listet jede veröffentlichte Version mit ihren Hinweisen auf und installiert jede beliebige davon. Unter Windows ist die App eine einzige portable `.exe`, die sich selbst ersetzt.
 - **Exakte Wiederholbarkeit:** dieselbe Szene ergibt auf jedem Rechner dieselben Pixel, geprüft durch Tests unter Linux, Windows und macOS ([docs/determinism.md](../determinism.md)).
 - **Das Kommandozeilenwerkzeug** (`fractique`): rendert Flammen, Fraktale und Hintergrundbilder als PNG, erzeugt zufällige Szenen und Varianten, konvertiert `.flame`- und `.frcq`-Dateien.
-- **MCP-Server** (`fractique mcp`): ein KI-Agent erstellt, ändert und rendert Szenen ([docs/mcp.md](../mcp.md)).
-- **HTTP-Server** (`fractique-server`): eine HTTP-API mit Render-Warteschlange und Grenzen, eine interaktive Referenz dazu unter `/docs`, MCP für KI-Agenten unter `/mcp`, liefert die Web-App aus, gibt es als Docker-Image ([docs/server.md](../server.md)).
+- **MCP-Server** (`fractique-mcp` oder `fractique mcp`): ein KI-Agent erstellt, ändert und rendert Szenen ([docs/mcp.md](../mcp.md)).
+- **HTTP-Server** (`fractique-server`): eine HTTP-API mit Render-Warteschlange und Grenzen, eine interaktive Referenz dazu unter `/docs`, MCP für KI-Agenten unter `/mcp`, liefert die Web-App aus, in jeder Version als eigener Download, dazu ein `Dockerfile` für ein Image ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |

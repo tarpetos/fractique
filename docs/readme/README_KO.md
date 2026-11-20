@@ -32,8 +32,8 @@ Fractique는 세 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입
 - **업데이트:** 창에서 출시된 모든 버전과 릴리스 노트를 보여 주고 그중 어느 것이든 설치합니다. Windows에서 앱은 스스로를 교체하는 포터블 `.exe` 하나입니다.
 - **정확한 재현성:** 같은 장면은 어느 기기에서나 같은 픽셀을 만들며, Linux, Windows, macOS의 테스트로 확인합니다([docs/determinism.md](../determinism.md)).
 - **명령줄 도구**(`fractique`): 불꽃, 프랙탈, 배경화면을 PNG로 렌더링하고, 무작위 장면과 변형을 만들고, `.flame`과 `.frcq` 파일을 변환합니다.
-- **MCP 서버**(`fractique mcp`): AI 에이전트가 장면을 만들고, 수정하고, 렌더링합니다([docs/mcp.md](../mcp.md)).
-- **HTTP 서버**(`fractique-server`): 렌더링 대기열과 제한을 갖춘 HTTP API이며, `/docs`에서 대화형 레퍼런스를, `/mcp`에서 AI 에이전트용 MCP를 제공하고, 웹 앱을 제공하고 Docker 이미지로 배포됩니다([docs/server.md](../server.md)).
+- **MCP 서버**(`fractique-mcp` 또는 `fractique mcp`): AI 에이전트가 장면을 만들고, 수정하고, 렌더링합니다([docs/mcp.md](../mcp.md)).
+- **HTTP 서버**(`fractique-server`): 렌더링 대기열과 제한을 갖춘 HTTP API이며, `/docs`에서 대화형 레퍼런스를, `/mcp`에서 AI 에이전트용 MCP를 제공하고, 웹 앱을 제공하고 릴리스마다 별도 다운로드가 있으며 이미지를 만드는 `Dockerfile`이 함께 있습니다([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |

@@ -32,8 +32,8 @@ Fractique tworzy obrazy trzech rodzajów. Fraktalne płomienie: świetliste, zwi
 - **Aktualizacje:** okno pokazuje każdą wydaną wersję z jej opisem i instaluje dowolną z nich. W systemie Windows aplikacja to jeden przenośny plik `.exe`, który sam siebie podmienia.
 - **Dokładna powtarzalność:** ta sama scena daje te same piksele na każdej maszynie, co sprawdzają testy w systemach Linux, Windows i macOS ([docs/determinism.md](../determinism.md)).
 - **Narzędzie wiersza poleceń** (`fractique`): renderuje płomienie, fraktale i tapety do PNG, tworzy losowe sceny i warianty, konwertuje pliki `.flame` i `.frcq`.
-- **Serwer MCP** (`fractique mcp`): agent AI tworzy, zmienia i renderuje sceny ([docs/mcp.md](../mcp.md)).
-- **Serwer HTTP** (`fractique-server`): API HTTP z kolejką renderowania i limitami, jego interaktywna dokumentacja pod `/docs`, MCP dla agentów AI pod `/mcp`, udostępnia aplikację webową, dostępny jako obraz Dockera ([docs/server.md](../server.md)).
+- **Serwer MCP** (`fractique-mcp` albo `fractique mcp`): agent AI tworzy, zmienia i renderuje sceny ([docs/mcp.md](../mcp.md)).
+- **Serwer HTTP** (`fractique-server`): API HTTP z kolejką renderowania i limitami, jego interaktywna dokumentacja pod `/docs`, MCP dla agentów AI pod `/mcp`, udostępnia aplikację webową, osobny plik do pobrania w każdym wydaniu oraz `Dockerfile` do zbudowania obrazu ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |

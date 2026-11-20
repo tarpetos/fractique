@@ -32,8 +32,8 @@ Fractique crée trois sortes d’images. Des flammes fractales : ces fractales l
 - **Mises à jour :** une fenêtre liste chaque version publiée avec ses notes et installe n’importe laquelle. Sous Windows, l’application est un seul `.exe` portable qui se remplace lui-même.
 - **Répétabilité exacte :** la même scène donne les mêmes pixels sur toutes les machines, ce que vérifient des tests sous Linux, Windows et macOS ([docs/determinism.md](../determinism.md)).
 - **L’outil en ligne de commande** (`fractique`) : fait le rendu des flammes, des fractales et des fonds d’écran en PNG, crée des scènes aléatoires et des variantes, convertit les fichiers `.flame` et `.frcq`.
-- **Serveur MCP** (`fractique mcp`) : un agent d’IA crée et modifie des scènes, et en fait le rendu ([docs/mcp.md](../mcp.md)).
-- **Serveur HTTP** (`fractique-server`) : une API HTTP avec une file d’attente de rendus et des limites, sa référence interactive sur `/docs`, MCP pour les agents d’IA sur `/mcp`, sert l’application web, livré comme image Docker ([docs/server.md](../server.md)).
+- **Serveur MCP** (`fractique-mcp`, ou `fractique mcp`) : un agent d’IA crée et modifie des scènes, et en fait le rendu ([docs/mcp.md](../mcp.md)).
+- **Serveur HTTP** (`fractique-server`) : une API HTTP avec une file d’attente de rendus et des limites, sa référence interactive sur `/docs`, MCP pour les agents d’IA sur `/mcp`, sert l’application web, un téléchargement à part dans chaque version, et un `Dockerfile` pour construire une image ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
