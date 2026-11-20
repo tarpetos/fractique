@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* **Leaving full screen no longer shows the desktop, and a picture that is waited for is never one flat colour:**
+  captured from the screen at 60 frames a second with a magenta window behind the app. Full screen from a
+  maximized window was made by restoring the window first and maximizing it again on the way back, because a
+  maximized window without decorations keeps the taskbar's strip empty in full screen. On the way back the
+  window stood on the screen at its small size, the desktop around it, for 9 to 11 frames in the releases
+  before (the system animated it) and for 1 to 3 since the glide (a hard blink). The window now stays maximized
+  through full screen and the app tells Windows that the whole window is its client area meanwhile: 0 frames
+  with anything but the app in the window's place in 10 runs, no strip. Separately: a deep fractal that the
+  processor draws in seconds, wheeled further while its picture was awaited, showed the last picture magnified
+  with the view, up to 440 times in the owner's session: a few of its pixels under the blur, one flat colour.
+  The picture that stands for a view is magnified 8 times at most.
+
 * **The Scale slider spans the range of the view:** the slider ended at 100× while the wheel went on, so its knob
   rested at the end and the number ran on (1373.13, and 9523809523.81 where the toolbar said 9.5e9×). The slider
   now spans exactly what the view of the picture on the screen can take, logarithmically, from its smallest scale

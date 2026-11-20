@@ -84,10 +84,9 @@ impl Sham {
     }
 
     fn size(&mut self) -> egui::Vec2 {
-        // A maximized window without decorations keeps the work area as its client area, in full screen too.
         let size = match (self.maximized, self.full) {
-            (true, _) => self.screen - egui::vec2(0.0, TASKBAR),
-            (false, true) => self.screen,
+            (_, true) => self.screen,
+            (true, false) => self.screen - egui::vec2(0.0, TASKBAR),
             (false, false) => self.restored,
         };
         self.asked = Some(size);
@@ -353,9 +352,9 @@ mod tests {
         let work = screen - egui::vec2(0.0, TASKBAR);
         assert_eq!(sham.maximize(true, window), work);
         assert_eq!(sham.origin(work), egui::Pos2::ZERO);
-        // Full screen over a maximized window keeps the work area, as on Windows: it is restored first.
-        assert_eq!(sham.fullscreen(true, work), work);
-        sham.fullscreen(false, work);
+        // Full screen over a maximized window comes back to it maximized.
+        assert_eq!(sham.fullscreen(true, work), screen);
+        assert_eq!(sham.fullscreen(false, screen), work);
         assert_eq!(sham.maximize(false, work), window);
         assert_eq!(sham.fullscreen(true, window), screen);
         assert_eq!(sham.fullscreen(false, screen), window);

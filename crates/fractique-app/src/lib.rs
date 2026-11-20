@@ -616,6 +616,17 @@ fn laid(drawn: [u32; 2], window: [u32; 2], fixed: bool, screen: egui::Vec2) -> (
     (stretch, if stretch > 1.0 { 1.0 / across } else { 1.0 / along })
 }
 
+// How many times larger the picture on the screen is shown while it stands for a view that is still drawn. A
+// view wheeled far past the picture it waits for would show a few of its pixels, blurred: one flat colour.
+// It is shown at most as far in as a picture that is only magnified goes, around the same point.
+fn stand_in(larger: f32) -> f32 {
+    if larger.is_finite() {
+        larger.min(IMAGE_CEILING as f32)
+    } else {
+        1.0
+    }
+}
+
 const GLASS: (f32, f32) = (0.4, 0.7);
 const MAX_MAGNIFICATION: f64 = 1e10;
 const MIN_MAGNIFICATION: f64 = 1e-4;
@@ -3709,7 +3720,7 @@ impl App {
                 view.scaled(zoom).within(&shown.view.scaled(shown.zoom), shown.size)
             };
             let (stretch, closer) = laid(shown.size, size, fixed, screen.size());
-            [across, along, larger * closer, stretch]
+            [across, along, stand_in(larger) * closer, stretch]
         };
         let shown = Picture {
             view: self.shown,
@@ -4218,13 +4229,10 @@ impl App {
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn full_screen(&mut self, ctx: &egui::Context, on: bool) {
-        // A maximized window keeps its maximized size in full screen and leaves a black strip where the taskbar was,
-        // so it leaves the maximized state first. The system takes both in the order they are sent, before the next
-        // frame is drawn: no frame shows the window between the two.
-        if on && self.window_state(ctx).0 {
-            self.maximize_again = true;
-            self.set_maximized(ctx, false);
-        }
+        // A maximized window goes to full screen as it is and comes back maximized, in one step each way: restored
+        // on the way, it stood at its small size on the screen for a frame or three, with the desktop around it.
+        #[cfg(windows)]
+        motion::whole::set(on && self.trace.sham.is_none());
         self.set_full(ctx, on);
         if !on && std::mem::take(&mut self.maximize_again) {
             self.set_maximized(ctx, true);
@@ -4234,9 +4242,9 @@ impl App {
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn toggle_maximized(&mut self, ctx: &egui::Context) {
         let (maximized, is_full) = self.window_state(ctx);
-        // Maximizing a window that is in full screen leaves it over the taskbar with a black strip in its place.
+        // Full screen is left to the window as it was before it: maximized, or to be maximized now.
         if is_full {
-            self.maximize_again = true;
+            self.maximize_again = !maximized;
             self.full_screen(ctx, false);
         } else {
             self.set_maximized(ctx, !maximized);
@@ -5908,6 +5916,9 @@ impl App {
                     Ok(RawWindowHandle::Win32(window)) => Some(window.hwnd.get()),
                     _ => None,
                 };
+                if let Some(handle) = self.handle {
+                    motion::whole::watch(handle);
+                }
             }
             let stand = self.stand(&ctx, screen, now);
             let safe = safe_content(&ctx);
@@ -7136,6 +7147,16 @@ mod tests {
                 assert_eq!(displayed(&texts, &format!("{word} 9")), word);
             }
         }
+    }
+
+    #[test]
+    fn a_picture_that_stands_for_a_deeper_view_is_never_a_few_of_its_pixels() {
+        assert_eq!(stand_in(0.3), 0.3);
+        assert_eq!(stand_in(7.5), 7.5);
+        assert_eq!(stand_in(57.0), IMAGE_CEILING as f32);
+        assert_eq!(stand_in(1e12), IMAGE_CEILING as f32);
+        assert_eq!(stand_in(f32::INFINITY), 1.0);
+        assert_eq!(stand_in(f32::NAN), 1.0);
     }
 
     #[test]

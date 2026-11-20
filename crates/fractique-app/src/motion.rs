@@ -46,6 +46,46 @@ fn system_wants() -> bool {
     true
 }
 
+// Windows keeps the client area of a maximized window without decorations at the work area (winit answers
+// WM_NCCALCSIZE so), also once that window is made full screen: a black strip stays where the taskbar was. While
+// the app is in full screen, the whole window is its client area.
+#[cfg(windows)]
+pub mod whole {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use windows_sys::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
+    use windows_sys::Win32::UI::WindowsAndMessaging::WM_NCCALCSIZE;
+
+    static FULL: AtomicBool = AtomicBool::new(false);
+
+    unsafe extern "system" fn answer(
+        window: HWND,
+        message: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+        _id: usize,
+        _data: usize,
+    ) -> LRESULT {
+        if message == WM_NCCALCSIZE && wparam != 0 && FULL.load(Ordering::Relaxed) {
+            return 0;
+        }
+        // SAFETY: the message goes on to the window's own procedure, with the arguments it came with.
+        unsafe { DefSubclassProc(window, message, wparam, lparam) }
+    }
+
+    pub fn watch(handle: isize) {
+        // SAFETY: the handle is the app's own window, on the thread that made it; the procedure lives as long as
+        // the program.
+        unsafe {
+            SetWindowSubclass(handle as HWND, Some(answer), 1, 0);
+        }
+    }
+
+    pub fn set(on: bool) {
+        FULL.store(on, Ordering::Relaxed);
+    }
+}
+
 pub fn span(seconds: f32) -> f32 {
     if wanted() { seconds } else { 0.0 }
 }
