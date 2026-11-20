@@ -1,3 +1,4 @@
+mod docs;
 mod mcp;
 
 use std::path::PathBuf;
@@ -7,10 +8,11 @@ use std::time::Duration;
 
 use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, Path, State};
+use axum::handler::Handler;
 use axum::http::header::{CONTENT_TYPE, RETRY_AFTER};
 use axum::http::{HeaderName, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{MethodRouter, delete, get, post};
 use axum::{Json, Router};
 use fractique_core::random::random_scene;
 use fractique_core::wallpaper::{Layout, Material, Request, random_wallpaper};
@@ -38,6 +40,7 @@ pub struct Config {
     pub web: Option<PathBuf>,
     pub mcp: bool,
     pub mcp_origins: Vec<String>,
+    pub docs: bool,
 }
 
 impl Default for Config {
@@ -53,6 +56,7 @@ impl Default for Config {
             web: None,
             mcp: true,
             mcp_origins: Vec::new(),
+            docs: true,
         }
     }
 }
@@ -74,6 +78,7 @@ struct Shared {
     busy: watch::Sender<usize>,
     host: Host,
     sessions: Mutex<mcp::Sessions>,
+    spec: String,
 }
 
 struct Ticket(Arc<Shared>);
@@ -362,6 +367,7 @@ async fn limits(State(shared): State<Arc<Shared>>) -> Json<Value> {
         "timeout_seconds": config.timeout.as_secs_f64(),
         "max_body_bytes": MAX_BODY_BYTES,
         "mcp": config.mcp,
+        "docs": config.docs,
         "qualities": Quality::ALL.map(|(name, _)| name),
         "layouts": Layout::ALL.map(|(name, _)| name),
         "materials": Material::ALL.map(|(name, _)| name),
@@ -379,6 +385,32 @@ async fn not_found() -> Failure {
 pub struct App {
     pub router: Router,
     pub busy: watch::Receiver<usize>,
+    pub routes: Vec<(&'static str, &'static str)>,
+}
+
+struct Routes {
+    router: Router<Arc<Shared>>,
+    listed: Vec<(&'static str, &'static str)>,
+}
+
+impl Routes {
+    fn add(mut self, method: &'static str, path: &'static str, route: MethodRouter<Arc<Shared>>) -> Self {
+        self.router = self.router.route(path, route);
+        self.listed.push((method, path));
+        self
+    }
+
+    fn get<H: Handler<T, Arc<Shared>>, T: 'static>(self, path: &'static str, handler: H) -> Self {
+        self.add("get", path, get(handler))
+    }
+
+    fn post<H: Handler<T, Arc<Shared>>, T: 'static>(self, path: &'static str, handler: H) -> Self {
+        self.add("post", path, post(handler))
+    }
+
+    fn delete<H: Handler<T, Arc<Shared>>, T: 'static>(self, path: &'static str, handler: H) -> Self {
+        self.add("delete", path, delete(handler))
+    }
 }
 
 pub fn app(config: Config) -> App {
@@ -392,25 +424,44 @@ pub fn app(config: Config) -> App {
             limits: Some(config.limits()),
         },
         sessions: Mutex::default(),
+        spec: docs::spec(&config),
         config,
         busy,
     });
-    let mut router = Router::new()
-        .route("/presets", get(list_presets))
-        .route("/presets/{name}", get(get_preset))
-        .route("/random", post(random))
-        .route("/fractals", get(list_fractals))
-        .route("/wallpaper", post(wallpaper))
-        .route("/render", post(render_png))
-        .route("/limits", get(limits))
-        .route("/health", get(health));
-    if shared.config.mcp {
-        router = router.route("/mcp", post(mcp::post).delete(mcp::delete));
+    let mut routes = Routes {
+        router: Router::new(),
+        listed: Vec::new(),
     }
+    .get("/presets", list_presets)
+    .get("/presets/{name}", get_preset)
+    .post("/random", random)
+    .get("/fractals", list_fractals)
+    .post("/wallpaper", wallpaper)
+    .post("/render", render_png)
+    .get("/limits", limits)
+    .get("/health", health);
+    if shared.config.mcp {
+        routes = routes.post("/mcp", mcp::post).delete("/mcp", mcp::delete);
+    }
+    if shared.config.docs {
+        routes = routes
+            .get("/openapi.json", docs::openapi)
+            .get("/docs", docs::page)
+            .get("/docs/scalar.js", docs::scalar_js)
+            .get("/docs/init.js", docs::init_js);
+        for (path, png) in docs::ICONS {
+            routes = routes.get(path, move || async move { docs::icon(png) });
+        }
+    }
+    let Routes { router, listed } = routes;
     let router = router.layer(DefaultBodyLimit::max(MAX_BODY_BYTES)).with_state(shared);
     let router = match web {
         Some(folder) => router.fallback_service(ServeDir::new(folder).precompressed_gzip()),
         None => router.fallback(not_found),
     };
-    App { router, busy: watching }
+    App {
+        router,
+        busy: watching,
+        routes: listed,
+    }
 }

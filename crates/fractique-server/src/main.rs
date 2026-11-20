@@ -50,6 +50,17 @@ struct Args {
     /// Origin of a web page that may call /mcp besides the pages of this machine; * for any
     #[arg(long = "mcp-origin", env = "FRACTIQUE_MCP_ORIGINS", value_delimiter = ',')]
     mcp_origins: Vec<String>,
+    /// The API reference at /docs and its description at /openapi.json: on or off
+    #[arg(
+        long,
+        env = "FRACTIQUE_DOCS",
+        default_value = "on",
+        value_name = "on|off",
+        hide_possible_values = true,
+        action = clap::ArgAction::Set,
+        value_parser = clap::builder::BoolishValueParser::new()
+    )]
+    docs: bool,
 }
 
 async fn stop_signal() {
@@ -84,6 +95,7 @@ async fn run(args: Args) -> Result<(), String> {
         web: args.web,
         mcp: args.mcp,
         mcp_origins: args.mcp_origins,
+        docs: args.docs,
     };
     let listener = tokio::net::TcpListener::bind(args.bind)
         .await

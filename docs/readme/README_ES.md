@@ -33,7 +33,7 @@ Fractique crea tres tipos de imágenes. Llamas fractales: esos fractales luminos
 - **Repetibilidad exacta:** la misma escena da los mismos píxeles en cualquier máquina, comprobado con pruebas en Linux, Windows y macOS ([docs/determinism.md](../determinism.md)).
 - **La herramienta de línea de comandos** (`fractique`): renderiza llamas, fractales y fondos de pantalla a PNG, crea escenas aleatorias y variantes, convierte archivos `.flame` y `.frcq`.
 - **Servidor MCP** (`fractique mcp`): un agente de IA crea, modifica y renderiza escenas ([docs/mcp.md](../mcp.md)).
-- **Servidor HTTP** (`fractique-server`): una API HTTP con cola de renderizado y límites, MCP para agentes de IA en `/mcp`, sirve la aplicación web, se distribuye como imagen de Docker ([docs/server.md](../server.md)).
+- **Servidor HTTP** (`fractique-server`): una API HTTP con cola de renderizado y límites, su referencia interactiva en `/docs`, MCP para agentes de IA en `/mcp`, sirve la aplicación web, se distribuye como imagen de Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |

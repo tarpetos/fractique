@@ -33,7 +33,7 @@ Fractique membuat tiga jenis gambar. Api fraktal: fraktal bercahaya dan halus ya
 - **Keterulangan yang persis:** adegan yang sama menghasilkan piksel yang sama di semua mesin, diperiksa oleh pengujian di Linux, Windows, dan macOS ([docs/determinism.md](../determinism.md)).
 - **Alat baris perintah** (`fractique`): merender api, fraktal, dan wallpaper ke PNG, membuat adegan acak dan varian, mengonversi berkas `.flame` dan `.frcq`.
 - **Server MCP** (`fractique mcp`): agen AI membuat, mengubah, dan merender adegan ([docs/mcp.md](../mcp.md)).
-- **Server HTTP** (`fractique-server`): API HTTP dengan antrean render dan batasan, MCP untuk agen AI di `/mcp`, menyajikan aplikasi web, tersedia sebagai image Docker ([docs/server.md](../server.md)).
+- **Server HTTP** (`fractique-server`): API HTTP dengan antrean render dan batasan, referensi interaktifnya di `/docs`, MCP untuk agen AI di `/mcp`, menyajikan aplikasi web, tersedia sebagai image Docker ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |

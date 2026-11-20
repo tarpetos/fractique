@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -383,4 +384,150 @@ async fn the_web_folder_is_served_beside_the_api() {
     let nothing = bare.get("/").await;
     assert_eq!(nothing.status, 404);
     assert!(nothing.json()["error"].is_string());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_description_and_the_router_have_the_same_routes() {
+    for mcp in [true, false] {
+        let config = Config {
+            mcp,
+            ..Config::default()
+        };
+        let routes: BTreeSet<(String, String)> = app(config.clone())
+            .routes
+            .into_iter()
+            .filter(|(_, path)| !path.starts_with("/docs/"))
+            .map(|(method, path)| (method.to_owned(), path.to_owned()))
+            .collect();
+        assert_eq!(routes.contains(&("post".to_owned(), "/mcp".to_owned())), mcp);
+
+        let server = Server::start(config).await;
+        let reply = server.get("/openapi.json").await;
+        assert_eq!(reply.status, 200);
+        assert_eq!(reply.header("content-type"), Some("application/json"));
+        let spec = reply.json();
+        assert_eq!(spec["openapi"], "3.1.0");
+        assert_eq!(spec["info"]["version"], env!("CARGO_PKG_VERSION"));
+        let described: BTreeSet<(String, String)> = spec["paths"]
+            .as_object()
+            .expect("paths")
+            .iter()
+            .flat_map(|(path, item)| {
+                let methods = item.as_object().expect("a path item").keys();
+                methods.map(move |method| (method.clone(), path.clone()))
+            })
+            .collect();
+        assert_eq!(described, routes);
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_examples_of_the_description_are_answered() {
+    let server = Server::start(Config::default()).await;
+    let spec = server.get("/openapi.json").await.json();
+    let mut sent = 0;
+    for path in ["/random", "/wallpaper", "/render"] {
+        let content = &spec["paths"][path]["post"]["requestBody"]["content"]["application/json"];
+        for (name, example) in content["examples"].as_object().expect("examples") {
+            let reply = server.post(path, example["value"].clone()).await;
+            assert_eq!(reply.status, 200, "{path} {name}");
+            let png = reply.body.starts_with(b"\x89PNG\r\n\x1a\n");
+            assert_eq!(png, path == "/render", "{path} {name}");
+            sent += 1;
+        }
+    }
+    assert!(sent >= 7);
+
+    let schema = &spec["components"]["schemas"]["RenderRequest"];
+    let mut body = json!({ "preset": "aurora-spiral", "width": 64, "height": 64, "quality": "draft" });
+    for (field, _) in schema["properties"].as_object().expect("fields") {
+        if body.get(field).is_none() {
+            body[field] = Value::Null;
+        }
+    }
+    assert_eq!(
+        server.post("/render", body).await.status,
+        200,
+        "a field of the description is unknown"
+    );
+    let limits = server.get("/limits").await.json();
+    let listed = spec["components"]["schemas"]["Limits"]["properties"]
+        .as_object()
+        .expect("fields");
+    assert_eq!(
+        listed.keys().collect::<BTreeSet<_>>(),
+        limits.as_object().expect("limits").keys().collect::<BTreeSet<_>>()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_reference_page_is_served_by_the_server_itself() {
+    let server = Server::start(Config::default()).await;
+    let page = server.get("/docs").await;
+    assert_eq!(page.status, 200);
+    assert_eq!(page.header("content-type"), Some("text/html; charset=utf-8"));
+    let policy = page.header("content-security-policy").expect("a policy");
+    assert!(policy.contains("default-src 'none'") && policy.contains("connect-src 'self'"));
+    let html = String::from_utf8(page.body).expect("text");
+    assert!(html.contains("<title>Fractique API</title>"));
+    assert!(!html.contains("http://") && !html.contains("https://"));
+
+    let assets = [
+        ("/docs/scalar.js", "text/javascript; charset=utf-8"),
+        ("/docs/init.js", "text/javascript; charset=utf-8"),
+        ("/docs/icon-32.png", "image/png"),
+        ("/docs/icon-64.png", "image/png"),
+        ("/docs/icon.png", "image/png"),
+    ];
+    for (path, kind) in assets {
+        let reply = server.get(path).await;
+        assert_eq!(reply.status, 200, "{path}");
+        assert_eq!(reply.header("content-type"), Some(kind), "{path}");
+        assert_eq!(reply.header("content-encoding"), None, "{path}");
+        assert_eq!(
+            reply.body.starts_with(b"\x89PNG\r\n\x1a\n"),
+            kind == "image/png",
+            "{path}"
+        );
+    }
+    assert!(html.contains("/docs/scalar.js") && html.contains("/docs/init.js") && html.contains("/docs/icon-32.png"));
+    let plain = server.get("/docs/scalar.js").await.body;
+    let name = b"createApiReference";
+    assert!(plain.len() > 1_000_000 && plain.windows(name.len()).any(|window| window == name));
+
+    let request = format!(
+        "GET /docs/scalar.js HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nAccept-Encoding: gzip, br\r\n\r\n",
+        server.address
+    );
+    let mut stream = TcpStream::connect(server.address).await.expect("the server listens");
+    stream.write_all(request.as_bytes()).await.expect("the request is sent");
+    let mut packed = Vec::new();
+    stream.read_to_end(&mut packed).await.expect("the reply is read");
+    let head = String::from_utf8_lossy(&packed[..400]).to_ascii_lowercase();
+    assert!(head.contains("content-encoding: gzip") && head.contains("vary: accept-encoding"));
+    assert!(packed.len() < plain.len() / 2);
+
+    assert_eq!(server.get("/limits").await.json()["docs"], true);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn docs_off_takes_the_reference_away() {
+    let config = Config {
+        docs: false,
+        ..Config::default()
+    };
+    let server = Server::start(config).await;
+    for path in [
+        "/docs",
+        "/openapi.json",
+        "/docs/scalar.js",
+        "/docs/init.js",
+        "/docs/icon.png",
+    ] {
+        let reply = server.get(path).await;
+        assert_eq!(reply.status, 404, "{path}");
+        assert!(reply.json()["error"].is_string(), "{path}");
+    }
+    assert_eq!(server.get("/limits").await.json()["docs"], false);
+    assert_eq!(server.get("/presets").await.status, 200);
 }

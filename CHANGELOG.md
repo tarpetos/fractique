@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+* **A reference of the HTTP API in the browser, at `/docs`:** `fractique-server` had no reference a person could
+  open. `/docs` now shows every endpoint with its fields, their types, limits and defaults, the answers and the
+  errors, and sends a request to the server from the page: a render comes back as the picture.
+  `/openapi.json` is the same as an OpenAPI 3.1 description with the limits of the instance in it. The page
+  (Scalar API Reference, MIT) is inside the program, so nothing is loaded from another address and it works
+  without a network. `--docs off` or `FRACTIQUE_DOCS=off` takes both away; `GET /limits` says `"docs"`.
+
 * **`fractique-mcp`, the MCP server as a program of its own:** it is the server that `fractique mcp` runs and
   nothing else, so a client's configuration is one path with no argument. It is in every release, inside the
   packages and as a download of its own; `fractique mcp` stays.
