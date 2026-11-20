@@ -1,6 +1,6 @@
 #!/bin/sh
 # Set Fractique up on macOS or Linux with one command: ./setup.sh [--skip-tests]
-# It installs Rust when missing (rustup, into your home folder, no sudo), builds the command line tool and runs the
+# It installs Rust when missing (rustup, into your home folder, no sudo), builds the programs and runs the
 # tests, and ends with the command that renders your first image. Safe to run again.
 set -eu
 cd "$(dirname "$0")"

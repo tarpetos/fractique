@@ -1,7 +1,7 @@
 @echo off
 rem Set Fractique up on Windows with one command: setup.cmd [--skip-tests]
 rem It installs Rust when missing (rustup, into your user folder) and the Microsoft C++ Build Tools that Rust links
-rem with, builds the command line tool and runs the tests, and ends with the command that renders your first image.
+rem with, builds the programs and runs the tests, and ends with the command that renders your first image.
 rem Safe to run again.
 setlocal
 cd /d "%~dp0"

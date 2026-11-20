@@ -31,7 +31,7 @@ flowchart LR
 
     CLI["fractique-cli<br/>the fractique command"]
     TOOLS["fractique-mcp<br/>the MCP tools"]
-    MCP["fractique mcp<br/>MCP server over stdio"]
+    MCP["fractique mcp, fractique-mcp<br/>MCP server over stdio"]
     SRV["fractique-server<br/>HTTP API, MCP over HTTP, web UI, Docker"]
     APP["fractique-app<br/>Windows, macOS, Linux, Android, iOS, web"]
 
@@ -50,11 +50,15 @@ flowchart LR
 | Crate | State | What it is |
 | --- | --- | --- |
 | `fractique-core` | works | The renderer, the scene format, presets, the randomizer, the fractals of other kinds, the wallpapers, the `.frcq` packing |
-| `fractique-cli` | works | The `fractique` command: renders scenes and wallpapers to PNG, converts `.flame` files and the app's `.frcq` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts |
-| `fractique-mcp` | works | The MCP tools and the JSON-RPC answers, without a transport: `fractique mcp` puts them on stdin and stdout, `fractique-server` on `/mcp` ([MCP](#mcp)) |
+| `fractique-cli` | works | The `fractique` command: renders scenes and wallpapers to PNG, converts `.flame` files and the app's `.frcq` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts. The package builds a second program, `fractique-mcp` (`mcp_main.rs`), which is that server and nothing else |
+| `fractique-mcp` | works | The MCP tools and the JSON-RPC answers, without a transport: `fractique mcp` and the program `fractique-mcp` put them on stdin and stdout, `fractique-server` on `/mcp` ([MCP](#mcp)). The crate is a library; the program of that name is built by `fractique-cli` |
 | `fractique-update` | works | How `fractique`, `fractique-mcp` and `fractique-server` replace themselves with a release on command: the manifest, the signature, the swap of the file and where it refuses ([releasing.md](releasing.md#how-the-other-programs-update)). It also holds the public key of the releases, which is all the app takes from it |
 | `fractique-app` | works | The app, `fractique-gui`: one codebase for Windows, macOS, Linux, Android, iOS and the web ([The app](#the-app)) |
 | `fractique-server` | works | The `fractique-server` command: an HTTP API with a render queue and limits, MCP over HTTP at `/mcp` and a reference of the API at `/docs` (`docs.rs`, `openapi.json`), which also serves the web build of the app; the Docker image ([server.md](server.md)) |
+
+The workspace builds four programs: the app (`fractique-gui`), `fractique`, `fractique-mcp` and `fractique-server`.
+A release holds all four: the app updates itself and each of the other three has an `update` command
+([releasing.md](releasing.md#what-a-release-contains)).
 
 `vendor/` holds `eframe` and `egui-wgpu` with the fix the iOS drawing surface needs and a lock around the
 configuring of a surface ([why](#fractals-drawn-pixel-by-pixel-on-the-graphics-card)); the workspace patches
@@ -136,10 +140,11 @@ glow and smoothing are sized relative to the image. So one scene gives the same 
 ### Any zoom
 
 A view can be magnified until the 64-bit numbers of the renderer run out of digits, at about ten thousand million
-times; the app stops there. A deep view costs five to ten times a plain one, because every point is sent through
-the steps its particle keeps. Where the flame has nothing, a deep view is empty: the gaps between its threads are
-wider than the threads. A flame whose transforms blur (`blur`, `gaussian_blur`) is smooth below the size of
-its blur and shows no more detail there.
+times. The app stops a fractal drawn pixel by pixel there, and a flame or an attractor far sooner, where a view
+stops being a picture ([Limits](#limits)). A deep view costs five to ten times a plain one, because every point is
+sent through the steps its particle keeps. Where the flame has nothing, a deep view is empty: the gaps between its
+threads are wider than the threads. A flame whose transforms blur (`blur`, `gaussian_blur`) is smooth below the
+size of its blur and shows no more detail there.
 
 ### Phones
 
@@ -154,7 +159,8 @@ camera, a tone, a palette and the kind's parameters by name ([scene-format.md](s
 Everything a kind is lives in one file, as a `Spec`: its name, its family, its parameters with their ranges, its
 default tone, how it is drawn, its randomizer, its mutation and its presets. The command line tool, the MCP tools,
 the HTTP server and the app read the kinds from the registry. Only the app names kinds: those the graphics card
-draws (`orbit.rs`, `field.rs`) and those it marks as heavy (`HEAVY` in `lib.rs`).
+draws (`orbit.rs`, `field.rs`), those it marks as heavy (`HEAVY` in `lib.rs`) and the attractors, by how far a view
+of each is magnified (`orbit_deepest` in `lib.rs`).
 
 | Part | Where | What |
 | --- | --- | --- |
@@ -215,11 +221,9 @@ pictures of seeds 1 to 40 of each:
 2. Add the file's name to the list in the family's `mod.rs`, in alphabetical order. That is the whole
    registration: a test refuses a list out of order, a kind without a preset, a random scene that does not
    validate and a preset whose name is a flame's.
-3. Add the texts to `crates/fractique-app/locales/fractals/<family>.json`: `p_<parameter>` for each new
-   parameter and `n_<kind>_<preset>` for each preset, in all 15 languages. The names of the 22 planned kinds are
-   there already as `f_<kind>` (`f_burning_ship`, `f_de_jong`, `f_gumowski_mira`, `f_l_system`, `f_apollonian`,
-   `f_kleinian`, `f_menger_sponge` and the plain ones): name the kind accordingly. Run `tools/i18n/make_fonts.py`
-   after it.
+3. Add the texts to `crates/fractique-app/locales/fractals/<family>.json`: `f_<kind>` for the kind's name (as
+   `f_burning_ship`, `f_de_jong` and those of the other 20 kinds there), `p_<parameter>` for each new parameter
+   and `n_<kind>_<preset>` for each preset, in all 15 languages. Run `tools/i18n/make_fonts.py` after it.
 4. Document the kind in its family's section of [scene-format.md](scene-format.md#fractal) and add it to the
    table of families there; add a line to `CHANGELOG.md`.
 5. Look at 40 seeds of `fractique render --random SEED --fractal <kind>` and tune the randomizer until most are
@@ -228,7 +232,8 @@ pictures of seeds 1 to 40 of each:
 Nothing else changes: the app's list and tiles, its sliders, `fractique fractals`, `--fractal`, the MCP tools and
 `GET /fractals` take the kind from the registry. In the app an escape-time or a root-finding kind also needs its
 function in `field_escape.wgsl` or `field_root.wgsl` and its entry in `KINDS` of `field.rs` (a test refuses one
-without), and a kind that takes the processor long is added to `HEAVY` in `lib.rs`. The rules of
+without), a kind that takes the processor long is added to `HEAVY` in `lib.rs`, and an attractor whose grain shows
+before the view runs out of digits gets its deepest magnification in `orbit_deepest`. The rules of
 [determinism.md](determinism.md) hold for a kind as for the rest of the core: `math.rs` for every transcendental
 function, `fractal::stream` or the `Rng` it is handed for every random number, no state shared between samples or
 walks.
@@ -308,7 +313,7 @@ must not know.
 | --- | --- | --- |
 | Tools | `fractique-mcp` | `tools` lists them, `prepare` runs one or, for `render_scene`, returns the render to run; `handle` answers `initialize`, `ping` and `tools/list`; `reporter` turns the renderer's progress into notifications that only grow |
 | What a transport allows | `Host` in `fractique-mcp` | The protocol revisions, whether the arguments that read and write files exist, and the limits of a render. `Host::LOCAL` allows everything; the HTTP server gives its own |
-| stdio | `fractique-cli/src/mcp.rs` | Reads lines, queues the calls for one worker thread, writes lines |
+| stdio | `fractique-cli/src/mcp.rs` | Reads lines, queues the calls for one worker thread, writes lines. `fractique mcp` and the program `fractique-mcp` (`mcp_main.rs`) both run it |
 | HTTP | `fractique-server/src/mcp.rs` | Sessions, the headers, one event stream for each call. A render is prepared first, then takes a ticket and a slot of the server's queue like `POST /render`, so a refused request never waits |
 
 A call over HTTP is a task that sends its messages into a channel; the response body is the other end. A
@@ -325,23 +330,26 @@ its `Limits`, for `/render` and `/mcp` alike.
 glass over it. Who makes the picture depends on the device. Where the graphics card is [clearly faster than the
 processor](#when-the-graphics-card-is-used) and **GPU acceleration** is on, the card plays [the chaos
 game](#the-chaos-game-on-the-graphics-card) of a flame, walks the orbits of a Clifford, a De Jong or a Lorenz
-attractor, or draws an escape-time or a root-finding kind pixel by pixel, itself and its picture is the screen's:
-the processor renders nothing for the screen. Everywhere else, and for what the card does not draw, the picture is
+attractor, or draws an escape-time or a root-finding kind pixel by pixel, or a wallpaper, itself and its picture is
+the screen's: the processor renders nothing for the screen but the small first picture of a new scene
+([Motion](#motion)). Everywhere else, and for what the card does not draw, the picture is
 rendered by `fractique-core` on the processor, in a thread of its own, as an export at Standard, High or Ultra
 always is.
 
 | File | What |
 | --- | --- |
 | `lib.rs` | The window: the inspector, the toolbar, the title bar the app draws itself, the sheets with lists, the session, the render passes of the picture |
-| `phone.rs` | The phone's screen: the round buttons, the placard, the styles with their small pictures (layouts, materials, presets, the kinds of fractal), the collection |
-| `export.rs` | An export: a render in a thread of its own, with progress and cancel |
+| `phone.rs` | The phone's screen: the round buttons, the placard, the styles with their small pictures (layouts, materials, presets, the kinds of fractal), the collection. Also the recent pictures of every screen: 20 a tab (`MOST_RECENT`), each **Mutate** an entry of its own, numbered within its family, and **Back** and forward through them (`travel`) |
+| `export.rs` | An export: a render in a thread of its own and the writing of the file, with progress and cancel through both; how an Instant export comes from the picture on the screen (`way`), and the tiles of a larger one |
 | `update.rs`, `updates.rs` | The releases, the download and the install; the updates window ([releasing.md](releasing.md)) |
 | `glass.rs`, `glass.wgsl`, `blur.rs` | The picture on the screen and the glass panes over it: each pane shows a blurred, refracted part of the picture |
 | `preview.rs`, `preview.wgsl` | The preview on the graphics card: the layers' levels as textures, the tone mapping, the glow and the blending in shaders |
 | `chaos.rs`, `flame.wgsl`, `chaos.wgsl`, `levels.wgsl` | The chaos game on the graphics card: a flame's transforms and variations (`flame.wgsl`), the walkers and the histogram in one compute shader, the density estimation in another |
 | `deep.rs`, `deep.wgsl` | [Deep views on the graphics card](#deep-views-on-the-graphics-card): the plan of a view that holds little of the flame, and the particles it is drawn from |
+| `pace.rs` | The numbers of [The window comes first](#the-window-comes-first): the frame, the card's slice of it and the size of the next unit; the draft of a view that moves, the margin around a view, the 10 seconds a view may take, the shrinking of an Instant export |
 | `orbit.rs`, `orbit.wgsl` | The orbit kinds the graphics card draws: what the shader reads of each, and their walkers, which plot into the same histogram |
 | `field.rs`, `field.wgsl`, `field_escape.wgsl`, `field_root.wgsl` | The escape-time and root-finding kinds the graphics card draws pixel by pixel |
+| `sheets.rs`, `sheets.wgsl` | [Wallpapers on the graphics card](#wallpapers-on-the-graphics-card): a scene of sheets as the shader reads it, and its batches |
 | `widgets.rs` | The controls: rows, pills, sliders, switches; the fonts; the measures of a pane |
 | `motion.rs` | [Motion](#motion): the times and the easing of every transition, what is on the screen and how far, the blur over a picture that is being drawn |
 | `probe.rs` | A test run's record: a line a frame, and consecutive frames as pictures |
@@ -356,13 +364,14 @@ How the picture reaches the screen:
 
 | Step | What happens |
 | --- | --- |
-| A change | The scene, the size or the view changes. The render in progress is cancelled and a new one starts. A moved or zoomed view, and a window whose size changes, wait until they have rested for 0.18 s; until then the picture already on the screen is moved and scaled by the graphics card |
+| A change | The scene, the size or the view changes. The render in progress is cancelled and a new one starts. A moved or zoomed view, and a window whose size changes, wait until they have rested for 0.18 s (`SETTLE`); until then the picture already on the screen is moved and scaled by the graphics card. A view of a scene the card draws pixel by pixel does not wait: it is drawn at once, and as a draft while it moves ([Motion](#motion)) |
+| The time | One a picture, in the toolbar's detail line: from the frame that asked for it (a click, the last step of the wheel, the dragged edge) to the finished picture on the screen. While the picture is awaited the time counts in tenths of a second (`pace::counted`) and ends on that number. A first, small picture has no time, a view that is only magnified keeps the time of its picture, and a picture that gets its margin keeps the time of the view alone |
 | A view that would take too long | `pace.rs`. A view is rendered when its picture is expected within 10 s (`LONGEST`); otherwise no render starts and the picture the app has is shown magnified and moved, as during a drag: the one on the screen while it covers the view, the whole view's (rendered again from the kept layers, or by the card) once it does not. The status line says so. The graphics card is taken to be fast for every view it draws (`Chaos::draws` asks without sending anything). For the processor the time is the work of the picture, the samples of its flames and attractors and the steps of its fractals drawn pixel by pixel, over the most work a second a render of that kind has shown in this session, kept apart for whole and for deep views; the trial's rate stands in for flames until one is measured. A view magnified 2.83 times or more counts as deep (an eighth of the scene, from where `deep.rs` of the core takes over), and a deep view of a flame is taken to cost ten times a whole one until one has been rendered. A render whose progress after a second says it will pass 10 s is stopped and its view magnified too. The whole view is always rendered. A wallpaper has no view of its own: it is only ever magnified. An export of a magnified view saves what the screen shows, resampled to the export's size |
-| The limits of a view | `View::limited` and `App::zoom_by`, applied every frame, so a view from a file or from **Recent** is held to them too. Out: `FLOOR` (0.2 of the picture's framing, over the scale of the controls) for every picture that is drawn anew for its view; 1 for a wallpaper, which is one picture and has nothing beside it. In: `MAX_MAGNIFICATION` over the kind's own zoom, where 64-bit numbers run out; a flame to where its densest view still holds 1/512 of its light (`flame_deepest`, 10 to 300 times, worked out once a picture on the render pool from a density of 480 × 270 and kept while that picture is shown: `App::fathom`; until the answer is there the limit of the picture before holds) and an attractor to the constant of its kind (`orbit_deepest`: 10 to 100 times), see [performance.md](performance.md#where-a-view-stops-being-a-picture); the graphics card gives a view up where its 32-bit numbers do and the processor draws it; a view that is only the picture the app has, magnified, stops at `IMAGE_CEILING` (8) times that picture, as does a wallpaper. Aside: a wallpaper always covers the window; a figure smaller than the view stays inside the view whole, and a view smaller than the figure stays inside the figure but for a tenth of a view (`PAN_MARGIN`). The scale is one number, `App::scale`, the wheel's times the controls': the detail line shows it, the limits hold for it, and the **Scale** slider shows and sets it. The wheel, a pinch, the slider and a test run's step all go through `App::zoom_by`, within `App::reach`: from the floor to the ceiling, or, where the deepest views of the picture are not drawn (found by halving between the whole view, which always is, and the ceiling), to the deepest that is, or to eight times the picture the app has. The slider spans exactly that, logarithmically, so its knob is at an end if and only if the view is at that limit; its ends glide (`PANEL`) to those of another picture and its knob (`SMALL`) to a scale set elsewhere. `scale_label` writes the scale for the slider and the detail line alike: two decimals below 10, one below 100, none above, `9.5e9` from a million on. A step that ends at a limit changes nothing, so it starts no render, no blur and no count. Where the window shows what no picture holds, `glass.wgsl` draws the picture turned over at its edge: as sharp as the picture where they meet, blurred within a fiftieth of the picture from there and fading into the window's background over a third of it, so that no edge crosses the window as a line and no bar stands beside the picture, at rest and while it moves alike. A moved view of a kind drawn pixel by pixel is shown without a blur only where the card draws it in under 0.1 s (`BRISK`) |
+| The limits of a view | `View::limited` and `App::zoom_by`, applied every frame, so a view from a file or from **Recent** is held to them too. Out: `FLOOR` (0.2 of the picture's framing, over the scale of the controls) for every picture that is drawn anew for its view; 1 for a wallpaper, which is one picture and has nothing beside it. In: `MAX_MAGNIFICATION` over the kind's own zoom, where 64-bit numbers run out; a flame to where its densest view still holds 1/512 of its light (`flame_deepest`, 10 to 300 times, worked out once a picture on the render pool from a density of 480 × 270 and kept while that picture is shown: `App::fathom`; until the answer is there the limit of the picture before holds) and an attractor to the constant of its kind (`orbit_deepest`: 10 to 100 times), see [performance.md](performance.md#where-a-view-stops-being-a-picture); the graphics card gives a view up where its 32-bit numbers do and the processor draws it; a view that is only the picture the app has, magnified, stops at `IMAGE_CEILING` (8) times that picture, as does a wallpaper. Aside: a wallpaper always covers the window; a figure smaller than the view stays inside the view whole, and a view smaller than the figure stays inside the figure but for a tenth of a view (`PAN_MARGIN`). The scale is one number, `App::scale`, the wheel's times the controls': the detail line shows it, the limits hold for it, and the **Zoom** slider shows and sets it. The wheel, a pinch, the slider and a test run's step all go through `App::zoom_by`, within `App::reach`: from the floor to the ceiling, or, where the deepest views of the picture are not drawn (found by halving between the whole view, which always is, and the ceiling), to the deepest that is, or to eight times the picture the app has. The slider spans exactly that, logarithmically, so its knob is at an end if and only if the view is at that limit; its ends glide (`PANEL`) to those of another picture and its knob (`SMALL`) to a scale set elsewhere. `scale_label` writes the scale for the slider and the detail line alike: two decimals below 10, one below 100, none above, `9.5e9` from a million on. A step that ends at a limit changes nothing, so it starts no render, no blur and no count. Where the window shows what no picture holds, `glass.wgsl` draws the picture turned over at its edge: as sharp as the picture where they meet, blurred within a fiftieth of the picture from there and fading into the window's background over a third of it, so that no edge crosses the window as a line and no bar stands beside the picture, at rest and while it moves alike. A moved view of a kind drawn pixel by pixel is shown without a blur only where the card draws it in under 0.1 s (`BRISK`) |
 | A window of another shape than the picture | A picture of a chosen size is fitted whole into the window, and a window of another shape shows more than the picture: a strip at each side, or above and below. What is there is the scene itself wherever the app has it. **Drawn pixel by pixel on the card:** the picture is drawn with those strips (`strips` in `lib.rs`: the pixels beside the view that the window shows, one more, at most half of the picture's side; `field::planned` takes them as a margin, the same camera over more pixels, so the view in the middle is the picture drawn alone), the draft of a moved view with the same strips beside its own margin, and a window whose shape has stood for 0.18 s gets its picture again with the strips of the new shape. **Flames, attractors, deep views:** [the margin around the view](#a-margin-around-the-view) is that content; it comes in a fade of `PANEL`, the picture on the screen into the same one with its margin, where it used to take the screen in one frame. **A wallpaper** has nothing beside it: it fills the window instead, shown up to 1.25 times larger than fitted (`FILL_MOST`, `filled`) with what is over cut, and the whole view moves over what is cut, so every part of the picture can be seen; a hand moves it as large as it is shown. Going to a picture of another kind the fill glides back (`PANEL`). **Everything else** (the processor's pictures, a card without a margin, the time before a margin is drawn, a strip wider than the card draws) has the turned-over continuation of `glass.wgsl`. What is exported, kept as a small picture and listed in **Recent** is the picture of the chosen size alone: the strips are cut off what is read back from the card (`Preview::read`), and the detail line names the chosen size and the time of the whole picture |
-| Passes | A draft first (480 pixels on its longer side, 12 samples per pixel), then the full picture. A view magnified more than 4 times gets a pass in between (1280 pixels, 16 samples). The picture is shown after each. Where the graphics card plays [the chaos game](#the-chaos-game-on-the-graphics-card) of the scene, none of these passes runs |
+| Passes | A draft first (480 pixels on its longer side, 12 samples per pixel), then the full picture. A view magnified more than 4 times gets a pass in between (1280 pixels, 16 samples). The picture is shown after each. Where the graphics card draws the scene itself, only the draft runs, and only for a new scene: it is the first, small picture under the blur ([Motion](#motion)) |
 | The full picture | With the window's pixels: **Auto** is the window, and a chosen size is a canvas drawn with the pixels it has in the window where it lies whole (`on_screen`, `App::fit`), never with more than it has; up to 4096 pixels a side with 32 samples per pixel on a computer, 1600 and 18 on a phone, 900 and 14 in a browser. The toolbar names the chosen size. A canvas larger than what is drawn is drawn as that picture scaled down: `RenderOptions::supersample` of the card's picture is how many of the canvas's pixels a side one of the screen's covers (`finer`, up to 4). A kind drawn pixel by pixel takes that as the core does, a grid of samples as many times finer where a pixel differs from its neighbours (up to 8 a side), as fine as the smallest batch holds (`Fields::plan`). A flame, an attractor and a deep view plot the canvas's samples, `supersample²` times the window's, into the window's histogram (an attractor as many as its 32-bit counters and the bound of its work take; `Chaos::plans`), with the kernels the canvas's density estimation would have, in the window's cells: `spread / supersample^0.2` (`widest` in `chaos.rs`); after 8 seconds (`LARGER_WITHIN`) the picture is finished with the samples it has, never fewer than the window's own. A wallpaper and the processor's pictures are drawn plain. Nothing of the chosen size is on the card or in memory |
-| An Instant export | `export::way` decides it from the size of the picture on the screen: saved as it is, made smaller (`pace::shrunk`, the mean of the pixels covered, on a thread of its own) where the export has its shape within a pixel, or drawn again. A larger one of a scene drawn pixel by pixel is drawn in tiles (`begin_tiles`, `tile_step`; `Chaos::begin_tile` beside the screen's picture, which stays): each tile is a part of the whole picture's plan (`planned` with `part`: the same steps, grid and numbers, the middle moved), with an apron of 8 pixels and four sigmas of the widest glow, which `Preview::read_tile` cuts off; `export::Job::tiled` writes each row of tiles when it is whole. A tile the card gives up leaves the export to the processor |
+| An Instant export | `export::way` decides it from the size of the picture on the screen: saved as it is, made smaller (`pace::shrunk`, the mean of the pixels covered, on a thread of its own) where the export has its shape within a pixel, or drawn again. A larger one of a scene drawn pixel by pixel is drawn in tiles of at most 2048 pixels a side (`export::TILE`; `begin_tiles`, `tile_step`; `Chaos::begin_tile` beside the screen's picture, which stays): each tile is a part of the whole picture's plan (`planned` with `part`: the same steps, grid and numbers, the middle moved), with an apron of 8 pixels and four sigmas of the widest glow, which `Preview::read_tile` cuts off; `export::Job::tiled` writes each row of tiles when it is whole. A tile the card gives up leaves the export to the processor, which also renders a larger flame, attractor or wallpaper and every size of another shape; the sheet says so before the press (`export::slow`) |
 | Kept layers | A layer's pixels depend only on its flame, its place, the seed and the size. Developed layers are kept (up to 1200 MB on a computer, 160 MB on a phone and in a browser), so a change to one layer renders that layer only, and **Reset view** comes back without a render. With GPU acceleration on, the densities are kept in the same room: a change to a layer's tone develops it again without the chaos game |
 | Threads | Renders run on a pool that leaves two cores to the window. A browser page has one thread and renders there, without a draft |
 | Events | A finished pass is sent over a channel and asks for a repaint. Nothing polls |
@@ -381,7 +390,9 @@ For a test, `FRACTIQUE_SHOW=fractals` starts the app in that tab, `FRACTIQUE_FRA
 than the first, `FRACTIQUE_SHOW=kinds` with the list of types open, and `fractals-phone` and
 `fractals-phone-sheet` give the phone's screen and its styles.
 
-An export is a separate render at the size and quality chosen, with the scene as it is on the screen. The session
+An export at Standard, High or Ultra is a separate render at the size and quality chosen, with the scene as it is on
+the screen. Its bar covers the rendering and the writing of the file (`export::Stage`), and **Cancel** works in
+both. The session
 is written whenever it changes, not at exit: a phone ends an app without telling it.
 
 ### The measures of a pane
@@ -494,7 +505,7 @@ refused: the Windows, Linux, Android and web builds carry nothing of it. With it
 
 | Part | What it does |
 | --- | --- |
-| The rule (`store.rs`) | `is_large` counts pixels; `needs_pro` adds that a size outside the list needs the purchase. The size presets are tagged by family (screens, Android, Apple), and a build with the feature offers screens and Apple devices |
+| The rule (`store.rs`) | `is_large` counts pixels; `needs_pro` adds that a size outside the list needs the purchase. The sizes are tagged by group in `lib.rs` (`Family`: screens, iPhone, iPad, Mac, Watch, Android), and a build with the feature leaves the Android group out (`offered`) |
 | The states (`store.rs`) | `Store` is loading, ready, buying, owned or failed with a reason. It owns a backend (`load`, `buy`, `restore`) and a channel of events: the product with its price, owned, cancelled, restore finished, failed |
 | StoreKit (`storekit.rs`, iOS and macOS) | Xcode compiles only `ios/stub.c`, so there is no Swift target: the backend talks to the original StoreKit API through `objc2`. A class made at run time is the delegate of the `SKProductsRequest` and the observer of the `SKPaymentQueue`; it is added when the app starts, so a purchase paid for while the app was closed arrives too. Every transaction is finished. The price is formatted with the product's own locale; when the app's fonts lack a character of it, the amount with the currency code is shown |
 | Events | A StoreKit callback sends an event over the channel and asks for a repaint; the next frame takes it in. Nothing polls |
@@ -524,7 +535,7 @@ A picture the card made itself needs none of this: it is drawn again from its ow
 | Glow | The toned layer is drawn into a smaller picture, blurred across and down there, and added back. The smaller picture is chosen so that the blur's sigma stays under 4 of its pixels |
 | Blend | The layers are drawn in order onto the background with the graphics card's own blending: add, screen, over. The canvas has 8 bits a channel, so it is clamped after every layer, not once at the end |
 | Under the glass | The picture is shrunk and blurred the same way for the panes |
-| View | The zoom slider moves and scales the picture on the screen, like a drag or a pinch |
+| View | The **Zoom** slider moves and scales the picture on the screen, like a drag or a pinch |
 
 What the preview does not do: density estimation (a change of `smoothing` is rendered), dithering, sheets (a scene
 with sheets is not previewed), and a change to a flame itself, to the order of the layers or to the size. Then, and
@@ -542,20 +553,21 @@ For a test, `FRACTIQUE_ADJUST=brightness,gamma,glow,zoom` starts the app with th
 
 ### The chaos game on the graphics card
 
-With **GPU acceleration** on, a flame is drawn by the graphics card alone: at the full size, with the first picture
-after one batch of samples and a finer one after each of the next, up to the samples per pixel of the full pass.
-That picture is the screen's. The processor does not render the scene, so a new flame costs it no more than the
-window does. The toolbar shows the time the picture took.
+With **GPU acceleration** on, a flame is drawn by the graphics card alone: with the pixels of the full picture and
+up to its samples per pixel. The screen shows it twice: once 2 samples a pixel are plotted, where that comes
+before the processor's small draft of a new scene, and when it is finished ([Motion](#motion)). That picture is
+the screen's. Of the scene the processor renders that draft of 480 pixels and nothing else, so a new flame costs
+it little more than the window does. The toolbar shows the time the picture took.
 [performance.md](performance.md#the-picture-of-the-graphics-card) has the numbers.
 
 | Step | What happens |
 | --- | --- |
-| Walkers | A compute shader (`chaos.wgsl`) runs one walker for every 16 pixels, up to 262 144 at once, and fewer where the 24 unplotted steps of that many would take more than half of what [one submission may do](#the-work-of-one-submission). Each does what `chaos.rs` and `render.rs` do: it picks a transform by weight, applies the affine map, the variations (all 49), the post map, moves its color, hides the point by the transform's opacity, and plots it through the final transform, the symmetry and the camera. The numbers are 32-bit floats. Each walker has its own random numbers (xoroshiro64**), seeded from the scene's seed, the layer and the walker's number, and starts with 24 steps that are not plotted |
+| Walkers | A compute shader (`chaos.wgsl`) runs one walker for every 16 pixels, up to 262 144 at once, and fewer in a scene with an attractor, where the 24 unplotted steps of that many would take more than half of what [one submission may do](#the-work-of-one-submission). Each does what `chaos.rs` and `render.rs` do: it picks a transform by weight, applies the affine map, the variations (all 49), the post map, moves its color, hides the point by the transform's opacity, and plots it through the final transform, the symmetry and the camera. The numbers are 32-bit floats. Each walker has its own random numbers (xoroshiro64**), seeded from the scene's seed, the layer and the walker's number, and starts with 24 steps that are not plotted |
 | Histogram | Four 32-bit integers a cell: the hits and the three color sums, added with atomic operations, so the order of the walkers does not matter. A cell's color sums stop at 16 000 000 hits, where they would overflow; its hits go on |
 | Levels | A second shader (`levels.wgsl`) repeats the density estimation of `tone.rs`: the same kernels, chosen by the same table of hits, gathered for every pixel. Tiles of 16 × 16 cells tell how far a pixel has to look. It writes the levels that the shaders of [the preview](#the-preview-on-the-graphics-card) start from, so the tone, the glow and the blending are the preview's |
 | Units | The work is sent in units of about 1.5 ms, each from the end of the one before, while the [slice of the frame](#the-window-comes-first) lasts. The first is as small as a unit can be, and each next one is sized by how long the last took. Whatever that asks for, a unit stays within [the work of one submission](#the-work-of-one-submission) |
-| Levels | The density estimation is drawn twice for a picture, not after every batch: once when 2 samples a pixel are plotted, for the first picture, and once at the end. It is drawn in its own units, a strip of rows each (16 rows at first, then as many as a unit holds), after one that looks the tiles over; nothing is walked meanwhile, so the strips are of one histogram |
-| Events | A batch is one submission. A thread that sleeps in the driver until that submission is finished takes in how many points landed in the picture and asks for a repaint; the next frame sends the next batch. The window's thread never waits for the graphics card |
+| When the levels are drawn | The density estimation is drawn twice for a picture, not after every batch: once when 2 samples a pixel are plotted, for the first picture, and once at the end. It is drawn in its own units, a strip of rows each (16 rows at first, then as many as a unit holds), after one that looks the tiles over; nothing is walked meanwhile, so the strips are of one histogram |
+| Events | A unit is one submission. A thread that sleeps in the driver until that submission is finished takes in how many points landed in the picture, sends the next unit itself while the frame's slice lasts (`Parts::pump`) and asks for a repaint; a frame opens the next slice. The window's thread never waits for the graphics card |
 | Kept | With the last batch the histograms and the walkers are freed; the levels stay on the card (8 bytes a pixel for each layer) for as long as the picture is on the screen |
 
 What else follows from a picture that never leaves the card:
@@ -564,7 +576,7 @@ What else follows from a picture that never leaves the card:
 | --- | --- |
 | Tone, opacity, blend | A change draws the picture again from the levels, at once and as often as the control moves. Nothing is rendered and nothing waits for the control to rest |
 | View and zoom | A moved or zoomed view moves and scales the picture on the screen; when it has rested for 0.18 s the chaos game is played again for the new view |
-| **Instant** export | Saves the picture that is on the screen: it is copied back from the card and written as a PNG. While samples are still being plotted the export waits for the last batch. An export at another size than the picture's, and one of a picture the card gave up meanwhile, is rendered by the processor as before |
+| **Instant** export | Saves the picture that is on the screen: it is copied back from the card and written as a PNG, made smaller first for a smaller size of its shape. While samples are still being plotted the export waits for the last batch. An export that is larger or of another shape, and one of a picture the card gave up meanwhile, is rendered by the processor ([An Instant export](#the-app)) |
 | Light or dark ink, darker glass | The lightness that picks them is measured on the blurred picture under the panes, copied back from the card after each drawing |
 | **Recent** | A picture is remembered when its last batch is finished, and before **Mutate** or **Back** replaces it |
 | The tabs | A tab keeps the processor's finished picture to come back to; the card's picture is not kept, so coming back to the flames plays the chaos game again |
@@ -600,7 +612,7 @@ the picture of the new view is drawn.
 | --- | --- |
 | The view alone, first | A picture that is waited for is drawn as it always was, without a margin: nothing about its time, its samples or its tone changes, and it is shown when it is finished |
 | Then with a margin, behind it | Once the window has rested for 0.3 s (`App::widen`, `Chaos::widen`) the same view is drawn again into a histogram that is wider and higher, in the same units and slices of the frame as any picture. The walkers, their seeds, the samples and the kernels are those of the view (`plans` and `look` in `chaos.rs` count the view's cells; `extent.zw` tells the shaders the margin), so what lands in the view is what landed there before. Nothing waits for this picture, no blur stands for it, and the time shown stays the first one's. A view that moves cuts it |
-| The swap | The picture with the margin takes the screen in one frame, without a fade. The view in its middle is drawn from the levels of the first picture, kept on the card (`Chaos::inset`, `Preview::draw_wide`), so it is that picture pixel for pixel, also after the tone is changed; at its edge it fades into the wider picture over a twenty-fifth of the view's shorter side (`preview::feather`), where the glow and the kernels of a picture that ends differ from one that goes on |
+| The swap | The picture with the margin takes the screen in one frame, without a fade; where a window of another shape shows the margin beside a picture of a chosen size, it comes in a fade of `PANEL`. The view in its middle is drawn from the levels of the first picture, kept on the card (`Chaos::inset`, `Preview::draw_wide`), so it is that picture pixel for pixel, also after the tone is changed; at its edge it fades into the wider picture over a twenty-fifth of the view's shorter side (`preview::feather`), where the glow and the kernels of a picture that ends differ from one that goes on |
 | A view inside the margin | `pace::widened` gives where a view lies in a picture that is wider than its own view, and `pace::covers` whether the picture holds it. While it does, and shows the picture no larger than it was drawn (`App::kept`), nothing is awaited: no blur, no time counting. The picture of the new view is drawn behind (0.18 s after the view rests, as ever) and is held back until it has its margin too, so the screen never stands without one; it then replaces the old one in the usual fade, between two pictures that show the same |
 | Past the margin, and into the picture | A view that reaches past the margin, or magnifies the picture, is waited for as before: one still picture under the blur, with the soft continuation beside it |
 | How wide | `pace::margins`: half, three eighths, a quarter or an eighth of the view's sides on every side, the widest whose picture is expected within 3 s (`MARGIN_WITHIN`), taking a picture with a margin to cost the seconds of the view alone times its width, and that the card holds: its histogram and levels within 512 MB (half of what a run may take), the histogram within a quarter of the card's largest buffer, a side within its largest texture. A card nothing is known about yet draws none, and a slow one a narrow one or none, by the same rule. Memory the card refuses for it costs the margin, not the card's part (`Chaos::apart`) |
@@ -623,7 +635,7 @@ step, so that the card tells what its particles did before the next step is chos
 | Particles | One for every 64 pixels, at least 8192 and at most 65 536. A particle is a point of the flame inside the window together with the seeds of the 128 steps that made it and of what was done to plot it (final transform, symmetry, opacity). A step with the same seed moves a point the same way again. Each particle has a walker of its own that plays the plain chaos game and gives it new starts; the seed of the walker's step at a time is worked out from that time, so the walker's past is not stored |
 | Pilot | The windows are those of the core: the view's own size doubled until it is magnified at most twice, then half the size at every step. Every particle's walker takes 8 steps and the particle keeps the first of its points that is inside the first window. The share of the tries that were inside is the share of the flame the window holds |
 | A window | Particles that are not inside it are replaced by copies of those that are (decided on the processor from one mark a particle, read back). Then every particle is moved 6 times: it keeps its latest `k` steps, takes the rest and the start from its walker, and stays where it was when the new point is not inside the window. The card counts, for every `k`, the moves tried, the moves accepted and how far they went; from these the range of `k` for the next window is chosen as in the core (accepted at least one time in twenty; fine enough at a 512th of the view). The particles inside the next window are marked and counted: their share times the share so far is what that window holds |
-| Plotting | In the last window, which is the picture, every particle is moved once for every point it plots, and now and then far, with fewer kept steps than the range, which carries particles between the parts of the view. A batch is sized by the time the one before took, as for the plain chaos game, and never asks for more than 268 435 456 steps of the chaos game, counting a point as two steps and the mean of the range. The picture is shown once 2 samples a pixel are plotted, and again after every batch |
+| Plotting | In the last window, which is the picture, every particle is moved once for every point it plots, and now and then far, with fewer kept steps than the range, which carries particles between the parts of the view. A unit is sized by the time the one before took, as for the plain chaos game, and never asks for more than 268 435 456 steps of the chaos game (`MOST_DEEP`), counting a point as two steps and the mean of the range. The picture is drawn once 2 samples a pixel are plotted, and again when it is finished |
 | Brightness | A density is a cell's count times `exposure × cells / points plotted`. The exposure is the core's: the share of the flame in view times the zoom squared, taken at the zoom where the view began to hold less than an eighth (found between two windows, where the share falls as a power of the zoom). Up to that zoom this is what the plain chaos game gives, since the points it would have plotted in all are the points in view over the share; past it the average density stays what it was, so a deep view is neither burnt nor black |
 | An empty view | When no particle is inside a window the flame has nothing there: the layer is drawn empty, as the core draws it |
 
@@ -635,9 +647,9 @@ and a card that refuses them leaves deep views to the processor and keeps the re
 
 #### The work of one submission
 
-The bounds below hold for a scene with an attractor in it. A scene of flames alone is walked as it was before
-them: its walkers are as many as a sixteenth of the pixels (at most 262 144), a batch is sized by
-the slice of the frame alone, and a batch is given 20 s. That path ran on every card it was tried on without a hang; the bounds were
+The bounds below hold for a scene with an attractor in it. A scene of flames alone is walked as it was before them:
+its walkers are as many as a sixteenth of the pixels (at most 262 144), a unit is sized by what the one before took
+alone, and a submission is given 20 s. That path ran on every card it was tried on without a hang; the bounds were
 made for the shaders that came after it.
 
 A shader that works for seconds takes the screen with it, and a graphics driver that waits too long for one resets
@@ -688,19 +700,20 @@ With **GPU acceleration** on, a scene whose layers are all of the escape-time ki
 `burning_ship`, `tricorn`, `multibrot`, `phoenix`, `magnet`) or the root-finding kinds (`newton`, `nova`) is
 drawn by the graphics card alone, as a flame is: the picture is the screen's and its Instant export, and the
 processor renders only the exact exports. A moved view is drawn again at once, without the rest of 0.18 s, and
-while it moves the screen shows a small draft of it ([Motion](#motion)).
+while it moves the screen shows a small draft of it ([Motion](#motion)). An Instant export larger than the
+picture on the screen is drawn by the card too, in tiles ([The app](#the-app)).
 
 | Step | What happens |
 | --- | --- |
 | Shaders | `field.wgsl` holds what the kinds share (the view, the palette, the color of a sample, the two passes); `field_escape.wgsl` and `field_root.wgsl` hold one function a kind, which repeats the kind's file in `fractique-core` in 32-bit floats. `field.rs` turns a layer's parameters into the numbers the function reads. A kind's shader is compiled in a thread of its own when the kind is first asked for; until then a draft from the processor stands in |
-| Passes | When one sample a pixel would not fit in a batch, the whole picture is drawn first with one sample a block of 2 to 64 pixels a side. Then every pixel gets one sample, in bands of 8 rows. Then the pixels that differ from a neighbour by more than 0.02 are counted, and drawn again from the grid of samples `pixel.rs` uses (2 × 2 at the 32 samples of the full pass) |
+| Passes | When one sample a pixel would not fit in a batch, the whole picture is drawn first with one sample a block of 2 to 64 pixels a side. Then every pixel gets one sample, in bands of 8 rows. Then the pixels that differ from a neighbour by more than 0.02 are counted, and drawn again from the grid of samples `pixel.rs` uses (2 × 2 at the 32 samples of the full pass; for a picture that stands for a larger canvas that many times its supersample, up to 8 × 8, or the finest grid the smallest batch holds) |
 | Levels | A sample is a color already, with the layer's gamma in it. It is written to the half-float texture the shaders of [the preview](#the-preview-on-the-graphics-card) start from, which for such a layer apply the brightness, the opacity, the blend and the glow only |
 | The bound | Every loop of the shaders ends at the steps the scene asks for (`iterations`, more for a deeper view, as in `fractique-core`), and at 4 000 000 whatever it asks. Before a batch is sent, its samples times the steps a sample takes at the very most (times the degree for Newton and Nova, times the multiplications of a whole power for Multibrot) are held to the steps the card has shown it walks in 0.1 s, and never above 100 000 000; a card nothing is known about yet is taken to walk 50 000 000 a second. The layers of a scene share the bound |
 | The card's speed | The first picture of a kind in a session begins with up to four batches whose samples walk every step, whatever their orbits do: their work is known exactly, so their time tells the steps a second. Each is sized by the bound the one before has shown. The most steps a second any batch has shown counts |
 | The edges | The pixels to draw again are counted by a batch that only reads the picture (at most 4 000 000 pixels of it), so the batch that draws them is sized by their number. Where a band of 8 rows holds more of them than one batch may, it is drawn in pieces sized as if every pixel were one |
-| Batches | A batch is one dispatch a layer in one submission. Its samples are those that would have taken 40 ms in the batch before, between a quarter of it and four times it, and never more than the bound |
+| Batches | A batch is one dispatch a layer in one submission. Its samples are those that would have taken half a frame in the batch before, a quarter of a frame while the window is used (`pace::batch`): fewer at once after a batch that took longer, at most 8 times more after one that ran short (`pace::next`), and never more than the bound |
 | Events | The thread that sleeps in the driver until a submission is finished takes in what the batch counted and sends the next one itself: a batch does not wait for a frame of the window. It asks for a repaint, and the frame draws what is there. wgpu refuses to configure the window's surface while another thread submits, so `egui-wgpu` in `vendor/` holds a lock around that, which this thread takes for a submission |
-| Given up | A batch that takes longer than 0.5 s ends the card's part for the session, by the same rule as [above](#the-work-of-one-submission) |
+| Given up | A batch that takes longer than 0.5 s gives the picture to the processor, by the same rule as [above](#the-work-of-one-submission): that picture is not tried again and the next one is the card's |
 
 What the processor renders of these kinds:
 
@@ -709,7 +722,7 @@ What the processor renders of these kinds:
 | A scene whose smallest batch, 64 pixels with their grid of samples, could take more than the bound | Decided before anything is sent: with the 2 × 2 grid that is more than 390 000 steps a sample on a card that has shown its speed, and more than 19 500 on one that has not |
 | A view too fine for 32-bit floats | When the pixels per unit times the distance of the view's far edge from the origin is above 400 000 for the escape-time kinds and 2 000 000 for Newton and Nova |
 | A scene that holds a flame or a fractal of another family beside them | The picture of these kinds is not made from a histogram, so they do not share a run with flames and orbits. The geometric kinds and the solids have no shader: the steps of a ray through a solid depend on the scene in more ways than one number bounds |
-| Supersampling | The card draws at the size of the screen only |
+| Exports at Standard, High and Ultra, the command line tool, the MCP tools, the server | The card draws for the screen and for an Instant export only |
 
 The card's picture is not the processor's pixel for pixel. Compared in blocks of 8 × 8 pixels on a GeForce GTX
 1650, a plain and a deep preset of every kind at 640 × 400, 1280 × 720 and 1920 × 1080 differ by 0.3 to 0.4 of
@@ -731,7 +744,7 @@ one such picture. A zoomed view is not drawn: the whole wallpaper is, and the sc
 | Levels | A pixel's color is written to the half-float texture [the preview](#the-preview-on-the-graphics-card) starts from. The preview draws it onto the canvas as it is, with the ordered dither of `render.rs`, so that a number of the picture is the processor's or one step from it |
 | The bound | The work of a pixel is counted in units: 1 for a shape that is too far to matter, 4 for one whose distance is worked out, 3 more for every swell of a wave. A pixel takes at most twice the units of all the shapes of its sheets plus twice the dearest shape of each (the two looks for the nearest shape, the two more for the rise): 48 to 304 for the 14 layouts, 50 688 for 48 sheets of 32 waves of 4 swells. Before a batch is sent, its pixels times that are held to the units the card has shown it works in 0.05 s, and never above 100 000 000; a card is taken to work at least 50 000 000 a second. The loops of the shader end at 48 sheets, 32 shapes and 4 swells whatever the buffers say |
 | Passes | When one sample a pixel would not fit in a batch, the whole picture is drawn first with one sample a block of 2 to 64 pixels a side. Then every pixel is drawn, in bands of 8 rows. The edges are smooth by the coverage, so nothing is drawn twice |
-| Batches | One dispatch in one submission, sized to take 20 ms by the batch before, between a quarter of it and four times it, and never more than the bound. The shader counts the units it worked, and the most units a second any batch has shown is the card's speed. The end of a batch sends the next, [as for the kinds drawn pixel by pixel](#fractals-drawn-pixel-by-pixel-on-the-graphics-card), and a batch that takes longer than 0.5 s gives the picture to the processor |
+| Batches | One dispatch in one submission, sized by the batch before to take half a frame, a quarter while the window is used (`pace::batch`, `pace::next`), and never more than the bound. The shader counts the units it worked, and the most units a second any batch has shown is the card's speed. The end of a batch sends the next, [as for the kinds drawn pixel by pixel](#fractals-drawn-pixel-by-pixel-on-the-graphics-card), and a batch that takes longer than 0.5 s gives the picture to the processor |
 
 What the processor renders:
 

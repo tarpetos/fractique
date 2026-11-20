@@ -26,6 +26,9 @@ Opening a pull request means you agree to these terms.
 - The scene format in [docs/scene-format.md](docs/scene-format.md) is the source of truth: change it together with
   the code. A scene file that loaded before must keep loading.
 - `fractique-core` stays free of files, terminals, networks and UI. Everything else wraps it.
+- No text of the app is a literal in the code: each is a key in `crates/fractique-app/locales/en.json` and in
+  every other locale file, and a test fails when one lacks a key.
+- `README.md` has 14 translations in `docs/readme/`: a change to one goes into all of them.
 - Do not copy code from flam3, Apophysis, Fractorium, JWildfire or other renderers: their licenses do not fit this
   project. Formulas from published papers are fine.
 - Before you open a pull request: `cargo fmt --all`, `cargo clippy --all-targets -- -D warnings`,
@@ -53,9 +56,10 @@ is merged by squashing, so its title becomes the one commit: write it as a commi
 
 ## Commit messages
 
-Pull requests are squash-merged: the pull request's title becomes the one commit on `master` (the pull request number
-is added to it), and its description becomes the commit body. A check (`PR title`) refuses a title that does not
-follow this convention ([Conventional Commits](https://www.conventionalcommits.org/)):
+Pull requests are squash-merged: the pull request's title becomes the one commit on `master` (the pull request
+number is added to it), and its description becomes the commit body. A check (`Conventional title`, in the `CI`
+workflow) refuses a title that does not follow this convention
+([Conventional Commits](https://www.conventionalcommits.org/)):
 
 ```
 type(scope): summary
@@ -90,5 +94,3 @@ fix(cli): refuse a size above the limit with a clear message
 docs: explain how layers blend
 chore(release): 0.1.1
 ```
-
-Direct commits to `master` (maintainers only) follow the same convention.

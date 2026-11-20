@@ -2,13 +2,14 @@
 
 A scene is one JSON document. It holds everything a render depends on, so the same scene always renders to the
 same image (see [determinism.md](determinism.md)). This file is the contract: it changes together with
-`crates/fractique-core/src/scene.rs` and `variation.rs`.
+`crates/fractique-core/src/scene.rs`, `variation.rs` and the kinds under `fractal/`.
 
 Unknown fields are refused, so a typo in a field name is an error and not a silently ignored setting. Fields with
 a default may be left out. Colors are sRGB with each channel from 0 to 1.
 
 A scene is one or more [layers](#layer), each a [flame](#flame) or a [fractal](#fractal) of another kind, a
-wallpaper ([sheets](#sheets)), or both. The app saves scenes in a packed file of its own, [`.frcq`](#the-frcq-file), which every command reads as well.
+wallpaper ([sheets](#sheets)), or both. The app saves scenes in a packed file of its own,
+[`.frcq`](#the-frcq-file), which every command reads as well.
 
 ## Example
 
@@ -344,8 +345,8 @@ point is 1 / (1 + (`shade` × ν / h)²): the more steps a point took, the darke
 
 | Kind | What it draws | Own parameters |
 | --- | --- | --- |
-| `newton` | The roots of a polynomial and which of them every point of the plane is led to. a = `relaxation` + i × `twist`; the roots attract only while \|1 − a\| is under 1. A point has arrived within 10⁻³ of a root. Its place on the palette is the fractional part of `color_shift` + k / m, plus 0.05 × `color_density` × ln(1 + ν): k counts the m roots from 0 in the order of their angles, from the positive real axis round. h is 6, times −2 / ln \|1 − a\| where that is more than 1 | `polynomial` (0 to 5, default 0), `degree` (2 to 12, default 3), `twist` (−1 to 1, default 0) |
-| `nova` | The step of `newton` for p = zⁿ − 1 with a constant added: z → z − a (zⁿ − 1) / (n zⁿ⁻¹) + c, with n = `degree` and a = `relaxation`. `form` 0 is the map of the constants: c is the point and z starts at (a (n − 1) / (n − a))^(1/n), where the derivative of the step is 0 (at 1 for a = 1). `form` 1 is the Julia form: z starts at the point and c = `real` + i × `imaginary`. A point has arrived when a step moves it less than 10⁻⁵; an orbit that ends in a cycle never does. The place on the palette is `color_shift` + `color_density` × ln(1 + ν), with ν = n plus the part of the last step, and h is 40 | `form` (0 or 1, default 0), `degree` (2 to 8, default 3), `real` (−2 to 2, default 0.3), `imaginary` (−2 to 2, default 0) |
+| `newton` | The roots of a polynomial and which of them every point of the plane is led to. a = `relaxation` + i × `twist`; the roots attract only while \|1 − a\| is under 1. A point has arrived within 10⁻³ of a root. Its place on the palette is the fractional part of `color_shift` + k / m, plus 0.05 × `color_density` × ln(1 + ν): k counts the m roots from 0 in the order of their angles, from the positive real axis round. h is 6, times −2 / ln \|1 − a\| where that is more than 1 | `polynomial` (0 to 5, default 0), `degree` (2 to 12, whole, default 3), `twist` (−1 to 1, default 0) |
+| `nova` | The step of `newton` for p = zⁿ − 1 with a constant added: z → z − a (zⁿ − 1) / (n zⁿ⁻¹) + c, with n = `degree` and a = `relaxation`. `form` 0 is the map of the constants: c is the point and z starts at (a (n − 1) / (n − a))^(1/n), where the derivative of the step is 0 (at 1 for a = 1). `form` 1 is the Julia form: z starts at the point and c = `real` + i × `imaginary`. A point has arrived when a step moves it less than 10⁻⁵; an orbit that ends in a cycle never does. The place on the palette is `color_shift` + `color_density` × ln(1 + ν), with ν = n plus the part of the last step, and h is 40 | `form` (0 or 1, default 0), `degree` (2 to 8, whole, default 3), `real` (−2 to 2, default 0.3), `imaginary` (−2 to 2, default 0) |
 
 The polynomials of `newton`:
 
@@ -462,8 +463,10 @@ points that land in it. A view magnified z times gets 1 / z² of them, so at 100
 that is smooth whole is grainy from about 8 times and falls apart into single points past 20 times; a
 `buddhabrot`, whose points are spread over the whole disc, is grainy from about 4 times and noise at 20. More
 samples per pixel push that out by their square root; the coordinates themselves, 64-bit numbers, would last to
-a zoom of about 10¹³. A long orbit of the Lorenz system is not the orbit a more exact method would give, since its errors
-double about every 0.8 units of time; it stays on the attractor, which is what the picture shows.
+a zoom of about 10¹³. The app stops a view where the grain takes over: at 10 times for `buddhabrot`, 30 for
+`clifford`, `de_jong` and `hopalong`, 50 for `gumowski_mira` and 100 for `lorenz`. A long orbit of the Lorenz
+system is not the orbit a more exact method would give, since its errors double about every 0.8 units of time; it
+stays on the attractor, which is what the picture shows.
 
 ### Geometric kinds
 
@@ -868,12 +871,12 @@ The document is the app's session, so a file opens as it was saved:
 | `shown` | scene | The scene exactly as it was on the screen: the sliders and the view applied, or the wallpaper itself. `fractique render file.frcq` and the other commands read this one. |
 | `title` | string | The name the app shows. |
 | `random` | `true`, `false` | Whether the picture came from Randomize. |
-| `seed` | integer | The number of the last random flame or wallpaper. |
+| `seed` | integer | The number of the last random flame, fractal or wallpaper. |
 | `generator` | `1`, `2` | The random generator that made the last random flame. A file without it was written before the second generator: `1`. |
 | `fractals` | `true`, `false` | Whether the **Fractals** tab was chosen. A file without it opens in the tab of its scene's first layer. |
 | `kind` | a name | The kind of fractal chosen in that tab. |
-| `adjust` | `[brightness, gamma, glow, zoom]` | The tone and zoom sliders, as factors: 1 changes nothing. |
-| `view` | `[right, down, zoom]` | Where the picture was moved to, in shorter sides of the picture from its middle, and the magnification. |
+| `adjust` | `[brightness, gamma, glow]` | The tone sliders, as factors: 1 changes nothing. A file written while the controls had a scale of their own holds it as a fourth number; it is read as part of the view's magnification. |
+| `view` | `[right, down, zoom]` | Where the picture was moved to, in shorter sides of the picture from its middle, and the magnification. The app opens a view beyond its limits at the limit. |
 | `picture` | `[width, height]` or `null` | The picture's size; `null` is the window's own. |
 | `layer` | integer | The chosen layer, from 0. |
 | `palette` | a name or `null` | The palette chosen in the app (`aurora`, `emerald`, `ember`, `violet`, `ice`, `sunset`, `orchid`, `gold`), or `null` for the scene's own colors. |

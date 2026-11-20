@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds the Linux packages and the two programs on their own into dist/:
+# Builds the Linux packages and the command line tool and the two servers on their own into dist/:
 # scripts/build/build-linux.sh [--formats appimage,deb]
 # With CARGO_PACKAGER_SIGN_PRIVATE_KEY (and _PASSWORD) set, the AppImage gets the .sig the app's updater checks,
 # and each program on its own the .sig its "update" command checks.

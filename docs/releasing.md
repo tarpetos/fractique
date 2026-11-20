@@ -30,8 +30,9 @@ build goes to TestFlight and is not among the files.
 ## How to release
 
 1. Set the new version in three places: `version` under `[workspace.package]` in `Cargo.toml`, `version` in
-   `crates/fractique-app/Packager.toml` and `MARKETING_VERSION` in `ios/project.yml`. The build scripts refuse to
-   build when they differ, and so does the `Release` workflow, before anything is built. Every program takes the
+   `crates/fractique-app/Packager.toml` and `MARKETING_VERSION` in `ios/project.yml`. A build script refuses to
+   build when its own differs from `Cargo.toml` (the desktop scripts read `Packager.toml`, `testflight.sh` reads
+   `project.yml`), and the `Release` workflow when any of the three does, before anything is built. Every program takes the
    one in `Cargo.toml`.
 2. Add a section `## <version>` at the top of `CHANGELOG.md`. It becomes the release's notes and what the app
    shows under "Updates and what's new".
@@ -55,12 +56,15 @@ The workflows are two, each one entry file that calls the others, so GitHub show
 | `CI` | Every pull request | `ci.yml` (the title, what changed) | `lint.yml`, `test.yml` |
 | `Release` | A version tag, or by hand | `release.yml` (the version, the publishing) | `release-desktop.yml`, `release-android.yml`, `release-ios.yml` |
 
+A third file, `ios-sim.yml`, is started by hand only: it runs the app in the iOS Simulator
+([ios.md](ios.md#in-the-simulator)).
+
 To build installers on your own machine: `scripts/build/build-linux.sh`, `build-mac.sh`, `build-win.ps1`. They
 write to `dist/`.
 
 | Target | Built by | With |
 | --- | --- | --- |
-| Windows | `scripts/build/build-win.ps1` | The two programs copied as they are; no installer |
+| Windows | `scripts/build/build-win.ps1` | The four programs copied as they are; no installer |
 | Linux | `scripts/build/build-linux.sh [--formats appimage,deb]` | `cargo-packager` |
 | macOS | `scripts/build/build-mac.sh [--formats app,dmg]` | `cargo-packager`. The app is not signed by Apple: copied from the `.dmg` it needs `xattr -dr com.apple.quarantine /Applications/Fractique.app` |
 | Android | `cargo apk build --release --lib` in `crates/fractique-app`, as the workflow does | `cargo-apk`, the Android NDK, Java 17, the keystore |

@@ -24,7 +24,7 @@ Rust is installed by the scripts when it is missing.
 
 The first build takes a few minutes. The Simulator opens with Fractique in it. No Apple account is needed.
 
-What to look at: the picture fills the screen; the **Flames** and **Shapes** switch at the top and the round
+What to look at: the picture fills the screen; the **Flames**, **Fractals** and **Shapes** switch at the top and the round
 buttons at the bottom right stay clear of the notch and the home bar; the large one makes a new picture, a swipe
 goes to the next wallpaper, **Style** opens the sheet of small pictures and **Fine-tune** in it the sliders.
 [usage.md](usage.md#on-a-phone) describes the screen.

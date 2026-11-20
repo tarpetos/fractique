@@ -161,6 +161,7 @@ An error is a status and `{"error": "what went wrong"}`.
 | 404 | No preset of that name, or nothing at that path |
 | 413 | The body is larger than 1 MiB; this answer is a line of plain text |
 | 429 | The queue is full; `Retry-After` says to try again in a second |
+| 500 | A failure inside the server |
 | 503 | The render took longer than the time limit and was stopped |
 
 ## Limits

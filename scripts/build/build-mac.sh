@@ -1,5 +1,6 @@
 #!/bin/sh
-# Builds the macOS app and disk image into dist/: scripts/build/build-mac.sh [--formats app,dmg]
+# Builds the macOS app and disk image, and the command line tool and the two servers on their own, into dist/:
+# scripts/build/build-mac.sh [--formats app,dmg]
 # With CARGO_PACKAGER_SIGN_PRIVATE_KEY (and _PASSWORD) set, Fractique.app.tar.gz gets the .sig the app's updater
 # checks, and each program on its own the .sig its "update" command checks.
 # The app is not signed by Apple: copied from the .dmg it needs
