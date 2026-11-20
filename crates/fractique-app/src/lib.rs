@@ -2951,6 +2951,7 @@ impl App {
         (tiled && self.gpu_on() && !self.given_up && !self.wall.live && apron <= export::TILE / 4).then_some(apron)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn begin_tiles(&mut self, ctx: &egui::Context, size: [u32; 2], path: &std::path::Path) -> bool {
         let scene = self.scene_at(size);
         let Some(apron) = self.tiles_suit(&scene, size) else {
