@@ -149,6 +149,19 @@ impl Stage {
         part.value(now)
     }
 
+    // The same, one frame on its way in the frame that asks for it: what a press does is seen in its own frame.
+    pub fn prompt(&mut self, key: &'static str, open: bool, seconds: f32) -> Option<f32> {
+        let now = self.now;
+        let part = self.part(key, 0.0);
+        let to = if open { 1.0 } else { 0.0 };
+        if part.to != to {
+            part.aim(to, now, span(seconds), 1.0);
+            part.since -= FRAME;
+        }
+        let value = part.value(now);
+        (open || value > 0.0).then_some(value)
+    }
+
     pub fn peek(&self, key: &'static str) -> Option<f32> {
         self.parts
             .iter()
@@ -172,6 +185,20 @@ impl Stage {
             ctx.request_repaint();
         }
     }
+}
+
+// How much shorter the panel is for the toolbar under it. `aimed` is what the window as it is asks for. While
+// the window's frame glides after a leap (`floor` is then what the frame as it stands asks for), a panel that
+// has to make room does so first (`GIVE`), before the toolbar comes under it, and one that gets room takes it
+// (`SMALL`) only when the frame has arrived: the two never cross. Otherwise the panel follows the window at once.
+pub fn under(stage: &mut Stage, aimed: f32, floor: Option<f32>, landed: bool) -> f32 {
+    let held = stage.aim_of("under").unwrap_or(aimed);
+    let (to, seconds) = match floor {
+        Some(_) if aimed < held => (held, 0.0),
+        Some(_) => (aimed, GIVE),
+        None => (aimed, if landed { SMALL } else { 0.0 }),
+    };
+    stage.glide("under", to, seconds).max(floor.unwrap_or(0.0))
 }
 
 // A switch at a threshold that does not flap around it: it turns on above the band and off below it.
@@ -646,6 +673,62 @@ mod tests {
         stage.dim = 0.75;
         assert_eq!(stage.shown("panel", true, 0.0), Some(0.25));
         assert_eq!(stage.apart("reset", true, 0.0), Some(1.0));
+    }
+
+    #[test]
+    fn a_press_is_seen_in_its_own_frame() {
+        let mut stage = Stage::default();
+        stage.begin(0.0);
+        assert_eq!(stage.prompt("interface", true, 0.0), Some(1.0));
+        stage.begin(5.0);
+        let first = stage.prompt("interface", false, PANEL).unwrap();
+        assert!((first - (1.0 - ease(1.0 / 60.0 / PANEL))).abs() < 1e-4, "{first}");
+        stage.begin(5.0 + 1.0 / 60.0);
+        assert!(stage.prompt("interface", false, PANEL).unwrap() < first);
+        // Turned back midway it goes on from where it is, a frame on its way.
+        let back = stage.prompt("interface", true, PANEL).unwrap();
+        assert!(back > 0.4 && back < 1.0);
+        stage.begin(6.0);
+        assert_eq!(stage.prompt("interface", true, PANEL), Some(1.0));
+        assert_eq!(stage.prompt("interface", false, 0.0), None);
+    }
+
+    #[test]
+    fn the_panel_makes_room_first_and_takes_room_last() {
+        let frame = 1.0 / 60.0;
+        // The window as it is has no toolbar under the panel; a leap to a narrow one asks for 100 points.
+        let mut stage = Stage::default();
+        stage.begin(0.0);
+        assert_eq!(under(&mut stage, 0.0, None, false), 0.0);
+        let mut last = 0.0;
+        for step in 0..12 {
+            stage.begin(1.0 + f64::from(step) * frame);
+            // The frame that glides asks for nothing until its eighth step, then for all of it.
+            let floor = if step < 8 { 0.0 } else { 100.0 };
+            let now = under(&mut stage, 100.0, Some(floor), false);
+            assert!(now >= last && now >= floor);
+            last = now;
+            if f64::from(step) * frame >= f64::from(GIVE) {
+                assert_eq!(now, 100.0);
+            }
+        }
+        // Back to the wide window: the panel keeps its height while the frame glides, whatever the frame asks.
+        for step in 0..11 {
+            stage.begin(2.0 + f64::from(step) * frame);
+            assert_eq!(
+                under(&mut stage, 0.0, Some(if step < 3 { 100.0 } else { 0.0 }), false),
+                100.0
+            );
+        }
+        stage.begin(2.2);
+        assert_eq!(under(&mut stage, 0.0, None, true), 100.0);
+        stage.begin(2.2 + f64::from(SMALL) * 0.5);
+        let midway = under(&mut stage, 0.0, None, false);
+        assert!(midway > 0.0 && midway < 100.0);
+        stage.begin(2.2 + f64::from(SMALL));
+        assert_eq!(under(&mut stage, 0.0, None, false), 0.0);
+        // A dragged edge is followed at once.
+        assert_eq!(under(&mut stage, 37.0, None, false), 37.0);
     }
 
     #[test]

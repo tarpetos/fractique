@@ -29,14 +29,18 @@ struct Sweep {
 // for and the first FRACTIQUE_FIRST frames of the run, and FRACTIQUE_CLOCK=1 makes every frame a sixtieth of a
 // second long, so a run repeats.
 // A test run's window on a screen it never comes onto: FRACTIQUE_SCREEN=2560x1440 is that screen in points, and
-// the window is maximized and made full screen by its size alone, as winit does it on Windows.
+// the window is maximized and made full screen by its size alone, as winit does it on Windows. 1920x1080+1046+42
+// also says where the window that is neither stands on that screen; it stands in the middle otherwise.
 #[cfg_attr(
     any(target_os = "android", target_os = "ios", target_arch = "wasm32"),
     allow(dead_code)
 )]
 pub struct Sham {
     screen: egui::Vec2,
+    place: Option<egui::Pos2>,
     restored: egui::Vec2,
+    // The size asked for last: until the window has it, its size is not the one to come back to.
+    asked: Option<egui::Vec2>,
     pub maximized: bool,
     pub full: bool,
     kept: bool,
@@ -51,10 +55,14 @@ const TASKBAR: f32 = 48.0;
 impl Sham {
     fn new() -> Option<Self> {
         let text = std::env::var("FRACTIQUE_SCREEN").ok()?;
-        let (width, height) = text.split_once('x')?;
+        let mut parts = text.split('+');
+        let (width, height) = parts.next()?.split_once('x')?;
+        let mut corner = parts.filter_map(|part| part.parse::<f32>().ok());
         Some(Self {
             screen: egui::vec2(width.parse().ok()?, height.parse().ok()?),
+            place: corner.next().zip(corner.next()).map(|(x, y)| egui::pos2(x, y)),
             restored: egui::Vec2::ZERO,
+            asked: None,
             maximized: false,
             full: false,
             kept: false,
@@ -65,31 +73,35 @@ impl Sham {
         if self.full || self.maximized {
             egui::Pos2::ZERO
         } else {
-            ((self.screen - window) * 0.5).to_pos2()
+            self.place.unwrap_or(((self.screen - window) * 0.5).to_pos2())
         }
     }
 
-    fn size(&self) -> egui::Vec2 {
+    fn keep(&mut self, window: egui::Vec2) {
+        if !self.maximized && !self.full && self.asked.is_none_or(|asked| asked == window) {
+            self.restored = window;
+        }
+    }
+
+    fn size(&mut self) -> egui::Vec2 {
         // A maximized window without decorations keeps the work area as its client area, in full screen too.
-        match (self.maximized, self.full) {
+        let size = match (self.maximized, self.full) {
             (true, _) => self.screen - egui::vec2(0.0, TASKBAR),
             (false, true) => self.screen,
             (false, false) => self.restored,
-        }
+        };
+        self.asked = Some(size);
+        size
     }
 
     pub fn maximize(&mut self, on: bool, window: egui::Vec2) -> egui::Vec2 {
-        if !self.maximized && !self.full {
-            self.restored = window;
-        }
+        self.keep(window);
         self.maximized = on;
         self.size()
     }
 
     pub fn fullscreen(&mut self, on: bool, window: egui::Vec2) -> egui::Vec2 {
-        if !self.maximized && !self.full {
-            self.restored = window;
-        }
+        self.keep(window);
         if on && !self.full {
             self.kept = self.maximized;
         } else if !on && self.full {
@@ -331,7 +343,9 @@ mod tests {
         let (screen, window) = (egui::vec2(1920.0, 1080.0), egui::vec2(1290.0, 690.0));
         let mut sham = Sham {
             screen,
+            place: None,
             restored: egui::Vec2::ZERO,
+            asked: None,
             maximized: false,
             full: false,
             kept: false,
@@ -347,5 +361,11 @@ mod tests {
         assert_eq!(sham.fullscreen(false, screen), window);
         assert_eq!(sham.origin(window), egui::pos2(315.0, 195.0));
         assert_eq!(sham.maximize(true, window), work);
+        // Two steps sent in one frame: the window still has the size of before the first.
+        assert_eq!(sham.maximize(false, work), window);
+        sham.fullscreen(true, work);
+        sham.fullscreen(false, screen);
+        assert_eq!(sham.maximize(true, screen), work);
+        assert_eq!(sham.maximize(false, work), window);
     }
 }

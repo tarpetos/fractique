@@ -991,6 +991,7 @@ struct App {
     #[cfg(windows)]
     handle: Option<isize>,
     leap: Option<motion::Leap>,
+    landed: bool,
     leap_from: egui::Rect,
     lay_was: motion::Lay,
     reset_home: Option<egui::Pos2>,
@@ -1634,6 +1635,7 @@ impl App {
             #[cfg(windows)]
             handle: None,
             leap: None,
+            landed: false,
             leap_from: egui::Rect::ZERO,
             lay_was: [0.5, 0.5, 1.0, 1.0],
             reset_home: None,
@@ -4105,6 +4107,7 @@ impl App {
             }
             Some(_) => {
                 self.leap = None;
+                self.landed = true;
                 self.system_motion(true);
                 screen
             }
@@ -4238,6 +4241,26 @@ impl App {
         ctx.set_cursor_icon(edge.1);
         if ctx.input(|input| input.pointer.primary_pressed()) {
             ctx.send_viewport_cmd(egui::ViewportCommand::BeginResize(edge.0));
+        }
+    }
+
+    // The press of the title bar's eye, read before the panes are laid out: they begin to go in the frame of
+    // the release, not in the one after it.
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn eye_pressed(&mut self, ctx: &egui::Context) {
+        let released = ctx.input(|input| {
+            input
+                .pointer
+                .primary_released()
+                .then(|| input.pointer.interact_pos())
+                .flatten()
+        });
+        let eye = ctx.read_response(egui::Id::unique(("title bar", "hide")));
+        if let (Some(at), Some(eye)) = (released, eye)
+            && eye.is_pointer_button_down_on()
+            && eye.rect.contains(at)
+        {
+            self.bare = true;
         }
     }
 
@@ -5806,7 +5829,12 @@ impl App {
         let screen = ctx.viewport_rect();
         self.explore(ui, screen);
         // The interface goes and comes back as one: every pane is shown by its share of it.
-        let face = self.stage.apart("interface", !self.bare, motion::PANEL);
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        {
+            self.window_keys(&ctx);
+            self.eye_pressed(&ctx);
+        }
+        let face = self.stage.prompt("interface", !self.bare, motion::PANEL);
         let aside = face.is_none() || self.phone.preview;
         if self.bare {
             self.languages_open = false;
@@ -5824,7 +5852,6 @@ impl App {
                     _ => None,
                 };
             }
-            self.window_keys(&ctx);
             let stand = self.stand(&ctx, screen, now);
             let safe = safe_content(&ctx);
             let mut content =
@@ -5873,8 +5900,9 @@ impl App {
                 .and_then(|state| Chaos::new(&state.adapter, &state.device, &state.queue, &ctx));
             self.compiling = self.chaos.as_ref().is_some_and(Chaos::pending);
         }
-        // A window whose edge is dragged keeps its picture, laid out for the new size, until the size has stood.
-        let wait = self.stood.wait(window, now, motion::span(SETTLE));
+        // A window whose edge is dragged keeps its picture, laid out for the new size, until the size has stood. A
+        // picture of a chosen size is not drawn again for a window: nothing waits, blurs or counts then.
+        let wait = self.stood.wait(size, now, motion::span(SETTLE));
         let resizing = wait > 0.0 && self.requested.is_some();
         if resizing {
             ctx.request_repaint_after(std::time::Duration::from_secs_f32(wait));
@@ -6090,10 +6118,22 @@ impl App {
             };
             let lifted = if self.view != WHOLE { 56.0 } else { 0.0 };
             let lifted = self.stage.glide("lifted", lifted, motion::SMALL);
-            let under = (1.0 - clear) * (self.toolbar_size.y.max(60.0) + 12.0 + lifted);
-            // After a leap of the window the panel grows to its new height with everything else.
-            let span = if self.leap.is_some() { motion::PANEL } else { 0.0 };
-            let under = self.stage.glide("under", under, span);
+            let room = self.toolbar_size.y.max(60.0) + 12.0 + lifted;
+            let landed = std::mem::take(&mut self.landed);
+            let under = motion::under(
+                &mut self.stage,
+                (1.0 - clear) * room,
+                self.leap.is_some().then(|| {
+                    let near =
+                        content.center().x - self.toolbar_size.x * 0.5 - (content.left() + beside - whole.left());
+                    if content.width() < 700.0 {
+                        room
+                    } else {
+                        (1.0 - (near / motion::RAMP).clamp(0.0, 1.0)) * room
+                    }
+                }),
+                landed,
+            );
             self.under = under;
             let span = if hidden { motion::GIVE } else { motion::PANEL };
             if let Some(shown) = self.stage.shown("inspector", open, span) {

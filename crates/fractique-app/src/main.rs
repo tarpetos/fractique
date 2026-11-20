@@ -47,7 +47,8 @@ fn main() -> eframe::Result {
         .with_min_inner_size([640.0, 480.0])
         .with_decorations(false)
         .with_icon(fractique_app::window_icon());
-    if screenshot.is_some() {
+    // FRACTIQUE_VISIBLE: a test run in a window on the screen, for what only a real window shows.
+    if screenshot.is_some() && std::env::var_os("FRACTIQUE_VISIBLE").is_none() {
         // A screenshot run is a test: it draws into a window nobody sees. eframe shows every window after its
         // first frame and draws nothing into a hidden one, so the window stands far outside every screen.
         viewport = viewport

@@ -18,7 +18,13 @@
   from a window of 800 × 520 and of 1290 × 690: 4 to 8 panes or pictures that jumped at each change and up to 4
   that turned back, now none; 3 panes that popped at each press of the eye, now none. A frame takes 17 ms
   through all of it, as before. A real switch to full screen cannot be made in a test run; it was emulated by
-  the window's size ([architecture.md](docs/architecture.md#motion)).
+  the window's size ([architecture.md](docs/architecture.md#motion)). The owner's own run then showed what that
+  emulation had missed, and a run of the same steps in a real window on his screen (1920 × 1080 points, the
+  picture fixed at 3840 × 2160) now shows none of it: with a picture of a chosen size, every change of the window
+  raised the whole blur for a fifth of a second and showed a time of many seconds though nothing was drawn (the
+  rest watched the window's size, not the picture's); on the way to and from a small window the panel and the
+  toolbar crossed by up to 11 points for one to three frames (the panel now makes room first); and the panes
+  began to fade one frame after the press of the eye (now in its frame).
 
 * **No long first batch of a picture:** the first batch of a flame was sized by the best speed any flame had
   shown, so a flame that costs more a step began with a batch far over its slice of a frame: 35 to 119 ms in
