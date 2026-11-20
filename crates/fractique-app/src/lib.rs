@@ -5681,9 +5681,13 @@ impl App {
         self.trace.parts[2] = clock.elapsed().as_secs_f32() * 1000.0;
         self.resizing = resizing;
 
-        let painter = ctx.layer_painter(egui::LayerId::background()).with_clip_rect(screen);
+        // A layer's painter stops at the safe area, and `with_clip_rect` can only narrow that: the picture goes under
+        // the camera and the home bar, to the edges of the screen.
+        let mut painter = ctx.layer_painter(egui::LayerId::background());
+        painter.set_clip_rect(screen);
         if std::env::var_os("FRACTIQUE_DEBUG_LAYOUT").is_some() {
-            let ruler = ctx.layer_painter(egui::LayerId::debug()).with_clip_rect(screen);
+            let mut ruler = ctx.layer_painter(egui::LayerId::debug());
+            ruler.set_clip_rect(screen);
             let mut y = 0.0;
             while y <= screen.bottom() {
                 let color = egui::Color32::from_rgb(255, 60, 60);
