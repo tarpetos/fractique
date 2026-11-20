@@ -110,9 +110,11 @@ owns the app `app.fractique` in App Store Connect. `FRACTIQUE_TEAM_ID` picks ano
 
 ### From GitHub
 
-The **TestFlight** workflow (Actions, TestFlight, Run workflow) does the same on one of GitHub's Macs. It is started
-by hand: a macOS minute on a private repository counts ten times a Linux one. It has no signed-in Xcode, so it
-signs with an App Store Connect API key, which the team's account holder or an admin makes once:
+The **Release** workflow does the same on one of GitHub's Macs, beside the installers of the other systems: for
+every version tag, and when it is started by hand (Actions, Release, Run workflow; **ios** there builds this
+alone). The build goes to TestFlight only, so to the testers of the team; a refusal by Apple does not hold the
+installers back. It has no signed-in Xcode, so it signs with an App Store Connect API key, which the team's
+account holder or an admin makes once:
 
 1. In App Store Connect: **Users and Access, Integrations, App Store Connect API, Team Keys**, the plus. Name it,
    give it the role **Admin** (a lower role cannot fetch the certificate that signs for the App Store), generate.

@@ -1,21 +1,26 @@
-# Builds the iOS app, signs it for the App Store and uploads it to TestFlight. Started by hand only: macOS minutes
-# are costly. It signs with an App Store Connect API key from the repository's secrets; docs/ios.md says how to
-# make it.
-name: TestFlight
+# It signs with an App Store Connect API key from the repository's secrets; docs/ios.md says how to make it.
+name: Release iOS
 
 on:
-  workflow_dispatch:
+  workflow_call:
+    secrets:
+      ASC_KEY_P8:
+        required: false
+      ASC_KEY_ID:
+        required: false
+      ASC_ISSUER_ID:
+        required: false
 
 permissions:
   contents: read
 
-concurrency:
-  group: testflight
-  cancel-in-progress: false
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
 
 jobs:
   testflight:
-    name: Upload to TestFlight
+    name: TestFlight
     runs-on: macos-latest
     timeout-minutes: 60
     steps:

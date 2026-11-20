@@ -1,59 +1,67 @@
 name: CI
 
+# Entry point for every pull request check: lint.yml and test.yml run from here. A title edit re-runs only the title check.
 on:
   pull_request:
-  push:
-    branches: [master]
+    types: [opened, edited, reopened, synchronize]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event.action == 'edited' && 'title' || 'code' }}
   cancel-in-progress: true
 
-env:
-  CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: "0"
-
 jobs:
-  lint:
-    name: Format and Clippy
+  # Pull requests are squash-merged, so the title becomes the commit on master.
+  title:
+    name: Conventional title
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
-      - name: Rust (the version in rust-toolchain.toml)
-        run: rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all --check
-      - run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Check the title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          types='feat|fix|perf|refactor|docs|build|ci|chore|revert'
+          scopes='core|cli|mcp|server|app|setup|build|ci|docs|release|deps'
+          pattern="^(${types})(\((${scopes})\))?!?: [a-z0-9\`].*[^.]$"
+          echo "Title: $TITLE"
+          if ! [[ "$TITLE" =~ $pattern ]]; then
+            echo "::error::The title must look like 'type(scope): summary', for example 'fix(core): keep the glow inside the image'."
+            echo "Types: ${types//|/, }. Scopes (optional): ${scopes//|/, }."
+            echo "The summary starts in lower case and has no full stop at the end. See CONTRIBUTING.md, 'Commit messages'."
+            exit 1
+          fi
 
-  # The golden hashes in crates/fractique-core/tests/determinism.rs must match on every system: this matrix is
-  # what proves that a scene renders to the same pixels everywhere.
-  test:
-    name: Test (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Linux x64
-            os: ubuntu-latest
-          - name: Linux ARM64
-            os: ubuntu-24.04-arm
-          - name: Windows x64
-            os: windows-latest
-          - name: macOS Apple Silicon
-            os: macos-latest
+  changes:
+    name: Changes
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.diff.outputs.rust }}
     steps:
       - uses: actions/checkout@v7
-      - name: Rust (the version in rust-toolchain.toml)
-        run: rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.os }}
-      - run: cargo test --locked --release
-      - name: Without threads
-        run: cargo test --locked --release -p fractique-core --no-default-features
+          fetch-depth: 2
+
+      - name: Changed files
+        id: diff
+        run: |
+          files=$(git diff --name-only HEAD^1 HEAD)
+          echo "$files"
+          check() { if grep -qE "$2" <<< "$files"; then echo "$1=true" >> "$GITHUB_OUTPUT"; fi; }
+          check rust '^(crates|vendor)/|(^|/)(Cargo\.toml|Cargo\.lock|rustfmt\.toml|clippy\.toml|rust-toolchain\.toml)$|^\.github/workflows/(ci|lint|test)\.yml$'
+
+  lint:
+    name: Lint
+    needs: changes
+    uses: ./.github/workflows/lint.yml
+    with:
+      rust: ${{ needs.changes.outputs.rust == 'true' }}
+
+  test:
+    name: Tests
+    needs: changes
+    uses: ./.github/workflows/test.yml
+    with:
+      rust: ${{ needs.changes.outputs.rust == 'true' }}

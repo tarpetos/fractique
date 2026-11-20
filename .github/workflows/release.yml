@@ -1,10 +1,17 @@
 name: Release
 
+# Entry point for a release: release-desktop.yml, release-android.yml and release-ios.yml run from here, side by side.
 on:
-  # Only for a release (a version tag) or when started by hand: never on every push.
+  # Only for a release (a version tag) or when started by hand: never on every push or pull request.
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: What to build
+        type: choice
+        options: [all, ios]
+        default: all
 
 permissions:
   contents: read
@@ -13,122 +20,49 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: "0"
-
 jobs:
-  desktop:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Windows x64
-            os: windows-latest
-            kind: windows
-          # 22.04 (glibc 2.35) so the AppImage also runs on older distributions.
-          - name: Linux x64
-            os: ubuntu-22.04
-            kind: linux
-          - name: macOS Apple Silicon
-            os: macos-latest
-            kind: macos
+  version:
+    name: Version
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Rust (the version in rust-toolchain.toml)
-        run: rustup toolchain install
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: release-${{ matrix.os }}
-
-      - name: Linux build dependencies
-        if: matrix.kind == 'linux'
+      - name: Check the tag matches the version
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential pkg-config libxkbcommon-dev \
-            libwayland-dev libx11-dev libxcursor-dev libxi-dev libxrandr-dev libvulkan-dev file
-
-      - name: Signing key
-        shell: bash
-        env:
-          KEY: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY }}
-          PASSWORD: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD }}
-        run: |
-          if [ -n "$KEY" ]; then
-            echo "CARGO_PACKAGER_SIGN_PRIVATE_KEY=$KEY" >> "$GITHUB_ENV"
-            echo "CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
-          else
-            echo "::warning::No signing key: the installers are not signed for updates."
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -n1)"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match the version $version in Cargo.toml"
+            exit 1
           fi
 
-      - name: Build (Windows)
-        if: matrix.kind == 'windows'
-        shell: pwsh
-        run: ./scripts/build/build-win.ps1
-
-      - name: Build (Linux)
-        if: matrix.kind == 'linux'
-        run: ./scripts/build/build-linux.sh
-
-      - name: Build (macOS)
-        if: matrix.kind == 'macos'
-        run: ./scripts/build/build-mac.sh
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: installers-${{ matrix.kind }}
-          if-no-files-found: error
-          path: |
-            dist/*.exe
-            dist/*.AppImage
-            dist/*.deb
-            dist/*.dmg
-            dist/*.app.tar.gz
-            dist/*.sig
+  desktop:
+    name: Desktop
+    needs: version
+    if: inputs.platforms != 'ios'
+    uses: ./.github/workflows/release-desktop.yml
+    secrets:
+      CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY }}
+      CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD }}
 
   android:
     name: Android
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v7
-      - name: Rust (the version in rust-toolchain.toml)
-        run: |
-          rustup toolchain install
-          rustup target add aarch64-linux-android armv7-linux-androideabi
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: release-android
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-      - name: Build the APK
-        env:
-          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          CARGO_APK_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-        run: |
-          if [ -z "$KEYSTORE" ]; then
-            echo "::error::No Android keystore: an APK signed with another key cannot update an installed app."
-            exit 1
-          fi
-          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/fractique.keystore"
-          export CARGO_APK_RELEASE_KEYSTORE="$RUNNER_TEMP/fractique.keystore"
-          export ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME"
-          cargo install cargo-apk --locked
-          cd crates/fractique-app
-          cargo apk build --release --lib
-          version="$(sed -n 's/^version *= *"\(.*\)"/\1/p' ../../Cargo.toml | head -n1)"
-          mkdir -p ../../dist
-          cp ../../target/release/apk/fractique-app.apk "../../dist/Fractique_${version}_android.apk"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: installers-android
-          if-no-files-found: error
-          path: dist/*.apk
+    needs: version
+    if: inputs.platforms != 'ios'
+    uses: ./.github/workflows/release-android.yml
+    secrets:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+
+  # Not needed by the publishing: a refusal by Apple must not hold the installers back.
+  ios:
+    name: iOS
+    needs: version
+    uses: ./.github/workflows/release-ios.yml
+    secrets:
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
 
   publish:
     name: Publish release
@@ -140,15 +74,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Check the tag matches the version
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          version="$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -n1)"
-          if [ "$tag" != "$version" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match the version $version in Cargo.toml"
-            exit 1
-          fi
-          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - name: The version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
       - uses: actions/download-artifact@v8
         with:
