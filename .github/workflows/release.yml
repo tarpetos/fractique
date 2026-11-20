@@ -26,15 +26,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Check the tag matches the version
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Check the version is the same everywhere
         run: |
-          tag="${GITHUB_REF_NAME#v}"
           version="$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -n1)"
-          if [ "$tag" != "$version" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match the version $version in Cargo.toml"
-            exit 1
+          packaged="$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' crates/fractique-app/Packager.toml | head -n1)"
+          ios="$(sed -n 's/^ *MARKETING_VERSION: *"\(.*\)"/\1/p' ios/project.yml | head -n1)"
+          failed=0
+          differs() { echo "::error::$1 says $2, Cargo.toml says $version"; failed=1; }
+          [ "$packaged" = "$version" ] || differs crates/fractique-app/Packager.toml "$packaged"
+          [ "$ios" = "$version" ] || differs ios/project.yml "$ios"
+          if [ "${GITHUB_REF#refs/tags/v}" != "$GITHUB_REF" ] && [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            differs "The tag $GITHUB_REF_NAME" "${GITHUB_REF_NAME#v}"
           fi
+          exit "$failed"
 
   desktop:
     name: Desktop
