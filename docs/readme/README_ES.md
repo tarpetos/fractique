@@ -128,6 +128,19 @@ O renderiza desde la línea de comandos:
 
 En Windows los programas son `target\release\fractique-gui.exe` y `target\release\fractique.exe`. Todo lo que hacen la aplicación y los comandos: [docs/usage.md](../usage.md).
 
+## Probado en
+
+| Dispositivo | Sistema | Procesador | Gráficos |
+| --- | --- | --- | --- |
+| PC | Windows 11 | AMD Ryzen 7 5700X | NVIDIA GeForce RTX 4070 |
+| PC | Ubuntu 24.04 (WSL2) | AMD Ryzen 7 5700X | Ninguna: solo el procesador |
+| Portátil, ASUS TUF Gaming FX505DT | Windows 11 | AMD Ryzen 5 3550H | NVIDIA GeForce GTX 1650 |
+| Portátil, HP 15-db1xxx | Debian 13 | AMD Ryzen 3 3200U | AMD Radeon Vega 3 |
+| ZTE Blade A7 | Android 9 | MediaTek Helio P22 | PowerVR GE8320 |
+| Asus Zenfone 10 | Android 15 | Qualcomm Snapdragon 8 Gen 2 | Adreno 740 |
+| iPhone 13 Pro | iOS 27 | Apple A15 Bionic | Apple A15 |
+| iPhone 11 | iOS 27 | Apple A13 Bionic | Apple A13 |
+
 ## Documentación
 
 La documentación está en inglés.

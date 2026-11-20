@@ -128,6 +128,19 @@ Fractique создаёт изображения трёх видов. Фракт�
 
 В Windows программы лежат в `target\release\fractique-gui.exe` и `target\release\fractique.exe`. Всё, что умеют приложение и команды: [docs/usage.md](../usage.md).
 
+## На чём протестировано
+
+| Устройство | Система | Процессор | Графика |
+| --- | --- | --- | --- |
+| ПК | Windows 11 | AMD Ryzen 7 5700X | NVIDIA GeForce RTX 4070 |
+| ПК | Ubuntu 24.04 (WSL2) | AMD Ryzen 7 5700X | Нет: только процессор |
+| Ноутбук, ASUS TUF Gaming FX505DT | Windows 11 | AMD Ryzen 5 3550H | NVIDIA GeForce GTX 1650 |
+| Ноутбук, HP 15-db1xxx | Debian 13 | AMD Ryzen 3 3200U | AMD Radeon Vega 3 |
+| ZTE Blade A7 | Android 9 | MediaTek Helio P22 | PowerVR GE8320 |
+| Asus Zenfone 10 | Android 15 | Qualcomm Snapdragon 8 Gen 2 | Adreno 740 |
+| iPhone 13 Pro | iOS 27 | Apple A15 Bionic | Apple A15 |
+| iPhone 11 | iOS 27 | Apple A13 Bionic | Apple A13 |
+
 ## Документация
 
 Документация написана на английском.
