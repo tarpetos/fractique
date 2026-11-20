@@ -1121,6 +1121,7 @@ dependencies = [
  "fractique-core",
  "fractique-mcp",
  "serde_json",
+ "winresource",
 ]
 
 [[package]]
@@ -1160,6 +1161,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tower-http",
+ "winresource",
 ]
 
 [[package]]

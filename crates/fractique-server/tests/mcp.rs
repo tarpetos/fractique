@@ -142,6 +142,11 @@ impl Server {
         let reply = self.send("POST", "/mcp", &[json, BOTH], &hello.to_string()).await;
         assert_eq!(reply.status, 200, "{}", reply.head);
         assert_eq!(reply.json()["result"]["protocolVersion"], "2025-06-18");
+        let icon = reply.json()["result"]["serverInfo"]["icons"][0]["src"].clone();
+        assert!(
+            icon.as_str()
+                .is_some_and(|src| src.starts_with("data:image/png;base64,iVBORw0KGgo"))
+        );
         let session = Session {
             server: self,
             id: reply.header("mcp-session-id").expect("a session").to_owned(),

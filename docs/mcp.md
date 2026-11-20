@@ -223,6 +223,13 @@ The specification advises against reading a disconnect as a cancellation; here t
 The server keeps up to 1024 sessions. When one more starts, the one unused for the longest time ends, an idle one
 before one with a call in progress.
 
+## How the server names itself
+
+The answer to `initialize` carries `serverInfo` with the name `fractique`, the title `Fractique`, the version, the
+address of the repository and two icons, 64 and 128 pixels, for a client that shows its servers. The icons are
+PNGs inside the answer (`data:` addresses), so a client fetches nothing to show them. They are the same over stdio
+and over HTTP. A client of a protocol revision without icons ignores the fields.
+
 ## What the server does not do
 
 - Over stdio it writes only the file named in `save_to` and reads only the file named in `file`.

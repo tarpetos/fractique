@@ -59,6 +59,23 @@ flowchart LR
 configuring of a surface ([why](#fractals-drawn-pixel-by-pixel-on-the-graphics-card)); the workspace patches
 them in.
 
+### The icons of the programs
+
+`tools/icon/make_icons.py` draws every icon into `assets/icon` from one source: the app's (`icon.*`) and, in a
+color of their own with a sign beside the letter, the command line tool's (`cli.ico`, green, a prompt), the MCP
+server's (`mcp.ico`, `mcp-64.png`, `mcp-128.png`, violet, a star) and the HTTP server's (`server.ico`, amber, a
+rack). The Buddhabrot is tinted toward the color before the letter is laid on, so the three differ at 16 pixels by
+the color of the whole tile, where a sign alone is too small to tell them apart.
+
+| Where | What carries the icon |
+| --- | --- |
+| Windows | The `build.rs` of `fractique-app`, `fractique-cli` and `fractique-server` embeds the `.ico` with `winresource`, and for the tools the product name, a description and the version of the package. `fractique-cli` builds two programs, so it compiles one resource for each and links it to that program alone (`compile_for`, `cargo:rustc-link-arg-bin`): a resource linked to the whole package would give both programs the same icon, or fail on the second one. The tests of a package get none |
+| Linux, macOS | A bare program has no place for an icon; the packages show the app's |
+| MCP clients | `serverInfo` of `initialize` carries the MCP icon as PNGs inside the answer ([mcp.md](mcp.md#how-the-server-names-itself)) |
+
+The resource is compiled only when the build runs on Windows for Windows, so a build on Linux or macOS needs no
+resource compiler.
+
 ### Why this shape
 
 - **One renderer.** The app, the CLI, the MCP server (over stdio and over HTTP) and the HTTP server all call the same `render` function with

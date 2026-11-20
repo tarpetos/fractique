@@ -42,7 +42,10 @@ impl Client {
             "jsonrpc": "2.0", "id": 0, "method": "initialize",
             "params": { "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": { "name": "test", "version": "0" } },
         }));
-        assert_eq!(client.next()["result"]["serverInfo"]["name"], "fractique");
+        let info = client.next()["result"]["serverInfo"].clone();
+        assert_eq!(info["name"], "fractique");
+        let icon = info["icons"][0]["src"].as_str().expect("an icon");
+        assert!(icon.starts_with("data:image/png;base64,iVBORw0KGgo"));
         client.send(&json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }));
         client
     }

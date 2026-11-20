@@ -15,6 +15,10 @@ const WALLPAPER_SIZE: (u64, u64) = (1290, 2796);
 const SCENE_FORMAT: &str = include_str!("../../../docs/scene-format.md");
 const SOURCES: [&str; 6] = ["scene", "preset", "random_seed", "wallpaper_seed", "file", "frcq"];
 const FILES: [&str; 2] = ["file", "save_to"];
+const ICONS: [(&[u8], &str); 2] = [
+    (include_bytes!("../../../assets/icon/mcp-64.png"), "64x64"),
+    (include_bytes!("../../../assets/icon/mcp-128.png"), "128x128"),
+];
 
 #[derive(Clone, Debug)]
 pub struct Limits {
@@ -709,6 +713,27 @@ pub fn answer(id: &Value, result: Value) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "result": result })
 }
 
+// The icons travel inside the answer, so a client never fetches anything to show them.
+fn server_info() -> Value {
+    let icons: Vec<Value> = ICONS
+        .iter()
+        .map(|(png, size)| {
+            json!({
+                "src": format!("data:image/png;base64,{}", base64(png)),
+                "mimeType": "image/png",
+                "sizes": [size],
+            })
+        })
+        .collect();
+    json!({
+        "name": "fractique",
+        "title": "Fractique",
+        "version": env!("CARGO_PKG_VERSION"),
+        "websiteUrl": env!("CARGO_PKG_REPOSITORY"),
+        "icons": icons,
+    })
+}
+
 pub fn handle(method: &str, params: &Value, host: &Host) -> Result<Value, RpcError> {
     match method {
         "initialize" => {
@@ -721,7 +746,7 @@ pub fn handle(method: &str, params: &Value, host: &Host) -> Result<Value, RpcErr
             Ok(json!({
                 "protocolVersion": version,
                 "capabilities": { "tools": {} },
-                "serverInfo": { "name": "fractique", "title": "Fractique", "version": env!("CARGO_PKG_VERSION") },
+                "serverInfo": server_info(),
                 "instructions": "Fractique renders fractal flames, other fractals (list_fractals) and wallpapers from scenes (JSON). A usual loop: get_preset, randomize_scene or randomize_wallpaper, render_scene to look at it, change the scene (describe_scene_format explains the fields), render again. The same scene always renders to the same pixels.",
             }))
         }
@@ -752,6 +777,38 @@ mod tests {
             max_supersample: 1,
         }),
     };
+
+    #[test]
+    fn the_server_names_itself_with_icons_a_client_need_not_fetch() {
+        let hello = handle("initialize", &json!({ "protocolVersion": "2025-06-18" }), &Host::LOCAL);
+        let info = hello.ok().expect("an answer")["serverInfo"].clone();
+        assert_eq!(
+            (&info["name"], &info["title"]),
+            (&json!("fractique"), &json!("Fractique"))
+        );
+        assert!(
+            info["websiteUrl"]
+                .as_str()
+                .is_some_and(|url| url.starts_with("https://"))
+        );
+        let icons = info["icons"].as_array().expect("icons");
+        assert_eq!(icons.len(), ICONS.len());
+        for icon in icons {
+            let data = icon["src"]
+                .as_str()
+                .and_then(|src| src.strip_prefix("data:image/png;base64,"));
+            let png = data.and_then(unbase64).expect("a PNG in base64");
+            let mut reader = png::Decoder::new(std::io::Cursor::new(&png))
+                .read_info()
+                .expect("a PNG");
+            let side = reader.info().width;
+            assert_eq!(reader.info().height, side);
+            assert_eq!(icon["sizes"], json!([format!("{side}x{side}")]));
+            assert_eq!(icon["mimeType"], "image/png");
+            let mut pixels = vec![0; reader.output_buffer_size().expect("a size")];
+            reader.next_frame(&mut pixels).expect("the PNG decodes");
+        }
+    }
 
     #[test]
     fn base64_pads() {
