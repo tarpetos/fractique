@@ -32,8 +32,18 @@ The Linux and macOS packages carry the app (`fractique-gui`) and the command lin
    git push origin v0.2.0
    ```
 
-The `Release` workflow does the rest. It refuses a tag that does not match the version in `Cargo.toml`. Started by
-hand without a tag, it builds the installers and keeps them as artifacts without publishing.
+The `Release` workflow does the rest. It refuses a tag that does not match the version in `Cargo.toml`, before
+anything is built. The desktop installers, the APK and the iOS build for TestFlight are then made side by side;
+the release is published when the installers and the APK are there, whatever Apple says to the upload. Started by
+hand without a tag, it builds the installers and keeps them as artifacts without publishing, and uploads the iOS
+build to TestFlight; with **ios** chosen it does only that.
+
+The workflows are two, each one entry file that calls the others, so GitHub shows one run for each:
+
+| Run | When | Entry | Calls |
+| --- | --- | --- | --- |
+| `CI` | Every pull request | `ci.yml` (the title, what changed) | `lint.yml`, `test.yml` |
+| `Release` | A version tag, or by hand | `release.yml` (the version, the publishing) | `release-desktop.yml`, `release-android.yml`, `release-ios.yml` |
 
 To build installers on your own machine: `scripts/build/build-linux.sh`, `build-mac.sh`, `build-win.ps1`. They
 write to `dist/`.
@@ -44,7 +54,7 @@ write to `dist/`.
 | Linux | `scripts/build/build-linux.sh [--formats appimage,deb]` | `cargo-packager` |
 | macOS | `scripts/build/build-mac.sh [--formats app,dmg]` | `cargo-packager`. The app is not signed by Apple: copied from the `.dmg` it needs `xattr -dr com.apple.quarantine /Applications/Fractique.app` |
 | Android | `cargo apk build --release --lib` in `crates/fractique-app`, as the workflow does | `cargo-apk`, the Android NDK, Java 17, the keystore |
-| iOS | `scripts/ios/` ([ios.md](ios.md)); not part of a release | Xcode |
+| iOS | `scripts/ios/testflight.sh` ([ios.md](ios.md#testflight)), as the workflow does; it goes to TestFlight, not into the release's files | Xcode, xcodegen, the App Store Connect key |
 | Web | `crates/fractique-app/index.html` is a [Trunk](https://trunkrs.dev) page; not part of a release | Trunk |
 
 ## How the app updates
@@ -114,13 +124,14 @@ What is missing:
 
 ## The keys
 
-Two keys sign a release. Neither is in the repository; the workflow reads them from the repository's secrets.
+Three keys sign a release. None is in the repository; the workflow reads them from the repository's secrets.
 
 | Secret | What it signs | If it is lost |
 | --- | --- | --- |
 | `CARGO_PACKAGER_SIGN_PRIVATE_KEY`, `CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD` | The desktop installers, for the updater | Installed copies refuse every later update: people must install by hand once |
 | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` | The APK | Android refuses to install a later APK over the app: it must be removed first |
+| `ASC_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID` | The iOS build, for TestFlight ([ios.md](ios.md#from-github)) | Nothing is lost: the key is revoked in App Store Connect and a new one made |
 
-Keep copies of both outside GitHub: a secret cannot be read back from there.
+Keep copies of the first two outside GitHub: a secret cannot be read back from there.
 
 A new updater key is made with `cargo packager signer generate`; its public half replaces `PUBKEY`.

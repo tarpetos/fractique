@@ -1,0 +1,58 @@
+name: Release Android
+
+on:
+  workflow_call:
+    secrets:
+      ANDROID_KEYSTORE_BASE64:
+        required: false
+      ANDROID_KEYSTORE_PASSWORD:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  build:
+    name: APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Rust (the version in rust-toolchain.toml)
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-linux-android armv7-linux-androideabi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-android
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Build the APK
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          CARGO_APK_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::error::No Android keystore: an APK signed with another key cannot update an installed app."
+            exit 1
+          fi
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/fractique.keystore"
+          export CARGO_APK_RELEASE_KEYSTORE="$RUNNER_TEMP/fractique.keystore"
+          export ANDROID_NDK_ROOT="$ANDROID_NDK_LATEST_HOME"
+          cargo install cargo-apk --locked
+          cd crates/fractique-app
+          cargo apk build --release --lib
+          version="$(sed -n 's/^version *= *"\(.*\)"/\1/p' ../../Cargo.toml | head -n1)"
+          mkdir -p ../../dist
+          cp ../../target/release/apk/fractique-app.apk "../../dist/Fractique_${version}_android.apk"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: installers-android
+          if-no-files-found: error
+          path: dist/*.apk
