@@ -89,6 +89,10 @@ fn with_event_loop<R>(
 struct WinitAppWrapper<T: WinitApp> {
     windows_next_repaint_times: HashMap<WindowId, Instant>,
 
+    /// Fractique patch: windows painted in the event of a new size, and when: the redraw the system asks for
+    /// right after is for a size that is already on the screen.
+    painted_for_size: HashMap<WindowId, Instant>,
+
     /// Windows we asked to redraw, and when to give up waiting for their `RedrawRequested`.
     windows_redraw_deadlines: HashMap<WindowId, Instant>,
 
@@ -101,6 +105,7 @@ impl<T: WinitApp> WinitAppWrapper<T> {
     fn new(winit_app: T, run_and_return: bool) -> Self {
         Self {
             windows_next_repaint_times: HashMap::default(),
+            painted_for_size: HashMap::default(),
             windows_redraw_deadlines: HashMap::default(),
             winit_app,
             return_result: Ok(()),
@@ -124,8 +129,10 @@ impl<T: WinitApp> WinitAppWrapper<T> {
             && let Ok(EventResult::RepaintNow(window_id)) = event_result
         {
             log::trace!("RepaintNow of {window_id:?}");
-            self.windows_next_repaint_times
-                .insert(window_id, Instant::now());
+            // Fractique patch: the frame is painted here, in the event of the new size. Asking for another at
+            // once, and painting again for the system's own WM_PAINT of that size, painted every size of a
+            // dragged edge twice, and the edge was followed at half the rate.
+            self.painted_for_size.insert(window_id, Instant::now());
 
             // Fix flickering on Windows, see https://github.com/emilk/egui/pull/2280
             event_result = self
@@ -418,9 +425,18 @@ impl<T: WinitApp> ApplicationHandler<UserEvent> for WinitAppWrapper<T> {
         event_loop_context::with_event_loop_context(event_loop, move || {
             let event_result = match event {
                 winit::event::WindowEvent::RedrawRequested => {
-                    self.windows_redraw_deadlines.remove(&window_id);
-                    self.winit_app
-                        .run_ui_and_paint(event_loop, window_id, PassMode::Full)
+                    // Fractique patch: see `painted_for_size`. A redraw eframe asked for has a deadline here.
+                    let asked = self.windows_redraw_deadlines.remove(&window_id).is_some();
+                    let painted = self
+                        .painted_for_size
+                        .remove(&window_id)
+                        .is_some_and(|at| at.elapsed() < std::time::Duration::from_millis(50));
+                    if painted && !asked {
+                        Ok(EventResult::Wait)
+                    } else {
+                        self.winit_app
+                            .run_ui_and_paint(event_loop, window_id, PassMode::Full)
+                    }
                 }
                 _ => self.winit_app.window_event(event_loop, window_id, event),
             };

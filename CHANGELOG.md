@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* **A dragged edge is followed twice as often:** measured on the screen (a capture at 60 frames a second of a
+  real drag of the window's right edge, 900 pixels a second and 2700). Every size of the window was painted
+  twice, the second time for a redraw of the same size, and with the app's pacing of a frame the window's edge
+  itself moved only 30 times a second, in the releases before as well (there the content was a frame behind
+  on top, 20 pixels at the median). A size is painted once now: the edge and the content move 55 times a second,
+  the content one frame behind the edge (15 pixels at 900 pixels a second), with a picture of a chosen size and
+  with one that follows the window.
+
 * **The button that hides the interface is an eye:** it was drawn as an oval with a slash and did not read as
   one. It is an eye with an iris and a pupil now, chosen by the owner from five variants drawn in the real title
   bar. It has one state: the title bar goes away with the interface.

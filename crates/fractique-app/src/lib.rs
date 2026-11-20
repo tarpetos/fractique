@@ -4283,6 +4283,10 @@ impl App {
         let Some(report) = std::env::var_os("FRACTIQUE_DEBUG_FULL") else {
             return;
         };
+        // FRACTIQUE_DEBUG_HOLD: the same window, left alone: what drives it comes from outside.
+        if std::env::var_os("FRACTIQUE_DEBUG_HOLD").is_some() {
+            return;
+        }
         self.probe += 1;
         ctx.request_repaint();
         match self.probe {
