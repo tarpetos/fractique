@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+* **Views have limits:** a wallpaper could be wheeled out to a small rectangle in the middle of the window with
+  its edge smeared around it, and a fractal to a speck of a few pixels, drawn anew for that. A wallpaper is no
+  longer made smaller than the window, is moved only as far as it still covers it and is shown at most 8 times
+  larger. A flame and a fractal of any kind are shown no smaller than a fifth of their framing (0.2×) and cannot
+  be dragged out of sight; a view that is only the picture the app has, magnified, stops at 8 times that
+  picture. A step of the wheel that ends at a limit draws nothing. A file or a **Recent** picture with a view
+  outside the limits opens at the limit; the files themselves are read as before. Beside a picture that does
+  not fill the window, as one of a chosen size, there is now the window's dark background instead of the
+  picture's own edge, blurred.
+
 * **A pane hides when a list reaches it, and only then:** which panes go under an open list or sheet was a
   table: the toolbar always, the panel under some lists below a width, never under the list of languages. In a
   narrow window that list lay over the panel and both were read at once; in a wide one the toolbar hid although

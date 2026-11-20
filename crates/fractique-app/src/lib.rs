@@ -520,7 +520,7 @@ const BAR_GAP: f32 = 10.0;
 
 // What the picture shows: the point `right` and `down` of the scene's own middle, in shorter sides of the picture,
 // magnified `zoom` times.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 struct View {
     right: f64,
     down: f64,
@@ -619,6 +619,11 @@ fn laid(drawn: [u32; 2], window: [u32; 2], fixed: bool, screen: egui::Vec2) -> (
 const GLASS: (f32, f32) = (0.4, 0.7);
 const MAX_MAGNIFICATION: f64 = 1e10;
 const MIN_MAGNIFICATION: f64 = 1e-4;
+// The smallest a view shows a picture that is drawn anew for it, a flame or a fractal of any kind, as a share of
+// the picture's own framing.
+const FLOOR: f64 = 0.2;
+// A picture that is only magnified is shown at most this many times larger.
+const IMAGE_CEILING: f64 = 8.0;
 // A new picture is drawn once the view has stood still this long.
 const SETTLE: f32 = 0.18;
 
@@ -638,9 +643,26 @@ impl View {
         self.down = (self.down - by[1] / self.zoom).clamp(-1e6, 1e6);
     }
 
-    fn magnified(&mut self, factor: f64, around: [f64; 2], most: f64) {
+    // The limits of a view. It is never smaller than `least` times the whole picture. A picture that is only ever
+    // shown as it is, larger (a wallpaper), always covers the window: no edge of it comes inside. Of a picture
+    // that is drawn anew for its view, the middle of the view stays within the whole picture grown by half a
+    // view, so the figure cannot be moved out of sight.
+    fn limited(&mut self, size: [u32; 2], least: f64, covering: bool) {
+        self.zoom = self.zoom.max(least);
+        let shorter = f64::from(size[0].min(size[1]).max(1));
+        let free = if covering {
+            0.5 * (1.0 - 1.0 / self.zoom).max(0.0)
+        } else {
+            0.5 * (1.0 + 1.0 / self.zoom)
+        };
+        let (across, along) = (f64::from(size[0]) / shorter * free, f64::from(size[1]) / shorter * free);
+        self.right = self.right.clamp(-across, across);
+        self.down = self.down.clamp(-along, along);
+    }
+
+    fn magnified(&mut self, factor: f64, around: [f64; 2], least: f64, most: f64) {
         let held = [self.right + around[0] / self.zoom, self.down + around[1] / self.zoom];
-        self.zoom = (self.zoom * factor).clamp(MIN_MAGNIFICATION, most);
+        self.zoom = (self.zoom * factor).clamp(least, most);
         self.right = held[0] - around[0] / self.zoom;
         self.down = held[1] - around[1] / self.zoom;
         self.moved([0.0; 2]);
@@ -2627,7 +2649,7 @@ impl App {
             let size = self.requested.unwrap_or(self.aimed_size);
             let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
             status_of([full.width, full.height], seconds, self.view)
-        } else if self.magnified && self.view != WHOLE {
+        } else if self.magnified && self.view.zoom > 1.0 {
             format!("{}  ·  {}×", self.t("magnified"), self.view.label())
         } else {
             self.status.clone()
@@ -3589,6 +3611,39 @@ impl App {
         area.response.rect
     }
 
+    // A wallpaper is one picture, shown larger at most: nothing is beside it to zoom out to.
+    fn covering(&self) -> bool {
+        self.wall.live || sheets::drawn(&self.base)
+    }
+
+    // How far out the view goes, the scale of the controls counted in: a wallpaper not at all, every other
+    // picture to a fifth of its framing.
+    fn least(&self) -> f64 {
+        if self.covering() { 1.0 } else { FLOOR / self.adjust.zoom }
+    }
+
+    // How far in: to where the numbers of the kind run out, and no further into a picture that is only shown
+    // larger than where one of its pixels covers eight of the screen's.
+    fn most(&self) -> f64 {
+        if self.covering() { IMAGE_CEILING } else { self.deepest() }
+    }
+
+    // The wheel, a pinch or a test run's step: the view made larger or smaller around a point, within its limits.
+    // A view that would only be shown as the picture the app has, larger, stops where that picture would be
+    // eight times its size; it is never pulled back out by this.
+    fn zoom_by(&mut self, factor: f64, around: [f64; 2], size: [u32; 2]) {
+        let (before, least, most) = (self.view, self.least(), self.most());
+        self.view.magnified(factor, around, least, most);
+        if self.view.zoom > before.zoom && !self.covering() && !self.fast(size) {
+            let cap = (self.aimed.0.zoom.max(1.0) * IMAGE_CEILING).max(before.zoom);
+            if self.view.zoom > cap {
+                self.view = before;
+                self.view.magnified(cap / before.zoom, around, least, cap);
+            }
+        }
+        self.view.limited(size, least, self.covering());
+    }
+
     fn reset_view(&mut self) {
         self.view = WHOLE;
         self.touched = Instant::now();
@@ -3686,11 +3741,10 @@ impl App {
             let factor = pinch * (1.0 + wheel * 0.004).clamp(0.5, 2.0);
             if factor != 1.0 {
                 let around = pointer.map_or(egui::Vec2::ZERO, |at| (at - screen.center()) / screen.size());
-                let most = self.deepest();
-                self.view
-                    .magnified(f64::from(factor), sides(around, size, stretch), most);
+                self.zoom_by(f64::from(factor), sides(around, size, stretch), size);
             }
         }
+        self.view.limited(size, self.least(), self.covering());
         if self.view != before {
             self.touched = Instant::now();
         }
@@ -5099,8 +5153,13 @@ impl App {
         if step.starts_with("zoom:")
             && let [by] = numbers[..]
         {
-            let most = self.deepest();
-            self.view.magnified(f64::from(by), [0.0; 2], most);
+            let before = self.view;
+            self.zoom_by(f64::from(by), [0.0; 2], self.requested.unwrap_or(self.aimed_size));
+            // A step that ends at a limit changes nothing, and nothing is drawn for it.
+            if self.view == before || (self.covering() && !self.rendering) {
+                self.shown_frames = 1;
+                return;
+            }
             self.touched = Instant::now();
             self.asked = Instant::now();
             self.shown_frames = 0;
@@ -6125,6 +6184,83 @@ fn generator_of(session: &serde_json::Value) -> Generator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_view_of_a_wallpaper_never_shows_what_is_beside_it() {
+        let size = [1600, 1000];
+        // Out of the whole picture: back to it, in its middle.
+        let mut view = View {
+            right: 0.3,
+            down: -0.2,
+            zoom: 0.174,
+        };
+        view.limited(size, 1.0, true);
+        assert_eq!(view, WHOLE);
+        // Twice as large: half of the picture is seen, so the middle may move a quarter of it either way.
+        let mut view = View {
+            right: 5.0,
+            down: -5.0,
+            zoom: 2.0,
+        };
+        view.limited(size, 1.0, true);
+        assert!((view.right - 0.4).abs() < 1e-12 && (view.down + 0.25).abs() < 1e-12);
+        let [across, along, larger] = view.within(&WHOLE, size);
+        let half = 0.5 / larger;
+        assert!(across + half <= 1.0 + 1e-6 && along - half >= -1e-6);
+        // A view inside the picture is left as it is.
+        let inside = View {
+            right: 0.1,
+            down: 0.05,
+            zoom: 3.0,
+        };
+        let mut view = inside;
+        view.limited(size, 1.0, true);
+        assert_eq!(view, inside);
+        // The wheel stops at the whole picture and does not push the view aside.
+        let mut view = WHOLE;
+        view.magnified(0.5, [0.3, 0.2], 1.0, 1e10);
+        view.limited(size, 1.0, true);
+        assert_eq!(view, WHOLE);
+        // And at eight times the picture.
+        view.magnified(1e6, [0.0; 2], 1.0, IMAGE_CEILING);
+        assert_eq!(view.zoom, IMAGE_CEILING);
+    }
+
+    #[test]
+    fn a_view_of_a_fractal_stops_before_the_figure_is_a_speck_or_out_of_sight() {
+        let size = [3840, 2160];
+        // Mandelbox Cube, wheeled out to 0.009 times: it stops at a fifth of its framing.
+        let mut view = WHOLE;
+        for _ in 0..40 {
+            view.magnified(0.8, [0.0; 2], FLOOR, 1e10);
+            view.limited(size, FLOOR, false);
+        }
+        assert_eq!(view.zoom, FLOOR);
+        // With the scale of the controls at 0.5 the wheel has half as far to go.
+        let mut scaled = View { zoom: 0.009, ..WHOLE };
+        scaled.limited(size, FLOOR / 0.5, false);
+        assert_eq!(scaled.zoom * 0.5, FLOOR);
+        // Dragged away: the middle of the view stays within the picture grown by half a view.
+        let mut view = View {
+            right: 40.0,
+            down: -40.0,
+            zoom: 4.0,
+        };
+        view.limited(size, FLOOR, false);
+        let half = 3840.0 / 2160.0 / 2.0;
+        assert!((view.right - half * 1.25).abs() < 1e-12 && (view.down + 0.5 * 1.25).abs() < 1e-12);
+        let [across, _, larger] = view.within(&WHOLE, size);
+        assert!(across - 0.5 / larger <= 1.0 + 1e-6);
+        // A view within its limits is not touched.
+        let inside = View {
+            right: -0.7,
+            down: 0.3,
+            zoom: 0.6,
+        };
+        let mut view = inside;
+        view.limited(size, FLOOR, false);
+        assert_eq!(view, inside);
+    }
 
     #[test]
     fn a_picture_keeps_its_scale_while_the_window_changes_size() {

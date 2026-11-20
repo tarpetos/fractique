@@ -32,31 +32,21 @@ fn on_picture(uv: vec2<f32>) -> f32 {
 @group(0) @binding(4) var past_flame: texture_2d<f32>;
 @group(0) @binding(5) var past_soft: texture_2d<f32>;
 
-// Beside a picture that does not fill the window: its own edge, blurred and dimmed, instead of a dark bar.
-fn beside(edge: vec3<f32>) -> vec3<f32> {
-    return mix(AROUND, edge, 0.72);
-}
-
-fn inside(uv: vec2<f32>) -> vec2<f32> {
-    return clamp(uv, vec2<f32>(0.0), vec2<f32>(1.0));
-}
-
 // The picture at a point of the window, blurred by a share: the one before it too while it fades into this one.
 fn look(p: vec2<f32>, blur: f32) -> vec3<f32> {
     let share = max(blur, u.blend.y);
     let uv = picture(p, u.view);
     let sharp = textureSample(flame, smp, uv).rgb;
     let blurred = textureSample(soft, smp, uv).rgb;
-    let edge = textureSample(soft, smp, inside(uv)).rgb;
-    let now = mix(beside(edge), mix(sharp, blurred, share), on_picture(uv));
+    // Beside a picture that does not fill the window there is the window's own dark, not the picture's edge.
+    let now = mix(AROUND, mix(sharp, blurred, share), on_picture(uv));
     if (u.blend.x >= 1.0) {
         return now;
     }
     let old_uv = picture(p, u.past);
     let old_sharp = textureSample(past_flame, smp, old_uv).rgb;
     let old_blurred = textureSample(past_soft, smp, old_uv).rgb;
-    let old_edge = textureSample(past_soft, smp, inside(old_uv)).rgb;
-    let before = mix(beside(old_edge), mix(old_sharp, old_blurred, share), on_picture(old_uv));
+    let before = mix(AROUND, mix(old_sharp, old_blurred, share), on_picture(old_uv));
     return mix(before, now, u.blend.x);
 }
 
