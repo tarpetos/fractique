@@ -8,20 +8,21 @@ that version's part of the changelog; installed copies of the app then find it b
 | File | For | Updates itself |
 | --- | --- | --- |
 | `Fractique_<version>_x64.exe` | Windows: the app itself, one file, no installer | yes |
-| `fractique-cli_<version>_x64.exe` | Windows: the command line tool, which is also the MCP server | no |
+| `fractique-cli_<version>_x64.exe` | Windows: the command line tool | no |
+| `fractique-mcp_<version>_x64.exe` | Windows: the MCP server for AI agents | no |
 | `fractique-server_<version>_x64.exe` | Windows: the HTTP server | no |
 | `Fractique_<version>_x86_64.AppImage` | Linux, any distribution | yes |
 | `Fractique_<version>_amd64.deb` | Debian, Ubuntu | no: it points at the download page |
 | `Fractique_<version>_aarch64.dmg` | macOS, Apple Silicon | yes (the app inside) |
 | `Fractique_<version>_aarch64.app.tar.gz` | what the macOS update downloads | |
 | `Fractique_<version>_android.apk` | Android | no: Android installs an APK only by hand |
-| `fractique-cli_<version>_x86_64-linux.tar.gz`, `fractique-server_<version>_x86_64-linux.tar.gz` | Linux: the command line tool and the HTTP server on their own, for a machine that wants no app | no |
-| `fractique-cli_<version>_aarch64-macos.tar.gz`, `fractique-server_<version>_aarch64-macos.tar.gz` | macOS: the same two | no |
+| `fractique-cli_<version>_x86_64-linux.tar.gz`, `fractique-mcp_…`, `fractique-server_…` | Linux: the command line tool, the MCP server and the HTTP server on their own, for a machine that wants no app | no |
+| `fractique-cli_<version>_aarch64-macos.tar.gz`, `fractique-mcp_…`, `fractique-server_…` | macOS: the same three | no |
 | `latest.json` | the update manifest the app reads | |
 | `SHA256SUMS.txt` | checksums | |
 
-The Linux and macOS packages carry the app (`fractique-gui`), the command line tool (`fractique`) and the HTTP
-server (`fractique-server`); where they are after installing is in [mcp.md](mcp.md#where-the-program-is). The iOS
+The Linux and macOS packages carry the app (`fractique-gui`), the command line tool (`fractique`), the MCP server
+(`fractique-mcp`) and the HTTP server (`fractique-server`); where they are after installing is in [mcp.md](mcp.md#where-the-program-is). The iOS
 build goes to TestFlight and is not among the files.
 
 ## How to release

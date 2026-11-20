@@ -17,7 +17,12 @@ license-file = "../../LICENSE.md"
 
 out-dir = "../../dist"
 binaries-dir = "../../target/release"
-binaries = [{ path = "fractique-gui", main = true }, { path = "fractique" }, { path = "fractique-server" }]
+binaries = [
+    { path = "fractique-gui", main = true },
+    { path = "fractique" },
+    { path = "fractique-mcp" },
+    { path = "fractique-server" },
+]
 
 icons = [
     "../../assets/icon/icon-32.png",
