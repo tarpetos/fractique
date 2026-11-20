@@ -108,6 +108,31 @@ the build to the testers after Apple processes it (5 to 30 minutes).
 Once per Mac: `brew install xcodegen`, and Xcode signed in (Settings, Accounts) to the Apple account of the team that
 owns the app `app.fractique` in App Store Connect. `FRACTIQUE_TEAM_ID` picks another team.
 
+### From GitHub
+
+The **TestFlight** workflow (Actions, TestFlight, Run workflow) does the same on one of GitHub's Macs. It is started
+by hand: a macOS minute on a private repository counts ten times a Linux one. It has no signed-in Xcode, so it
+signs with an App Store Connect API key, which the team's account holder or an admin makes once:
+
+1. In App Store Connect: **Users and Access, Integrations, App Store Connect API, Team Keys**, the plus. Name it,
+   give it the role **Admin** (a lower role cannot fetch the certificate that signs for the App Store), generate.
+2. Download the `.p8` file. Apple offers it once. Note the **Key ID** beside the key and the **Issuer ID** above the
+   list.
+3. Put the three into the repository's secrets, from a terminal in the repository:
+
+```sh
+gh secret set ASC_KEY_P8 < ~/Downloads/AuthKey_XXXXXXXXXX.p8
+gh secret set ASC_KEY_ID
+gh secret set ASC_ISSUER_ID
+```
+
+The last two ask for the value. Keep the `.p8` file somewhere safe outside GitHub: a secret cannot be read back.
+Whoever has the key can upload builds and manage the team's apps; **Revoke** beside the key in App Store Connect
+ends that.
+
+The same key works on a Mac without a signed-in Xcode: `ASC_KEY_PATH` (the file), `ASC_KEY_ID` and `ASC_ISSUER_ID`
+in front of `scripts/ios/testflight.sh`.
+
 `ios/` holds the Xcode project that wraps the Rust binary: Xcode compiles an empty `stub.c`, then
 `ios/build-rust.sh` puts the Rust binary in its place before Xcode signs the app.
 
