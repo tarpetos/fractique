@@ -29,7 +29,7 @@ const MEMORY: u32 = 128u;
 const STEP: u32 = 1u;
 const FINISH: u32 = 2u;
 const FAR_EVERY: u32 = 4u;
-// The notes: 0 the points plotted or found, 2 the particles inside the next window, then for every number of
+// The notes: 0 the points plotted or found, 1 those of them in the view (of a pilot: in the next window), 2 the particles inside the next window, then for every number of
 // kept steps the moves tried, the moves accepted and how far they went, then a mark for every particle and
 // the particle each takes the place of.
 const TRIED: u32 = 4u;
@@ -180,12 +180,16 @@ fn pilot(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     var found = 0u;
     var hits = 0u;
+    var nearer = 0u;
     for (var i = 0u; i < batch.steps; i = i + 1u) {
         let fresh = mine();
         tick();
         let to = moved(base, 0u, fresh);
         if (to.w > 0.0) {
             hits = hits + 1u;
+            if (inside(to.xy, batch.next)) {
+                nearer = nearer + 1u;
+            }
             if (found == 0u) {
                 found = 1u;
                 taken(base, 0u, fresh);
@@ -196,6 +200,7 @@ fn pilot(@builtin(global_invocation_id) id: vec3<u32>) {
     closed(base);
     atomicStore(&notes[HEAD + index], found);
     atomicAdd(&notes[0], hits);
+    atomicAdd(&notes[1], nearer);
 }
 
 // A particle that fell out of the window becomes a copy of one that stayed.
@@ -224,6 +229,8 @@ fn sweep(@builtin(global_invocation_id) id: vec3<u32>) {
     let base = opened(index);
     let across = u32(flame.scale.z);
     let down = u32(flame.scale.w);
+    let rim = flame.extent.zw;
+    var seen = 0u;
     for (var i = 0u; i < batch.steps; i = i + 1u) {
         if (batch.far > 0u && below(FAR_EVERY) == 0u) {
             attempt(base, below(batch.far), false);
@@ -233,11 +240,15 @@ fn sweep(@builtin(global_invocation_id) id: vec3<u32>) {
             let x = min(u32(max(point.x, 0.0)), across - 1u);
             let y = min(u32(max(point.y, 0.0)), down - 1u);
             plotted((y * flame.extent.x + x) * 4u, point.z);
+            if (x >= rim.x && x < across - rim.x && y >= rim.y && y < down - rim.y) {
+                seen = seen + 1u;
+            }
         }
     }
     closed(base);
     if (batch.plots == 1u) {
         atomicAdd(&notes[0], batch.steps);
+        atomicAdd(&notes[1], seen);
     }
 }
 

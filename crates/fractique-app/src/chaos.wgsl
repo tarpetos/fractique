@@ -44,6 +44,7 @@ fn walk(@builtin(global_invocation_id) id: vec3<u32>) {
 
     let across = flame.scale.z;
     let down = flame.scale.w;
+    let rim = vec2<f32>(flame.extent.zw);
     var hits = 0u;
     for (var i = 0u; i < batch.steps; i = i + 1u) {
         let moved = stepped(at);
@@ -57,7 +58,10 @@ fn walk(@builtin(global_invocation_id) id: vec3<u32>) {
             let point = shown(at);
             if (point.x >= 0.0 && point.x < across && point.y >= 0.0 && point.y < down) {
                 plotted((u32(point.y) * flame.extent.x + u32(point.x)) * 4u, point.z);
-                hits = hits + 1u;
+                // What lands in the view counts, not what lands in the margin around it.
+                if (point.x >= rim.x && point.x < across - rim.x && point.y >= rim.y && point.y < down - rim.y) {
+                    hits = hits + 1u;
+                }
             }
         }
     }

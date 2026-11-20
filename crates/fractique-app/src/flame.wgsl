@@ -17,7 +17,7 @@ struct Flame {
     counts: vec4<u32>, // transforms, copies of the symmetry, 1 when mirrored, 1 with a final transform
     view: vec4<f32>,   // center, cosine and sine of the rotation
     scale: vec4<f32>,  // cells a unit across, cells a unit up, cells across, cells down
-    extent: vec4<u32>, // cells across, cells down
+    extent: vec4<u32>, // cells across, cells down, the cells beside the view across and down
     total: vec4<f32>,  // the sum of the weights
     xfs: array<Xf, 65>,
     vars: array<Var, 256>,

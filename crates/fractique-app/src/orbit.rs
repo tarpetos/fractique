@@ -195,13 +195,15 @@ impl Recipe {
         &self,
         fractal: &Fractal,
         [width, height]: [u32; 2],
+        margin: [u32; 2],
         goal: u64,
         slot: u32,
         finest: Option<f64>,
     ) -> Option<(Box<Packed>, Vec<f32>)> {
         let camera = &fractal.camera;
         let per_unit = camera.zoom * f64::from(width.min(height)) / 4.0;
-        let far = camera.center[0].abs().max(camera.center[1].abs()) + 0.5 * f64::from(width.max(height)) / per_unit;
+        let [across, down] = [width + 2 * margin[0], height + 2 * margin[1]];
+        let far = camera.center[0].abs().max(camera.center[1].abs()) + 0.5 * f64::from(across.max(down)) / per_unit;
         if per_unit * far > finest.unwrap_or(self.entry.finest) {
             return None;
         }
@@ -259,8 +261,8 @@ impl Recipe {
             math::cos(angle) as f32,
             math::sin(angle) as f32,
         ];
-        data.scale = [per_unit as f32, up as f32, width as f32, height as f32];
-        data.extent = [width, height, slot, 0];
+        data.scale = [per_unit as f32, up as f32, across as f32, down as f32];
+        data.extent = [across, down, slot, 0];
         Some((data, tables))
     }
 }
@@ -281,7 +283,7 @@ mod tests {
             assert!(drawn(shown));
             let recipe = Recipe::new(shown).expect("the kind is one the graphics card draws");
             let (data, tables) = recipe
-                .packed(shown, [640, 360], 1 << 20, 4096, None)
+                .packed(shown, [640, 360], [0; 2], 1 << 20, 4096, None)
                 .expect("the view is not deep");
             assert_eq!(data.counts[0], entry.code);
             assert_eq!(data.extent, [640, 360, 4096, 0]);
@@ -295,7 +297,7 @@ mod tests {
 
             let mut deep = shown.clone();
             deep.camera.zoom = 1.0e7;
-            assert!(recipe.packed(&deep, [640, 360], 1 << 20, 4096, None).is_none());
+            assert!(recipe.packed(&deep, [640, 360], [0; 2], 1 << 20, 4096, None).is_none());
         }
         // 32-bit numbers do not hold an orbit of the hopalong on its curve, the steps a walker of the Buddhabrot
         // takes for an orbit have no bound that is known before it walks, and the walkers of the Gumowski-Mira

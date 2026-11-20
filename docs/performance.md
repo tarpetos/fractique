@@ -437,6 +437,52 @@ batches, the longest 2 ms. In the app, in a window nobody sees, the first pictur
 3840 × 2160 came 4 ms after the request and the whole one after 20 ms, in 18 batches; at 1920 × 1080 the whole
 one came after 6 ms, where the processor took 0.24 s. No other card was measured.
 
+### A margin around the view
+
+A finished picture of a flame, an attractor or a deep view is drawn a second time with a margin around the view,
+behind the one on the screen ([architecture.md](architecture.md#a-margin-around-the-view)). The time to the
+finished picture is the time of the view alone, as before; these are the seconds after it until the picture with
+the margin is there, on a GeForce RTX 4070, in a window of 1920 × 1032 points at two pixels a point (the card's
+own work in brackets):
+
+| Picture | Margin | Flame (Aurora Spiral) | Clifford | De Jong | Lorenz |
+| --- | --- | --- | --- | --- | --- |
+| 1920 × 1080 | a quarter | 0.07 s (28 ms) | 0.05 s (20 ms) | 0.05 s (22 ms) | 0.06 s (22 ms) |
+| 1920 × 1080 | a half | 0.06 s (25 ms) | 0.06 s (22 ms) | 0.07 s (27 ms) | 0.05 s (21 ms) |
+| 2560 × 1440 | a quarter | 0.12 s (60 ms) | 0.09 s (43 ms) | 0.10 s (50 ms) | 0.08 s (35 ms) |
+| 2560 × 1440 | a half | 0.21 s (84 ms) | 0.17 s (58 ms) | 0.16 s (53 ms) | 0.14 s (39 ms) |
+| 3840 × 2160 | a quarter | 0.36 s (161 ms) | 0.29 s (128 ms) | 0.31 s (138 ms) | 0.29 s (125 ms) |
+
+The view alone took 0.05 to 0.10 s at 1920 × 1080, 0.09 to 0.19 s at 2560 × 1440 and 0.24 to 0.30 s at
+3840 × 2160 in the same runs, so a picture with a margin costs the card 1 to 1.5 times the view alone. At
+3840 × 2160 half of the view on every side would be a histogram of 531 MB and levels of 265 MB: the rule that
+holds a margin to 512 MB leaves a quarter there, and a half at the two smaller sizes.
+
+A deep view (Aurora Spiral at 4×, 3840 × 2160: the view alone 1.1 to 1.5 s) has its margin 1.0 to 1.1 s later
+(the card's work 730 to 790 ms). Plotting the margin with the samples of the view, which was tried first, took
+1.3 s at 1920 × 1080, 2.4 s at 2560 × 1440 and 5.0 s at 3840 × 2160 for a quarter (1.9 and 3.8 s for a half at
+the two smaller sizes), three to four times the view alone: the particles of a deep view all land in its
+picture, and the margin held more of them than the view.
+
+What a move shows, the same steps with and without the margin (3840 × 2160; a drag by 18 hundredths of the
+window's width over half a second, then, once the picture of that view is there, a step out to 0.8 of the scale):
+
+| Scene | Without: frames blurred, most of the view beside the picture | With a margin |
+| --- | --- | --- |
+| Flame at 2× | drag 128 frames, 18 %; step out 55 frames, 36 % | 0 frames, 0 % |
+| Deep view at 4× | drag 160 frames, 18 %; step out 46 frames, 36 % | 0 frames, 0 % |
+| Clifford at 3× | drag 111 frames, 18 %; step out 54 frames, 36 % | 0 frames, 0 % |
+| Lorenz at 3× | drag 84 frames, 18 %; step out 62 frames, 36 % | 0 frames, 0 % |
+
+The window's frames in those runs: a median of 16.9 to 17.0 ms either way, the 99th of a hundred 17.5 to 17.8 ms
+without and 18.8 to 19.3 ms with the margin, the longest 25 to 30 ms and 27 ms.
+
+The view in the middle of a picture with a margin, compared with the picture without one in blocks of 8 × 8
+pixels (320 × 200, margins of a quarter and of a half): identical inside the band at its edge, which differs by
+0.05 of 255 on average for a flame and by nothing for an attractor. A deep view is identical inside the band too;
+its margin is another draw of the particles, a few hundredths brighter or darker than the view it meets, which the
+band hides.
+
 ## Memory
 
 A render holds one histogram per layer at a time. Each cell (`width × height × supersample²` of them) takes 28
@@ -462,6 +508,13 @@ pixel each, and the graphics card holds 8 more for each density that has been on
 While the graphics card plays the chaos game it holds, for each layer, 16 bytes a pixel of histogram, 8 of levels
 and up to 8 MB of walkers: about 200 MB a layer at 3840×2160. With the last batch the histogram and the walkers
 are freed, and the levels, 66 MB a layer at that size, stay for as long as the picture is on the screen.
+
+The picture with [a margin around the view](#a-margin-around-the-view) has as many pixels as the view times
+the square of its width: with a quarter on every side, 2.25 times. While it is drawn the card holds 24 bytes a
+pixel of it a layer beside the levels of the view (at 3840×2160: 448 MB and 66 MB); after it, 8 bytes a pixel of
+its levels and 4 of its picture, and the levels and the picture of the view, which is drawn from its own: 323 MB
+for one layer at that size where the view alone keeps 100 MB. Computed from the sizes, not measured. A margin
+whose histogram and levels would pass 512 MB is not drawn, a narrower one is.
 
 ## Where a view stops being a picture
 

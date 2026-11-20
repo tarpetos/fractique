@@ -96,6 +96,17 @@ fn fs_shrink(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     return sum / f32(taps * taps);
 }
 
+// The picture of the view alone, laid into the middle of the same view drawn with a margin: its edge fades into
+// that picture over u.reach.z pixels, so that no line shows where one ends.
+@fragment
+fn fs_inset(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+    let size = vec2<f32>(textureDimensions(image));
+    let at = pos.xy - u.reach.xy;
+    let edge = min(min(at.x, size.x - at.x), min(at.y, size.y - at.y));
+    let color = textureLoad(image, clamp(vec2<i32>(at), vec2<i32>(0), vec2<i32>(size) - vec2<i32>(1)), 0);
+    return vec4<f32>(color.rgb, clamp(edge / max(u.reach.z, 1.0), 0.0, 1.0));
+}
+
 @fragment
 fn fs_blur(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let size = vec2<f32>(textureDimensions(image));

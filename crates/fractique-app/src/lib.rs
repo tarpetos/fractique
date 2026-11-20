@@ -599,6 +599,27 @@ struct Picture {
     view: View,
     zoom: f64,
     size: [u32; 2],
+    // How many times wider and higher than the view the picture is: it is drawn with a margin around the view.
+    wide: [f64; 2],
+}
+
+// How a picture laid over the window lies there when it is so many times wider and higher than its view.
+fn spread([across, along, larger, stretch]: [f32; 4], wide: [f64; 2]) -> [f32; 4] {
+    if wide == [1.0; 2] {
+        return [across, along, larger, stretch];
+    }
+    let [wider, higher] = wide.map(|side| side as f32);
+    let (over, down) = if stretch > 1.0 {
+        (larger * wider, larger * higher / stretch)
+    } else {
+        (larger * wider * stretch, larger * higher)
+    };
+    let at = [0.5 + (across - 0.5) / wider, 0.5 + (along - 0.5) / higher];
+    if over > down {
+        [at[0], at[1], over, over / down]
+    } else {
+        [at[0], at[1], down, over / down]
+    }
 }
 
 // How a picture drawn for a window of one size lies in a window of another, before it is drawn again: its
@@ -945,6 +966,19 @@ struct App {
     view: View,
     shown: View,
     shown_zoom: f64,
+    shown_wide: [f64; 2],
+    // The picture on the screen is a finished one, not the first, small one of a picture on its way.
+    shown_whole: bool,
+    // A test run's margin around the view, as a share of its sides, in place of the one the app works out.
+    margin_asked: Option<f64>,
+    // The seconds the card took for the view alone of the picture it drew last; whether the picture on the card
+    // has been drawn again with a margin, or left without one, and whether the screen has that one.
+    took: Option<f32>,
+    widened: bool,
+    wide_drawn: bool,
+    // The finished picture of a view the picture on the screen still holds is not shown before it has its
+    // margin: the seconds it took, which is the time it is shown with.
+    deferred: Option<f32>,
     drawn: Option<(View, f64)>,
     // The view of the picture that is rendered or on the screen, and whether the screen shows it magnified
     // because the view itself would take too long to render.
@@ -1572,6 +1606,15 @@ impl App {
             view: WHOLE,
             shown: WHOLE,
             shown_zoom: 1.0,
+            shown_wide: [1.0; 2],
+            shown_whole: false,
+            margin_asked: std::env::var("FRACTIQUE_MARGIN")
+                .ok()
+                .and_then(|share| share.parse().ok()),
+            took: None,
+            widened: false,
+            wide_drawn: false,
+            deferred: None,
             drawn: None,
             aimed: (WHOLE, 1.0),
             magnified: false,
@@ -2235,7 +2278,8 @@ impl App {
         // picture. A first picture has none.
         if last {
             let scale = self.scale_of(offer.at.view.zoom, offer.at.zoom);
-            self.status = status_of(offer.pixels, self.began.elapsed().as_secs_f32(), scale);
+            let took = self.deferred.take().unwrap_or(self.began.elapsed().as_secs_f32());
+            self.status = status_of(offer.pixels, took, scale);
         }
         self.turn_picture();
         self.draft_shown = None;
@@ -2244,6 +2288,7 @@ impl App {
             gfx.show(&state.device, &offer.flame, &offer.soft, true);
         }
         (self.shown, self.shown_zoom, self.shown_size) = (offer.at.view, offer.at.zoom, Some(offer.at.size));
+        (self.shown_wide, self.shown_whole) = (offer.at.wide, last);
         if let Some(light) = offer.light {
             self.light = light;
         }
@@ -2262,6 +2307,7 @@ impl App {
             view: self.shown,
             zoom: self.shown_zoom,
             size: self.shown_size.unwrap_or(self.aimed_size),
+            wide: self.shown_wide,
         });
         self.fresh = motion::Motion::at(0.0);
         self.fresh.aim(1.0, now, motion::span(motion::PANEL), 1.0);
@@ -2333,6 +2379,7 @@ impl App {
                         view: done.view,
                         zoom: done.zoom,
                         size: self.aimed_size,
+                        wide: [1.0; 2],
                     },
                     light: Some(lightness(&image.rgba, 97)),
                     card: false,
@@ -2402,14 +2449,29 @@ impl App {
         }
         if !goes_on {
             self.quick = (None, None);
+            (self.widened, self.wide_drawn, self.deferred) = (false, false, None);
             self.chaos_at = (self.view, self.adjust.zoom);
         } else if self.wall.live && self.chaotic {
             self.chaos_at = (self.view, self.adjust.zoom);
             (self.shown, self.shown_zoom) = self.chaos_at;
             self.shown_size = Some(self.aimed_size);
+            self.shown_wide = [1.0; 2];
         }
         self.swift = scene.layers.iter().all(field::drawn);
         true
+    }
+
+    // The margins a picture of the scene may be drawn with, as shares of the view's sides, the widest first. A
+    // picture made of samples (a flame, an attractor, a deep view) takes long enough for a moved view to wait for
+    // it; one drawn pixel by pixel has a draft while it moves, and a wallpaper is one picture.
+    fn margins(&self, scene: &Scene) -> Vec<f64> {
+        if self.wall.live || sheets::drawn(scene) || scene.layers.iter().all(field::drawn) {
+            return Vec::new();
+        }
+        match self.margin_asked {
+            Some(share) => Some(share).into_iter().filter(|share| *share > 0.0).collect(),
+            None => pace::margins(self.took).collect(),
+        }
     }
 
     // Begins the trial of a graphics card nothing is known about yet, once the screen's picture is rendered.
@@ -2655,7 +2717,12 @@ impl App {
             self.instant = Some((later, size, cut));
             return;
         }
-        let saved = preview.read(false, ctx, move |pixels| match (pixels, cut) {
+        let margin = if self.wide_drawn || !chaos.widened() {
+            chaos.margin()
+        } else {
+            [0; 2]
+        };
+        let saved = preview.read(false, margin, ctx, move |pixels| match (pixels, cut) {
             (Some((rgba, from)), Some(at)) => later.save(pace::magnified(&rgba, from, at, size), size),
             (Some((rgba, from)), None) => later.save(rgba, from),
             (None, _) => later.fail(),
@@ -2744,6 +2811,7 @@ impl App {
         }
         gfx.show(&state.device, picture, soft, false);
         (self.shown, self.shown_zoom, self.shown_size) = (self.draft_view, self.draft_of.1, Some(size));
+        (self.shown_wide, self.shown_whole) = ([1.0; 2], false);
         self.shown_eye = None;
         self.live_card = false;
         self.draft_shown = Some(self.draft_of);
@@ -2799,28 +2867,99 @@ impl App {
             self.quick = times;
         }
         if whole {
+            // What the view alone costs the card decides the margin of the pictures after it.
+            let ((size, _), margin) = (chaos.levels().unwrap_or_default(), chaos.margin());
+            let cells = |size: [u32; 2]| size[0].max(1) as f32 * size[1].max(1) as f32;
+            let inner = [
+                size[0].saturating_sub(2 * margin[0]),
+                size[1].saturating_sub(2 * margin[1]),
+            ];
+            self.took = times.1.map(|seconds| seconds * cells(inner) / cells(size));
             // A view of a kind drawn pixel by pixel is shown as it is drawn only where that takes no time to
             // speak of: a large picture is waited for as every other.
             self.brisk = times.1.is_some_and(|seconds| seconds < BRISK);
             self.at_once = times.1.is_some_and(|seconds| seconds < INSTANT);
         }
-        self.chaos_draw(chaos, step == Step::Drawn, whole, ctx, frame);
-        if whole && self.chaotic {
-            self.stalled = false;
-            self.rendering = false;
-            self.shown_frames = self.shown_frames.max(1);
-            if let Some(size) = self.requested {
-                self.remember(size);
-            }
-            if shows("preview")
-                && !self.frozen
-                && let Some(adjust) = Adjust::asked()
-            {
-                self.adjust = adjust;
-                self.requested = None;
-                self.frozen = true;
-            }
+        // The picture on the screen still holds the view that moved: the new one is not shown before it has its
+        // margin, so the view never stands without one.
+        let size = self.requested.unwrap_or(self.aimed_size);
+        if whole && self.moved_only && self.kept(size) && self.widen(chaos, ctx, true) {
+            self.deferred = Some(self.began.elapsed().as_secs_f32());
         }
+        let held = self.deferred.is_some();
+        if !held {
+            self.chaos_draw(chaos, step == Step::Drawn, whole, ctx, frame);
+            if whole && self.chaotic {
+                self.card_done();
+            }
+            self.widen(chaos, ctx, false);
+        }
+        let wide = chaos.widened() && !self.wide_drawn;
+        if wide && timed() {
+            let (count, _, longest, busy) = chaos.load();
+            eprintln!(
+                "times: the picture with a margin of {:?} after {:.3} s more: {count} units, the longest \
+                 {longest:.1} ms, the card busy {busy:.0} ms, the latest end {:.1} ms past a slice",
+                chaos.margin(),
+                chaos.widened_in().unwrap_or(0.0),
+                chaos.overrun() * 1000.0
+            );
+        }
+        if held && (wide || !chaos.widening()) {
+            // With its margin, or without it where the card gave the margin up.
+            self.chaos_draw(chaos, true, true, ctx, frame);
+            if self.chaotic {
+                self.card_done();
+            }
+        } else if wide && self.live_card && !self.rendering {
+            self.chaos_draw(chaos, true, false, ctx, frame);
+        }
+    }
+
+    fn card_done(&mut self) {
+        self.stalled = false;
+        self.rendering = false;
+        self.shown_frames = self.shown_frames.max(1);
+        if let Some(size) = self.requested {
+            self.remember(size);
+        }
+        if shows("preview")
+            && !self.frozen
+            && let Some(adjust) = Adjust::asked()
+        {
+            self.adjust = adjust;
+            self.requested = None;
+            self.frozen = true;
+        }
+    }
+
+    // The card draws the finished picture again with a margin around the view, behind the one on the screen:
+    // nothing waits for it and nothing shows it until the view moves. It begins once the window rests, or at
+    // once (`now`) for a picture that is held back until it has its margin. True when it has begun.
+    fn widen(&mut self, chaos: &mut Chaos, ctx: &egui::Context, now: bool) -> bool {
+        let rests = (now || (self.chaotic && !self.rendering)) && self.trial.is_none() && !self.frozen && !self.swift;
+        let whole = chaos.finished() && chaos.margin() == [0; 2] && !chaos.widening();
+        let whole = whole && self.drawn == Some(self.chaos_at);
+        let Some(size) = self.requested.filter(|_| rests && whole && !self.widened) else {
+            return false;
+        };
+        let used = self.used.elapsed().as_secs_f32();
+        if !now && used < 0.3 {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f32(0.3 - used));
+            return false;
+        }
+        self.widened = true;
+        let scene = self.scene_in(self.chaos_at.0, self.chaos_at.1);
+        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let px = |share: f64| [full.width, full.height].map(|side| (f64::from(side) * share).round() as u32);
+        let mut margins = self.margins(&scene).into_iter().map(px);
+        let begun = margins
+            .find(|margin| chaos.holds(&scene, &full, *margin))
+            .is_some_and(|margin| chaos.widen(&scene, &full, margin, ctx));
+        if begun {
+            ctx.request_repaint();
+        }
+        begun
     }
 
     // Draws the picture from the graphics card's levels when they are new or the tone has changed, and has its
@@ -2855,11 +2994,18 @@ impl App {
         let (Some(preview), Some((size, levels))) = (&mut self.preview, chaos.levels()) else {
             return;
         };
+        let margin = chaos.margin();
+        let inner = [size[0] - 2 * margin[0], size[1] - 2 * margin[1]];
+        let wide = [0, 1].map(|side| f64::from(size[side]) / f64::from(inner[side].max(1)));
         // The screen may show these very textures: it gets a copy of them before they are drawn into.
         let kept = (staged && self.live_card).then(|| preview.snapshot()).flatten();
-        if !preview.draw_levels(&scene, size, &levels, ctx) {
+        // A picture drawn again with a margin keeps the view it had: that is drawn from its own levels.
+        let inset = chaos.inset();
+        let inset = inset.as_ref().map(|(_, levels)| levels.as_slice());
+        if !preview.draw_wide(&scene, size, inner, &levels, inset, ctx) {
             return;
         }
+        self.wide_drawn |= chaos.widened();
         let Some(state) = frame.wgpu_render_state() else {
             return;
         };
@@ -2867,6 +3013,7 @@ impl App {
             view: self.chaos_at.0,
             zoom: self.chaos_at.1,
             size: self.aimed_size,
+            wide,
         };
         let mut offer = None;
         {
@@ -2887,17 +3034,19 @@ impl App {
                 gfx.show(&state.device, picture, soft, false);
                 (self.shown, self.shown_zoom) = self.chaos_at;
                 self.shown_size = Some(self.aimed_size);
+                (self.shown_wide, self.shown_whole) = (wide, last || !staged);
                 self.draft_shown = None;
                 self.pictures += 1;
                 if last {
-                    self.status = status_of(size, self.began.elapsed().as_secs_f32(), scale);
+                    let took = self.deferred.take().unwrap_or(self.began.elapsed().as_secs_f32());
+                    self.status = status_of(inner, took, scale);
                 }
             }
         }
         self.trace.stage("card");
         if !first {
             let (measured, wake) = (self.measured.clone(), ctx.clone());
-            let read = preview.read(true, ctx, move |pixels| {
+            let read = preview.read(true, margin, ctx, move |pixels| {
                 if let Some((rgba, _)) = pixels {
                     measured.store(lightness(&rgba, 1).to_bits(), Ordering::Relaxed);
                     wake.request_repaint();
@@ -2914,7 +3063,7 @@ impl App {
                 at,
                 light: None,
                 card,
-                pixels: size,
+                pixels: inner,
             };
             self.offer(offer, !first);
         }
@@ -3658,6 +3807,9 @@ impl App {
         if (self.previewing && self.latest.is_some()) || (self.swift && self.moved_only && self.brisk) {
             return false;
         }
+        if self.kept(size) {
+            return false;
+        }
         if self.rendering {
             return true;
         }
@@ -3673,7 +3825,22 @@ impl App {
     fn beside(&self, size: [u32; 2]) -> f32 {
         let (view, zoom) = self.shown_eye.unwrap_or((self.view, self.adjust.zoom));
         let (shown, of) = (self.shown.scaled(self.shown_zoom), self.shown_size.unwrap_or(size));
-        pace::beside(view.scaled(zoom).within(&shown, of))
+        pace::beside(pace::widened(view.scaled(zoom).within(&shown, of), self.shown_wide))
+    }
+
+    // The finished picture on the screen holds all of the view as it is now, as sharp as it was drawn: the view
+    // moved or shows more of the scene, inside the margin the picture was drawn with. Nothing is waited for then:
+    // the picture of the new view takes its place when it is there.
+    fn kept(&self, size: [u32; 2]) -> bool {
+        if !self.chaotic || !self.shown_whole || self.shown_wide == [1.0; 2] || self.shown_size != Some(size) {
+            return false;
+        }
+        if self.shown_eye.is_some() || !(self.moved_only || !self.rendering) {
+            return false;
+        }
+        let shown = self.shown.scaled(self.shown_zoom);
+        let at = self.view.scaled(self.adjust.zoom).within(&shown, size);
+        at[2] <= 1.001 && pace::covers(pace::widened(at, self.shown_wide))
     }
 
     // What `preview_now` asks before it draws: the layers on the card are this scene's.
@@ -3817,12 +3984,13 @@ impl App {
                 view.scaled(zoom).within(&shown.view.scaled(shown.zoom), shown.size)
             };
             let (stretch, closer) = laid(shown.size, size, fixed, screen.size());
-            [across, along, stand_in(larger) * closer, stretch]
+            spread([across, along, stand_in(larger) * closer, stretch], shown.wide)
         };
         let shown = Picture {
             view: self.shown,
             zoom: self.shown_zoom,
             size: self.shown_size.unwrap_or(size),
+            wide: self.shown_wide,
         };
         let mut laid = glass::Shown {
             view: lay(&shown, self.shown_eye),
@@ -3842,7 +4010,7 @@ impl App {
             let four = |lay: [f32; 4]| format!("{:.4},{:.4},{:.4},{:.4}", lay[0], lay[1], lay[2], lay[3]);
             let _ = write!(
                 self.trace.note,
-                " lay {} past {} px {}x{} scale {:.2} window {} bare {}",
+                " lay {} past {} px {}x{} scale {:.2} window {} bare {} wide {:.3}",
                 four(laid.view),
                 four(laid.past),
                 size[0],
@@ -3850,6 +4018,7 @@ impl App {
                 ctx.pixels_per_point(),
                 self.window_note(ctx),
                 u8::from(self.bare),
+                self.shown_wide[0],
             );
         }
         laid
@@ -5454,7 +5623,10 @@ impl App {
             return;
         }
         let as_shown = samples == export::AS_SHOWN && (self.shown, self.shown_zoom) == (self.view, self.adjust.zoom);
-        let on_card = self.chaos.as_ref().and_then(Chaos::levels).map(|(size, _)| size);
+        let on_card = self.chaos.as_ref().and_then(|chaos| {
+            let ((size, _), margin) = (chaos.levels()?, chaos.margin());
+            Some([size[0] - 2 * margin[0], size[1] - 2 * margin[1]])
+        });
         if as_shown && on_card == Some([width, height]) && self.requested.is_some_and(|size| self.card_shows(size)) {
             let (job, later) = export::Job::later([width, height], path, ctx.clone());
             self.export.job = Some(job);
@@ -7367,6 +7539,32 @@ mod tests {
         assert_eq!(stand_in(1e12), IMAGE_CEILING as f32);
         assert_eq!(stand_in(f32::INFINITY), 1.0);
         assert_eq!(stand_in(f32::NAN), 1.0);
+    }
+
+    #[test]
+    fn a_picture_with_a_margin_lies_where_its_view_lies() {
+        // glass.wgsl: the point of the picture at a point of the window, from the window's middle.
+        let seen = |[across, along, larger, stretch]: [f32; 4], [x, y]: [f32; 2]| {
+            let (x, y) = if stretch > 1.0 {
+                (x, y * stretch)
+            } else {
+                (x / stretch, y)
+            };
+            [x / larger + across, y / larger + along]
+        };
+        for lay in [[0.5, 0.5, 1.0, 1.0], [0.62, 0.41, 0.7, 0.955], [0.3, 0.8, 2.5, 1.3]] {
+            for wide in [[1.5, 1.5], [2.0, 2.0], [1.25, 1.2504], [1.2504, 1.25]] {
+                let laid = spread(lay, wide);
+                for at in [[0.0, 0.0], [0.5, -0.5], [-0.31, 0.22]] {
+                    let (view, picture) = (seen(lay, at), seen(laid, at));
+                    for side in 0..2 {
+                        let expected = 0.5 + (view[side] - 0.5) / wide[side] as f32;
+                        assert!((picture[side] - expected).abs() < 1e-5, "{lay:?} {wide:?} {at:?}");
+                    }
+                }
+            }
+        }
+        assert_eq!(spread([0.4, 0.6, 3.0, 0.9], [1.0; 2]), [0.4, 0.6, 3.0, 0.9]);
     }
 
     #[test]

@@ -33,7 +33,8 @@ const WHOLE: f64 = 2.0;
 const MOST_DEEP: u64 = 1 << 28;
 // So many scenes the card gave up are remembered: they are not tried again.
 const REFUSED: usize = 8;
-// Histograms and levels of one run, in bytes.
+// Histograms and levels of one run, in bytes; half of it for a picture that is drawn with a margin, whose
+// histogram is a quarter of the card's largest buffer at the most: a margin is given up before memory is short.
 const ROOM: u64 = 1 << 30;
 // Cells a unit, times the distance of the view from the origin: above it 32-bit coordinates show as a grid.
 const FINEST: f64 = 4.0e5;
@@ -162,13 +163,14 @@ fn xf(transform: &Transform, cumulative: f64, vars: &mut Vec<Var>) -> Option<Xf>
 
 // The flame as the shader reads it and the share of its points that are plotted, or nothing when the flame or
 // its view is one the graphics card does not draw.
-fn packed(flame: &Flame, [width, height]: [u32; 2], finest: f64) -> Option<(Box<Packed>, f64)> {
+fn packed(flame: &Flame, [width, height]: [u32; 2], margin: [u32; 2], finest: f64) -> Option<(Box<Packed>, f64)> {
     if flame.transforms.is_empty() || flame.transforms.len() > TRANSFORMS {
         return None;
     }
     let camera = &flame.camera;
     let per_unit = camera.zoom * f64::from(width.min(height)) / 4.0;
-    let far = camera.center[0].abs().max(camera.center[1].abs()) + 0.5 * f64::from(width.max(height)) / per_unit;
+    let [across, down] = [width + 2 * margin[0], height + 2 * margin[1]];
+    let far = camera.center[0].abs().max(camera.center[1].abs()) + 0.5 * f64::from(across.max(down)) / per_unit;
     if per_unit * far > finest {
         return None;
     }
@@ -208,8 +210,8 @@ fn packed(flame: &Flame, [width, height]: [u32; 2], finest: f64) -> Option<(Box<
         math::cos(angle) as f32,
         math::sin(angle) as f32,
     ];
-    data.scale = [per_unit as f32, up as f32, width as f32, height as f32];
-    data.extent = [width, height, 0, 0];
+    data.scale = [per_unit as f32, up as f32, across as f32, down as f32];
+    data.extent = [across, down, margin[0], margin[1]];
     data.total = [total as f32, 0.0, 0.0, 0.0];
     Some((data, plotted / total))
 }
@@ -225,9 +227,9 @@ fn taps(tone: &Tone, size: [u32; 2]) -> u64 {
     (2 * reach + 1) * (2 * reach + 1)
 }
 
-// The kernels of fractique-core's density estimation for a picture of this size.
-fn look(tone: &Tone, [width, height]: [u32; 2]) -> Box<Look> {
-    let (spread, top) = widest(tone, [width, height]);
+// The kernels of fractique-core's density estimation for a view of the size `inner`, in a picture of this size.
+fn look(tone: &Tone, [width, height]: [u32; 2], inner: [u32; 2]) -> Box<Look> {
+    let (spread, top) = widest(tone, inner);
     let mut kernels = [[0f32; 4]; KERNELS];
     for (level, kernel) in kernels.iter_mut().enumerate().take(top + 1) {
         let wide = level as f64 * 0.5;
@@ -406,6 +408,9 @@ struct Layer {
     sparse: bool,
     landed: u64,
     deep: Option<deep::Plan>,
+    // The points the layer plots in all. A deep view plots them all into its picture: with a margin, which is
+    // drawn behind a finished picture of the view alone, the view has its share of them and no more.
+    goal: u64,
     // The levels are being drawn, a strip a submission, after one that looks the tiles over: the next row (none
     // before the tiles are looked over), the scale, and the samples the levels are of.
     strip: Option<(Option<u32>, f64, u64)>,
@@ -420,8 +425,8 @@ impl Layer {
         self.resolved > 0 && (self.told() || self.checked)
     }
 
-    fn settled(&self, goal: u64) -> bool {
-        self.done >= goal && self.resolved == self.done && (self.told() || self.checked)
+    fn settled(&self) -> bool {
+        self.done >= self.goal && self.resolved == self.done && (self.told() || self.checked)
     }
 
     // The numbers the card tells of the layer after a batch.
@@ -473,7 +478,9 @@ struct Flight {
 
 struct Run {
     bounded: bool,
+    // The picture, and the view in its middle: the picture is the view with a margin around it.
     size: [u32; 2],
+    inner: [u32; 2],
     seed: u64,
     layers: Vec<Layer>,
     walkers: u32,
@@ -482,7 +489,6 @@ struct Run {
     // The steps every walker of the batch on its way takes unplotted, besides those.
     fused: u32,
     batches: u32,
-    goal: u64,
     staging: wgpu::Buffer,
     flight: Arc<Mutex<Flight>>,
     started: Instant,
@@ -549,6 +555,10 @@ pub struct Chaos {
     run: Option<Arc<Mutex<Run>>>,
     run_keys: Option<Vec<String>>,
     run_levels: Option<([u32; 2], Vec<wgpu::TextureView>)>,
+    run_margin: [u32; 2],
+    // The finished picture of the view alone, while the run draws the same view again with a margin around it and
+    // after: the screen's picture is this one until the wider one is whole, and the view in its middle after.
+    base: Option<Base>,
     // How many of the small pictures that run every shader once have been drawn: a card works a shader out when
     // it first runs it (7 ms on an RTX 4070), and that is not left to the first unit of the first picture.
     warmed: usize,
@@ -556,6 +566,12 @@ pub struct Chaos {
     pixels: Option<Pixels>,
     // The batches of a picture drawn pixel by pixel that has ended: the next one sends its first after the last.
     draining: Option<Chain>,
+}
+
+struct Base {
+    size: [u32; 2],
+    levels: Vec<wgpu::TextureView>,
+    times: (Option<f32>, Option<f32>),
 }
 
 // A scene of fractals drawn pixel by pixel: its batches follow one another without the window.
@@ -700,6 +716,8 @@ impl Chaos {
             run: None,
             run_keys: None,
             run_levels: None,
+            run_margin: [0; 2],
+            base: None,
             warmed: 0,
         })
     }
@@ -746,8 +764,17 @@ impl Chaos {
                 samples_per_pixel: 1,
                 supersample: 1,
             };
-            let begun = scene
-                .is_some_and(|scene| self.started(&scene, &options, &[WARM_KEY.to_owned()], Instant::now(), None, ctx));
+            let begun = scene.is_some_and(|scene| {
+                self.started(
+                    &scene,
+                    &options,
+                    [0; 2],
+                    &[WARM_KEY.to_owned()],
+                    Instant::now(),
+                    None,
+                    ctx,
+                )
+            });
             if !begun {
                 self.warmed += 1;
                 ctx.request_repaint();
@@ -771,7 +798,8 @@ impl Chaos {
         if let Some(run) = self.run.take() {
             run.lock().unwrap_or_else(|e| e.into_inner()).stopped = true;
         }
-        (self.run_keys, self.run_levels) = (None, None);
+        (self.run_keys, self.run_levels, self.run_margin) = (None, None, [0; 2]);
+        self.base = None;
         if let Some(pixels) = self.pixels.take() {
             pixels.chain.stop();
             if pixels.chain.busy() {
@@ -827,6 +855,9 @@ impl Chaos {
         if let Some(pixels) = &self.pixels {
             return pixels.report.full.is_none() && silent(pixels.heard);
         }
+        if self.base.is_some() {
+            return false;
+        }
         self.read(|run| run.full.is_none() && silent(run.heard))
             .unwrap_or(false)
     }
@@ -853,7 +884,61 @@ impl Chaos {
 
     pub fn finished(&self) -> bool {
         let pixels = self.pixels.as_ref().is_some_and(|pixels| pixels.report.full.is_some());
-        pixels || self.read(|run| run.full.is_some()).unwrap_or(false)
+        pixels || self.base.is_some() || self.read(|run| run.full.is_some()).unwrap_or(false)
+    }
+
+    // The picture is being drawn again with a margin around the view.
+    pub fn widening(&self) -> bool {
+        self.base.is_some() && self.run.is_some() && !self.widened()
+    }
+
+    // The picture drawn again with a margin around the view is whole.
+    pub fn widened(&self) -> bool {
+        self.base.is_some() && self.read(|run| run.full.is_some()).unwrap_or(false)
+    }
+
+    // The seconds the picture with a margin took, from when it was begun.
+    pub fn widened_in(&self) -> Option<f32> {
+        self.base.as_ref()?;
+        self.read(|run| run.full).flatten()
+    }
+
+    // Draws the finished picture again behind the one on the screen, with so many cells of the scene beside the
+    // view on every side. Nothing waits for it: the finished picture stays the run's until the wider one is whole,
+    // and when the card has no room or no time for the wider one. False when nothing was begun.
+    pub fn widen(&mut self, scene: &Scene, options: &RenderOptions, margin: [u32; 2], ctx: &egui::Context) -> bool {
+        let whole = self.read(|run| run.full.is_some()).unwrap_or(false);
+        if self.pixels.is_some() || self.base.is_some() || margin == [0; 2] || !whole {
+            return false;
+        }
+        let times = self.times();
+        let (Some(keys), Some((size, levels))) = (self.run_keys.take(), self.run_levels.take()) else {
+            return false;
+        };
+        self.run = None;
+        let begun = self.apart(|chaos| chaos.started(scene, options, margin, &keys, Instant::now(), None, ctx));
+        if !begun {
+            (self.run, self.run_levels, self.run_margin) = (None, None, [0; 2]);
+        }
+        self.run_keys = Some(keys);
+        self.base = Some(Base { size, levels, times });
+        begun
+    }
+
+    // What the card refuses of a picture with a margin costs the margin, not the card's part in the session.
+    fn apart(&mut self, begin: impl FnOnce(&mut Self) -> bool) -> bool {
+        let own = Arc::new(AtomicBool::new(false));
+        let kept = std::mem::replace(&mut self.failed, own.clone());
+        let begun = begin(self);
+        self.failed = kept;
+        begun && !own.load(Ordering::Relaxed)
+    }
+
+    // The levels of the view alone, under a picture that was drawn again with a margin: the view in the middle of
+    // that picture is drawn from these, so it is the picture it was.
+    pub fn inset(&self) -> Option<([u32; 2], Vec<&wgpu::TextureView>)> {
+        let base = self.base.as_ref().filter(|_| self.widened())?;
+        Some((base.size, base.levels.iter().collect()))
     }
 
     // Has the thread that waits for the graphics card wait for this submission too: what was asked to be told
@@ -870,12 +955,18 @@ impl Chaos {
         if let Some(pixels) = &self.pixels {
             return (pixels.report.first, pixels.report.full);
         }
+        if let Some(base) = &self.base {
+            return base.times;
+        }
         self.read(|run| (run.first, run.full)).unwrap_or((None, None))
     }
 
     pub fn levels(&self) -> Option<([u32; 2], Vec<&wgpu::TextureView>)> {
         if let Some(pixels) = self.pixels.as_ref().filter(|pixels| pixels.report.batches > 0) {
             return Some((pixels.size, pixels.levels.iter().collect()));
+        }
+        if let Some(base) = self.base.as_ref().filter(|_| !self.widened()) {
+            return Some((base.size, base.levels.iter().collect()));
         }
         self.read(|run| run.batches > 0 && run.pictured())
             .filter(|shown| *shown)?;
@@ -894,13 +985,24 @@ impl Chaos {
         limit: Option<f32>,
         ctx: &egui::Context,
     ) -> bool {
-        self.warmed >= WARM.len() && self.started(scene, options, keys, asked, limit, ctx)
+        self.warmed >= WARM.len() && self.started(scene, options, [0; 2], keys, asked, limit, ctx)
     }
 
+    // The cells beside the view, across and down, in the picture `levels` gives.
+    pub fn margin(&self) -> [u32; 2] {
+        if self.base.is_some() && !self.widened() {
+            [0; 2]
+        } else {
+            self.run_margin
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn started(
         &mut self,
         scene: &Scene,
         options: &RenderOptions,
+        margin: [u32; 2],
         keys: &[String],
         asked: Instant,
         limit: Option<f32>,
@@ -955,16 +1057,17 @@ impl Chaos {
         let Some(pipelines) = pipelines.get() else {
             return false;
         };
-        let size = [options.width, options.height];
+        let inner = [options.width, options.height];
+        let size = [inner[0] + 2 * margin[0], inner[1] + 2 * margin[1]];
         let cells = u64::from(size[0]) * u64::from(size[1]);
         let bounded = scene.layers.iter().any(|layer| layer.fractal().is_some());
-        let Some((plans, walkers, weights)) = self.plans(scene, options) else {
+        let Some((plans, walkers, weights)) = self.plans(scene, options, margin) else {
             return false;
         };
         #[cfg(not(test))]
         self.longest
             .store(if bounded { LONGEST } else { PATIENT }, Ordering::Relaxed);
-        let goal = u64::from(options.samples_per_pixel) * cells;
+        let goal = u64::from(options.samples_per_pixel) * u64::from(inner[0]) * u64::from(inner[1]);
         let (device, failed) = (self.device.clone(), self.failed.clone());
         let made = guarded(&device, &failed, ctx, || {
             let buffer = |label, size: u64, usage| {
@@ -1006,7 +1109,7 @@ impl Chaos {
                         }
                     };
                     let batch = buffer("fractique batch", size_of::<Batch>() as u64, uniform);
-                    let kernels = look(layer.tone(), size);
+                    let kernels = look(layer.tone(), size, inner);
                     let look_buffer = buffer("fractique look", size_of::<Look>() as u64, uniform);
                     self.queue.write_buffer(&look_buffer, 0, bytemuck::bytes_of(&*kernels));
                     let walking = buffer(
@@ -1091,6 +1194,7 @@ impl Chaos {
                         sparse: false,
                         landed: 0,
                         deep: None,
+                        goal,
                         strip: None,
                     }
                 })
@@ -1103,6 +1207,7 @@ impl Chaos {
             Run {
                 bounded,
                 size,
+                inner,
                 seed: scene.seed,
                 layers,
                 walkers,
@@ -1110,7 +1215,6 @@ impl Chaos {
                 sent: 0,
                 fused: 0,
                 batches: 0,
-                goal,
                 staging,
                 flight: Arc::default(),
                 started: asked,
@@ -1136,6 +1240,7 @@ impl Chaos {
             return false;
         }
         self.run_keys = Some(keys.to_vec());
+        self.run_margin = margin;
         self.run_levels = Some((
             made.size,
             made.layers.iter().map(|layer| layer.levels.clone()).collect(),
@@ -1146,58 +1251,71 @@ impl Chaos {
 
     // The layers as the shaders read them, the walkers and the layers' weights, or nothing for a scene or a view
     // the graphics card does not draw. Nothing is sent to the card.
-    fn plans(&mut self, scene: &Scene, options: &RenderOptions) -> Option<(Vec<Plan>, u32, Vec<u64>)> {
-        let size = [options.width, options.height];
+    fn plans(
+        &mut self,
+        scene: &Scene,
+        options: &RenderOptions,
+        margin: [u32; 2],
+    ) -> Option<(Vec<Plan>, u32, Vec<u64>)> {
+        let inner = [options.width, options.height];
+        let size = [inner[0] + 2 * margin[0], inner[1] + 2 * margin[1]];
         let cells = u64::from(size[0]) * u64::from(size[1]);
+        let seen = u64::from(inner[0]) * u64::from(inner[1]);
         let layers = scene.layers.len() as u64;
         let bounded = scene.layers.iter().any(|layer| layer.fractal().is_some());
         if scene.sheets.is_some()
             || scene.layers.is_empty()
             || options.supersample != 1
             || size[0].max(size[1]) > self.largest_side
-            || cells * 16 > self.largest_buffer
-            || cells * 24 * layers > ROOM
+            || cells * 16
+                > if margin == [0; 2] {
+                    self.largest_buffer
+                } else {
+                    self.largest_buffer / 4
+                }
+            || cells * 24 * layers > if margin == [0; 2] { ROOM } else { ROOM / 2 }
             || bounded
                 && scene
                     .layers
                     .iter()
-                    .map(|layer| cells * taps(layer.tone(), size))
+                    .map(|layer| cells * taps(layer.tone(), inner))
                     .sum::<u64>()
                     > MOST_TAPS
         {
             return None;
         }
-        let goal = u64::from(options.samples_per_pixel) * cells;
+        let goal = u64::from(options.samples_per_pixel) * seen;
         let weights: Vec<u64> = scene
             .layers
             .iter()
             .map(|layer| layer.flame().map_or(1, weight))
             .collect();
         // Few enough that the unplotted steps of the first batch leave half of what it may take for points.
-        let room = (MOST_STEPS * cells).min(MOST_IN_ALL) / layers;
+        let room = (MOST_STEPS * seen).min(MOST_IN_ALL) / layers;
         let heaviest = weights.iter().copied().max().unwrap_or(1);
         let fit = (room / (heaviest * 2 * u64::from(FUSE))).min(u64::from(MOST_WALKERS)) as u32;
         let walkers = if bounded {
-            ((cells / 16) as u32)
+            ((seen / 16) as u32)
                 .min(fit)
                 .div_ceil(GROUP)
                 .clamp(1, MOST_WALKERS / GROUP)
                 * GROUP
         } else {
-            ((cells / 16) as u32).div_ceil(GROUP).clamp(GROUP, MOST_WALKERS / GROUP) * GROUP
+            ((seen / 16) as u32).div_ceil(GROUP).clamp(GROUP, MOST_WALKERS / GROUP) * GROUP
         };
         let mut plans = Vec::new();
         for layer in &scene.layers {
             let plan = match (layer.flame(), layer.fractal()) {
                 (Some(flame), _) => {
-                    packed(flame, size, self.finest.unwrap_or(FINEST)).map(|(data, plotted)| Plan::Flame(data, plotted))
+                    let finest = self.finest.unwrap_or(FINEST);
+                    packed(flame, inner, margin, finest).map(|(data, plotted)| Plan::Flame(data, plotted))
                 }
                 // The walkers count the points they plot in 32 bits.
                 (_, Some(shown)) if goal < 1 << 31 => self.recipe(shown).and_then(|recipe| {
-                    if recipe.work(goal, walkers) > MOST_WORK * cells {
+                    if recipe.work(goal, walkers) > MOST_WORK * seen {
                         return None;
                     }
-                    let (data, tables) = recipe.packed(shown, size, goal, walkers, self.finest)?;
+                    let (data, tables) = recipe.packed(shown, inner, margin, goal, walkers, self.finest)?;
                     Some(Plan::Orbit(data, tables))
                 }),
                 _ => None,
@@ -1205,6 +1323,11 @@ impl Chaos {
             plans.push(plan?);
         }
         Some((plans, walkers, weights))
+    }
+
+    // Whether the card holds a picture of the scene with so many cells beside the view on every side.
+    pub fn holds(&mut self, scene: &Scene, options: &RenderOptions, margin: [u32; 2]) -> bool {
+        self.plans(scene, options, margin).is_some()
     }
 
     // Whether the graphics card draws this view of the scene, shaders that are still compiled aside. `deep` is a
@@ -1222,7 +1345,7 @@ impl Chaos {
         if deep && (bounded || matches!(self.particles.get(), Some(None))) {
             return false;
         }
-        self.plans(scene, options).is_some()
+        self.plans(scene, options, [0; 2]).is_some()
     }
 
     // What the kind worked out from the fractal's parameters, the same for every view of it, or nothing for a
@@ -1287,9 +1410,20 @@ impl Chaos {
         let step = step.max(std::mem::replace(&mut run.told, Step::Waiting));
         let over = run.over;
         drop(run);
+        // The picture on the screen is not the one this run draws: nothing of it is shown before it is whole.
+        let step = if self.base.is_some() && over.is_none() {
+            Step::Waiting
+        } else {
+            step
+        };
         if let Some(refuse) = over {
             self.run = None;
             self.run_levels = None;
+            // A picture with a margin that is given up leaves the picture it was to widen.
+            if self.base.is_some() {
+                self.run_margin = [0; 2];
+                return Step::Waiting;
+            }
             if let Some(keys) = self.run_keys.take().filter(|_| refuse) {
                 self.refuse(keys);
             }
@@ -1333,7 +1467,9 @@ impl Parts {
                         match plan.stage {
                             Stage::Pilot => plan.piloted(counts),
                             Stage::Window => plan.swept(counts),
-                            Stage::Plot => {}
+                            Stage::Plot => {
+                                layer.landed = u64::from(counts[1]);
+                            }
                         }
                     } else if layer.orbit {
                         layer.done = u64::from(counts[1]);
@@ -1364,20 +1500,17 @@ impl Parts {
                     UNIT
                 };
                 let worked = run.spent + took;
-                let least = run.layers.iter().map(|layer| layer.done).min().unwrap_or(0);
+                let share = |layer: &Layer| layer.done as f32 / layer.goal.max(1) as f32;
+                let least = run.layers.iter().map(share).fold(f32::INFINITY, f32::min);
                 let plans = run.layers.iter().filter_map(|layer| layer.deep.as_ref());
                 let cost = plans.map(deep::Plan::cost).max().unwrap_or(1) as f32;
-                let slow = least < run.goal
+                let slow = least < 1.0
                     && run.limit.is_some_and(|limit| {
-                        let share = if least == 0 {
-                            1.0
-                        } else {
-                            run.goal as f32 / least as f32
-                        };
+                        let left = if least <= 0.0 { 1.0 } else { 1.0 / least };
                         // The card works a share of the time only: that is how long the picture takes.
-                        worked * share > limit * cost * pace::SHARE
+                        worked * left > limit * cost * pace::SHARE
                     });
-                let idle = least == 0 && worked >= IDLE;
+                let idle = least <= 0.0 && worked >= IDLE;
                 let late = took * 1000.0 > self.longest.load(Ordering::Relaxed) as f32;
                 if late {
                     log::warn!("the graphics card took {took:.2} s for one batch: the picture is given up");
@@ -1413,7 +1546,7 @@ impl Parts {
                 if run.sent > 0 || run.fused > 0 {
                     run.steps = following(run.sent, run.fused, took, unit);
                 }
-                if run.layers.iter().all(|layer| layer.settled(run.goal)) {
+                if run.layers.iter().all(Layer::settled) {
                     run.full.get_or_insert(since);
                     run.layers.iter_mut().for_each(|layer| layer.work = None);
                 }
@@ -1435,7 +1568,11 @@ impl Parts {
         let Some(pipelines) = self.pipelines.get() else {
             return Step::Waiting;
         };
-        let cells = f64::from(run.size[0]) * f64::from(run.size[1]);
+        // The cells of the view, and how many times as many, and as wide, the picture with its margin is.
+        let cells = f64::from(run.inner[0]) * f64::from(run.inner[1]);
+        let spread = f64::from(run.size[0]) * f64::from(run.size[1]) / cells;
+        let wide =
+            (f64::from(run.size[0]) / f64::from(run.inner[0])).min(f64::from(run.size[1]) / f64::from(run.inner[1]));
         let (device, failed) = (self.device.clone(), self.failed.clone());
         let deeper = run.layers.iter().any(|layer| layer.sparse && layer.deep.is_none());
         let particles = match self.particles.get() {
@@ -1469,7 +1606,7 @@ impl Parts {
                     let Some(work) = &mut layer.work else {
                         continue;
                     };
-                    let count = deep::particles(cells as u64, GROUP);
+                    let count = deep::particles((cells * spread) as u64, GROUP);
                     let slots = buffer("fractique particles", u64::from(count) * deep::SLOT * 4, storage);
                     let notes = buffer(
                         "fractique notes",
@@ -1493,8 +1630,9 @@ impl Parts {
                         ],
                     });
                     work.landed = notes;
-                    layer.deep = Some(deep::Plan::new(layer.zoom, layer.plotted, count));
+                    layer.deep = Some(deep::Plan::new(layer.zoom, layer.plotted, count, wide));
                     (layer.done, layer.resolved) = (0, 0);
+                    layer.landed = 0;
                 }
                 let told: usize = run.layers.iter().map(Layer::told_in).sum();
                 run.staging = buffer(
@@ -1517,12 +1655,9 @@ impl Parts {
             let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("fractique chaos"),
             });
-            let (goal, walkers, count) = (run.goal, run.walkers, run.layers.len() as u64);
+            let (walkers, count) = (run.walkers, run.layers.len() as u64);
             let bounded = run.bounded;
             let shorter = run.size[0].min(run.size[1]);
-            // The levels are drawn twice: for the first picture and for the last. Drawing them costs the same
-            // after every batch and nothing shows them in between.
-            let first = (u64::from(FIRST_SAMPLES) * cells as u64).min(goal);
             // They are drawn a strip of rows a submission, each within the slice, and nothing is walked meanwhile:
             // the strips are of one histogram.
             let stripping = run.layers.iter().any(|layer| layer.strip.is_some());
@@ -1535,8 +1670,18 @@ impl Parts {
                 let Some(work) = &layer.work else {
                     continue;
                 };
+                // The levels are drawn twice: for the first picture and for the last. Drawing them costs the same
+                // after every batch and nothing shows them in between.
+                let goal = layer.goal;
+                let first = (u64::from(FIRST_SAMPLES) * cells as u64).min(goal);
                 if stripping {
                     if let Some((row, scale, done)) = layer.strip {
+                        // A deep view is as bright as its exposure says over the points that landed in the view,
+                        // which the card has told of by now.
+                        let scale = match &layer.deep {
+                            Some(plan) if row.is_none() => plan.exposure * cells / layer.landed.max(1) as f64,
+                            _ => scale,
+                        };
                         let look = &layer.kernels;
                         let from_row = row.unwrap_or(0);
                         let tall = rows.min(look.size[1] - from_row).div_ceil(8);
@@ -1647,7 +1792,7 @@ impl Parts {
                         };
                         let due = layer.resolved == 0 || layer.done >= goal;
                         if layer.done >= first && layer.done > layer.resolved && due {
-                            layer.strip = Some((None, plan.exposure * cells / layer.done as f64, layer.done));
+                            layer.strip = Some((None, 0.0, layer.done));
                             beginning = true;
                         }
                     }
@@ -1865,9 +2010,20 @@ pub(crate) mod tests {
         // The picture the graphics card alone draws of the scene, and the seconds to its first and its last
         // samples.
         pub(crate) fn drawn(&mut self, scene: &Scene, options: &RenderOptions) -> Option<(Vec<u8>, f32, f32)> {
-            let keys = vec![format!("{options:?} {}", scene.to_json())];
+            self.drawn_wide(scene, options, [0; 2])
+        }
+
+        // The same of a picture drawn with a margin around the view: the view alone is read back.
+        pub(crate) fn drawn_wide(
+            &mut self,
+            scene: &Scene,
+            options: &RenderOptions,
+            margin: [u32; 2],
+        ) -> Option<(Vec<u8>, f32, f32)> {
+            let keys = vec![format!("{options:?} {margin:?} {}", scene.to_json())];
             self.chaos.end();
-            while !self.chaos.begin(scene, options, &keys, Instant::now(), None, &self.ctx) {
+            let now = Instant::now();
+            while !self.chaos.started(scene, options, margin, &keys, now, None, &self.ctx) {
                 if !self.chaos.pending() {
                     return None;
                 }
@@ -1882,8 +2038,10 @@ pub(crate) mod tests {
                 }
                 self.wait();
             };
-            let (size, levels) = self.chaos.levels()?;
-            if !self.preview.draw_levels(scene, size, &levels, &self.ctx) {
+            let (whole, levels) = self.chaos.levels()?;
+            let size = [options.width, options.height];
+            let margin = self.chaos.margin();
+            if !self.preview.draw_levels(scene, whole, size, &levels, &self.ctx) {
                 return None;
             }
             let (picture, _) = self.preview.views()?;
@@ -1901,7 +2059,11 @@ pub(crate) mod tests {
                 wgpu::TexelCopyTextureInfo {
                     texture: picture.texture(),
                     mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
+                    origin: wgpu::Origin3d {
+                        x: margin[0],
+                        y: margin[1],
+                        z: 0,
+                    },
                     aspect: wgpu::TextureAspect::All,
                 },
                 wgpu::TexelCopyBufferInfo {
@@ -1927,6 +2089,62 @@ pub(crate) mod tests {
                 .flat_map(|row| row[..size[0] as usize * 4].iter().copied())
                 .collect();
             Some((rgba, first, full))
+        }
+
+        // The view of a picture that is drawn alone first and again with a margin behind it, and the mean light
+        // of what is beside the view.
+        pub(crate) fn widened(
+            &mut self,
+            scene: &Scene,
+            options: &RenderOptions,
+            margin: [u32; 2],
+        ) -> Option<(Vec<u8>, f64)> {
+            self.drawn(scene, options)?;
+            if !self.chaos.widen(scene, options, margin, &self.ctx) {
+                return None;
+            }
+            while !self.chaos.widened() {
+                if self.chaos.advance(&self.ctx) == Step::Refused || self.chaos.read(|_| ()).is_none() {
+                    return None;
+                }
+                self.wait();
+            }
+            let (whole, levels) = self.chaos.levels()?;
+            let (inner, inset) = self.chaos.inset()?;
+            if !self
+                .preview
+                .draw_wide(scene, whole, inner, &levels, Some(&inset), &self.ctx)
+            {
+                return None;
+            }
+            let read = |card: &Self, margin: [u32; 2]| {
+                let (sender, receiver) = std::sync::mpsc::channel();
+                card.preview.read(false, margin, &card.ctx, move |pixels| {
+                    let _ = sender.send(pixels);
+                })?;
+                card.wait();
+                receiver.recv().ok()?
+            };
+            let (all, size) = read(self, [0; 2])?;
+            // What an export of the picture on the screen reads back: the view, without the margin.
+            let (cut, cut_size) = read(self, margin)?;
+            assert_eq!(cut_size, inner);
+            let (mut view, mut beside, mut count) = (Vec::new(), 0.0, 0.0);
+            for y in 0..size[1] {
+                for x in 0..size[0] {
+                    let at = ((y * size[0] + x) * 4) as usize;
+                    let inside =
+                        x >= margin[0] && x < margin[0] + inner[0] && y >= margin[1] && y < margin[1] + inner[1];
+                    if inside {
+                        view.extend(&all[at..at + 4]);
+                    } else {
+                        beside += all[at..at + 3].iter().map(|c| f64::from(*c)).sum::<f64>();
+                        count += 3.0;
+                    }
+                }
+            }
+            assert!(cut == view, "the picture read back without its margin is the view");
+            Some((view, beside / count))
         }
     }
 
@@ -2045,7 +2263,8 @@ pub(crate) mod tests {
         assert_eq!(size_of::<Packed>(), 80 + 65 * 80 + 256 * 32 + 1024 + 512);
         let scene = presets::get("solar-mandala").expect("the preset exists");
         let flame = scene.layers[0].flame().expect("the preset is a flame");
-        let (data, plotted) = packed(flame, [640, 360], FINEST).expect("the flame is one the graphics card draws");
+        let (data, plotted) =
+            packed(flame, [640, 360], [0; 2], FINEST).expect("the flame is one the graphics card draws");
         assert_eq!(data.counts[0] as usize, flame.transforms.len());
         assert_eq!(data.counts[1], flame.symmetry.unsigned_abs());
         assert!(plotted > 0.0 && plotted <= 1.0);
@@ -2054,19 +2273,97 @@ pub(crate) mod tests {
 
         let mut deep = flame.clone();
         deep.camera.zoom = 1.0e7;
-        assert!(packed(&deep, [640, 360], FINEST).is_none());
+        assert!(packed(&deep, [640, 360], [0; 2], FINEST).is_none());
     }
 
     #[test]
     fn the_kernels_are_those_of_the_density_estimation() {
         let scene = presets::get("aurora-spiral").expect("the preset exists");
-        let look = look(scene.layers[0].tone(), [3840, 2160]);
+        let look = look(scene.layers[0].tone(), [3840, 2160], [3840, 2160]);
         assert_eq!(look.widths[0][1], 17);
         assert_eq!(look.widths[8][0], 4);
         assert_eq!(look.widths[1023][3], 0);
         assert_eq!(look.kernels[17][0], 9.0);
         assert_eq!(look.kernels[0], [0.0, (1.0 / 0.18f64) as f32, 1.0, 0.0]);
         assert_eq!(look.size[2..], [240, 135]);
+        // A picture with a margin has the kernels of its view, over more cells.
+        let wide = super::look(scene.layers[0].tone(), [1920, 1080], [1280, 720]);
+        let plain = super::look(scene.layers[0].tone(), [1280, 720], [1280, 720]);
+        assert_eq!(wide.kernels, plain.kernels);
+        assert_eq!(wide.widths, plain.widths);
+        assert_eq!(wide.size, [1920, 1080, 120, 68]);
+    }
+
+    // The view in the middle of a picture drawn with a margin is the picture drawn without one: the same samples
+    // a pixel, the same kernels, the same brightness. Drawn behind a finished picture, as the app draws it, the
+    // view stays the picture it was, pixel for pixel, for a deep view too.
+    #[test]
+    fn the_view_of_a_picture_with_a_margin_is_the_picture_without_one() {
+        let Some(mut card) = card() else {
+            eprintln!("no graphics card with compute shaders: nothing is compared");
+            return;
+        };
+        let options = options(320, 200);
+        let preset = |name: &str| {
+            presets::get(name)
+                .or_else(|| fractal::preset(name))
+                .expect("the preset exists")
+        };
+        let scenes = [
+            ("aurora-spiral", preset("aurora-spiral"), false),
+            ("solar-mandala", preset("solar-mandala"), false),
+            ("clifford-classic", preset("clifford-classic"), false),
+            ("lorenz-butterfly", preset("lorenz-butterfly"), false),
+            ("aurora-spiral × 2", magnified("aurora-spiral", 2.0), true),
+            ("aurora-spiral × 14", magnified("aurora-spiral", 14.0), true),
+        ];
+        println!("| Scene | Margin | Alone: mean, most | Drawn behind: mean, most | Light beside the view |");
+        println!("| --- | --- | --- | --- | --- |");
+        for (name, scene, deep) in &scenes {
+            let (plain, _, _) = card
+                .drawn(scene, &options)
+                .unwrap_or_else(|| panic!("the card draws {name}"));
+            for margin in [[80, 50], [160, 100]] {
+                // The picture with a margin alone: its view differs by what the kernels at the view's edge find in
+                // the margin and by the glow that comes in from it. A deep view plots the points of its view into
+                // the whole picture, and is another draw of the particles: it is not held to the view.
+                let (wide, _, _) = card
+                    .drawn_wide(scene, &options, margin)
+                    .unwrap_or_else(|| panic!("the card draws {name} with a margin"));
+                let (mean, largest) = apart(&wide, &plain, 320, 200);
+                assert!(
+                    *deep || mean < 0.2 && largest < 12.0,
+                    "{name} with {margin:?}: {mean:.2}, {largest:.1}"
+                );
+
+                let (kept, beside) = card
+                    .widened(scene, &options, margin)
+                    .unwrap_or_else(|| panic!("the card draws {name} again with a margin"));
+                assert_eq!(card.chaos.margin(), margin);
+                // Inside the band at its edge, where it fades into the picture with the margin, the view is the
+                // picture it was.
+                let band = crate::preview::feather([320, 200]).ceil() as usize + 1;
+                let inside = |rgba: &[u8]| -> Vec<u8> {
+                    (band..200 - band)
+                        .flat_map(|y| rgba[(y * 320 + band) * 4..(y * 320 + 320 - band) * 4].iter().copied())
+                        .collect()
+                };
+                let (same, most) = apart(&kept, &plain, 320, 200);
+                assert!(
+                    inside(&kept) == inside(&plain),
+                    "{name} with {margin:?}: the view changed"
+                );
+                assert!(
+                    *deep || same < 0.2 && most < 12.0,
+                    "{name} with {margin:?}: {same:.2}, {most:.1} at its edge"
+                );
+                println!(
+                    "| {name} | {} | {mean:.3}, {largest:.2} | {same:.3}, {most:.2} | {beside:.1} |",
+                    margin[0]
+                );
+                assert!(beside > 1.0, "{name} with {margin:?}: nothing is drawn beside the view");
+            }
+        }
     }
 
     #[test]
