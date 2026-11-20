@@ -99,6 +99,8 @@ struct Held {
 struct Rendered {
     generation: u64,
     draft: bool,
+    // The graphics card draws the picture: this is only the first, small one of it.
+    aside: bool,
     view: View,
     zoom: f64,
     held: Option<Held>,
@@ -596,6 +598,7 @@ struct Offer {
     // The textures are the ones the card goes on drawing into.
     card: bool,
     pixels: [u32; 2],
+    generation: u64,
 }
 
 // A sheet on its way in or out: the name its height is kept under, the point it hangs from and how far it is shown.
@@ -1112,8 +1115,8 @@ struct App {
     used: Instant,
     moved_only: bool,
     pictures: u32,
-    offered: [Option<Offer>; 2],
-    drafted: bool,
+    offers: motion::Offers<Offer>,
+    shown_of: (u64, bool),
     handing: bool,
     live_card: bool,
     veil_level: f32,
@@ -1797,8 +1800,8 @@ impl App {
             used: Instant::now(),
             moved_only: false,
             pictures: 0,
-            offered: [None, None],
-            drafted: false,
+            offers: motion::Offers::new(),
+            shown_of: (0, true),
             handing: false,
             live_card: false,
             veil_level: 0.0,
@@ -2053,6 +2056,7 @@ impl App {
         self.cancel.store(true, Ordering::Relaxed);
         self.cancel = Arc::new(AtomicBool::new(false));
         self.generation += 1;
+        self.offers.begin(self.generation, true);
         match rest.picture {
             Some((mut picture, size)) if Some(size) == self.requested => {
                 picture.generation = self.generation;
@@ -2160,7 +2164,7 @@ impl App {
         gfx.show(&state.device, picture, soft, turn);
         drop(renderer);
         if turn {
-            self.turn_picture();
+            self.turn_picture(motion::PANEL);
         }
         self.live_card = true;
         self.pictures += 1;
@@ -2173,6 +2177,7 @@ impl App {
         self.cancel.store(true, Ordering::Relaxed);
         self.cancel = Arc::new(AtomicBool::new(false));
         self.generation += 1;
+        self.offers.begin(self.generation, false);
         self.requested = Some(size);
         self.drawn = None;
         self.touched = Instant::now();
@@ -2261,6 +2266,7 @@ impl App {
         self.cancel.store(true, Ordering::Relaxed);
         self.cancel = Arc::new(AtomicBool::new(false));
         self.generation += 1;
+        self.offers.begin(self.generation, !self.moved_only);
         self.requested = Some(size);
         self.drawn = Some((self.view, self.adjust.zoom));
         self.aimed = (self.view, self.adjust.zoom);
@@ -2291,13 +2297,21 @@ impl App {
             passes.retain(|(draft, options)| !draft || options.width >= held.options.width);
         }
         let (scene, cancel, generation) = (self.scene_at(size), self.cancel.clone(), self.generation);
+        let mut aside = false;
         // The graphics card's picture is the screen's: the processor renders only what the card does not draw.
         if self.begin_chaos(ctx, &scene, &finest) {
             self.rendering = !self.chaos.as_ref().is_some_and(Chaos::finished);
-            return;
+            // The first picture of a new scene is the processor's small one: it is there in a frame or two
+            // whatever the size of the picture the card draws.
+            passes.retain(|(draft, _)| *draft);
+            passes.truncate(1);
+            if !self.rendering || self.moved_only || passes.is_empty() {
+                return;
+            }
+            aside = true;
         }
         // The shaders are not compiled yet: a draft stands in, and the render begins again when they are.
-        let soon = self.gpu_on() && on_card(&scene) && self.chaos.as_ref().is_some_and(Chaos::pending);
+        let soon = !aside && self.gpu_on() && on_card(&scene) && self.chaos.as_ref().is_some_and(Chaos::pending);
         // A shader asked for here can be there before this frame looks at the card: the render then begins again.
         self.compiling |= soon;
         if soon && chaos_only() {
@@ -2306,12 +2320,12 @@ impl App {
         if soon && passes.iter().any(|(draft, _)| *draft) {
             passes.retain(|(draft, _)| *draft);
         }
-        if timed() {
+        if timed() && !aside {
             eprintln!("times: the processor renders {} passes", passes.len());
         }
         let (view, zoom) = (self.view, self.adjust.zoom);
-        let sources = self.gpu_on() && all_flames(&scene);
-        let home = view == WHOLE;
+        let sources = !aside && self.gpu_on() && all_flames(&scene);
+        let home = !aside && view == WHOLE;
         let deep = view.zoom * zoom >= pace::DEEP_FROM;
         let measured = Some(parts(&scene, &full))
             .filter(|parts| !self.wall.live && parts.windows(2).all(|pair| pair[0].kind == pair[1].kind))
@@ -2351,6 +2365,10 @@ impl App {
                 #[cfg(target_arch = "wasm32")]
                 let result = rendered(&scene, &options, &control, &kept, home, sources);
                 let Ok((image, held, fresh)) = result else {
+                    if timed() {
+                        let spent = started.elapsed().as_secs_f32();
+                        eprintln!("times: a render that was dropped stopped after {spent:.3} s");
+                    }
                     ctx.request_repaint();
                     return;
                 };
@@ -2370,6 +2388,7 @@ impl App {
                 let done = Rendered {
                     generation,
                     draft,
+                    aside,
                     view,
                     zoom,
                     held,
@@ -2392,16 +2411,11 @@ impl App {
     // Whether a first, small picture of the one awaited would be shown: of a new scene, once while the blur stands.
     // A view that moved and a window that changed size have the picture on the screen for that.
     fn takes_first(&self) -> bool {
-        !self.moved_only && !self.drafted && self.offered[1].is_none()
+        !self.moved_only && self.offers.wants_first()
     }
 
     fn offer(&mut self, offer: Offer, last: bool) {
-        if last {
-            self.offered = [None, Some(offer)];
-        } else {
-            self.offered[0] = Some(offer);
-            self.drafted = true;
-        }
+        self.offers.offer(offer.generation, offer, last);
     }
 
     fn present(&mut self, offer: Offer, last: bool, frame: &eframe::Frame) {
@@ -2415,11 +2429,17 @@ impl App {
             let took = self.deferred.take().unwrap_or(self.began.elapsed().as_secs_f32());
             self.status = status_of(self.picture.map_or(offer.pixels, |_| offer.at.size), took, scale);
         }
-        self.turn_picture();
+        // A first picture comes in the time the blur does: it is seen under the whole blur only.
+        let turned = self.turn_picture(if last { motion::PANEL } else { motion::GIVE });
         self.draft_shown = None;
-        self.past_eye = self.shown_eye.take();
+        if turned {
+            self.past_eye = self.shown_eye.take();
+        } else {
+            self.shown_eye = None;
+        }
+        self.shown_of = (offer.generation, last);
         if let Some(gfx) = state.renderer.write().callback_resources.get_mut::<Gfx>() {
-            gfx.show(&state.device, &offer.flame, &offer.soft, true);
+            gfx.show(&state.device, &offer.flame, &offer.soft, turned);
         }
         (self.shown, self.shown_zoom, self.shown_size) = (offer.at.view, offer.at.zoom, Some(offer.at.size));
         (self.shown_wide, self.shown_whole) = (offer.at.wide, last);
@@ -2432,7 +2452,7 @@ impl App {
 
     // Another picture takes the screen: the one shown fades into it, unless it is itself still fading in, when
     // the new one takes its place in that fade.
-    fn turn_picture(&mut self) -> bool {
+    fn turn_picture(&mut self, seconds: f32) -> bool {
         let now = self.stage.now;
         if self.fresh.moving(now) {
             return false;
@@ -2444,7 +2464,7 @@ impl App {
             wide: self.shown_wide,
         });
         self.fresh = motion::Motion::at(0.0);
-        self.fresh.aim(1.0, now, motion::span(motion::PANEL), 1.0);
+        self.fresh.aim(1.0, now, motion::span(seconds), 1.0);
         self.fading = true;
         true
     }
@@ -2470,6 +2490,33 @@ impl App {
         }
         while let Ok(done) = self.results.1.try_recv() {
             if done.generation != self.generation {
+                continue;
+            }
+            if done.aside {
+                if self.takes_first()
+                    && let Some(state) = frame.wgpu_render_state()
+                {
+                    let image = &done.image;
+                    let soft = (done.soft.0.as_slice(), done.soft.1, done.soft.2);
+                    let picture = (image.rgba.as_slice(), image.width, image.height);
+                    let (flame, soft) = Gfx::upload(&state.device, &state.queue, picture, soft);
+                    let offer = Offer {
+                        flame,
+                        soft,
+                        at: Picture {
+                            view: done.view,
+                            zoom: done.zoom,
+                            size: self.aimed_size,
+                            wide: [1.0; 2],
+                        },
+                        light: None,
+                        card: false,
+                        pixels: [image.width, image.height],
+                        generation: done.generation,
+                    };
+                    self.offer(offer, false);
+                    self.trace.stage("draft");
+                }
                 continue;
             }
             self.previewing = false;
@@ -2519,6 +2566,7 @@ impl App {
                     light: Some(lightness(&image.rgba, 97)),
                     card: false,
                     pixels: [image.width, image.height],
+                    generation: done.generation,
                 };
                 self.offer(offer, !done.draft);
             }
@@ -3336,6 +3384,7 @@ impl App {
                 (self.shown, self.shown_zoom) = self.chaos_at;
                 self.shown_size = Some(self.aimed_size);
                 (self.shown_wide, self.shown_whole) = (wide, last || !staged);
+                self.shown_of = (self.generation, true);
                 self.draft_shown = None;
                 self.pictures += 1;
                 if last {
@@ -3365,6 +3414,7 @@ impl App {
                 light: None,
                 card,
                 pixels: inner,
+                generation: self.generation,
             };
             self.offer(offer, !first);
         }
@@ -4186,29 +4236,19 @@ impl App {
         if awaited && (self.requested.is_none() || !self.moved_only) && self.shown_eye.is_none() {
             self.shown_eye = Some(self.last_eye);
         }
-        let offered = [self.offered[0].is_some(), self.offered[1].is_some()];
+        let offered = self.offers.waiting();
         let fading = self.fresh.moving(now);
-        match motion::turn(self.veil_level, awaited, fading, offered[0], offered[1]) {
-            motion::Turn::Last => {
-                self.handing = false;
-                self.offered[0] = None;
-                if let Some(offer) = self.offered[1].take() {
-                    self.present(offer, true, frame);
-                }
-            }
-            motion::Turn::First => {
-                self.handing = true;
-                if let Some(offer) = self.offered[0].take() {
-                    self.present(offer, false, frame);
-                }
-            }
-            motion::Turn::Stay => {}
+        let turn = motion::turn(self.veil_level, awaited, fading, offered[0], offered[1]);
+        if let Some(offer) = self.offers.take(turn) {
+            self.handing = turn == motion::Turn::First;
+            self.present(offer, !self.handing, frame);
         }
         if self.veil_level <= 0.0 && !awaited {
-            (self.offered[0], self.drafted, self.handing) = (None, false, false);
+            self.offers.rest();
+            self.handing = false;
         }
         // The blur stands until the finished picture has taken the screen, and while a first one fades in.
-        let standing = awaited || self.offered[1].is_some() || (self.handing && self.fresh.moving(now));
+        let standing = awaited || self.offers.waiting()[1] || (self.handing && self.fresh.moving(now));
         let held = ctx.input(|input| input.pointer.any_down());
         let (veil, moving) = self.veil.step(standing, held, now);
         // While the picture is on its way the time counts, a tenth of a second at a step.
@@ -4235,10 +4275,13 @@ impl App {
         if self.trace.on() {
             let (batches, last, worst, spent) = self.chaos.as_ref().map_or((0, 0.0, 0.0, 0.0), Chaos::load);
             self.trace.note = format!(
-                "veil {veil:.3} fresh {fresh:.3} awaited {} picture {} rendering {} first {} view {:.5}:{:.5}:{:.5} \
+                "veil {veil:.3} fresh {fresh:.3} awaited {} picture {} of {}{} asked {} rendering {} first {} view {:.5}:{:.5}:{:.5} \
                  draft {}x{} {:.2} beside {:.4} scale {:.4}..{:.4} knob {:.4} card {batches} {last:.2} {worst:.2} {spent:.1} slice {:.2} parts {:.1} {:.1} {:.1} detail [{}] seats {} covers {}",
                 u8::from(awaited),
                 self.pictures,
+                self.shown_of.0,
+                if self.shown_of.1 { "" } else { "d" },
+                self.generation,
                 u8::from(self.rendering),
                 u8::from(self.handing),
                 self.view.zoom,

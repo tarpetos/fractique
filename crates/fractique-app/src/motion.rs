@@ -488,7 +488,13 @@ pub enum Turn {
 
 pub fn turn(veil: f32, awaited: bool, fading: bool, first: bool, last: bool) -> Turn {
     if fading {
-        Turn::Stay
+        // Under the whole blur the first picture of a scene asked for since takes, in that fade, the place of the
+        // picture that is still fading in.
+        if first && !last && veil >= 1.0 {
+            Turn::First
+        } else {
+            Turn::Stay
+        }
     } else if veil <= 0.0 && !awaited {
         if last { Turn::Last } else { Turn::Stay }
     } else if veil < 1.0 {
@@ -499,6 +505,71 @@ pub fn turn(veil: f32, awaited: bool, fading: bool, first: bool, last: bool) -> 
         Turn::First
     } else {
         Turn::Stay
+    }
+}
+
+// The pictures offered to the screen, of the scene asked for last. Each scene may show one first, small picture
+// under the blur; what was offered of a scene is dropped when another is asked for, so a press that was overtaken
+// never reaches the screen after a later one.
+pub struct Offers<T> {
+    scene: u64,
+    first: Option<T>,
+    last: Option<T>,
+    drafted: bool,
+}
+
+impl<T> Offers<T> {
+    pub const fn new() -> Self {
+        Self {
+            scene: 0,
+            first: None,
+            last: None,
+            drafted: false,
+        }
+    }
+
+    // `new`: another scene, not the same one in another view or at another size.
+    pub fn begin(&mut self, scene: u64, new: bool) {
+        self.scene = scene;
+        if new {
+            (self.first, self.last, self.drafted) = (None, None, false);
+        }
+    }
+
+    pub fn wants_first(&self) -> bool {
+        !self.drafted && self.last.is_none()
+    }
+
+    pub fn offer(&mut self, scene: u64, picture: T, last: bool) -> bool {
+        if scene != self.scene || !(last || self.wants_first()) {
+            return false;
+        }
+        if last {
+            (self.first, self.last) = (None, Some(picture));
+        } else {
+            (self.first, self.drafted) = (Some(picture), true);
+        }
+        true
+    }
+
+    pub fn waiting(&self) -> [bool; 2] {
+        [self.first.is_some(), self.last.is_some()]
+    }
+
+    pub fn take(&mut self, turn: Turn) -> Option<T> {
+        match turn {
+            Turn::Stay => None,
+            Turn::First => self.first.take(),
+            Turn::Last => {
+                self.first = None;
+                self.last.take()
+            }
+        }
+    }
+
+    // The blur has left and nothing is awaited.
+    pub fn rest(&mut self) {
+        (self.first, self.drafted) = (None, false);
     }
 }
 
@@ -891,5 +962,76 @@ mod tests {
         let back = veil.step(true, false, 0.3).0;
         assert!((back - leaving).abs() < 1e-6);
         assert_eq!(veil.step(true, false, 0.4).0, 1.0);
+    }
+
+    fn press(offers: &mut Offers<u64>, scene: u64) {
+        offers.begin(scene, true);
+    }
+
+    fn shown(offers: &mut Offers<u64>, veil: f32, fading: bool) -> Option<u64> {
+        let [first, last] = offers.waiting();
+        offers.take(turn(veil, true, fading, first, last))
+    }
+
+    #[test]
+    fn every_press_shows_its_own_first_picture_and_none_of_a_press_before_it() {
+        let mut offers = Offers::new();
+        press(&mut offers, 1);
+        assert!(offers.offer(1, 1, false));
+        // The blur is still coming: the old picture stands under it.
+        assert_eq!(shown(&mut offers, 0.6, false), None);
+        assert_eq!(shown(&mut offers, 1.0, false), Some(1));
+        // One first picture a scene: a later draft of it is not shown.
+        assert!(!offers.offer(1, 1, false));
+        // A second press while the first picture of the first still fades in: its own takes that place at once.
+        press(&mut offers, 2);
+        assert!(offers.offer(2, 2, false));
+        assert_eq!(shown(&mut offers, 1.0, true), Some(2));
+        // What arrives late of a press that was overtaken is refused, the finished picture too.
+        press(&mut offers, 3);
+        assert!(!offers.offer(2, 2, false));
+        assert!(!offers.offer(2, 2, true));
+        assert_eq!(shown(&mut offers, 1.0, false), None);
+        assert!(offers.offer(3, 3, false));
+        assert_eq!(shown(&mut offers, 1.0, false), Some(3));
+    }
+
+    #[test]
+    fn a_press_drops_what_was_offered_of_the_scene_before() {
+        let mut offers = Offers::new();
+        press(&mut offers, 1);
+        assert!(offers.offer(1, 1, false));
+        press(&mut offers, 2);
+        assert_eq!(shown(&mut offers, 1.0, false), None);
+        press(&mut offers, 3);
+        assert!(offers.offer(3, 3, true));
+        press(&mut offers, 4);
+        assert_eq!(shown(&mut offers, 1.0, false), None);
+        // The finished picture comes before a first one and takes its place.
+        assert!(offers.offer(4, 40, false));
+        assert!(offers.offer(4, 41, true));
+        assert_eq!(shown(&mut offers, 1.0, false), Some(41));
+        assert_eq!(offers.waiting(), [false, false]);
+        // It waits for a first picture that is fading in, and for the blur.
+        press(&mut offers, 5);
+        assert!(offers.offer(5, 50, false));
+        assert_eq!(shown(&mut offers, 1.0, false), Some(50));
+        assert!(offers.offer(5, 51, true));
+        assert_eq!(shown(&mut offers, 1.0, true), None);
+        assert_eq!(shown(&mut offers, 1.0, false), Some(51));
+    }
+
+    #[test]
+    fn the_same_scene_in_another_view_keeps_what_was_offered_and_shows_no_first_picture() {
+        let mut offers = Offers::new();
+        press(&mut offers, 1);
+        assert!(offers.offer(1, 1, false));
+        assert_eq!(shown(&mut offers, 1.0, false), Some(1));
+        offers.begin(2, false);
+        assert!(!offers.wants_first());
+        assert!(!offers.offer(2, 2, false));
+        assert!(offers.offer(2, 2, true));
+        offers.rest();
+        assert!(offers.waiting()[1]);
     }
 }
