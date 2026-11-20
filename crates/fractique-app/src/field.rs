@@ -665,15 +665,25 @@ impl Fields {
     }
 
     fn plan(&self, fractal: &Fractal, options: &RenderOptions, margin: [u32; 2], layers: usize) -> Option<Plan> {
-        if !self.able || options.supersample != 1 {
+        if !self.able {
             return None;
         }
-        let plan = planned(fractal, options, margin, self.unbounded)?;
         // A pixel whose grid of samples could walk more steps than the smallest batch may hold is the processor's.
+        // A picture that stands for a larger one has a finer grid, as fine as the batch holds.
         let share = 1.0 / layers.max(1) as f64;
-        let rate = self.rates.lock().unwrap_or_else(|e| e.into_inner())[plan.kind];
-        let grid = f64::from(plan.frame.size[2] * plan.frame.size[2]);
-        (room(&rate, share, plan.cost * grid) >= 1.0).then_some(plan)
+        for finer in (1..=options.supersample.max(1)).rev() {
+            let options = RenderOptions {
+                supersample: finer,
+                ..*options
+            };
+            let plan = planned(fractal, &options, margin, self.unbounded)?;
+            let rate = self.rates.lock().unwrap_or_else(|e| e.into_inner())[plan.kind];
+            let grid = f64::from(plan.frame.size[2] * plan.frame.size[2]);
+            if room(&rate, share, plan.cost * grid) >= 1.0 {
+                return Some(plan);
+            }
+        }
+        None
     }
 
     pub(crate) fn draws(&self, fractal: &Fractal, options: &RenderOptions, margin: [u32; 2], layers: usize) -> bool {

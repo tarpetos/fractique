@@ -187,6 +187,17 @@ The picture on the screen is rendered in passes, so that something shows at once
 | Full, on a phone | 1600 | 18 |
 | Full, in a browser (no draft) | 900 | 14 |
 
+The longer side is that of the picture as it lies in the window: a chosen size larger than the window is drawn
+with the window's pixels, as that picture scaled down. On an RTX 4070, in a window of 3840 × 2160 pixels, from
+the choice to the finished picture:
+
+| Canvas | Burning Ship | Flame (aurora-spiral) | Card's memory, the app's share: Burning Ship, flame with its margin, wallpaper |
+| --- | --- | --- | --- |
+| Auto | 0.04 s | 0.33 s | 601, 891, 601 MB |
+| 3840 × 2160 | 0.04 s | 0.32 s | 633, 859, 601 MB |
+| 7680 × 4320 | 0.05 s, a grid of 4 × 4 at its edges | 0.62 s, 4 times the samples | 601, 859, 601 MB |
+| 15360 × 8640 | 0.27 s, a grid of 8 × 8 at its edges | 1.71 s, 16 times the samples | 601, 859, 601 MB |
+
 Renders use all cores but two, which stay with the window. The toolbar shows the time the picture took. An export
 is a separate render at `standard`, `high` or `ultra`.
 

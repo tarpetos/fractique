@@ -64,6 +64,9 @@ const RECIPES: usize = 8;
 // lasts: a unit that takes twice as long costs the frame a millisecond, not a slice. A unit and the way back from
 // it took 0.25 ms on an RTX 4070, so smaller ones would be mostly that.
 const UNIT: f32 = 0.0015;
+// A picture that stands for a larger one plots that one's samples for this many seconds at the most: it is
+// finished with those it has by then, so that it stays inside the ten seconds a picture may take.
+const LARGER_WITHIN: f32 = 8.0;
 const DEEP_UNIT: f32 = 0.003;
 // Milliseconds without a word of the card after which a picture on its way counts as stalled: ten times the
 // longest a batch of a bounded scene may take.
@@ -216,20 +219,25 @@ fn packed(flame: &Flame, [width, height]: [u32; 2], margin: [u32; 2], finest: f6
     Some((data, plotted / total))
 }
 
-fn widest(tone: &Tone, [width, height]: [u32; 2]) -> (f64, usize) {
-    let spread = (SPREAD_SHARE * tone.smoothing * f64::from(width.min(height))).min(MAX_SPREAD);
+// `finer`: the picture stands for one so many times larger a side, scaled down, and holds the samples of that
+// one. A cell of the larger picture has a kernel of spread / hits^0.4 of its cells; a cell here covers finer² of
+// those and has as many times the hits, so the same kernel is spread / finer^(1 - 2 * 0.4) / hits^0.4 of these.
+fn widest(tone: &Tone, [width, height]: [u32; 2], finer: u32) -> (f64, usize) {
+    let finer = f64::from(finer.max(1));
+    let shorter = f64::from(width.min(height)) * finer;
+    let spread = (SPREAD_SHARE * tone.smoothing * shorter).min(MAX_SPREAD) / math::pow(finer, 1.0 - 2.0 * SPREAD_CURVE);
     (spread, ((spread * 2.0).round() as usize).min(KERNELS - 1))
 }
 
 // The most cells the density estimation looks at for one cell of a picture of this size.
-fn taps(tone: &Tone, size: [u32; 2]) -> u64 {
-    let reach = widest(tone, size).1.div_ceil(2) as u64;
+fn taps(tone: &Tone, size: [u32; 2], finer: u32) -> u64 {
+    let reach = widest(tone, size, finer).1.div_ceil(2) as u64;
     (2 * reach + 1) * (2 * reach + 1)
 }
 
 // The kernels of fractique-core's density estimation for a view of the size `inner`, in a picture of this size.
-fn look(tone: &Tone, [width, height]: [u32; 2], inner: [u32; 2]) -> Box<Look> {
-    let (spread, top) = widest(tone, inner);
+fn look(tone: &Tone, [width, height]: [u32; 2], inner: [u32; 2], finer: u32) -> Box<Look> {
+    let (spread, top) = widest(tone, inner, finer);
     let mut kernels = [[0f32; 4]; KERNELS];
     for (level, kernel) in kernels.iter_mut().enumerate().take(top + 1) {
         let wide = level as f64 * 0.5;
@@ -411,6 +419,9 @@ struct Layer {
     // The points the layer plots in all. A deep view plots them all into its picture: with a margin, which is
     // drawn behind a finished picture of the view alone, the view has its share of them and no more.
     goal: u64,
+    // The points of the picture at its own size: one that stands for a larger picture plots that one's points,
+    // as many times more, for as long as LARGER_WITHIN allows, and never fewer than these.
+    least: u64,
     // The levels are being drawn, a strip a submission, after one that looks the tiles over: the next row (none
     // before the tiles are looked over), the scale, and the samples the levels are of.
     strip: Option<(Option<u32>, f64, u64)>,
@@ -1074,13 +1085,14 @@ impl Chaos {
         let size = [inner[0] + 2 * margin[0], inner[1] + 2 * margin[1]];
         let cells = u64::from(size[0]) * u64::from(size[1]);
         let bounded = scene.layers.iter().any(|layer| layer.fractal().is_some());
-        let Some((plans, walkers, weights)) = self.plans(scene, options, margin) else {
+        let Some((plans, walkers, weights, finer)) = self.plans(scene, options, margin) else {
             return false;
         };
         #[cfg(not(test))]
         self.longest
             .store(if bounded { LONGEST } else { PATIENT }, Ordering::Relaxed);
-        let goal = u64::from(options.samples_per_pixel) * u64::from(inner[0]) * u64::from(inner[1]);
+        let least = u64::from(options.samples_per_pixel) * u64::from(inner[0]) * u64::from(inner[1]);
+        let goal = least * u64::from(finer * finer);
         let (device, failed) = (self.device.clone(), self.failed.clone());
         let made = guarded(&device, &failed, ctx, || {
             let buffer = |label, size: u64, usage| {
@@ -1122,7 +1134,7 @@ impl Chaos {
                         }
                     };
                     let batch = buffer("fractique batch", size_of::<Batch>() as u64, uniform);
-                    let kernels = look(layer.tone(), size, inner);
+                    let kernels = look(layer.tone(), size, inner, finer);
                     let look_buffer = buffer("fractique look", size_of::<Look>() as u64, uniform);
                     self.queue.write_buffer(&look_buffer, 0, bytemuck::bytes_of(&*kernels));
                     let walking = buffer(
@@ -1208,6 +1220,7 @@ impl Chaos {
                         landed: 0,
                         deep: None,
                         goal,
+                        least,
                         strip: None,
                     }
                 })
@@ -1264,11 +1277,26 @@ impl Chaos {
 
     // The layers as the shaders read them, the walkers and the layers' weights, or nothing for a scene or a view
     // the graphics card does not draw. Nothing is sent to the card.
+    // With how many times finer the picture is drawn than its own size: a picture that stands for a larger one
+    // holds that one's samples where the card's counters and bounds take them, and fewer where they do not.
     fn plans(
         &mut self,
         scene: &Scene,
         options: &RenderOptions,
         margin: [u32; 2],
+    ) -> Option<(Vec<Plan>, u32, Vec<u64>, u32)> {
+        (1..=options.supersample.max(1)).rev().find_map(|finer| {
+            let (plans, walkers, weights) = self.plans_of(scene, options, margin, finer)?;
+            Some((plans, walkers, weights, finer))
+        })
+    }
+
+    fn plans_of(
+        &mut self,
+        scene: &Scene,
+        options: &RenderOptions,
+        margin: [u32; 2],
+        finer: u32,
     ) -> Option<(Vec<Plan>, u32, Vec<u64>)> {
         let inner = [options.width, options.height];
         let size = [inner[0] + 2 * margin[0], inner[1] + 2 * margin[1]];
@@ -1278,7 +1306,6 @@ impl Chaos {
         let bounded = scene.layers.iter().any(|layer| layer.fractal().is_some());
         if scene.sheets.is_some()
             || scene.layers.is_empty()
-            || options.supersample != 1
             || size[0].max(size[1]) > self.largest_side
             || cells * 16
                 > if margin == [0; 2] {
@@ -1291,13 +1318,13 @@ impl Chaos {
                 && scene
                     .layers
                     .iter()
-                    .map(|layer| cells * taps(layer.tone(), inner))
+                    .map(|layer| cells * taps(layer.tone(), inner, finer))
                     .sum::<u64>()
                     > MOST_TAPS
         {
             return None;
         }
-        let goal = u64::from(options.samples_per_pixel) * seen;
+        let goal = u64::from(options.samples_per_pixel) * seen * u64::from(finer * finer);
         let weights: Vec<u64> = scene
             .layers
             .iter()
@@ -1685,6 +1712,13 @@ impl Parts {
                 };
                 // The levels are drawn twice: for the first picture and for the last. Drawing them costs the same
                 // after every batch and nothing shows them in between.
+                if !layer.orbit
+                    && layer.goal > layer.least
+                    && layer.done >= layer.least
+                    && run.started.elapsed().as_secs_f32() >= LARGER_WITHIN
+                {
+                    layer.goal = layer.done;
+                }
                 let goal = layer.goal;
                 let first = (u64::from(FIRST_SAMPLES) * cells as u64).min(goal);
                 if stripping {
@@ -2293,9 +2327,26 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_picture_that_stands_for_a_larger_one_has_that_one_s_kernels_in_its_own_cells() {
+        let tone = Tone::default();
+        let small = [3840, 2160];
+        assert_eq!(widest(&tone, small, 1).0, widest(&tone, small, 1).0.min(MAX_SPREAD));
+        for finer in [2u32, 4] {
+            let large = small.map(|side| side * finer);
+            let (own, here) = (widest(&tone, large, 1).0, widest(&tone, small, finer).0);
+            // A cell of the large picture with so many hits, and the cell here that covers finer² of them.
+            for hits in [1.0f64, 7.0, 300.0] {
+                let there = own / math::pow(hits, SPREAD_CURVE) / f64::from(finer);
+                let ours = here / math::pow(hits * f64::from(finer * finer), SPREAD_CURVE);
+                assert!((there - ours).abs() < 1e-9, "{finer}: {there} and {ours}");
+            }
+        }
+    }
+
+    #[test]
     fn the_kernels_are_those_of_the_density_estimation() {
         let scene = presets::get("aurora-spiral").expect("the preset exists");
-        let look = look(scene.layers[0].tone(), [3840, 2160], [3840, 2160]);
+        let look = look(scene.layers[0].tone(), [3840, 2160], [3840, 2160], 1);
         assert_eq!(look.widths[0][1], 17);
         assert_eq!(look.widths[8][0], 4);
         assert_eq!(look.widths[1023][3], 0);
@@ -2303,8 +2354,8 @@ pub(crate) mod tests {
         assert_eq!(look.kernels[0], [0.0, (1.0 / 0.18f64) as f32, 1.0, 0.0]);
         assert_eq!(look.size[2..], [240, 135]);
         // A picture with a margin has the kernels of its view, over more cells.
-        let wide = super::look(scene.layers[0].tone(), [1920, 1080], [1280, 720]);
-        let plain = super::look(scene.layers[0].tone(), [1280, 720], [1280, 720]);
+        let wide = super::look(scene.layers[0].tone(), [1920, 1080], [1280, 720], 1);
+        let plain = super::look(scene.layers[0].tone(), [1280, 720], [1280, 720], 1);
         assert_eq!(wide.kernels, plain.kernels);
         assert_eq!(wide.widths, plain.widths);
         assert_eq!(wide.size, [1920, 1080, 120, 68]);
