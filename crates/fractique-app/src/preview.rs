@@ -88,6 +88,8 @@ pub struct Preview {
     draft: Canvas,
     // The view alone, drawn from its own levels into the middle of a picture that has a margin around it.
     inset: Canvas,
+    // A tile of an export, which no picture of the screen is in.
+    tile: Canvas,
 }
 
 #[derive(Default)]
@@ -170,6 +172,8 @@ enum Kind {
     Picture,
     Draft,
     Inset,
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    Tile,
 }
 
 struct Pass<'a> {
@@ -359,6 +363,7 @@ impl Preview {
             canvas: Canvas::default(),
             draft: Canvas::default(),
             inset: Canvas::default(),
+            tile: Canvas::default(),
         }
     }
 
@@ -415,12 +420,34 @@ impl Preview {
         ctx: &egui::Context,
         then: impl FnOnce(Option<(Vec<u8>, [u32; 2])>) + Send + 'static,
     ) -> Option<wgpu::SubmissionIndex> {
+        self.read_of(&self.canvas, soft, margin, ctx, then)
+    }
+
+    // The same of the tile of an export drawn last.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub fn read_tile(
+        &self,
+        margin: [u32; 2],
+        ctx: &egui::Context,
+        then: impl FnOnce(Option<(Vec<u8>, [u32; 2])>) + Send + 'static,
+    ) -> Option<wgpu::SubmissionIndex> {
+        self.read_of(&self.tile, false, margin, ctx, then)
+    }
+
+    fn read_of(
+        &self,
+        canvas: &Canvas,
+        soft: bool,
+        margin: [u32; 2],
+        ctx: &egui::Context,
+        then: impl FnOnce(Option<(Vec<u8>, [u32; 2])>) + Send + 'static,
+    ) -> Option<wgpu::SubmissionIndex> {
         let target = if soft {
-            &self.canvas.soft.as_ref()?[0]
+            &canvas.soft.as_ref()?[0]
         } else {
-            self.canvas.picture.as_ref()?
+            canvas.picture.as_ref()?
         };
-        let whole = self.canvas.picture.as_ref()?.size;
+        let whole = canvas.picture.as_ref()?.size;
         let rim = [0, 1].map(|side| {
             let cut = u64::from(margin[side]) * u64::from(target.size[side]) / u64::from(whole[side].max(1));
             (cut as u32).min((target.size[side] - 1) / 2)
@@ -650,6 +677,23 @@ impl Preview {
         drawn && self.works()
     }
 
+    // The same into the textures of an export's tiles, with the view's size as `inner`.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub fn draw_tile(
+        &mut self,
+        scene: &Scene,
+        size: [u32; 2],
+        inner: [u32; 2],
+        levels: &[&wgpu::TextureView],
+        ctx: &egui::Context,
+    ) -> bool {
+        let (device, failed) = (self.device.clone(), self.failed.clone());
+        let drawn = guarded(&device, &failed, ctx, || {
+            self.passes(scene, size, inner, levels, Kind::Tile).is_some()
+        });
+        drawn && self.works()
+    }
+
     fn passes(
         &mut self,
         scene: &Scene,
@@ -666,6 +710,7 @@ impl Preview {
             Kind::Picture => &mut self.canvas,
             Kind::Draft => &mut self.draft,
             Kind::Inset => &mut self.inset,
+            Kind::Tile => &mut self.tile,
         };
         if canvas.picture.as_ref().is_none_or(|picture| picture.size != size) {
             canvas.picture = Some(target(&self.device, size));
@@ -707,6 +752,7 @@ impl Preview {
             Kind::Picture => &self.canvas,
             Kind::Draft => &self.draft,
             Kind::Inset => &self.inset,
+            Kind::Tile => &self.tile,
         };
         let picture = canvas.picture.as_ref()?;
         let soft = canvas.soft.as_ref()?;

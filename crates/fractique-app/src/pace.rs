@@ -355,9 +355,100 @@ pub fn magnified(rgba: &[u8], from: [u32; 2], [across, along, larger]: [f32; 3],
     out
 }
 
+// A picture made smaller by averaging: every pixel of the new one is the mean of the pixels of the old one it
+// covers, each by the share of it that is covered. At a whole ratio that is the mean of a block.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+pub fn shrunk(rgba: &[u8], from: [u32; 2], to: [u32; 2]) -> Vec<u8> {
+    let (wide, high) = (from[0] as usize, from[1] as usize);
+    let (across, down) = (to[0] as usize, to[1] as usize);
+    if wide == 0 || high == 0 || rgba.len() < wide * high * 4 {
+        return vec![0; across * down * 4];
+    }
+    // For each pixel of the new side: the first old pixel it covers, and the share of each it covers.
+    let spans = |old: usize, new: usize| -> Vec<(usize, Vec<f32>)> {
+        let ratio = old as f64 / new.max(1) as f64;
+        (0..new)
+            .map(|at| {
+                let (begin, end) = (at as f64 * ratio, ((at + 1) as f64 * ratio).min(old as f64));
+                let first = (begin.floor() as usize).min(old - 1);
+                let last = ((end.ceil() as usize).max(first + 1)).min(old);
+                let shares = (first..last)
+                    .map(|pixel| {
+                        let covered = (end.min((pixel + 1) as f64) - begin.max(pixel as f64)).max(0.0);
+                        (covered / (end - begin).max(1e-12)) as f32
+                    })
+                    .collect();
+                (first, shares)
+            })
+            .collect()
+    };
+    let (columns, rows) = (spans(wide, across), spans(high, down));
+    let mut narrow = vec![0f32; across * high * 4];
+    for (y, out) in narrow.chunks_exact_mut(across * 4).enumerate() {
+        let row = &rgba[y * wide * 4..(y + 1) * wide * 4];
+        for ((first, shares), pixel) in columns.iter().zip(out.chunks_exact_mut(4)) {
+            for (offset, share) in shares.iter().enumerate() {
+                let old = &row[(first + offset) * 4..(first + offset) * 4 + 4];
+                for channel in 0..4 {
+                    pixel[channel] += f32::from(old[channel]) * share;
+                }
+            }
+        }
+    }
+    let mut out = Vec::with_capacity(across * down * 4);
+    let mut sums = vec![0f32; across * 4];
+    for (first, shares) in &rows {
+        sums.fill(0.0);
+        for (offset, share) in shares.iter().enumerate() {
+            let row = &narrow[(first + offset) * across * 4..(first + offset + 1) * across * 4];
+            for (sum, value) in sums.iter_mut().zip(row) {
+                *sum += value * share;
+            }
+        }
+        out.extend(sums.iter().map(|sum| (sum + 0.5).clamp(0.0, 255.0) as u8));
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_picture_made_smaller_is_the_mean_of_the_pixels_it_covers() {
+        let (wide, high) = (12usize, 8usize);
+        let rgba: Vec<u8> = (0..wide * high * 4)
+            .map(|at| ((at * 37 + at / 7) % 251) as u8)
+            .collect();
+        let at = |x: usize, y: usize, channel: usize| f64::from(rgba[(y * wide + x) * 4 + channel]);
+        // Whole ratios: the mean of a block, exactly.
+        for by in [1usize, 2, 4] {
+            let to = [wide / by, high / by];
+            let small = shrunk(&rgba, [wide as u32, high as u32], to.map(|side| side as u32));
+            assert_eq!(small.len(), to[0] * to[1] * 4);
+            for y in 0..to[1] {
+                for x in 0..to[0] {
+                    for channel in 0..4 {
+                        let block = (0..by).flat_map(|dy| (0..by).map(move |dx| (dx, dy)));
+                        let sum: f64 = block.map(|(dx, dy)| at(x * by + dx, y * by + dy, channel)).sum();
+                        let mean = (sum / (by * by) as f64 + 0.5).floor();
+                        let got = f64::from(small[(y * to[0] + x) * 4 + channel]);
+                        assert!((got - mean).abs() <= 1.0, "{by}: {got} for {mean}");
+                    }
+                }
+            }
+        }
+        assert_eq!(shrunk(&rgba, [12, 8], [12, 8]), rgba);
+        // Another ratio: each old pixel by the share of it that is covered. 3 pixels to 2: 1 and a half each.
+        let row = [30u8, 0, 0, 255, 90, 0, 0, 255, 150, 0, 0, 255];
+        assert_eq!(shrunk(&row, [3, 1], [2, 1]), [50, 0, 0, 255, 130, 0, 0, 255]);
+        // What a flat picture is made of stays what it is.
+        assert!(
+            shrunk(&[200; 7 * 5 * 4], [7, 5], [3, 2])
+                .iter()
+                .all(|value| *value == 200)
+        );
+    }
 
     #[test]
     fn a_batch_is_cut_to_its_slice_at_once_and_grows_slowly() {

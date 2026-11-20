@@ -324,7 +324,7 @@ fn grid(options: &RenderOptions) -> u32 {
 
 // The steps of the kind's loop the samples of a pixel take at most, for a kind the shaders know.
 pub(crate) fn steps_a_pixel(fractal: &Fractal, options: &RenderOptions) -> Option<f64> {
-    let plan = planned(fractal, options, [0; 2], true)?;
+    let plan = planned(fractal, options, [0; 2], None, true)?;
     Some(plan.cost * f64::from(plan.frame.size[2] * plan.frame.size[2]))
 }
 
@@ -334,8 +334,15 @@ struct Plan {
     cost: f64,
 }
 
-// `margin`: so many pixels more on every side, of what lies beside the view.
-fn planned(fractal: &Fractal, options: &RenderOptions, margin: [u32; 2], unbounded: bool) -> Option<Plan> {
+// `margin`: so many pixels more on every side, of what lies beside the view. `part`: the picture drawn is that
+// part of the view's picture, as [left, top, width, height], with the margin around it.
+fn planned(
+    fractal: &Fractal,
+    options: &RenderOptions,
+    margin: [u32; 2],
+    part: Option<[u32; 4]>,
+    unbounded: bool,
+) -> Option<Plan> {
     let index = KINDS.iter().position(|kind| kind.name == fractal.kind)?;
     let spec = fractal::spec(&fractal.kind).filter(|spec| !spec.is_density())?;
     let kind = &KINDS[index];
@@ -354,11 +361,26 @@ fn planned(fractal: &Fractal, options: &RenderOptions, margin: [u32; 2], unbound
     let angle = camera.rotation.to_radians();
     let (cos, sin) = (math::cos(angle), math::sin(angle));
     let step = [cos / per_unit, sin / per_unit, sin / up, -cos / up];
+    // The middle of a part, from the middle of the whole picture, in pixels and then in the plane.
+    let (size, center) = match part {
+        Some([left, top, width, height]) => {
+            let over = f64::from(left) + 0.5 * f64::from(width) - 0.5 * wide;
+            let under = f64::from(top) + 0.5 * f64::from(height) - 0.5 * high;
+            (
+                [width + 2 * margin[0], height + 2 * margin[1]],
+                [
+                    camera.center[0] + over * step[0] + under * step[2],
+                    camera.center[1] + over * step[1] + under * step[3],
+                ],
+            )
+        }
+        None => ([across as u32, down as u32], camera.center),
+    };
     let mut frame = Box::new(Frame {
-        size: [across as u32, down as u32, grid(options), numbers.steps],
+        size: [size[0], size[1], grid(options), numbers.steps],
         view: [
-            camera.center[0] as f32,
-            camera.center[1] as f32,
+            center[0] as f32,
+            center[1] as f32,
             (1.0 / per_unit) as f32,
             (2.5 / fractal.tone.gamma) as f32,
         ],
@@ -664,20 +686,37 @@ impl Fields {
         }
     }
 
-    fn plan(&self, fractal: &Fractal, options: &RenderOptions, margin: [u32; 2], layers: usize) -> Option<Plan> {
-        if !self.able || options.supersample != 1 {
+    fn plan(
+        &self,
+        fractal: &Fractal,
+        options: &RenderOptions,
+        margin: [u32; 2],
+        part: Option<[u32; 4]>,
+        layers: usize,
+    ) -> Option<Plan> {
+        if !self.able {
             return None;
         }
-        let plan = planned(fractal, options, margin, self.unbounded)?;
         // A pixel whose grid of samples could walk more steps than the smallest batch may hold is the processor's.
+        // A picture that stands for a larger one has a finer grid, as fine as the batch holds.
         let share = 1.0 / layers.max(1) as f64;
-        let rate = self.rates.lock().unwrap_or_else(|e| e.into_inner())[plan.kind];
-        let grid = f64::from(plan.frame.size[2] * plan.frame.size[2]);
-        (room(&rate, share, plan.cost * grid) >= 1.0).then_some(plan)
+        for finer in (1..=options.supersample.max(1)).rev() {
+            let options = RenderOptions {
+                supersample: finer,
+                ..*options
+            };
+            let plan = planned(fractal, &options, margin, part, self.unbounded)?;
+            let rate = self.rates.lock().unwrap_or_else(|e| e.into_inner())[plan.kind];
+            let grid = f64::from(plan.frame.size[2] * plan.frame.size[2]);
+            if room(&rate, share, plan.cost * grid) >= 1.0 {
+                return Some(plan);
+            }
+        }
+        None
     }
 
     pub(crate) fn draws(&self, fractal: &Fractal, options: &RenderOptions, margin: [u32; 2], layers: usize) -> bool {
-        self.plan(fractal, options, margin, layers).is_some()
+        self.plan(fractal, options, margin, None, layers).is_some()
     }
 
     // The layer made ready for the card, if the card draws this fractal at this size and depth.
@@ -690,7 +729,20 @@ impl Fields {
         layers: usize,
         ctx: &egui::Context,
     ) -> Planned {
-        let Some(plan) = self.plan(fractal, options, margin, layers) else {
+        self.layer_of(fractal, options, margin, None, layers, ctx)
+    }
+
+    // The same for a part of the picture, [left, top, width, height] of it, with the margin around the part.
+    pub(crate) fn layer_of(
+        &self,
+        fractal: &Fractal,
+        options: &RenderOptions,
+        margin: [u32; 2],
+        part: Option<[u32; 4]>,
+        layers: usize,
+        ctx: &egui::Context,
+    ) -> Planned {
+        let Some(plan) = self.plan(fractal, options, margin, part, layers) else {
             return Planned::No;
         };
         if self.pipes[plan.kind].get().is_none() {
@@ -1284,7 +1336,7 @@ mod tests {
         let mut scene = fractal::preset("mandelbrot-whole").expect("a preset");
         let fractal = scene.layers[0].fractal_mut().expect("a fractal");
         fractal.params.insert("iterations".to_owned(), 100_000.0);
-        let plan = planned(fractal, &options(320, 200), [0; 2], false).expect("the kind has a shader");
+        let plan = planned(fractal, &options(320, 200), [0; 2], None, false).expect("the kind has a shader");
         assert!(room(&Rate::default(), 1.0, plan.cost) < 1.0);
     }
 
@@ -1327,11 +1379,44 @@ mod tests {
     }
 
     #[test]
+    fn a_part_of_a_picture_has_its_pixels_where_the_whole_picture_has_them() {
+        let scene = fractal::preset("mandelbrot-seahorse-valley").expect("a preset");
+        let fractal = scene.layers[0].fractal().expect("a fractal");
+        let whole = planned(fractal, &options(640, 400), [0; 2], None, true).expect("the kind has a shader");
+        let placed = |frame: &Frame, x: f64, y: f64| {
+            let middle = [x - 0.5 * f64::from(frame.size[0]), y - 0.5 * f64::from(frame.size[1])];
+            [0, 1].map(|axis| {
+                f64::from(frame.view[axis])
+                    + middle[0] * f64::from(frame.step[axis])
+                    + middle[1] * f64::from(frame.step[2 + axis])
+            })
+        };
+        for part in [[0, 0, 160, 100], [480, 300, 160, 100], [321, 7, 33, 201]] {
+            let tile = planned(fractal, &options(640, 400), [8, 8], Some(part), true).expect("the kind has a shader");
+            assert_eq!(tile.frame.size[..2], [part[2] + 16, part[3] + 16]);
+            // The steps, the grid and the numbers of the kind are the whole picture's: a tile is no deeper view.
+            assert_eq!(tile.frame.size[2..], whole.frame.size[2..]);
+            assert_eq!((tile.frame.step, tile.frame.p), (whole.frame.step, whole.frame.p));
+            for [x, y] in [[0.5, 0.5], [17.5, 80.5]] {
+                let there = placed(&whole.frame, f64::from(part[0]) + x, f64::from(part[1]) + y);
+                let here = placed(&tile.frame, 8.0 + x, 8.0 + y);
+                let pixel = f64::from(whole.frame.step[0])
+                    .abs()
+                    .max(f64::from(whole.frame.step[1]).abs());
+                assert!(
+                    (there[0] - here[0]).abs() < 0.01 * pixel && (there[1] - here[1]).abs() < 0.01 * pixel,
+                    "{part:?}: {there:?} and {here:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn a_margin_is_more_of_the_plane_at_the_same_scale() {
         let scene = fractal::preset("mandelbrot-whole").expect("a preset");
         let fractal = scene.layers[0].fractal().expect("a fractal");
-        let plain = planned(fractal, &options(320, 200), [0; 2], true).expect("the kind has a shader");
-        let wider = planned(fractal, &options(320, 200), [30, 4], true).expect("the kind has a shader");
+        let plain = planned(fractal, &options(320, 200), [0; 2], None, true).expect("the kind has a shader");
+        let wider = planned(fractal, &options(320, 200), [30, 4], None, true).expect("the kind has a shader");
         assert_eq!(wider.frame.size[..2], [380, 208]);
         assert_eq!(wider.frame.size[2..], plain.frame.size[2..]);
         assert_eq!(

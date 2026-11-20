@@ -2,8 +2,38 @@
 
 ## Unreleased
 
+* **An Instant export from the picture on the screen, smaller or in tiles:** **Instant** saved the picture on the
+  screen only at that picture's very size; at any other it rendered the scene again on the processor. Now an
+  export of the picture's shape and smaller is the screen's picture made smaller, every pixel the mean of those
+  it covers, at once (1920 × 1080 from a window of 3840 × 2160: 0.11 s for the Burning Ship), and with a canvas
+  larger than the window that is the finer picture. An export larger than the picture on the screen, of a
+  fractal the graphics card draws pixel by pixel, is drawn on the card in tiles of at most 2048 pixels a side,
+  each with what its glow and its edges need around it, copied back and written to the file a row of tiles at a
+  time: the picture is never whole on the card. 15360 × 8640 of the Burning Ship is saved in 1.4 s where the
+  processor took 39 s, with the card's memory as it is for the screen; across the 11 borders of its 40 tiles
+  neighbouring columns and rows differ as those beside them do. A flame, an attractor and a wallpaper of a
+  larger size are rendered by the processor as before. The sheet says before the press when Instant is not
+  instant: the size has another shape than the picture on the screen, or is larger, so the picture is drawn
+  again.
+
+* **A chosen size is the picture, and the screen shows it with the window's pixels:** with 15360 × 8640 chosen the
+  toolbar said "4096 × 2304": the picture on the screen was drawn at 4096 pixels a side, held on the graphics
+  card at that size, and named by it. Now a chosen size is a canvas. The line under the picture names the size
+  chosen. What is drawn for the screen has the pixels the picture has in the window (3840 × 2160 in a maximized
+  window of that many pixels, whatever is chosen), so the graphics card holds the same for **Auto**, 4K, 8K and
+  16K: measured on an RTX 4070 as the app's dedicated memory, 601 MB for the Burning Ship and for a wallpaper at
+  every one of the four, 859 to 891 MB for a flame with its margin. A canvas larger than the window is drawn as
+  that picture scaled down, not as a smaller picture: a fractal drawn pixel by pixel takes, where its pixels
+  differ, a grid of samples as many times finer a side as the canvas is larger (up to 8 × 8 a pixel, the 2 × 2
+  of a pixel of a 16K canvas times its 4 × 4 pixels), and a flame, an attractor and a deep view plot the samples
+  of the canvas (16 times those of the window for 16K) into the window's histogram, with the kernels of the
+  density estimation the canvas would have, for up to 8 seconds. In that window the Burning Ship takes 0.04 s at
+  4K, 0.05 s at 8K and 0.27 s at 16K, and the first flame 0.32, 0.62 and 1.71 s. A window that changes size
+  gets the picture again, with its new pixels, once the size has stood. A wallpaper and the processor's
+  pictures are drawn plain. An export has the size chosen, as before.
+
 * **8K and 16K among the screens:** the list of sizes has 7680 × 4320 and 15360 × 8640 under **Screens**, after
-  4K. On the screen a picture is still drawn at 4096 pixels a side at most; an export has the size chosen.
+  4K. An export has the size chosen.
 
 * **A size of one's own can be typed again:** emptying the width of **Own** to type another number put the old
   size back in both fields at once. The fields are now filled only while nothing is typed in them.

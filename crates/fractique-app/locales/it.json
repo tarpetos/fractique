@@ -24,6 +24,8 @@
   "export": "Esporta",
   "export_title": "Esporta immagine",
   "export_magnified": "Questa vista è mostrata come immagine ingrandita ed è esportata così com’è.",
+  "export_shape": "Forma diversa dall’immagine sullo schermo: l’immagine viene ridisegnata e richiede più tempo.",
+  "export_larger": "Più grande dell’immagine sullo schermo: l’immagine viene ridisegnata a questa dimensione e richiede più tempo.",
   "magnified": "immagine ingrandita",
   "size": "DIMENSIONE",
   "quality": "QUALITÀ",

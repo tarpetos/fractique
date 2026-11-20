@@ -67,6 +67,66 @@ pub fn fits([width, height]: [u32; 2], supersample: u32) -> bool {
     width.max(height) <= MAX_SIDE && cells <= MAX_CELLS
 }
 
+// How an Instant export of a size comes from the picture on the screen: saved as it is, made smaller, or drawn
+// again, in tiles on the graphics card where it is larger and the card draws the scene pixel by pixel.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Way {
+    Shown,
+    Shrunk,
+    Larger,
+    Other,
+}
+
+// Two sizes have one shape when a side of one, scaled to the other, is the other's side within a pixel.
+pub fn same_shape(one: [u32; 2], other: [u32; 2]) -> bool {
+    let scaled = f64::from(one[1]) * f64::from(other[0]) / f64::from(one[0].max(1));
+    (scaled - f64::from(other[1])).abs() <= 1.0
+}
+
+pub fn way(screen: [u32; 2], size: [u32; 2]) -> Way {
+    if screen == size {
+        Way::Shown
+    } else if same_shape(screen, size) && size[0] < screen[0] {
+        Way::Shrunk
+    } else if size[0] >= screen[0] && size[1] >= screen[1] {
+        Way::Larger
+    } else {
+        Way::Other
+    }
+}
+
+// The text that says, before the press, why an Instant export of this size is not instant: nothing when it is.
+pub fn slow(screen: [u32; 2], size: [u32; 2]) -> Option<&'static str> {
+    match way(screen, size) {
+        Way::Shown | Way::Shrunk => None,
+        _ if same_shape(screen, size) => Some("export_larger"),
+        _ => Some("export_shape"),
+    }
+}
+
+// A tile of an export drawn on the graphics card is at most this long a side, and is drawn with so many pixels
+// more around it, which are cut off: a pixel at its edge has the neighbours it has in the whole picture.
+pub const TILE: u32 = 2048;
+pub const APRON: u32 = 8;
+
+// The tiles of a picture, row after row, as [left, top, width, height], and how many stand in a row.
+pub fn tiles([width, height]: [u32; 2], most: u32) -> (usize, Vec<[u32; 4]>) {
+    let cut = |side: u32| -> Vec<[u32; 2]> {
+        let count = side.div_ceil(most.max(1)).max(1);
+        let each = side.div_ceil(count);
+        (0..count)
+            .map(|at| [at * each, each.min(side - at * each)])
+            .filter(|[_, long]| *long > 0)
+            .collect()
+    };
+    let (columns, rows) = (cut(width), cut(height));
+    let cells = rows
+        .iter()
+        .flat_map(|[top, tall]| columns.iter().map(move |[left, wide]| [*left, *top, *wide, *tall]))
+        .collect();
+    (columns.len(), cells)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
     Rendering,
@@ -310,6 +370,44 @@ impl Job {
         (Self { bar, done }, later)
     }
 
+    // An export whose picture comes in tiles, row after row: each row of tiles is written when it is whole, so
+    // the picture is never in one piece anywhere but in the file.
+    pub fn tiled(
+        size: [u32; 2],
+        across: usize,
+        cells: Vec<[u32; 4]>,
+        path: PathBuf,
+        ctx: egui::Context,
+    ) -> (Self, Tiles) {
+        let bar = Bar::new(size, 1, false);
+        let (sender, done) = mpsc::channel();
+        let (tiles, landed) = mpsc::channel::<(usize, Vec<u8>)>();
+        let (shown, at) = (bar.clone(), path.clone());
+        std::thread::spawn(move || {
+            let outcome = match stitched(&at, size, across, &cells, &landed, &shown, &ctx) {
+                Ok(true) => {
+                    shown.permille.store(1000, Ordering::Relaxed);
+                    Outcome::Saved(at)
+                }
+                Ok(false) => Outcome::Cancelled,
+                Err(error) => {
+                    log::warn!("the export was not written: {error}");
+                    Outcome::Failed(Failure::File)
+                }
+            };
+            let _ = sender.send(outcome);
+            ctx.request_repaint();
+        });
+        (
+            Self { bar: bar.clone(), done },
+            Tiles {
+                path,
+                bar,
+                sender: tiles,
+            },
+        )
+    }
+
     pub fn cancel(&self) {
         self.bar.cancel.store(true, Ordering::Relaxed);
     }
@@ -336,6 +434,106 @@ impl Job {
     }
 }
 
+// Where the tiles of an export go as they come back from the graphics card, in any order.
+pub struct Tiles {
+    path: PathBuf,
+    bar: Arc<Bar>,
+    sender: mpsc::Sender<(usize, Vec<u8>)>,
+}
+
+impl Tiles {
+    pub fn cancelled(&self) -> bool {
+        self.bar.cancel.load(Ordering::Relaxed)
+    }
+
+    pub fn path(&self) -> PathBuf {
+        self.path.clone()
+    }
+
+    pub fn sender(&self) -> mpsc::Sender<(usize, Vec<u8>)> {
+        self.sender.clone()
+    }
+}
+
+// Writes the file from tiles that arrive in any order: false when it was cancelled or the tiles stopped coming.
+// The file is begun with the first row of tiles, and one that is not whole is removed.
+fn stitched(
+    path: &Path,
+    [width, height]: [u32; 2],
+    across: usize,
+    cells: &[[u32; 4]],
+    landed: &mpsc::Receiver<(usize, Vec<u8>)>,
+    bar: &Bar,
+    ctx: &egui::Context,
+) -> Result<bool, String> {
+    let mut begun = false;
+    let written = (|| {
+        let mut waiting: std::collections::HashMap<usize, Vec<u8>> = std::collections::HashMap::new();
+        let mut stream = None;
+        let mut rows_done = 0u32;
+        for (row, row_cells) in cells.chunks(across.max(1)).enumerate() {
+            let tall = row_cells[0][3] as usize;
+            let mut strip = vec![255u8; width as usize * tall * 4];
+            for (column, [left, _, wide, _]) in row_cells.iter().enumerate() {
+                let index = row * across + column;
+                let tile = loop {
+                    if let Some(tile) = waiting.remove(&index) {
+                        break tile;
+                    }
+                    match landed.recv() {
+                        Ok((index, tile)) => waiting.insert(index, tile),
+                        Err(_) => return Ok(false),
+                    };
+                    if bar.cancel.load(Ordering::Relaxed) {
+                        return Ok(false);
+                    }
+                };
+                let (left, wide) = (*left as usize * 4, *wide as usize * 4);
+                if tile.len() != wide * tall {
+                    return Err("a tile of another size".to_owned());
+                }
+                for (y, pixels) in tile.chunks_exact(wide).enumerate() {
+                    let at = y * width as usize * 4 + left;
+                    strip[at..at + wide].copy_from_slice(pixels);
+                }
+            }
+            strip.chunks_exact_mut(4).for_each(|pixel| pixel[3] = 255);
+            if stream.is_none() {
+                let file = std::fs::File::create(path).map_err(|error| error.to_string())?;
+                begun = true;
+                let mut encoder = png::Encoder::new(std::io::BufWriter::with_capacity(1 << 20, file), width, height);
+                encoder.set_color(png::ColorType::Rgba);
+                encoder.set_depth(png::BitDepth::Eight);
+                encoder.set_compression(png::Compression::Fast);
+                let writer = encoder.write_header().map_err(|error| error.to_string())?;
+                stream = Some(writer.into_stream_writer().map_err(|error| error.to_string())?);
+                bar.writing.store(true, Ordering::Relaxed);
+            }
+            let Some(stream) = &mut stream else {
+                return Ok(false);
+            };
+            let each = (STRIP / (width as usize * 4).max(1)).max(1) * width as usize * 4;
+            for rows in strip.chunks(each) {
+                if bar.cancel.load(Ordering::Relaxed) {
+                    return Ok(false);
+                }
+                stream.write_all(rows).map_err(|error| error.to_string())?;
+                rows_done += (rows.len() / (width as usize * 4)) as u32;
+                bar.show(f64::from(rows_done) / f64::from(height.max(1)), ctx);
+            }
+        }
+        match stream {
+            Some(stream) => stream.finish().map_err(|error| error.to_string())?,
+            None => return Ok(false),
+        }
+        Ok(true)
+    })();
+    if begun && !matches!(written, Ok(true)) {
+        let _ = std::fs::remove_file(path);
+    }
+    written
+}
+
 pub struct Later {
     path: PathBuf,
     bar: Arc<Bar>,
@@ -356,6 +554,18 @@ impl Later {
         std::thread::spawn(move || {
             rgba.chunks_exact_mut(4).for_each(|pixel| pixel[3] = 255);
             let outcome = self.bar.write(&self.path, &rgba, size, &self.ctx);
+            let _ = self.sender.send(outcome);
+            self.ctx.request_repaint();
+        });
+    }
+
+    // The picture of the screen made smaller, to the size of the export, and saved.
+    pub fn shrunk(self, rgba: Vec<u8>, from: [u32; 2], to: [u32; 2]) {
+        std::thread::spawn(move || {
+            let mut small = crate::pace::shrunk(&rgba, from, to);
+            drop(rgba);
+            small.chunks_exact_mut(4).for_each(|pixel| pixel[3] = 255);
+            let outcome = self.bar.write(&self.path, &small, to, &self.ctx);
             let _ = self.sender.send(outcome);
             self.ctx.request_repaint();
         });
@@ -420,6 +630,90 @@ mod tests {
                 }
             })
             .collect()
+    }
+
+    #[test]
+    fn an_instant_export_is_the_screen_s_picture_where_it_has_its_shape_and_is_no_larger() {
+        let screen = [3840, 2160];
+        assert_eq!(way(screen, [3840, 2160]), Way::Shown);
+        for size in [[1920, 1080], [1280, 720], [2560, 1440], [3839, 2159], [1366, 768]] {
+            assert_eq!(way(screen, size), Way::Shrunk, "{size:?}");
+            assert_eq!(slow(screen, size), None);
+        }
+        for size in [[7680, 4320], [15360, 8640], [3841, 2161]] {
+            assert_eq!(way(screen, size), Way::Larger, "{size:?}");
+            assert_eq!(slow(screen, size), Some("export_larger"));
+        }
+        for size in [
+            [1080, 1920],
+            [3440, 1440],
+            [2160, 2160],
+            [1920, 1200],
+            [16384, 16384],
+            [3840, 2400],
+        ] {
+            assert!(matches!(way(screen, size), Way::Larger | Way::Other), "{size:?}");
+            assert_eq!(slow(screen, size), Some("export_shape"), "{size:?}");
+        }
+        assert_eq!(slow(screen, screen), None);
+        assert!(same_shape([3840, 2160], [1366, 768]) && !same_shape([3840, 2160], [1366, 770]));
+    }
+
+    #[test]
+    fn the_tiles_of_a_picture_cover_it_once() {
+        for size in [
+            [15360, 8640],
+            [7680, 4320],
+            [5000, 3001],
+            [2048, 2048],
+            [2049, 100],
+            [16384, 16384],
+        ] {
+            let (across, cells) = tiles(size, TILE);
+            assert_eq!(cells.len() % across, 0);
+            let mut covered = 0u64;
+            for (index, [left, top, wide, tall]) in cells.iter().enumerate() {
+                assert!(*wide <= TILE && *tall <= TILE && *wide > 0 && *tall > 0);
+                assert!(left + wide <= size[0] && top + tall <= size[1]);
+                covered += u64::from(*wide) * u64::from(*tall);
+                if index % across > 0 {
+                    let before = cells[index - 1];
+                    assert_eq!((before[0] + before[2], before[1], before[3]), (*left, *top, *tall));
+                }
+            }
+            assert_eq!(covered, u64::from(size[0]) * u64::from(size[1]), "{size:?}");
+        }
+        assert_eq!(tiles([15360, 8640], TILE).1.len(), 40);
+    }
+
+    #[test]
+    fn a_file_stitched_from_tiles_holds_the_very_pixels() {
+        let size = [700u32, 500];
+        let rgba = picture(size[0], size[1]);
+        let (across, cells) = tiles(size, 256);
+        let path = temp("tiles");
+        let (job, to) = Job::tiled(size, across, cells.clone(), path.clone(), egui::Context::default());
+        // In another order than the file's.
+        for (index, [left, top, wide, tall]) in cells.iter().enumerate().rev() {
+            let mut tile = Vec::new();
+            for y in *top..top + tall {
+                let at = ((y * size[0] + left) * 4) as usize;
+                tile.extend_from_slice(&rgba[at..at + *wide as usize * 4]);
+            }
+            to.sender().send((index, tile)).unwrap();
+        }
+        let outcome = job.done.recv().unwrap();
+        assert!(matches!(outcome, Outcome::Saved(_)));
+        let (pixels, read) = decoded(&path);
+        assert_eq!(read, size);
+        assert!(pixels == rgba);
+        let _ = std::fs::remove_file(&path);
+        // Tiles that stop coming leave no file.
+        let (job, to) = Job::tiled(size, across, cells, path.clone(), egui::Context::default());
+        to.sender().send((0, vec![0; 234 * 250 * 4])).unwrap();
+        drop(to);
+        assert!(matches!(job.done.recv().unwrap(), Outcome::Cancelled));
+        assert!(!path.exists());
     }
 
     #[test]

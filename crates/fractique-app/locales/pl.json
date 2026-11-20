@@ -24,6 +24,8 @@
   "export": "Eksport",
   "export_title": "Eksportuj obraz",
   "export_magnified": "Ten widok jest pokazany jako powiększony obraz i tak zostanie wyeksportowany.",
+  "export_shape": "Inny kształt niż obraz na ekranie: obraz jest rysowany od nowa, co trwa dłużej.",
+  "export_larger": "Większy niż obraz na ekranie: obraz jest rysowany od nowa w tym rozmiarze, co trwa dłużej.",
   "magnified": "powiększony obraz",
   "size": "ROZMIAR",
   "quality": "JAKOŚĆ",

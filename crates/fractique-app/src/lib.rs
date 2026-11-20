@@ -76,6 +76,18 @@ const FULL_SAMPLES: u32 = if cfg!(target_arch = "wasm32") {
     32
 };
 
+// An Instant export larger than the picture on the screen, drawn on the graphics card a tile at a time: the
+// tile on its way, and the scene of each.
+#[cfg(not(target_arch = "wasm32"))]
+struct Tiling {
+    tiles: export::Tiles,
+    scene: Scene,
+    size: [u32; 2],
+    cells: Vec<[u32; 4]>,
+    apron: u32,
+    next: usize,
+}
+
 #[derive(Clone)]
 struct Held {
     size: [u32; 2],
@@ -1111,6 +1123,10 @@ struct App {
     past: Option<Picture>,
     shown_size: Option<[u32; 2]>,
     aimed_size: [u32; 2],
+    fit_asked: [u32; 2],
+    drawn_with: [u32; 2],
+    #[cfg(not(target_arch = "wasm32"))]
+    tiling: Option<Tiling>,
     stood: motion::Rest<[u32; 2]>,
     // The window in pixels, since when it has that shape, and what a picture of a chosen size was last drawn
     // with beside it for that shape.
@@ -1535,6 +1551,34 @@ fn status_of(size: [u32; 2], seconds: f32, scale: f64) -> String {
     status
 }
 
+// The pixels a picture of a chosen size is drawn with for the screen: as many as it has in the window, where it
+// lies whole, or cut by as much as it is shown larger to fill the window, and never more than it has. What the
+// card and the memory hold goes by the window, whatever size is chosen.
+fn on_screen(size: [u32; 2], window: [u32; 2], fill: f32) -> [u32; 2] {
+    if window[0] == 0 || window[1] == 0 {
+        return size;
+    }
+    let [across, down] = [0, 1].map(|side| size[side] as f32 / window[side] as f32);
+    let shrink = (across.max(down) / fill.max(1.0)).max(1.0);
+    size.map(|side| ((side as f32 / shrink).round() as u32).max(1))
+}
+
+// How many times finer a side the picture on the screen is drawn when it stands for a larger one: the pixels of
+// that one a pixel of the screen covers, at most FINEST a side. The processor draws the screen's picture plain.
+const FINEST: u32 = 4;
+
+fn finer(size: [u32; 2], drawn: [u32; 2]) -> u32 {
+    let times = size[0] as f32 / drawn[0].max(1) as f32;
+    (times.round() as u32).clamp(1, FINEST)
+}
+
+fn plain(options: &RenderOptions) -> RenderOptions {
+    RenderOptions {
+        supersample: 1,
+        ..*options
+    }
+}
+
 fn fitted(size: [u32; 2], side: f32, samples: u32) -> RenderOptions {
     let shrink = (size[0].max(size[1]) as f32 / side).max(1.0);
     RenderOptions {
@@ -1764,6 +1808,10 @@ impl App {
             past: None,
             shown_size: None,
             aimed_size: [0; 2],
+            fit_asked: [0; 2],
+            drawn_with: [0; 2],
+            #[cfg(not(target_arch = "wasm32"))]
+            tiling: None,
             stood: motion::Rest::new(),
             window: [0; 2],
             shape_stood: motion::Rest::new(),
@@ -1851,6 +1899,9 @@ impl App {
                     .and_then(|index| index.parse().ok())
                     .filter(|index| *index < export::QUALITIES.len())
                     .unwrap_or(0),
+                size: std::env::var("FRACTIQUE_EXPORT_SIZE")
+                    .ok()
+                    .and_then(|text| parsed_size(&text)),
                 ..Default::default()
             },
             #[cfg(feature = "store")]
@@ -2033,6 +2084,32 @@ impl App {
         scene
     }
 
+    // How the picture of this size is drawn for the screen: a chosen size is a canvas, and the screen shows it
+    // with the window's pixels.
+    // A canvas larger than the screen shows it is drawn as that picture scaled down: so many times finer a side.
+    fn full(&self, size: [u32; 2]) -> RenderOptions {
+        let drawn = fitted(self.fit(size), FULL_SIDE, FULL_SAMPLES);
+        let finer = if self.picture.is_some() && !self.covering() {
+            finer(size, [drawn.width, drawn.height])
+        } else {
+            1
+        };
+        RenderOptions {
+            supersample: finer,
+            ..drawn
+        }
+    }
+
+    fn fit(&self, size: [u32; 2]) -> [u32; 2] {
+        if self.picture.is_none() {
+            return size;
+        }
+        let [width, height] = self.window.map(|side| side.max(1) as f32);
+        let stretch = (size[0] as f32 / size[1].max(1) as f32) / (width / height);
+        let fill = if self.covering() { filled(stretch).0 } else { 1.0 };
+        on_screen(size, self.window, fill)
+    }
+
     fn card_used(&self) -> bool {
         matches!(self.verdict, Verdict::Fast(_)) && self.preview.as_ref().is_some_and(Preview::works)
     }
@@ -2047,7 +2124,7 @@ impl App {
         if !self.chaotic || !self.gpu_on() {
             return false;
         }
-        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let full = self.full(size);
         let keys = chaos_keys(&self.scene_at(size), &full, self.strips_asked);
         self.chaos.as_ref().is_some_and(|chaos| chaos.keys() == Some(&keys))
     }
@@ -2133,7 +2210,7 @@ impl App {
         if view == WHOLE || self.wall.live || sheets::drawn(&self.base) || self.too_long == Some((view, zoom)) {
             return view == WHOLE;
         }
-        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let full = self.full(size);
         let scene = self.scene_in(view, zoom);
         let deep = view.zoom * zoom >= pace::DEEP_FROM;
         let card = self.gpu_on() && !self.given_up && on_card(&scene);
@@ -2145,7 +2222,7 @@ impl App {
         {
             return true;
         }
-        view.zoom * zoom <= 1.0 || self.speeds.seconds(&parts(&scene, &full), deep) <= pace::LONGEST
+        view.zoom * zoom <= 1.0 || self.speeds.seconds(&parts(&scene, &plain(&full)), deep) <= pace::LONGEST
     }
 
     // Renders the view, or leaves a view that would take too long to the picture the app has, magnified: the one
@@ -2190,10 +2267,12 @@ impl App {
         self.rendering = true;
         self.asked = Instant::now();
         self.aimed_size = size;
+        self.fit_asked = self.fit(size);
         self.trace.renders += 1;
         self.draft_keys = None;
 
-        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let finest = self.full(size);
+        let full = plain(&finest);
         let mut passes = vec![(true, fitted(size, DRAFT_SIDE, DRAFT_SAMPLES)), (false, full)];
         // A deep view takes several times longer to draw: a picture in between shortens the wait for a sharp one.
         let between = fitted(size, MIDDLE_SIDE, MIDDLE_SAMPLES);
@@ -2201,7 +2280,7 @@ impl App {
             passes.insert(1, (true, between));
         }
         // A browser page has one thread: a draft first would only make it wait twice.
-        if passes[0].1.width == full.width || cfg!(target_arch = "wasm32") {
+        if passes[0].1.width >= full.width || cfg!(target_arch = "wasm32") {
             passes.remove(0);
         }
         // The preview on the screen is already sharper than a draft of the same view.
@@ -2213,7 +2292,7 @@ impl App {
         }
         let (scene, cancel, generation) = (self.scene_at(size), self.cancel.clone(), self.generation);
         // The graphics card's picture is the screen's: the processor renders only what the card does not draw.
-        if self.begin_chaos(ctx, &scene, &full) {
+        if self.begin_chaos(ctx, &scene, &finest) {
             self.rendering = !self.chaos.as_ref().is_some_and(Chaos::finished);
             return;
         }
@@ -2334,7 +2413,7 @@ impl App {
         if last {
             let scale = self.scale_of(offer.at.view.zoom, offer.at.zoom);
             let took = self.deferred.take().unwrap_or(self.began.elapsed().as_secs_f32());
-            self.status = status_of(offer.pixels, took, scale);
+            self.status = status_of(self.picture.map_or(offer.pixels, |_| offer.at.size), took, scale);
         }
         self.turn_picture();
         self.draft_shown = None;
@@ -2424,6 +2503,7 @@ impl App {
                 && let Some(state) = frame.wgpu_render_state()
             {
                 let image = &done.image;
+                self.drawn_with = [image.width, image.height];
                 let soft = (done.soft.0.as_slice(), done.soft.1, done.soft.2);
                 let picture = (image.rgba.as_slice(), image.width, image.height);
                 let (flame, soft) = Gfx::upload(&state.device, &state.queue, picture, soft);
@@ -2484,7 +2564,8 @@ impl App {
                 let samples = scene.layers.len() as f64
                     * f64::from(full.width)
                     * f64::from(full.height)
-                    * f64::from(full.samples_per_pixel);
+                    * f64::from(full.samples_per_pixel)
+                    * f64::from(full.supersample * full.supersample);
                 Some((samples / rate).max(PATIENCE) as f32)
             }
             _ => None,
@@ -2715,7 +2796,7 @@ impl App {
         self.compiling = pending;
         if chaos.warming() {
             let size = self.requested.unwrap_or(self.aimed_size);
-            let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+            let full = self.full(size);
             chaos.warm(ctx, [full.width, full.height]);
         } else if self.trial.is_some() {
             self.trial_step(&mut chaos, ctx);
@@ -2744,9 +2825,10 @@ impl App {
                 && let Some(size) = self.requested
                 && let Some(path) = self.export_at.take()
             {
-                self.export_to(ctx, size, path);
+                self.export_to(ctx, self.export.size.unwrap_or(size), path);
             }
             self.hand_over(ctx);
+            self.tile_step(ctx);
         }
     }
 
@@ -2793,12 +2875,129 @@ impl App {
         };
         let saved = preview.read(false, margin, ctx, move |pixels| match (pixels, cut) {
             (Some((rgba, from)), Some(at)) => later.save(pace::magnified(&rgba, from, at, size), size),
-            (Some((rgba, from)), None) => later.save(rgba, from),
+            (Some((rgba, from)), None) if from == size => later.save(rgba, from),
+            (Some((rgba, from)), None) => later.shrunk(rgba, from, size),
             (None, _) => later.fail(),
         });
         if let Some(index) = saved {
             chaos.watch(index);
         }
+    }
+
+    // Begins an Instant export larger than the picture on the screen, for a scene the card draws pixel by pixel
+    // and whose tiles join without a seam: nothing of a tile reaches past it but the look at its neighbours.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn begin_tiles(&mut self, ctx: &egui::Context, size: [u32; 2], path: &std::path::Path) -> bool {
+        let scene = self.scene_at(size);
+        let tiled = scene.sheets.is_none() && !scene.layers.is_empty() && scene.layers.iter().all(field::drawn);
+        // A glow reaches from one tile into the next: a tile is drawn with as much around it as the widest does.
+        let shorter = f64::from(size[0].min(size[1]));
+        let reach = |layer: &Layer| {
+            let tone = layer.tone();
+            if tone.glow_strength > 0.0 {
+                4.0 * tone.glow_radius * shorter
+            } else {
+                0.0
+            }
+        };
+        let apron = export::APRON + scene.layers.iter().map(reach).fold(0.0, f64::max).ceil() as u32;
+        if !tiled || !self.gpu_on() || self.given_up || self.wall.live || apron > export::TILE / 4 {
+            return false;
+        }
+        let (across, cells) = export::tiles(size, export::TILE);
+        if !self.tile_begun(ctx, &scene, size, cells[0], apron) {
+            if timed() {
+                eprintln!("times: the graphics card does not draw the export in tiles");
+            }
+            return false;
+        }
+        let (job, tiles) = export::Job::tiled(size, across, cells.clone(), path.to_owned(), ctx.clone());
+        self.export.job = Some(job);
+        self.tiling = Some(Tiling {
+            tiles,
+            scene,
+            size,
+            cells,
+            apron,
+            next: 0,
+        });
+        true
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn tile_begun(&mut self, ctx: &egui::Context, scene: &Scene, size: [u32; 2], cell: [u32; 4], apron: u32) -> bool {
+        let options = RenderOptions {
+            width: size[0],
+            height: size[1],
+            samples_per_pixel: FULL_SAMPLES,
+            supersample: 1,
+        };
+        self.chaos
+            .as_mut()
+            .is_some_and(|chaos| chaos.begin_tile(scene, &options, cell, [apron; 2], ctx))
+    }
+
+    // Takes in the tile that is whole: it is drawn, copied back, handed to the file, and the next one begins. A
+    // tile the card gives up leaves the whole export to the processor.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn tile_step(&mut self, ctx: &egui::Context) {
+        let Some(mut tiling) = self.tiling.take() else {
+            return;
+        };
+        if tiling.tiles.cancelled() {
+            if let Some(chaos) = &mut self.chaos {
+                chaos.end_tile();
+            }
+            return;
+        }
+        let step = self.chaos.as_mut().map_or(Step::Refused, Chaos::advance_tile);
+        if step == Step::Waiting {
+            self.tiling = Some(tiling);
+            return;
+        }
+        let mut sent = false;
+        if step == Step::Drawn
+            && let (Some(chaos), Some(preview)) = (&mut self.chaos, &mut self.preview)
+            && let Some((size, levels)) = chaos.tile_levels()
+        {
+            // The glow is as wide as in the whole picture, whatever the tile's size.
+            if preview.draw_tile(&tiling.scene, size, tiling.size, &levels, ctx) {
+                let (to, index) = (tiling.tiles.sender(), tiling.next);
+                let read = preview.read_tile([tiling.apron; 2], ctx, move |pixels| {
+                    if let Some((rgba, _)) = pixels {
+                        let _ = to.send((index, rgba));
+                    }
+                });
+                if let Some(read) = read {
+                    chaos.watch(read);
+                    sent = true;
+                }
+            }
+            chaos.end_tile();
+        }
+        tiling.next += 1;
+        let more = tiling.next < tiling.cells.len();
+        if sent && (!more || self.tile_begun(ctx, &tiling.scene, tiling.size, tiling.cells[tiling.next], tiling.apron))
+        {
+            if more {
+                self.tiling = Some(tiling);
+            }
+            ctx.request_repaint();
+            return;
+        }
+        if timed() {
+            eprintln!("times: the graphics card gave a tile of the export up: the processor renders it");
+        }
+        let options = RenderOptions {
+            width: tiling.size[0],
+            height: tiling.size[1],
+            samples_per_pixel: FULL_SAMPLES,
+            supersample: 1,
+        };
+        let path = tiling.tiles.path();
+        let scene = tiling.scene.clone();
+        drop(tiling);
+        self.export.job = Some(export::Job::start(scene, options, path, ctx.clone(), render_pool()));
     }
 
     // The card draws a moved view of the scene small while it moves: the whole scene is drawn pixel by pixel, and
@@ -2814,7 +3013,7 @@ impl App {
     // Begins the draft of the view as it is now: the same view with a margin around it, a few times smaller.
     fn begin_draft(&mut self, ctx: &egui::Context, size: [u32; 2]) -> bool {
         let eye = (self.view, self.adjust.zoom);
-        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let full = self.full(size);
         let whole = self.scene();
         let around = View {
             zoom: self.view.zoom / pace::DRAFT_MARGIN,
@@ -2860,7 +3059,7 @@ impl App {
         }
         self.draft_landed = true;
         let size = self.requested.unwrap_or(self.aimed_size);
-        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let full = self.full(size);
         let spent = chaos.spent();
         self.draft
             .took(spent, pace::slice_of(true), full.width.min(full.height));
@@ -3029,7 +3228,7 @@ impl App {
         }
         self.widened = true;
         let scene = self.scene_in(self.chaos_at.0, self.chaos_at.1);
-        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let full = self.full(size);
         let px = |share: f64| [full.width, full.height].map(|side| (f64::from(side) * share).round() as u32);
         let mut margins = self.margins(&scene).into_iter().map(px);
         let begun = margins
@@ -3075,6 +3274,7 @@ impl App {
         };
         let margin = chaos.margin();
         let inner = [size[0] - 2 * margin[0], size[1] - 2 * margin[1]];
+        self.drawn_with = size;
         let wide = [0, 1].map(|side| f64::from(size[side]) / f64::from(inner[side].max(1)));
         // The screen may show these very textures: it gets a copy of them before they are drawn into.
         let kept = (staged && self.live_card).then(|| preview.snapshot()).flatten();
@@ -3136,7 +3336,7 @@ impl App {
                 self.pictures += 1;
                 if last {
                     let took = self.deferred.take().unwrap_or(self.began.elapsed().as_secs_f32());
-                    self.status = status_of(inner, took, scale);
+                    self.status = status_of(self.picture.map_or(inner, |_| self.aimed_size), took, scale);
                 }
             }
         }
@@ -3176,8 +3376,8 @@ impl App {
         let waiting = self.counting && self.waited.elapsed().as_secs_f32() >= 0.1;
         if let Some(seconds) = waiting.then_some(counted) {
             let size = self.requested.unwrap_or(self.aimed_size);
-            let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
-            status_of([full.width, full.height], seconds, self.scale())
+            let full = self.full(size);
+            status_of(self.picture.unwrap_or([full.width, full.height]), seconds, self.scale())
         } else if self.magnified && self.view.zoom > 1.0 {
             format!("{}  ·  {}×", self.t("magnified"), scale_label(self.scale()))
         } else {
@@ -4115,7 +4315,7 @@ impl App {
             let four = |lay: [f32; 4]| format!("{:.4},{:.4},{:.4},{:.4}", lay[0], lay[1], lay[2], lay[3]);
             let _ = write!(
                 self.trace.note,
-                " lay {} past {} px {}x{} scale {:.2} window {} bare {} wide {:.3} strips {}x{}",
+                " lay {} past {} px {}x{} scale {:.2} window {} bare {} wide {:.3} strips {}x{} drawn {}x{}",
                 four(laid.view),
                 four(laid.past),
                 size[0],
@@ -4126,6 +4326,8 @@ impl App {
                 self.shown_wide[0],
                 self.strips_asked[0],
                 self.strips_asked[1],
+                self.drawn_with[0],
+                self.drawn_with[1],
             );
         }
         laid
@@ -5745,21 +5947,52 @@ impl App {
             let ((size, _), margin) = (chaos.levels()?, chaos.margin());
             Some([size[0] - 2 * margin[0], size[1] - 2 * margin[1]])
         });
-        if as_shown && on_card == Some([width, height]) && self.requested.is_some_and(|size| self.card_shows(size)) {
-            let (job, later) = export::Job::later([width, height], path, ctx.clone());
-            self.export.job = Some(job);
-            self.instant = Some((later, [width, height], None));
-            ctx.request_repaint();
-            return;
+        if timed() {
+            let shows = self.requested.is_some_and(|size| self.card_shows(size));
+            eprintln!("times: an export of {width} × {height}, as shown {as_shown}, on the card {on_card:?} {shows}");
+        }
+        // The picture on the screen is the export, as it is or made smaller; a larger one is drawn in tiles.
+        if as_shown
+            && let Some(screen) = on_card
+            && self.requested.is_some_and(|size| self.card_shows(size))
+        {
+            match export::way(screen, [width, height]) {
+                export::Way::Shown | export::Way::Shrunk => {
+                    let (job, later) = export::Job::later([width, height], path, ctx.clone());
+                    self.export.job = Some(job);
+                    self.instant = Some((later, [width, height], None));
+                    ctx.request_repaint();
+                    return;
+                }
+                export::Way::Larger if self.begin_tiles(ctx, [width, height], &path) => return,
+                _ => {}
+            }
         }
         if as_shown
             && !self.rendering
             && let Some((generation, image)) = &self.last
             && *generation == self.generation
-            && [image.width, image.height] == [width, height]
         {
-            self.export.job = Some(export::Job::save(image.clone(), path, ctx.clone()));
-            return;
+            let from = [image.width, image.height];
+            match export::way(from, [width, height]) {
+                export::Way::Shown => {
+                    self.export.job = Some(export::Job::save(image.clone(), path, ctx.clone()));
+                    return;
+                }
+                export::Way::Shrunk => {
+                    let image = image.clone();
+                    let make = move || {
+                        Arc::new(Image {
+                            width,
+                            height,
+                            rgba: pace::shrunk(&image.rgba, from, [width, height]),
+                        })
+                    };
+                    self.export.job = Some(export::Job::made([width, height], make, path, ctx.clone()));
+                    return;
+                }
+                _ => {}
+            }
         }
         let options = RenderOptions {
             width,
@@ -5829,6 +6062,17 @@ impl App {
             ui.add_space(8.0);
             ui.label(
                 egui::RichText::new(format!("{} {}", self.t("q_only_here"), fitting.join(", ")))
+                    .size(12.5)
+                    .color(egui::Color32::from_white_alpha(190)),
+            );
+        }
+        // An Instant export that is not instant says why, before the press.
+        let drawn = self.full(self.requested.unwrap_or(self.aimed_size));
+        let instant = export::QUALITIES[self.export.quality].1 == export::AS_SHOWN && !self.magnified;
+        if instant && let Some(key) = export::slow([drawn.width, drawn.height], size) {
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new(self.t(key))
                     .size(12.5)
                     .color(egui::Color32::from_white_alpha(190)),
             );
@@ -6483,10 +6727,21 @@ impl App {
                 } else {
                     ctx.request_repaint_after(std::time::Duration::from_secs_f32(SETTLE - still));
                 }
+            } else if self.picture.is_some() && !self.rendering && !self.frozen && self.fit(size) != self.fit_asked {
+                // A window of another size shows a picture of a chosen size with more or fewer pixels: once the
+                // size has stood the picture is drawn with those.
+                if reshaped > 0.0 {
+                    ctx.request_repaint_after(std::time::Duration::from_secs_f32(reshaped));
+                } else {
+                    self.fit_asked = self.fit(size);
+                    self.moved_only = true;
+                    self.began = Instant::now();
+                    self.show_view(&ctx, size, false);
+                }
             } else if self.swift && self.chaotic && !self.rendering && !self.frozen && self.picture.is_some() {
                 // A window of another shape shows more or less beside a picture of a chosen size: once the shape
                 // has stood the card draws the picture with that beside it.
-                let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+                let full = self.full(size);
                 let other = !self.covering() && strips([full.width, full.height], window) != self.strips_asked;
                 if other && reshaped > 0.0 {
                     ctx.request_repaint_after(std::time::Duration::from_secs_f32(reshaped));
@@ -7343,6 +7598,39 @@ mod tests {
         };
         view.limited([1000, 2000], 1.0, Some(filled(0.25).1));
         assert_eq!(view.right, 0.0);
+    }
+
+    #[test]
+    fn a_picture_of_a_chosen_size_is_drawn_with_the_pixels_the_window_shows_it_with() {
+        let window = [3840, 2160];
+        assert_eq!(on_screen([15360, 8640], window, 1.0), window);
+        assert_eq!(on_screen([7680, 4320], window, 1.0), window);
+        assert_eq!(on_screen([3840, 2160], window, 1.0), window);
+        // A smaller picture keeps its own pixels, and one of another shape lies whole in the window.
+        assert_eq!(on_screen([1280, 720], window, 1.0), [1280, 720]);
+        assert_eq!(on_screen([8640, 15360], window, 1.0), [1215, 2160]);
+        assert_eq!(on_screen([10320, 4320], window, 1.0), [3840, 1607]);
+        // Whatever is chosen, no side is longer than the window's.
+        for size in [[15360, 8640], [16384, 16384], [16384, 100], [100, 16384], [5000, 3000]] {
+            let drawn = on_screen(size, window, 1.0);
+            assert!(
+                drawn[0] <= window[0] && drawn[1] <= window[1],
+                "{size:?} is drawn {drawn:?}"
+            );
+            assert!(drawn[0] <= size[0] && drawn[1] <= size[1]);
+        }
+        // A wallpaper that fills the window is shown larger and cut: it is drawn with as many pixels more.
+        assert_eq!(on_screen([8640, 8640], window, 1.25), [2700, 2700]);
+        assert_eq!(on_screen([2000, 2000], window, 1.25), [2000, 2000]);
+        // Before the window has a size the picture has its own.
+        assert_eq!(on_screen([7680, 4320], [0, 0], 1.0), [7680, 4320]);
+        // The picture stands for the chosen one scaled down: so many of its pixels a side to one of the screen's.
+        assert_eq!(finer([15360, 8640], window), 4);
+        assert_eq!(finer([7680, 4320], window), 2);
+        assert_eq!(finer([3840, 2160], window), 1);
+        assert_eq!(finer([1280, 720], [1280, 720]), 1);
+        assert_eq!(finer([16384, 16384], [1080, 1080]), FINEST);
+        assert_eq!(finer([5760, 3240], window), 2);
     }
 
     #[test]
