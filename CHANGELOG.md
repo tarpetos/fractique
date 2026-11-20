@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* **Clicking through again: every press shows a quick preview of its scene:** since the blur with its two stages,
+  **Randomize**, **Mutate**, a preset or a step back pressed while a picture was still on its way showed the old
+  picture under the blur until a finished one landed, and each press began that wait again: of 10 presses 200 ms
+  apart 6 showed nothing of their scene on the graphics card (flames, 3840 × 2160, RTX 4070) and 9 on the
+  processor. Now every press shows a small picture of its own scene under the blur: the blur comes over the old
+  picture first (0.08 s), then the small picture takes its place once and stands still, and the finished one
+  fades in as the blur lifts. Under a blur that already stands the next press's small picture is on the screen
+  17 to 103 ms after the press where the graphics card draws flames (51 ms at the median), 19 to 36 ms for an
+  attractor, 51 to 88 ms on the processor, and about 0.1 s after the first press, which is the blur's rise. It is the processor's draft of 480 pixels a side, also where the card
+  draws the picture, so a canvas of 15360 × 8640 shows it as fast as the window's own size does. What a press
+  that was overtaken had on its way is dropped with the next press and never reaches the screen after it; the
+  blur stays while the presses go on and lifts over the finished picture of the last. The finished picture, its
+  time and the frames of the interface are as they were (16.9 ms a frame at the median during the presses).
+
 * **The export's note no longer calls a picture of the chosen size "larger":** with 15360 × 8640 chosen as the
   picture's size, the export sheet said an export of 15360 × 8640 was larger than the picture on the screen. The
   line now says that at this size the picture is drawn again for the file, and it is not shown where the
