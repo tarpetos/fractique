@@ -187,6 +187,12 @@ The picture on the screen is rendered in passes, so that something shows at once
 | Full, on a phone | 1600 | 18 |
 | Full, in a browser (no draft) | 900 | 14 |
 
+These are the processor's passes. Where the graphics card draws the picture, the processor renders the draft alone,
+and only for a new scene: it is shown once, under the blur, until the card's picture is finished. On an RTX 4070 at
+3840 × 2160, with presses 200 ms apart, the draft of a press was on the screen 17 to 103 ms after it for a flame
+(51 ms at the median) and 19 to 36 ms for an attractor, and 51 to 88 ms where the processor draws the picture;
+after the first press about 0.1 s, which is the blur's rise.
+
 The longer side is that of the picture as it lies in the window: a chosen size larger than the window is drawn
 with the window's pixels, as that picture scaled down. On an RTX 4070, in a window of 3840 × 2160 pixels, from
 the choice to the finished picture:
@@ -198,8 +204,19 @@ the choice to the finished picture:
 | 7680 × 4320 | 0.05 s, a grid of 4 × 4 at its edges | 0.62 s, 4 times the samples | 601, 859, 601 MB |
 | 15360 × 8640 | 0.27 s, a grid of 8 × 8 at its edges | 1.71 s, 16 times the samples | 601, 859, 601 MB |
 
-Renders use all cores but two, which stay with the window. The toolbar shows the time the picture took. An export
-is a separate render at `standard`, `high` or `ultra`.
+A flame, an attractor and a deep view plot the samples of a larger canvas for 8 seconds at the most
+(`LARGER_WITHIN` in `chaos.rs`) and are finished with those they have by then. A wallpaper and the processor's
+pictures are drawn plain, with the window's pixels.
+
+Renders use all cores but two, which stay with the window. The toolbar shows one time a picture: from the request
+to the finished picture on the screen. An export at `standard`, `high` or `ultra` is a separate render on the
+processor; **Instant** saves the picture on the screen ([below](#the-picture-of-the-graphics-card)).
+
+A moved or magnified view is rendered only where its picture is expected within 10 seconds (`LONGEST` in
+`pace.rs`); otherwise the picture the app has is shown magnified, 8 times at the most. The card counts as fast for
+every view it draws. On the Ryzen 7 5700X without the card a deep view of a flame is drawn at 1280 × 720 (6 s) and
+at 1920 × 1080 while it fits (9 s), and is the magnified picture from 2.83 times at 2560 × 1440 and 3840 × 2160,
+where it took 36 to 48 s. The whole view is always rendered.
 
 ### The picture of the graphics card
 
@@ -227,14 +244,28 @@ An **Instant** export of the card's picture, asked for while the first batch was
 0.7 s later at 1920×1080 and 2.2 to 2.5 s later at 3840×2160; nearly all of that is writing the PNG. The file held
 the same pixels as the screen.
 
-The trial that decides whether the card is used took 0.009 s on this card and 0.095 s on the processor. These
-numbers are from before [the bounds of a submission](architecture.md#the-work-of-one-submission): with them a
-whole picture takes more batches, and the card was not measured again.
+That was before the file was compressed fast: writing 7680 × 4320 takes 0.4 s now, where it took 7.1 s, and the two
+sizes above were not timed again. An Instant export of the picture's shape and smaller is the screen's picture made
+smaller: 1920 × 1080 from a window of 3840 × 2160 took 0.11 s for the Burning Ship. A larger one of a fractal the
+card draws pixel by pixel is drawn on the card in tiles of at most 2048 pixels a side (`TILE` in `export.rs`), so
+the picture is never whole on the card: 15360 × 8640 of the Burning Ship, 40 tiles, is saved in 1.4 s where the
+processor took 39 s. A larger flame, attractor or wallpaper, and a size of another shape, is rendered by the
+processor.
 
-With the bounds, on a laptop with Windows 11 and an **NVIDIA GeForce GTX 1650** (Vulkan), in a window nobody
-sees, at 32 samples per pixel. `solar-mandala` has two layers, the others one. "Card at work" is the sum of the
-batches, "longest batch" the one that took the card longest; between two batches the app waits for a frame, which
-took about 0.1 s in these runs, so the whole picture comes that much later for every batch.
+The trial that decides whether the card is used took 0.009 s on this card and 0.095 s on the processor.
+
+These numbers are from before the card's work was cut into units of about 1.5 ms that follow one another inside a
+slice of every frame ([architecture.md](architecture.md#the-window-comes-first)). With the units, off screen on the
+same card at 3840 × 2160: a flame is finished after 0.15 to 0.36 s, a Clifford or a Lorenz attractor after 0.21 to
+0.69 s and a deep view after 1.8 s; the first picture comes after 0.02 to 0.09 s; the longest unit takes 2 to 3 ms
+(5 for a stage of a deep view, which is one piece) and the latest end of one is 1 to 1.5 ms past its slice. The
+processor's columns were not measured again.
+
+With [the bounds of a submission](architecture.md#the-work-of-one-submission) and before the units, on a laptop
+with Windows 11 and an **NVIDIA GeForce GTX 1650** (Vulkan), in a window nobody sees, at 32 samples per pixel.
+`solar-mandala` has two layers, the others one. "Card at work" is the sum of the batches, "longest batch" the one
+that took the card longest; between two batches the app waited for a frame, which took about 0.1 s in these runs,
+so the whole picture came that much later for every batch.
 
 | Scene | Size | First picture | Batches | Card at work | Longest batch | Whole picture | Processor: whole picture |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -262,7 +293,8 @@ one layer of that size and up to 282 ms for two. It has not been timed on this l
 The same build on a Debian 13 box with the graphics chip of its processor, an **AMD Radeon Vega 3** (Vulkan,
 RADV), far weaker: at 1920×1080 the longest batch took 120 ms for `clifford-classic`, 148 ms for
 `de_jong-classic`, 100 ms for `lorenz-butterfly`, 190 ms for `aurora-spiral` and 301 ms for `solar-mandala`;
-at 1280×720, 65, 78, 47, 73 and 110 ms. All stay under the 0.5 s after which the card is given up.
+at 1280×720, 65, 78, 47, 73 and 110 ms. All stay under the 0.5 s after which a picture with an attractor in it is
+given to the processor; a scene of flames alone is given 20 s.
 
 ### Deep views on the graphics card
 
@@ -291,11 +323,12 @@ are. "First picture" and "whole picture" are from the request, the plan of the v
 | `ember-vortex` | 100 | 1920×1080 | 0.08 s | 0.25 s | 17.6 s |
 | `ember-vortex` | 1000 | 1920×1080 | not drawn | | 19.4 s |
 
-"Not drawn": the view is too fine for 32-bit floats where it is (cells a unit times the distance from the
-origin above 400 000), which is known before anything is sent; the processor renders it. `solar-mandala` and
-`ember-vortex` magnified 3 times still hold more than an eighth of their points at that place and are drawn by
-the plain chaos game (0.23 s and 0.02 s). The longest submission of these runs took 0.12 s; a step of the plan
-took 1 to 36 ms.
+"Not drawn": the view is too fine for 32-bit floats where it is (cells a unit times the distance from the origin
+above 400 000), which is known before anything is sent; the processor renders it. The app shows a flame magnified
+10 to 300 times at the most ([below](#where-a-view-stops-being-a-picture)), so the rows at 1000 times are views of
+the test alone. `solar-mandala` and `ember-vortex` magnified 3 times still hold more than an eighth of their points
+at that place and are drawn by the plain chaos game (0.23 s and 0.02 s). The longest submission of these runs took
+0.12 s; a step of the plan took 1 to 36 ms.
 
 In the app, in a window nobody sees, `aurora-spiral` at 3840×2160 about the point (-0.9, 0.56), one view after
 another: magnified 14 times, the first picture came 0.17 s after the request and the whole picture after 1.53 s
@@ -423,6 +456,8 @@ submission and a frame each; and it shows the bright core with the fine threads 
 picture. They keep the picture they had, moved: 10 % of the view is not the picture on average and 20 % at most
 in a drag of a fifth of the window, 55 % and 84 % in the wheel run above, and the picture comes 0.8 to 1.0 s
 after the last move for the flame on the card (0.7 s on the processor at 1600 × 1040, 1.7 s for `clifford`).
+Since then a finished picture of them has [a margin around the view](#a-margin-around-the-view): a view that
+moves inside it is sharp at once, and the numbers above hold past it and where the card draws no margin.
 
 ### Wallpapers on the graphics card
 
@@ -467,7 +502,10 @@ own work in brackets):
 The view alone took 0.05 to 0.10 s at 1920 × 1080, 0.09 to 0.19 s at 2560 × 1440 and 0.24 to 0.30 s at
 3840 × 2160 in the same runs, so a picture with a margin costs the card 1 to 1.5 times the view alone. At
 3840 × 2160 half of the view on every side would be a histogram of 531 MB and levels of 265 MB: the rule that
-holds a margin to 512 MB leaves a quarter there, and a half at the two smaller sizes.
+holds a margin to 512 MB leaves a quarter there, and a half at the two smaller sizes. A margin is a half, three
+eighths, a quarter or an eighth of the view on every side (`MARGINS` in `pace.rs`): the widest that fits the
+512 MB and is expected within 3 s, counted as the seconds of the view alone times the width of the picture with
+the margin.
 
 A deep view (Aurora Spiral at 4×, 3840 × 2160: the view alone 1.1 to 1.5 s) has its margin 1.0 to 1.1 s later
 (the card's work 730 to 790 ms). Plotting the margin with the samples of the view, which was tried first, took
@@ -518,7 +556,9 @@ pixel each, and the graphics card holds 8 more for each density that has been on
 
 While the graphics card plays the chaos game it holds, for each layer, 16 bytes a pixel of histogram, 8 of levels
 and up to 8 MB of walkers: about 200 MB a layer at 3840×2160. With the last batch the histogram and the walkers
-are freed, and the levels, 66 MB a layer at that size, stay for as long as the picture is on the screen.
+are freed, and the levels, 66 MB a layer at that size, stay for as long as the picture is on the screen. The size
+is that of the picture as the window shows it: a chosen size larger than the window is held with the window's
+pixels ([the table above](#in-the-app)), and an Instant export in tiles holds one tile at a time.
 
 The picture with [a margin around the view](#a-margin-around-the-view) has as many pixels as the view times
 the square of its width: with a quarter on every side, 2.25 times. While it is drawn the card holds 24 bytes a
@@ -563,3 +603,8 @@ In its brightest place:
 | `lorenz` | 1.00, 1.00, 0.99, 0.99 (five thick lines at 300) | 100 |
 
 `kleinian` and `l_system` draw lines and were the same picture twice at every zoom tried: unchanged.
+
+The other limits of a view are set, not measured (`lib.rs`): a flame and a fractal of any kind are shown no smaller
+than 0.2 times their framing (`FLOOR`); a wallpaper from 1 to 8 times; a picture that is only shown magnified to 8
+times that picture (`IMAGE_CEILING`); and the kinds without a ceiling above to 10¹⁰ times, the zoom of the scene
+counted in (`MAX_MAGNIFICATION`).

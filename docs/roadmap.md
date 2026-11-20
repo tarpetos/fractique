@@ -9,13 +9,13 @@ built on it.
 | 2 | **CLI:** render scenes to PNG | Done |
 | 3 | **MCP server** over stdio: presets, random scenes, mutation, validation, `.flame` import, wallpapers, rendering with the image returned, progress and cancelling ([mcp.md](mcp.md)) | Done |
 | 4 | **App:** one codebase for Windows, macOS, Linux, Android, iOS and the web, with its own glass title bar on a computer; presets, randomize, mutate, layers editing, tone, picture sizes, export with sizes and quality, glass, 15 languages | Done |
-| 5 | **Any zoom:** views magnified up to ten thousand million times, in the renderer and in the app (drag, wheel, pinch) | Done |
+| 5 | **Zoom:** magnified views in the renderer and in the app (drag, wheel, pinch), each kind as far as it is still a picture: a flame between 10 and 300 times, an attractor between 10 and 100, a wallpaper 8, the other kinds of fractal up to ten thousand million | Done |
 | 6 | **Wallpapers:** sheets in the scene format, a wallpaper for every seed from 14 layouts and 6 materials, light and dark; in the command line tool and the app | Done |
 | 7 | **Phones:** a screen of its own on Android and iOS, a collection of kept pictures, saving to Photos or the gallery, sharing | Done |
 | 8 | **Scene files and session:** the packed `.frcq` file, read by the app, the command line tool and the MCP server, turned into JSON and back by `fractique convert`, opened by a double click in the file manager; one window at a time on a computer; the session kept between launches | Done |
-| 9 | **Installers and updates:** one program file for Windows, an AppImage, a `.deb`, a macOS app and an Android APK built by the release workflow; the updates window ([releasing.md](releasing.md)) | Built; no version has been released |
+| 9 | **Installers and updates:** one program file for Windows, an AppImage, a `.deb`, a macOS app and an Android APK built by the release workflow, with the command line tool, the MCP server and the HTTP server inside the packages and as files of their own; the updates window of the app and the `update` command of the three other programs ([releasing.md](releasing.md)) | Built; no version has been released, and the `Release` workflow has not run since it became one entry file that also uploads to TestFlight |
 | 10 | **iOS distribution:** runs in the Simulator and on an iPhone from a Mac, uploads to TestFlight ([ios.md](ios.md)); the App Store, where large and custom export sizes need the one-time purchase Fractique Pro ([ios.md](ios.md#fractique-pro-the-purchase)) | In progress: the purchase is written and compiles for iOS, and has not been run against the App Store |
-| 11 | **Server:** HTTP API with a job queue and limits, the web UI (the app compiled to WebAssembly) served beside it, Docker image ([server.md](server.md)) | Done |
+| 11 | **Server:** HTTP API with a job queue and limits, the web UI (the app compiled to WebAssembly) served beside it, a reference of the API at `/docs` with an OpenAPI description, a `Dockerfile` ([server.md](server.md)) | Done; the image is built from the `Dockerfile`, none is published |
 | 12 | **MCP over HTTP:** the tools of the MCP server at `/mcp` of the HTTP server (Streamable HTTP), from one implementation, under the limits and the queue of the server and without access to its disk ([mcp.md](mcp.md#over-http)) | Done |
 | 13 | **GPU preview:** while a tone slider, the zoom, an opacity or a blend moves, the graphics card draws the picture from the rendered layers; the processor's picture replaces it when the control rests ([architecture.md](architecture.md#the-preview-on-the-graphics-card)) | Done |
 | 14 | **The chaos game on the graphics card:** with GPU acceleration on, a flame is drawn by the graphics card alone, at full size in a fraction of a second, and the processor renders only exact exports; the switch exists only where a trial shows the card clearly faster than the processor ([architecture.md](architecture.md#the-chaos-game-on-the-graphics-card)) | Done; measured on Windows with an NVIDIA RTX 4070 and a GeForce GTX 1650 and on Linux with the graphics chip of a processor, a Radeon Vega 3 ([performance.md](performance.md#the-picture-of-the-graphics-card)). Not run on macOS |
@@ -27,6 +27,11 @@ built on it.
 | 20 | **Escape-time and root-finding kinds on the graphics card:** the nine kinds are drawn pixel by pixel by the graphics card alone, in batches whose work is bounded before they are sent and that follow one another without waiting for the window ([architecture.md](architecture.md#fractals-drawn-pixel-by-pixel-on-the-graphics-card)) | Done; measured on Windows with a GeForce GTX 1650 and on Linux with a Radeon Vega 3 ([performance.md](performance.md#fractals-on-the-graphics-card)) |
 | 21 | **Deep views on the graphics card:** a magnified view that holds little of a flame is drawn by the card from particles, as the renderer draws it, so zooming and moving a flame stays on the card ([architecture.md](architecture.md#deep-views-on-the-graphics-card)) | Done; measured on Windows with an NVIDIA RTX 4070 and run on Linux with a software graphics card ([performance.md](performance.md#deep-views-on-the-graphics-card)). Not run on another card |
 | 22 | **Wallpapers on the graphics card:** with GPU acceleration on, a wallpaper is drawn by the graphics card alone, pixel for pixel as the processor draws it but for a step of one in a few numbers, in batches whose work is bounded before they are sent ([architecture.md](architecture.md#wallpapers-on-the-graphics-card)) | Done; measured on Windows with an NVIDIA RTX 4070 and run on Linux with a software graphics card ([performance.md](performance.md#wallpapers-on-the-graphics-card)). Not run on another card |
+| 23 | **The window first:** the window keeps its pace while the graphics card draws: the chaos game is sent to the card in units of about 1.5 ms until the card's slice of the frame is over; every sheet, list and panel opens, closes and resizes as one move; a new picture comes in two stages, a still blurred one and the finished one, with a quick preview of every new scene under the blur ([architecture.md](architecture.md#motion)) | Done for flames, attractors and deep views; measured on Windows with an NVIDIA RTX 4070. The kinds drawn pixel by pixel and the wallpapers are not on the units yet |
+| 24 | **Views with limits:** a view goes no further out than a fifth of the picture's framing and no deeper than its kind is a picture; a flame, an attractor and a deep view have a margin of the scene around the view; a fractal drawn pixel by pixel is drawn for every frame while it moves; a view that would take over 10 seconds is the picture the app has, magnified ([performance.md](performance.md#where-a-view-stops-being-a-picture)) | Done; a heavy flame can still take the card longer than 10 seconds in a deep view |
+| 25 | **A chosen size as a canvas:** 8K and 16K in the list; the screen draws a chosen size with the window's pixels, as that picture scaled down, and shows the scene beside it instead of bars; an Instant export smaller than the picture on the screen is that picture made smaller, a larger one of a fractal drawn pixel by pixel is drawn on the card in tiles | Done; measured on Windows with an NVIDIA RTX 4070 |
+| 26 | **Recent pictures and Back:** each tab keeps its last 20 pictures, with small pictures and every mutation as a picture of its own; **Back** steps through them; the phone's round buttons stand under the thumb | Done |
+| 27 | **Four programs:** the MCP server as a program of its own, `fractique-mcp`, beside the app, `fractique` and `fractique-server`; each of the three with an icon on Windows and an `update` command ([releasing.md](releasing.md#how-the-other-programs-update)) | Built; no version has been released |
 
 ## App, next
 
@@ -42,9 +47,17 @@ What the app does not do yet:
   wallpapers; a
   scene with a geometric kind or a solid in it, or with a flame beside a kind drawn pixel by pixel, is rendered
   by the processor alone.
-- The density estimation of the graphics card in bands, a few rows a submission: for a picture of 3840 × 2160 its
-  work in [one submission](architecture.md#the-work-of-one-submission) is bounded only loosely, and the 0.5 s limit
-  is what stops a card too slow for it.
+- The kinds drawn pixel by pixel and the wallpapers in the units of card work that the chaos game has: their
+  work is still sent in batches sized beforehand.
+- Deep views of a kind drawn pixel by pixel past the digits of the graphics card's 32-bit numbers: the processor
+  draws them, slowly, and at a large size the view is the magnified picture instead.
+- Deep views of a heavy flame within 10 seconds on the graphics card: Emerald Star takes an RTX 4070 13 s at
+  100×.
+- Instant exports of a flame, an attractor and a wallpaper larger than the picture on the screen on the graphics
+  card: the processor renders them.
+- A mark on the screen where the exported picture ends, for a picture of a chosen size in a window of another
+  shape.
+- A run on Android of what rows 23 to 25 changed.
 - Editing the colors of a fractal beyond the eight palettes, and typing a parameter in as a number.
 - A build for the Mac App Store: the purchase code is shared with iOS, and no script signs, sandboxes and packs
   the app for it ([ios.md](ios.md#a-mac-app-store-build)).
@@ -54,6 +67,7 @@ What the app does not do yet:
 
 - The second random generator in the MCP server and the HTTP server: both still make random scenes with the first.
 - More presets, and named palettes in scene files.
+- A published Docker image of the server: it is built from the `Dockerfile` by hand.
 - Views of a Mandelbrot or a Julia set past the digits of 64-bit numbers (perturbation), and deep views of the
   orbit kinds.
 - Rendering in tiles, to lower the memory of large supersampled images.
