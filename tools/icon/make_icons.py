@@ -11,7 +11,13 @@ buddhabrot-classic, kept as a scene beside this script and rendered by the comma
 The script crops that picture to the figure, takes most of its color away and fades it into a near-black ground.
 Below 64 pixels the letter is drawn heavier with a shorter spiral, and below 48 pixels it is also larger and the
 Buddhabrot is blurred to a dim glow.
+
+The other programs carry the same picture in a color of their own, with a sign beside the letter: a prompt on green
+for the command line tool (cli), a four-pointed star on violet for the MCP server (mcp), a rack on amber for the HTTP
+server (server). The Buddhabrot is tinted toward the color before the letter is laid on, so the letter stays white
+to its edge and the three differ at 16 pixels by the color of the whole tile. PROGRAMS holds the three.
 """
+
 
 from pathlib import Path
 
@@ -35,6 +41,12 @@ DETAIL = [(64, 1.0, 1.45, 0, 1.0), (48, 1.1, 1.4, 0, 1.0), (24, 1.25, 1.1, 40, 1
 # Android shows the middle 72 of an adaptive icon's 108 units and promises only a circle of 66.
 ADAPTIVE_FIT = (0.385, 0.535)
 ADAPTIVE_REACH = 0.74
+PROGRAMS = {"cli": "#3ddc84", "mcp": "#a78bfa", "server": "#ffb454"}
+ICO = (16, 24, 32, 48, 64, 128, 256)
+TINT = 0.6
+# Beside its sign the letter stands left of the middle and a little smaller; the sign's side, left and top.
+BESIDE = ((-0.1, 0.0), (0.9, 0.94))
+SIGN = (0.42, 0.49, 0.48)
 
 
 def rgb(color):
@@ -95,15 +107,56 @@ def buddhabrot(reach, blur):
     return light
 
 
-def draw(side=SIZE, ground=GROUND, corner=CORNER, keep=0.45, gain=0.9, fit=FIT, reach=1.0):
+def sign(program, side):
+    box = round(SIZE * SIGN[0])
+    big = box * OVERSAMPLE
+    image = Image.new("L", (big, big), 0)
+    pen = ImageDraw.Draw(image)
+    width = round(big * 0.156)
+
+    def stroke(points):
+        points = [(x * big, y * big) for x, y in points]
+        pen.line(points, fill=255, width=width, joint="curve")
+        for x, y in points:
+            pen.ellipse((x - width / 2, y - width / 2, x + width / 2, y + width / 2), fill=255)
+
+    if program == "cli":
+        stroke([(0.12, 0.2), (0.46, 0.5), (0.12, 0.8)])
+        stroke([(0.58, 0.8), (0.9, 0.8)])
+    elif program == "mcp":
+        turn = np.pi / 4
+        reach = [0.5 if point % 2 == 0 else 0.17 for point in range(8)]
+        pen.polygon([(big / 2 + r * big * np.sin(turn * i), big / 2 - r * big * np.cos(turn * i)) for i, r in enumerate(reach)], fill=255)
+    else:
+        for row in range(3):
+            top = 0.1 + row * 0.3
+            pen.rounded_rectangle((0.06 * big, top * big, 0.94 * big, (top + 0.2) * big), 0.06 * big, fill=255)
+            if side >= 96:
+                pen.ellipse((0.14 * big, (top + 0.055) * big, 0.23 * big, (top + 0.145) * big), fill=0)
+    placed = Image.new("L", (SIZE, SIZE), 0)
+    placed.paste(image.resize((box, box), Image.LANCZOS), (round(SIZE * SIGN[1]), round(SIZE * SIGN[2])))
+    return placed
+
+
+def draw(side=SIZE, ground=GROUND, corner=CORNER, keep=0.45, gain=0.9, fit=FIT, reach=1.0, program=None):
     weight, turns, blur, growth = next(row[1:] for row in DETAIL if side >= row[0])
-    letter_mask = mark(weight, turns, (fit[0] * growth, fit[1] * growth), (0.004, 0.0))
+    shift, shrink = BESIDE if program else ((0.004, 0.0), (1.0, 1.0))
+    letter_mask = mark(weight, turns, (fit[0] * growth * shrink[0], fit[1] * growth * shrink[1]), shift)
     shape = np.asarray(letter_mask, dtype=np.float32)[..., None] / 255
     shade = np.asarray(letter_mask.filter(ImageFilter.GaussianBlur(22)), dtype=np.float32)[..., None] / 255
     light = buddhabrot(reach, blur)
     grey = light.mean(axis=2, keepdims=True)
     image = rgb(ground) + (grey * (1 - keep) + light * keep) * gain
+    if program:
+        color = rgb(PROGRAMS[program])
+        tinted = color * 0.1 + image.mean(axis=2, keepdims=True) * (color * 1.25 + 0.15)
+        image = image * (1 - TINT) + tinted * TINT
     image = image * (1 - 0.6 * shade)
+    if program:
+        mask = sign(program, side)
+        dark = np.clip(np.asarray(mask.filter(ImageFilter.GaussianBlur(36)), dtype=np.float32)[..., None] / 255 * 1.6, 0, 1)
+        inked = np.asarray(mask, dtype=np.float32)[..., None] / 255
+        image = (image * (1 - dark) + rgb(GROUND) * dark) * (1 - inked) + color * inked
     image = image * (1 - shape) + shape
     out = Image.fromarray((np.clip(image, 0, 1) * 255 + 0.5).astype(np.uint8)).convert("RGBA")
     if corner:
@@ -120,7 +173,12 @@ def main():
     for side, icon in icons.items():
         if side != 24:
             icon.save(OUT / f"icon-{side}.png")
-    icons[256].save(OUT / "icon.ico", sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)], append_images=[icons[s] for s in (16, 24, 32, 48, 64, 128)])
+    icons[256].save(OUT / "icon.ico", sizes=[(s, s) for s in ICO], append_images=[icons[s] for s in ICO[:-1]])
+    for program in PROGRAMS:
+        marked = {side: draw(side, program=program) for side in ICO}
+        marked[64].save(OUT / f"{program}-64.png")
+        marked[128].save(OUT / f"{program}-128.png")
+        marked[256].save(OUT / f"{program}.ico", sizes=[(s, s) for s in ICO], append_images=[marked[s] for s in ICO[:-1]])
     icons[1024].save(OUT / "icon.icns", append_images=[icons[s] for s in (16, 32, 64, 128, 256, 512)])
 
     # iOS rounds the corners itself. It turns the tinted icon to grey and tints it: white on black, as Apple asks.

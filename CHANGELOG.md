@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* **Icons for the command line tool, the MCP server and the HTTP server:** on Windows only the app had an icon.
+  `fractique.exe`, `fractique-mcp.exe` and `fractique-server.exe` now carry the app's picture in a color of their own
+  (green, violet, amber) with a sign beside the letter (a prompt, a star, a rack), and their properties say
+  Fractique, what the program is and its version. The MCP server, over stdio and over HTTP, tells a client its icon and the
+  address of the repository in the answer to `initialize`.
+
 * **A reference of the HTTP API in the browser, at `/docs`:** `fractique-server` had no reference a person could
   open. `/docs` now shows every endpoint with its fields, their types, limits and defaults, the answers and the
   errors, and sends a request to the server from the page: a render comes back as the picture.
