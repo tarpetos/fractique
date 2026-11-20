@@ -780,6 +780,8 @@ impl App {
     pub(crate) fn colors(&mut self, ui: &mut egui::Ui, dot: f32) {
         let walls = self.wall.on;
         let before = (self.wall.hue, self.palette);
+        // Nine in a row: on a narrow screen the dots shrink before the last one drops to a line of its own.
+        let dot = dot.min((ui.available_width() - 8.0 * 3.0) / 9.0 - 8.0).max(10.0);
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(3.0, 6.0);
             let cell = |ui: &mut egui::Ui, chosen: bool, paint: &dyn Fn(&egui::Painter, Pos2, f32)| {
