@@ -4459,9 +4459,16 @@ impl App {
                             }
                         }
                         _ => {
-                            let pane = egui::Rect::from_center_size(c, egui::vec2(2.0 * r + 3.0, 2.0 * r - 1.0));
-                            painter.rect_stroke(pane, egui::CornerRadius::same(3), ink, egui::StrokeKind::Middle);
-                            line(egui::vec2(-r - 2.5, r + 1.5), egui::vec2(r + 2.5, -r - 1.5));
+                            let lid = |up: f32| {
+                                (0..=20).map(move |step| {
+                                    let t = step as f32 / 10.0 - 1.0;
+                                    c + egui::vec2(7.5 * t, -up * 4.8 * (1.0 - t * t))
+                                })
+                            };
+                            let outline: Vec<egui::Pos2> = lid(1.0).chain(lid(-1.0).rev().skip(1)).take(40).collect();
+                            painter.add(egui::Shape::closed_line(outline, ink));
+                            painter.circle_stroke(c, 2.7, ink);
+                            painter.circle_filled(c, 1.1, ink.color);
                         }
                     }
                     if pressed.clicked() {

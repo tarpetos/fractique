@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* **The button that hides the interface is an eye:** it was drawn as an oval with a slash and did not read as
+  one. It is an eye with an iris and a pupil now, chosen by the owner from five variants drawn in the real title
+  bar. It has one state: the title bar goes away with the interface.
+
 * **A picture that never came:** after a preset of a kind whose shader was not compiled yet, the picture could
   stay blurred with its time counting for ever. The render that begins again once the shader is ready was held
   back when the card had drawn the picture before; it began again only if the processor's stand-in arrived
