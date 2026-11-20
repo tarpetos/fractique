@@ -18,6 +18,7 @@ New-Item -ItemType Directory -Force dist | Out-Null
 $app = "dist\Fractique_${version}_x64.exe"
 Copy-Item target\release\fractique-gui.exe $app -Force
 Copy-Item target\release\fractique.exe "dist\fractique-cli_${version}_x64.exe" -Force
+Copy-Item target\release\fractique-mcp.exe "dist\fractique-mcp_${version}_x64.exe" -Force
 Copy-Item target\release\fractique-server.exe "dist\fractique-server_${version}_x64.exe" -Force
 
 if ($env:CARGO_PACKAGER_SIGN_PRIVATE_KEY) {

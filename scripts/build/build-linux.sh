@@ -23,9 +23,9 @@ FRACTIQUE_RELEASE=1 cargo build --release --locked -p fractique-app -p fractique
 # linuxdeploy's own strip fails on current toolchains, and its AppImage needs no FUSE this way.
 NO_STRIP=true APPIMAGE_EXTRACT_AND_RUN=1 cargo packager -c crates/fractique-app/Packager.toml --formats "$formats"
 
-# The command line tool and the server on their own, for a machine that wants no app.
+# The command line tool and the two servers on their own, for a machine that wants no app.
 arch="$(uname -m)-linux"
-for program in fractique fractique-server; do
+for program in fractique fractique-mcp fractique-server; do
     name="$program"
     if [ "$program" = fractique ]; then
         name=fractique-cli

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* **`fractique-mcp`, the MCP server as a program of its own:** it is the server that `fractique mcp` runs and
+  nothing else, so a client's configuration is one path with no argument. It is in every release, inside the
+  packages and as a download of its own; `fractique mcp` stays.
+
 * **The HTTP server and the command line tool in every release:** a release held the app, and the command line
   tool only for Windows and inside the Linux and macOS packages; the HTTP server had to be built from the source.
   Now `fractique-server` is in the `.deb`, the AppImage and the macOS app beside `fractique`, and both are

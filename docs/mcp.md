@@ -1,28 +1,28 @@
 # MCP server
 
-`fractique mcp` runs Fractique as an [MCP](https://modelcontextprotocol.io) server, so an AI agent (Claude Code,
+`fractique-mcp` runs Fractique as an [MCP](https://modelcontextprotocol.io) server, so an AI agent (Claude Code,
 Claude Desktop or any other MCP client) can make scenes, change them and look at the result. The agent works on the
 same scene JSON as the command line tool, and what it sees is exactly what a later render gives:
 the same scene always renders to the same pixels.
 
-The server speaks MCP over stdin and stdout. It is the same program as the command line tool, so there is nothing
-else to install: it comes with every release, or build it with `setup.sh` or `setup.cmd`
-([usage.md](usage.md#1-install)).
+The server speaks MCP over stdin and stdout. `fractique-mcp` is that server and nothing else; the command line
+tool is it too, started as `fractique mcp`. Both come with every release, or build them with `setup.sh` or
+`setup.cmd` ([usage.md](usage.md#1-install)).
+
+The HTTP server offers the same tools to a client on another machine, at `/mcp`: see [Over HTTP](#over-http).
 
 ## Where the program is
 
-| Got as | The command line tool, `fractique` | The HTTP server, `fractique-server` |
-| --- | --- | --- |
-| Windows | `fractique-cli_<version>_x64.exe`, where you saved it | `fractique-server_<version>_x64.exe`, where you saved it |
-| The `.deb` | `/usr/bin/fractique` | `/usr/bin/fractique-server` |
-| The AppImage | Not reachable from outside: take the `.tar.gz` below | The same |
-| macOS, the app | `/Applications/Fractique.app/Contents/MacOS/fractique` | `/Applications/Fractique.app/Contents/MacOS/fractique-server` |
-| `fractique-cli_…tar.gz`, `fractique-server_…tar.gz` (Linux, macOS) | `fractique`, where you unpacked it | `fractique-server`, where you unpacked it |
-| Built here | `target/release/fractique` | `target/release/fractique-server` |
+| Got as | The MCP server, `fractique-mcp` | The command line tool, `fractique` | The HTTP server, `fractique-server` |
+| --- | --- | --- | --- |
+| Windows | `fractique-mcp_<version>_x64.exe`, where you saved it | `fractique-cli_<version>_x64.exe` | `fractique-server_<version>_x64.exe` |
+| The `.deb` | `/usr/bin/fractique-mcp` | `/usr/bin/fractique` | `/usr/bin/fractique-server` |
+| The AppImage | Not reachable from outside: take the `.tar.gz` below | The same | The same |
+| macOS, the app | `/Applications/Fractique.app/Contents/MacOS/fractique-mcp` | `…/MacOS/fractique` | `…/MacOS/fractique-server` |
+| The `.tar.gz` of each (Linux, macOS) | `fractique-mcp`, where you unpacked it | `fractique` | `fractique-server` |
+| Built here | `target/release/fractique-mcp` | `target/release/fractique` | `target/release/fractique-server` |
 
-The two `.tar.gz` files are for a machine that wants no app, a server above all.
-
-The HTTP server offers the same tools to a client on another machine, at `/mcp`: see [Over HTTP](#over-http).
+The `.tar.gz` files are for a machine that wants no app, a server above all.
 
 ## Connect a client
 
@@ -32,7 +32,7 @@ asks once whether to use it.
 **Claude Code, anywhere:**
 
 ```sh
-claude mcp add fractique -- /full/path/to/fractique mcp
+claude mcp add fractique -- /full/path/to/fractique-mcp
 ```
 
 **Claude Desktop** and other clients that take a JSON configuration:
@@ -41,14 +41,14 @@ claude mcp add fractique -- /full/path/to/fractique mcp
 {
   "mcpServers": {
     "fractique": {
-      "command": "/full/path/to/fractique",
-      "args": ["mcp"]
+      "command": "/full/path/to/fractique-mcp"
     }
   }
 }
 ```
 
-The path is the one from [Where the program is](#where-the-program-is); on Windows it ends in `.exe`.
+The path is the one from [Where the program is](#where-the-program-is); on Windows it ends in `.exe`. With the
+command line tool the command is `fractique` and `"args": ["mcp"]`.
 
 ## Tools
 
