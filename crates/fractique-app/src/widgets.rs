@@ -102,6 +102,12 @@ pub fn title(ui: &mut Ui, text: &str, size: f32) {
     head(ui, text, font(size, SEMIBOLD), Color32::WHITE);
 }
 
+// A heading of a pane without a close button: a line of its own height under the pane's padding.
+pub fn caption(ui: &mut Ui, title: &str) {
+    ui.label(egui::RichText::new(title).font(font(11.0, SEMIBOLD)).color(white(120)));
+    ui.add_space(HEAD);
+}
+
 pub fn heading(ui: &mut Ui, title: &str) {
     head(ui, title, font(11.0, SEMIBOLD), white(120));
     ui.add_space(HEAD);

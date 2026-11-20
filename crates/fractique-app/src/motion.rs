@@ -274,6 +274,14 @@ impl Veil {
     }
 }
 
+// A pane gives way to a sheet when the sheet, where it will stand, comes nearer to it than the clearance: whole, by
+// what the two rectangles are, at any size of the window and in any language. Once it has given way it comes back
+// only when the sheet is a little farther off, so a window whose edge is dragged does not make it flap.
+pub fn gives_way(pane: egui::Rect, sheets: &[egui::Rect], clearance: f32, given: bool) -> bool {
+    let reach = if given { clearance + BAND / 3.0 } else { clearance };
+    sheets.iter().any(|sheet| sheet.expand(reach).intersects(pane))
+}
+
 // What the screen takes of the pictures offered to it. While a picture is awaited the screen shows two things
 // only: one still picture under the whole blur, then the finished one. A first, small picture of the new one may
 // take the place of the old one once, under the whole blur; nothing else changes until the finished picture
@@ -304,6 +312,29 @@ pub fn turn(veil: f32, awaited: bool, fading: bool, first: bool, last: bool) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_pane_gives_way_to_a_sheet_that_reaches_it_and_to_no_other() {
+        let rect = |left: f32, top: f32, right: f32, bottom: f32| {
+            egui::Rect::from_min_max(egui::pos2(left, top), egui::pos2(right, bottom))
+        };
+        let (inspector, toolbar) = (rect(20.0, 74.0, 312.0, 780.0), rect(413.0, 692.0, 867.0, 780.0));
+        // The list of languages of a wide window hangs at the right: it reaches neither.
+        let list = [rect(1000.0, 66.0, 1240.0, 620.0)];
+        assert!(!gives_way(inspector, &list, 12.0, false));
+        assert!(!gives_way(toolbar, &list, 12.0, false));
+        // In a narrow window the same list lies over the panel, and the panel goes whole.
+        let narrow = [rect(204.0, 66.0, 444.0, 460.0)];
+        assert!(gives_way(inspector, &narrow, 12.0, false));
+        assert!(!gives_way(rect(100.0, 480.0, 540.0, 560.0), &narrow, 12.0, false));
+        // Nearer than the clearance counts as reaching.
+        assert!(gives_way(rect(450.0, 100.0, 600.0, 200.0), &narrow, 12.0, false));
+        assert!(!gives_way(rect(457.0, 100.0, 600.0, 200.0), &narrow, 12.0, false));
+        // What gave way comes back a little later than it went, and with no sheet at once.
+        assert!(gives_way(rect(460.0, 100.0, 600.0, 200.0), &narrow, 12.0, true));
+        assert!(!gives_way(rect(466.0, 100.0, 600.0, 200.0), &narrow, 12.0, true));
+        assert!(!gives_way(inspector, &[], 12.0, true));
+    }
 
     #[test]
     fn under_the_blur_the_screen_changes_once_at_most_before_the_finished_picture() {

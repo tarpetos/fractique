@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* **A pane hides when a list reaches it, and only then:** which panes go under an open list or sheet was a
+  table: the toolbar always, the panel under some lists below a width, never under the list of languages. In a
+  narrow window that list lay over the panel and both were read at once; in a wide one the toolbar hid although
+  nothing came near it. Now a pane gives way if and only if the open sheet, where it stands, comes nearer to it
+  than 12 points, by the rectangles as they are at that size and in that language; it goes whole and comes back
+  when the sheet closes. On a computer the list of languages has no close button: it is a dropdown, left by a
+  row, by its button, by a click beside it or by Escape, and its heading has the padding of every pane.
+
+* **One time a picture:** the toolbar showed the time of the first, small picture while the blur stood (0.34 s)
+  and another when the picture was finished (2.20 s). It shows one: from the click, the last step of the wheel
+  or the dragged edge that asked for the picture to the finished picture on the screen. While the picture is on
+  its way the time counts in tenths of a second and ends on that number; the line keeps room for the widest
+  digits, so nothing beside it moves. A view that is only magnified keeps the time of its picture.
+
 * **The window keeps its pace while the graphics card draws:** a picture drawn by the card took the card for 40 ms
   at a time, so the window drew 25 frames a second and the card showed as fully used until the picture was done
   (on master as much as after the two stages). Now the card gets a slice of every frame, half of it, and a

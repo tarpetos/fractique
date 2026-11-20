@@ -92,7 +92,6 @@ struct Rendered {
     held: Option<Held>,
     image: Image,
     soft: (Vec<u8>, u32, u32),
-    seconds: f32,
     speed: Option<(String, bool, f64)>,
 }
 
@@ -581,10 +580,13 @@ struct Offer {
     light: Option<f32>,
     // The textures are the ones the card goes on drawing into.
     card: bool,
+    pixels: [u32; 2],
 }
 
 // A sheet on its way in or out: the name its height is kept under, the point it hangs from and how far it is shown.
 struct Leaf {
+    // It is open, not on its way out: what it reaches gives way to it.
+    live: bool,
     height: &'static str,
     at: egui::Pos2,
     pivot: egui::Align2,
@@ -887,13 +889,22 @@ struct App {
     panes: Vec<(egui::Rect, f32, bool)>,
     fades: Vec<f32>,
     stage: motion::Stage,
-    cover: f32,
+    under: f32,
+    // Where the sheets stand, how far each is shown and whether it is open or on its way out.
+    covers: Vec<(egui::Rect, f32, bool)>,
+    covering: Vec<(egui::Rect, f32, bool)>,
+    seats: Vec<(&'static str, egui::Rect)>,
     wide: Option<bool>,
     veil: motion::Veil,
     fresh: motion::Motion,
     fading: bool,
     veiled: bool,
     resizing: bool,
+    began: Instant,
+    begun: bool,
+    waited: Instant,
+    counting: bool,
+    last_size: [u32; 2],
     used: Instant,
     moved_only: bool,
     pictures: u32,
@@ -917,6 +928,7 @@ struct App {
     steps: Vec<String>,
     tap: Option<(egui::Pos2, u8)>,
     dragged: Option<(egui::Pos2, egui::Pos2, u32, u32)>,
+    escape: bool,
     custom: [String; 2],
     // A text of a fractal while it is typed, by its layer and name: what is typed need not be valid yet.
     typed: Option<(String, String)>,
@@ -1471,13 +1483,21 @@ impl App {
             panes: Vec::new(),
             fades: Vec::new(),
             stage: motion::Stage::default(),
-            cover: 0.0,
+            under: 0.0,
+            covers: Vec::new(),
+            covering: Vec::new(),
+            seats: Vec::new(),
             wide: None,
             veil: motion::Veil::new(),
             fresh: motion::Motion::at(1.0),
             fading: false,
             veiled: false,
             resizing: false,
+            began: Instant::now(),
+            begun: false,
+            waited: Instant::now(),
+            counting: false,
+            last_size: [0; 2],
             used: Instant::now(),
             moved_only: false,
             pictures: 0,
@@ -1511,6 +1531,7 @@ impl App {
             ),
             tap: None,
             dragged: None,
+            escape: false,
             custom: Default::default(),
             typed: None,
             sizes_open: opens("sizes"),
@@ -1990,7 +2011,6 @@ impl App {
                 });
                 let radius = image.width.min(image.height) as f32 * 0.03;
                 let soft = blur::soften(&image.rgba, image.width as usize, image.height as usize, radius);
-                let seconds = started.elapsed().as_secs_f32();
                 let done = Rendered {
                     generation,
                     draft,
@@ -1999,7 +2019,6 @@ impl App {
                     held,
                     image,
                     soft,
-                    seconds,
                     speed,
                 };
                 if sender.send(done).is_err() {
@@ -2029,10 +2048,15 @@ impl App {
         }
     }
 
-    fn present(&mut self, offer: Offer, frame: &eframe::Frame) {
+    fn present(&mut self, offer: Offer, last: bool, frame: &eframe::Frame) {
         let Some(state) = frame.wgpu_render_state() else {
             return;
         };
+        // One time a picture: from the click, the step of the wheel or the edge it answers to the finished
+        // picture. A first picture has none.
+        if last {
+            self.status = status_of(offer.pixels, self.began.elapsed().as_secs_f32(), offer.at.view);
+        }
         self.turn_picture();
         self.past_eye = self.shown_eye.take();
         if let Some(gfx) = state.renderer.write().callback_resources.get_mut::<Gfx>() {
@@ -2131,6 +2155,7 @@ impl App {
                     },
                     light: Some(lightness(&image.rgba, 97)),
                     card: false,
+                    pixels: [image.width, image.height],
                 };
                 self.offer(offer, !done.draft);
             }
@@ -2142,7 +2167,6 @@ impl App {
             if !done.draft {
                 self.rendering = false;
                 self.shown_frames = self.shown_frames.max(1);
-                self.status = status_of([done.image.width, done.image.height], done.seconds, done.view);
                 if shows("preview")
                     && !self.frozen
                     && let Some(adjust) = Adjust::asked()
@@ -2452,9 +2476,11 @@ impl App {
         let times = chaos.times();
         let whole = times.1.is_some() && self.quick.1.is_none();
         if times != self.quick {
-            if let (Some((size, _)), Some(first)) = (chaos.levels(), times.0) {
-                self.status = status_of(size, times.1.unwrap_or(first), self.chaos_at.0);
-                if timed() && self.quick.0.is_none() {
+            if let (Some((size, _)), Some(first)) = (chaos.levels(), times.0)
+                && timed()
+                && self.quick.0.is_none()
+            {
+                {
                     eprintln!(
                         "times: the first picture of {} × {} from the graphics card after {first:.3} s",
                         size[0], size[1]
@@ -2558,6 +2584,9 @@ impl App {
                 (self.shown, self.shown_zoom) = self.chaos_at;
                 self.shown_size = Some(self.aimed_size);
                 self.pictures += 1;
+                if last {
+                    self.status = status_of(size, self.began.elapsed().as_secs_f32(), self.chaos_at.0);
+                }
             }
         }
         self.trace.stage("card");
@@ -2580,6 +2609,7 @@ impl App {
                 at,
                 light: None,
                 card,
+                pixels: size,
             };
             self.offer(offer, !first);
         }
@@ -2590,8 +2620,13 @@ impl App {
     }
 
     fn detail(&self) -> String {
-        if self.rendering && !self.chaotic {
-            self.t("rendering")
+        // Before the first tenth of a wait nothing counts: a picture that is there by then shows its time alone.
+        let counted = pace::counted(self.began.elapsed().as_secs_f32()).unwrap_or(0.0);
+        let waiting = self.counting && self.waited.elapsed().as_secs_f32() >= 0.1;
+        if let Some(seconds) = waiting.then_some(counted) {
+            let size = self.requested.unwrap_or(self.aimed_size);
+            let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+            status_of([full.width, full.height], seconds, self.view)
         } else if self.magnified && self.view != WHOLE {
             format!("{}  ·  {}×", self.t("magnified"), self.view.label())
         } else {
@@ -3215,6 +3250,36 @@ impl App {
             .fade_in(false)
     }
 
+    pub(crate) fn seat(&mut self, key: &'static str, rect: egui::Rect) {
+        match self.seats.iter_mut().find(|(name, _)| *name == key) {
+            Some(seat) => seat.1 = rect,
+            None => self.seats.push((key, rect)),
+        }
+    }
+
+    fn seat_of(&self, key: &'static str) -> Option<egui::Rect> {
+        self.seats.iter().find(|(name, _)| *name == key).map(|(_, seat)| *seat)
+    }
+
+    // Whether a pane gives way: a sheet that is open reaches the place the pane was last seen at.
+    pub(crate) fn gives(&self, key: &'static str) -> bool {
+        self.seats
+            .iter()
+            .find(|(name, _)| *name == key)
+            .is_some_and(|(_, rect)| self.gives_at(key, *rect))
+    }
+
+    // It gives way to a sheet that is open, and stays away from one on its way out until that has mostly gone.
+    pub(crate) fn gives_at(&self, key: &'static str, rect: egui::Rect) -> bool {
+        let given = self.stage.aim_of(key) == Some(0.0);
+        let open: Vec<egui::Rect> = (self.covers.iter())
+            .filter(|(_, _, live)| *live)
+            .map(|(sheet, ..)| *sheet)
+            .collect();
+        let leaving = |(sheet, shown, live): &(egui::Rect, f32, bool)| !live && *shown >= 0.5 && sheet.intersects(rect);
+        motion::gives_way(rect, &open, widgets::OUTER, given) || self.covers.iter().any(leaving)
+    }
+
     // A sheet's texts fade with it, and what a sheet that grows has not reached yet stays unseen.
     fn unfold(&mut self, ui: &mut egui::Ui, leaf: &Leaf) {
         ui.set_opacity(leaf.shown);
@@ -3237,6 +3302,10 @@ impl App {
         radius: f32,
         dark: bool,
     ) {
+        let size = response.rect.size();
+        let stands = egui::pos2(response.rect.left(), leaf.at.y - leaf.pivot.y().to_factor() * size.y);
+        self.covering
+            .push((egui::Rect::from_min_size(stands, size), leaf.shown, leaf.live));
         let span = if leaf.shown == 0.0 { 0.0 } else { motion::SMALL };
         let tall = self.stage.glide(leaf.height, response.rect.height(), span);
         let top = leaf.at.y - leaf.pivot.y().to_factor() * tall + (1.0 - leaf.shown) * motion::SHIFT;
@@ -3326,6 +3395,13 @@ impl App {
         screen: egui::Rect,
     ) -> glass::Shown {
         let now = self.stage.now;
+        // The time shown with a picture runs from the last thing that asked for it.
+        let eye = (self.view, self.adjust.zoom);
+        if self.requested.is_none() || eye != self.last_eye || size != self.last_size {
+            self.began = Instant::now();
+            self.begun = self.requested.is_none();
+        }
+        self.last_size = size;
         let awaited = self.awaited(size);
         // The picture of another scene has no place in the new one's view: it stays where it was last seen.
         if awaited && (self.requested.is_none() || !self.moved_only) && self.shown_eye.is_none() {
@@ -3338,13 +3414,13 @@ impl App {
                 self.handing = false;
                 self.offered[0] = None;
                 if let Some(offer) = self.offered[1].take() {
-                    self.present(offer, frame);
+                    self.present(offer, true, frame);
                 }
             }
             motion::Turn::First => {
                 self.handing = true;
                 if let Some(offer) = self.offered[0].take() {
-                    self.present(offer, frame);
+                    self.present(offer, false, frame);
                 }
             }
             motion::Turn::Stay => {}
@@ -3356,6 +3432,16 @@ impl App {
         let standing = awaited || self.offered[1].is_some() || (self.handing && self.fresh.moving(now));
         let held = ctx.input(|input| input.pointer.any_down());
         let (veil, moving) = self.veil.step(standing, held, now);
+        // While the picture is on its way the time counts, a tenth of a second at a step.
+        if standing && !self.counting {
+            self.waited = self.began;
+        }
+        self.counting = standing;
+        if standing {
+            let passed = self.began.elapsed().as_secs_f32();
+            let next = (passed * 10.0).floor() / 10.0 + 0.1 - passed;
+            ctx.request_repaint_after(std::time::Duration::from_secs_f32(next.max(0.005)));
+        }
         self.veil_level = veil;
         let fresh = self.fresh.value(now);
         if moving || self.fresh.moving(now) {
@@ -3371,7 +3457,7 @@ impl App {
             let (batches, last, worst, spent) = self.chaos.as_ref().map_or((0, 0.0, 0.0, 0.0), Chaos::load);
             self.trace.note = format!(
                 "veil {veil:.3} fresh {fresh:.3} awaited {} picture {} rendering {} first {} view {:.5}:{:.5}:{:.5} \
-                 card {batches} {last:.2} {worst:.2} {spent:.1} slice {:.2} parts {:.1} {:.1} {:.1}",
+                 card {batches} {last:.2} {worst:.2} {spent:.1} slice {:.2} parts {:.1} {:.1} {:.1} detail [{}] seats {} covers {}",
                 u8::from(awaited),
                 self.pictures,
                 u8::from(self.rendering),
@@ -3382,7 +3468,28 @@ impl App {
                 pace::slice() * 1000.0,
                 self.trace.parts[0],
                 self.trace.parts[1],
-                self.trace.parts[2]
+                self.trace.parts[2],
+                self.detail(),
+                self.seats
+                    .iter()
+                    .map(|(key, seat)| {
+                        let gave = u8::from(self.stage.aim_of(key) == Some(0.0));
+                        format!(
+                            "{key}:{gave}:{:.0},{:.0},{:.0},{:.0}",
+                            seat.min.x, seat.min.y, seat.max.x, seat.max.y
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("|"),
+                self.covers
+                    .iter()
+                    .filter(|(_, _, live)| *live)
+                    .map(|(sheet, ..)| format!(
+                        "{:.0},{:.0},{:.0},{:.0}",
+                        sheet.min.x, sheet.min.y, sheet.max.x, sheet.max.y
+                    ))
+                    .collect::<Vec<_>>()
+                    .join("|")
             );
         }
         let fixed = self.picture.is_some();
@@ -4999,6 +5106,11 @@ impl App {
             self.shown_frames = 0;
             return;
         }
+        if step == "escape" {
+            self.escape = true;
+            self.shown_frames = 1;
+            return;
+        }
         if step == "gpu" {
             self.gpu = !self.gpu;
             self.gpu_turned();
@@ -5077,6 +5189,15 @@ impl eframe::App for App {
             input.time = Some(self.trace.frame as f64 / 60.0);
             input.predicted_dt = 1.0 / 60.0;
         }
+        if std::mem::take(&mut self.escape) {
+            input.events.push(egui::Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            });
+        }
         if let Some((from, to, frames, at)) = self.dragged {
             let pos = from + (to - from) * (at as f32 / frames.max(1) as f32).min(1.0);
             let press = |pressed| egui::Event::PointerButton {
@@ -5117,7 +5238,7 @@ impl eframe::App for App {
         let began = Instant::now();
         self.trace.slept = 0.0;
         self.draw(ui, frame);
-        if self.trace.on() || self.trace.recording() {
+        if self.trace.on() || self.trace.recording() || self.trace.fixed_clock {
             let work = began.elapsed().as_secs_f32() * 1000.0 - self.trace.slept;
             self.trace
                 .frame(ui.ctx(), work, [&self.panes, &self.panes], &self.fades);
@@ -5262,6 +5383,10 @@ impl App {
         let clock = Instant::now();
         if window[0] > 0 && window[1] > 0 && !resizing {
             if self.requested != Some(size) {
+                // A picture asked for after the frame's end, as a test run's step does, counts from here.
+                if self.requested.is_none() && !std::mem::take(&mut self.begun) {
+                    self.began = Instant::now();
+                }
                 self.moved_only = self.requested.is_some();
                 if self.card_shows(size) {
                     self.requested = Some(size);
@@ -5338,31 +5463,25 @@ impl App {
         let wide = motion::latch(self.wide, content.width(), 700.0, motion::BAND);
         self.wide = Some(wide);
         let open = *self.inspector_open.get_or_insert(wide);
-        // A sheet's glass is drawn under every text, so a panel it would cover hides while the sheet is open.
-        #[cfg(not(target_arch = "wasm32"))]
-        let sheet = self.export.open || self.sizes_open || self.presets_open;
-        #[cfg(target_arch = "wasm32")]
-        let sheet = self.sizes_open || self.presets_open;
-        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        let sheet = sheet || self.updates.open;
-        let sheet = sheet
-            || self.pro_open()
-            || (self.languages_open && cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")));
-        #[cfg(not(target_arch = "wasm32"))]
-        let open = open && !self.export.open && !self.pro_open();
-        let open = open && !(sheet && content.width() < 1320.0);
-        let covered = sheet || self.languages_open;
-        // What a sheet covered comes back once the sheet has mostly gone: the two are never both whole.
-        let cover = self.cover;
-        let back = |stage: &motion::Stage, key: &'static str, wanted: bool| {
-            wanted && (cover < 0.5 || stage.aim_of(key) == Some(1.0))
-        };
-        let open = back(&self.stage, "inspector", open);
+        // A sheet's glass is drawn under every text, so a pane the sheet reaches, at the place where it will stand,
+        // gives way to it whole; one it does not reach stays as it is. What gave way comes back once the sheet has
+        // mostly gone: the two are never both whole.
+        if let Some(seat) = self.seat_of("inspector") {
+            let corner = content.min + egui::vec2(20.0, 20.0);
+            let tall = (content.height() - 40.0 - self.under).max(0.0);
+            self.seat(
+                "inspector",
+                egui::Rect::from_min_size(corner, egui::vec2(seat.width(), tall)),
+            );
+        }
+        let hidden = self.gives("inspector");
+        let open = open && !hidden;
+
         let column = (content.width() - 84.0).min(248.0);
         let beside = content.left() + 20.0 + column + 44.0 + 16.0;
         let mut panes = Vec::new();
         if self.phone.on {
-            self.phone_home(&ctx, content, size, &mut panes, covered);
+            self.phone_home(&ctx, content, size, &mut panes);
         } else {
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             if let Some(shown) = self.stage.shown("title", true, motion::PANEL) {
@@ -5370,7 +5489,13 @@ impl App {
                 self.faded(&panes, 0, shown);
             }
 
-            let bar_on = back(&self.stage, "toolbar", !covered);
+            // Where the toolbar stands, or would: a pane that has given way is looked for where it would be now.
+            let foot = egui::pos2(content.center().x, content.bottom() - 20.0);
+            if self.toolbar_size != egui::Vec2::ZERO {
+                let seat = egui::Align2::CENTER_BOTTOM.anchor_size(foot, self.toolbar_size);
+                self.seat("toolbar", seat);
+            }
+            let bar_on = !self.gives("toolbar");
             if let Some(shown) = self.stage.shown("toolbar", bar_on, motion::GIVE) {
                 let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
                     .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
@@ -5391,9 +5516,22 @@ impl App {
                                 egui::FontId::proportional(13.0),
                                 egui::Color32::from_white_alpha(170),
                             );
-                            let width = (self.toolbar_size.x - 18.0).max(name.size().x + 10.0 + detail.size().x);
+                            // The digits of a time that counts are of different widths: the line is laid out
+                            // for the widest, so nothing beside them moves.
+                            let widest: String = self
+                                .detail()
+                                .chars()
+                                .map(|c| if c.is_ascii_digit() { '0' } else { c })
+                                .collect();
+                            let widest = ui.painter().layout_no_wrap(
+                                widest,
+                                egui::FontId::proportional(13.0),
+                                egui::Color32::WHITE,
+                            );
+                            let room = widest.size().x.max(detail.size().x);
+                            let width = (self.toolbar_size.x - 18.0).max(name.size().x + 10.0 + room);
                             let (line, _) = ui.allocate_exact_size(egui::vec2(width, 24.0), egui::Sense::hover());
-                            let left = line.center().x - (name.size().x + 10.0 + detail.size().x) * 0.5;
+                            let left = line.center().x - (name.size().x + 10.0 + room) * 0.5;
                             let after = left + name.size().x + 10.0;
                             ui.painter().galley(
                                 egui::pos2(left, line.center().y - name.size().y * 0.5),
@@ -5430,7 +5568,8 @@ impl App {
             let lifted = if self.view != WHOLE { 56.0 } else { 0.0 };
             let lifted = self.stage.glide("lifted", lifted, motion::SMALL);
             let under = (1.0 - clear) * (self.toolbar_size.y.max(60.0) + 12.0 + lifted);
-            let span = if covered { motion::GIVE } else { motion::PANEL };
+            self.under = under;
+            let span = if hidden { motion::GIVE } else { motion::PANEL };
             if let Some(shown) = self.stage.shown("inspector", open, span) {
                 let corner = content.min + egui::vec2(20.0, 20.0);
                 let inspector = egui::Area::new(egui::Id::unique("inspector"))
@@ -5466,24 +5605,29 @@ impl App {
                                 });
                         });
                     });
+                self.seat("inspector", inspector.response.rect);
                 self.pane(&ctx, &mut panes, &inspector.response, self.optics.radius, false, shown);
             }
 
-            let reset = back(&self.stage, "reset", self.view != WHOLE && !covered);
+            if let Some(seat) = self.seat_of("reset") {
+                let above = egui::pos2(content.center().x, content.bottom() - 20.0 - self.toolbar_size.y - 10.0);
+                self.seat("reset", egui::Align2::CENTER_BOTTOM.anchor_size(above, seat.size()));
+            }
+            let reset = self.view != WHOLE && !self.gives("reset");
             if let Some(shown) = self.stage.shown("reset", reset, motion::SMALL) {
                 let above = content.bottom() - 20.0 - self.toolbar_size.y - 10.0;
                 let from = panes.len();
                 let rect = self.reset_button(&ctx, egui::pos2(content.center().x, above), shown, reset);
+                self.seat("reset", rect);
                 panes.push((rect, rect.height() * 0.5, false));
                 self.faded(&panes, from, shown);
             }
         }
 
-        let mut cover: f32 = 0.0;
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(shown) = self.stage.shown("export", self.export.open, motion::PANEL) {
-            cover = cover.max(shown);
             let leaf = Leaf {
+                live: self.export.open,
                 height: "export_tall",
                 at: content.center(),
                 pivot: egui::Align2::CENTER_CENTER,
@@ -5511,9 +5655,9 @@ impl App {
 
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         if let Some(shown) = self.stage.shown("updates", self.updates.open, motion::PANEL) {
-            cover = cover.max(shown);
             let width = (content.width() - 84.0).min(600.0);
             let leaf = Leaf {
+                live: self.updates.open,
                 height: "updates_tall",
                 at: content.center(),
                 pivot: egui::Align2::CENTER_CENTER,
@@ -5539,9 +5683,9 @@ impl App {
 
         #[cfg(feature = "store")]
         if let Some(shown) = self.stage.shown("pro", self.pro.is_some(), motion::PANEL) {
-            cover = cover.max(shown);
             let width = sheet_width(content.width(), 300.0, self.phone.on).min(content.width() - 84.0);
             let leaf = Leaf {
+                live: self.pro.is_some(),
                 height: "pro_tall",
                 at: content.center(),
                 pivot: egui::Align2::CENTER_CENTER,
@@ -5563,7 +5707,6 @@ impl App {
         }
 
         if let Some(shown) = self.stage.shown("presets", self.presets_open, motion::PANEL) {
-            cover = cover.max(shown);
             let live = self.presets_open;
             let (at, pivot, room) = list_place(content, self.phone.on);
             if live {
@@ -5572,6 +5715,7 @@ impl App {
             let natural = if self.listing == Listing::Recent { 380.0 } else { 260.0 };
             let width = sheet_width(content.width(), natural, self.phone.on);
             let leaf = Leaf {
+                live,
                 height: "presets_tall",
                 at,
                 pivot,
@@ -5591,13 +5735,13 @@ impl App {
         }
 
         if let Some(shown) = self.stage.shown("sizes", self.sizes_open, motion::PANEL) {
-            cover = cover.max(shown);
             let live = self.sizes_open;
             let (at, pivot, room) = list_place(content, self.phone.on);
             if live {
                 self.list_backdrop(&ctx, screen);
             }
             let leaf = Leaf {
+                live,
                 height: "sizes_tall",
                 at,
                 pivot,
@@ -5618,20 +5762,27 @@ impl App {
         }
 
         if let Some(shown) = self.stage.shown("languages", self.languages_open, motion::PANEL) {
-            cover = cover.max(shown);
             let live = self.languages_open;
-            let (at, pivot, room) =
-                if self.phone.on || cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
-                    list_place(content, self.phone.on)
-                } else {
-                    let at = self.language_anchor + egui::vec2(0.0, 12.0);
-                    (at, egui::Align2::RIGHT_TOP, content.height())
-                };
+            // On a computer the list hangs from its button in the title bar and is left as any dropdown is: by a
+            // row, the button, a click beside it or Escape. It has no close button of its own.
+            let dropdown = !self.phone.on
+                && cfg!(not(any(
+                    target_os = "android",
+                    target_os = "ios",
+                    target_arch = "wasm32"
+                )));
+            let (at, pivot, room) = if dropdown {
+                let at = self.language_anchor + egui::vec2(0.0, 12.0);
+                (at, egui::Align2::RIGHT_TOP, content.height())
+            } else {
+                list_place(content, self.phone.on)
+            };
             let mut chosen = self.texts.lang;
             if live {
                 self.list_backdrop(&ctx, screen);
             }
             let leaf = Leaf {
+                live,
                 height: "languages_tall",
                 at,
                 pivot,
@@ -5642,7 +5793,11 @@ impl App {
                 widgets::pane().show(ui, |ui| {
                     ui.set_width(sheet_width(content.width(), 196.0, self.phone.on));
                     ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-                    widgets::heading(ui, &self.t("language"));
+                    if dropdown {
+                        widgets::caption(ui, &self.t("language"));
+                    } else {
+                        widgets::heading(ui, &self.t("language"));
+                    }
                     let mut bar = egui::style::ScrollStyle::floating();
                     bar.bar_width = 5.0;
                     ui.spacing_mut().scroll = bar;
@@ -5658,7 +5813,7 @@ impl App {
                                 }
                             }
                         });
-                    if widgets::close(ui, &self.t("close")) {
+                    if !dropdown && widgets::close(ui, &self.t("close")) {
                         self.languages_open = false;
                     }
                 });
@@ -5669,9 +5824,17 @@ impl App {
             }
             self.leaf(&ctx, &mut panes, &menu.response, &leaf, self.optics.radius, true);
         }
-        self.cover = cover;
+        self.covers = std::mem::take(&mut self.covering);
 
-        if let Some(shown) = self.stage.shown("tuning", self.tuning, motion::PANEL) {
+        if let Some(seat) = self.seat_of("tuning") {
+            let corner = egui::pos2(
+                content.right() - 20.0,
+                content.bottom() - 20.0 - (content.bottom() - 20.0 - seat.bottom()).max(0.0),
+            );
+            self.seat("tuning", egui::Align2::RIGHT_BOTTOM.anchor_size(corner, seat.size()));
+        }
+        let tuned = self.tuning && !self.gives("tuning");
+        if let Some(shown) = self.stage.shown("tuning", tuned, motion::PANEL) {
             // In a narrow window the toolbar reaches under this panel's place: the panel stands above it.
             let wide = 220.0 + 2.0 * widgets::PAD;
             let reach = content.center().x + self.toolbar_size.x * 0.5 + 12.0;
@@ -5684,7 +5847,7 @@ impl App {
             let tuning = egui::Area::new(egui::Id::unique("tuning"))
                 .fixed_pos(egui::pos2(content.right() - 20.0, content.bottom() - 20.0 - lift))
                 .pivot(egui::Align2::RIGHT_BOTTOM)
-                .interactable(self.tuning)
+                .interactable(tuned)
                 .fade_in(false)
                 .show(&ctx, |ui| {
                     ui.set_opacity(shown);
@@ -5695,6 +5858,7 @@ impl App {
                         }
                     });
                 });
+            self.seat("tuning", tuning.response.rect);
             self.pane(&ctx, &mut panes, &tuning.response, self.optics.radius, false, shown);
         }
 

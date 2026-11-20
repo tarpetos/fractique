@@ -31,6 +31,12 @@ pub fn slice_of(attended: bool) -> f32 {
     FRAME * if attended { SHARE_ATTENDED } else { SHARE }
 }
 
+// The time shown while a picture is on its way: the seconds since it was asked for, a tenth at a step, and
+// nothing before the first tenth. It never passes the time the finished picture is shown with.
+pub fn counted(seconds: f32) -> Option<f32> {
+    (seconds >= 0.1).then(|| (seconds * 10.0).floor() / 10.0)
+}
+
 // The size of the next batch, from the size of the last and the seconds it took.
 pub fn next(sent: f64, took: f32, slice: f32) -> f64 {
     let fits = f64::from(slice) / f64::from(took.max(1e-5));
@@ -174,6 +180,24 @@ mod tests {
             sent = next(sent, seconds(sent), slice);
         }
         assert!((seconds(sent) - slice).abs() < slice * 0.01);
+    }
+
+    #[test]
+    fn the_time_of_a_picture_counts_in_tenths_up_to_the_one_it_took() {
+        assert_eq!(counted(0.0), None);
+        assert_eq!(counted(0.09), None);
+        assert_eq!(counted(0.1), Some(0.1));
+        assert_eq!(counted(0.34), Some(0.3));
+        let took = 2.2f32;
+        let mut last = 0.0;
+        for frame in 0..132 {
+            let passed = frame as f32 / 60.0;
+            if let Some(shown) = counted(passed) {
+                assert!(shown >= last && shown <= took);
+                last = shown;
+            }
+        }
+        assert!(took - last < 0.11);
     }
 
     #[test]

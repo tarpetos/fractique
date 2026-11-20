@@ -844,36 +844,28 @@ impl App {
         chosen(self.seed, &self.wall.request(size))
     }
 
-    pub(crate) fn phone_home(
-        &mut self,
-        ctx: &egui::Context,
-        content: Rect,
-        size: [u32; 2],
-        panes: &mut Panes,
-        covered: bool,
-    ) {
-        // A list's glass is drawn under every text: what it would cover hides while the list is open.
-        let cover = self.cover;
-        let back = |stage: &motion::Stage, key: &'static str, wanted: bool| {
-            wanted && (cover < 0.5 || stage.aim_of(key) == Some(1.0))
-        };
-        let tune = back(&self.stage, "phone_tune", self.phone.tune && !covered);
+    pub(crate) fn phone_home(&mut self, ctx: &egui::Context, content: Rect, size: [u32; 2], panes: &mut Panes) {
+        // A list's glass is drawn under every text: what it reaches hides while the list is open, and nothing
+        // else. The round buttons go together.
+        let covered = [
+            self.gives_at("phone_tune", content.shrink(widgets::OUTER)),
+            self.gives("phone_sheet"),
+            (self.phone.clear.iter()).any(|pane| self.gives_at("phone_home", *pane)),
+        ];
+        let tune = self.phone.tune && !covered[0];
         if let Some(shown) = self.stage.shown("phone_tune", tune, motion::PANEL) {
             self.phone_tune(ctx, content, panes, shown, tune);
         }
-        let sheet = back(
-            &self.stage,
-            "phone_sheet",
-            self.phone.sheet && !self.phone.tune && !covered,
-        );
+        let sheet = self.phone.sheet && !self.phone.tune && !covered[1];
         if let Some(shown) = self.stage.shown("phone_sheet", sheet, motion::PANEL) {
             self.phone_sheet(ctx, content, size, panes, shown, sheet);
         }
+        // The buttons come back when the styles or the controls over them have mostly gone.
         let over = ["phone_sheet", "phone_tune"]
             .into_iter()
             .filter_map(|key| self.stage.peek(key))
-            .fold(cover, f32::max);
-        let live = !covered
+            .fold(0.0, f32::max);
+        let live = !covered[2]
             && !self.phone.tune
             && !self.phone.sheet
             && (over < 0.5 || self.stage.aim_of("phone_home") == Some(1.0));
@@ -1393,6 +1385,7 @@ impl App {
             });
         let by = vec2(0.0, (1.0 - shown) * motion::SHIFT);
         ctx.set_transform_layer(area.response.layer_id, egui::emath::TSTransform::from_translation(by));
+        self.seat("phone_sheet", rect);
         let from = panes.len();
         panes.push((rect.translate(by), 28.0, true));
         self.faded(panes, from, shown);
