@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+* **One scale, tighter bounds, no black slab beside a moved picture:** the toolbar's line showed the wheel's
+  scale and the controls had a **Scale** of their own, so one view read 0.5× in one place and 0.4 in the other.
+  There is one number now: the line shows it, the slider shows and sets it and moves with the wheel, and the
+  limits hold for it; **Reset** and **Reset view** both go back to the whole picture. A figure smaller than the
+  window can no longer be parked half outside it: it stays inside whole, and of a figure larger than the window
+  at most a tenth of the window shows what is beside it. While a picture stands moved or made smaller until the
+  next one is drawn, what is beside it is its own blurred copy fading into the background instead of a flat dark
+  slab with a hard edge. A moved view of a kind drawn pixel by pixel is blurred like any other when the card
+  needs more than 0.1 s for it.
+
 * **Views have limits:** a wallpaper could be wheeled out to a small rectangle in the middle of the window with
   its edge smeared around it, and a fractal to a speck of a few pixels, drawn anew for that. A wallpaper is no
   longer made smaller than the window, is moved only as far as it still covers it and is shown at most 8 times

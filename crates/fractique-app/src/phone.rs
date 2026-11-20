@@ -1036,12 +1036,12 @@ impl App {
             None => {}
         }
 
-        if self.view.zoom != 1.0 {
+        if (self.scale() - 1.0).abs() > 1e-9 {
             ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::unique("phone_zoom")))
                 .text(
                     egui::pos2(content.left() + 22.0, below),
                     Align2::LEFT_TOP,
-                    format!("{}×", self.view.label()),
+                    format!("{}×", crate::scale_label(self.scale())),
                     font(30.0, SEMIBOLD),
                     on_picture.gamma_multiply(shown),
                 );

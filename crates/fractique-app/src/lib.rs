@@ -622,6 +622,12 @@ const MIN_MAGNIFICATION: f64 = 1e-4;
 // The smallest a view shows a picture that is drawn anew for it, a flame or a fractal of any kind, as a share of
 // the picture's own framing.
 const FLOOR: f64 = 0.2;
+// A moved view the card draws in less than this many seconds is shown as it is drawn, without a blur.
+const BRISK: f32 = 0.1;
+// Where the scale slider of the controls ends; the wheel goes on.
+const SCALE_MOST: f64 = 100.0;
+// The share of a view that may lie beside the picture's framing when the view is smaller than the picture.
+const PAN_MARGIN: f64 = 0.1;
 // A picture that is only magnified is shown at most this many times larger.
 const IMAGE_CEILING: f64 = 8.0;
 // A new picture is drawn once the view has stood still this long.
@@ -644,16 +650,22 @@ impl View {
     }
 
     // The limits of a view. It is never smaller than `least` times the whole picture. A picture that is only ever
-    // shown as it is, larger (a wallpaper), always covers the window: no edge of it comes inside. Of a picture
-    // that is drawn anew for its view, the middle of the view stays within the whole picture grown by half a
-    // view, so the figure cannot be moved out of sight.
+    // shown as it is, larger (a wallpaper), always covers the window: no edge of it comes inside. A picture that
+    // is drawn anew for its view cannot be moved out of sight: smaller than the view, its framing stays inside
+    // the view; larger, the view stays inside its framing.
     fn limited(&mut self, size: [u32; 2], least: f64, covering: bool) {
         self.zoom = self.zoom.max(least);
         let shorter = f64::from(size[0].min(size[1]).max(1));
+        let seen = 1.0 / self.zoom;
         let free = if covering {
-            0.5 * (1.0 - 1.0 / self.zoom).max(0.0)
+            0.5 * (1.0 - seen).max(0.0)
+        } else if self.zoom <= 1.0 {
+            // The figure is smaller than the view: it stays inside it, whole.
+            0.5 * (seen - 1.0)
         } else {
-            0.5 * (1.0 + 1.0 / self.zoom)
+            // The view is smaller than the figure: it stays inside it, but for a tenth of a view, which it gains
+            // over the first quarter of magnification so that nothing jumps at the whole picture.
+            0.5 * (1.0 - seen) + PAN_MARGIN * seen * ((self.zoom - 1.0) * 4.0).min(1.0)
         };
         let (across, along) = (f64::from(size[0]) / shorter * free, f64::from(size[1]) / shorter * free);
         self.right = self.right.clamp(-across, across);
@@ -687,15 +699,6 @@ impl View {
             right: self.right / by,
             down: self.down / by,
             zoom: self.zoom * by,
-        }
-    }
-
-    fn label(&self) -> String {
-        match self.zoom {
-            zoom if zoom >= 1e6 => format!("{zoom:.1e}"),
-            zoom if zoom >= 100.0 => format!("{zoom:.0}"),
-            zoom if zoom >= 1.0 => format!("{zoom:.1}"),
-            zoom => format!("{zoom:.3}"),
         }
     }
 }
@@ -922,6 +925,7 @@ struct App {
     fading: bool,
     veiled: bool,
     resizing: bool,
+    brisk: bool,
     began: Instant,
     begun: bool,
     waited: Instant,
@@ -1327,10 +1331,21 @@ fn verdict_of(text: &str, card: &str) -> Verdict {
     }
 }
 
-fn status_of(size: [u32; 2], seconds: f32, view: View) -> String {
+// How many times larger than its own framing a picture is shown, as the detail line and the controls say it: the
+// one number of a view's scale, the wheel's and the controls' together.
+fn scale_label(scale: f64) -> String {
+    match scale {
+        zoom if zoom >= 1e6 => format!("{zoom:.1e}"),
+        zoom if zoom >= 100.0 => format!("{zoom:.0}"),
+        zoom if zoom >= 1.0 => format!("{zoom:.1}"),
+        zoom => format!("{zoom:.3}"),
+    }
+}
+
+fn status_of(size: [u32; 2], seconds: f32, scale: f64) -> String {
     let mut status = format!("{} × {}  ·  {seconds:.2} s", size[0], size[1]);
-    if view.zoom != 1.0 {
-        status += &format!("  ·  {}×", view.label());
+    if (scale - 1.0).abs() > 1e-9 {
+        status += &format!("  ·  {}×", scale_label(scale));
     }
     status
 }
@@ -1515,6 +1530,7 @@ impl App {
             fading: false,
             veiled: false,
             resizing: false,
+            brisk: false,
             began: Instant::now(),
             begun: false,
             waited: Instant::now(),
@@ -1923,7 +1939,7 @@ impl App {
             }
         }
         if timed() {
-            let (shown, label) = (self.aimed.0.label(), asked.0.label());
+            let (shown, label) = (scale_label(self.aimed.0.zoom), scale_label(asked.0.zoom));
             eprintln!("times: the view at {label}× is the picture of {shown}×, magnified");
         }
     }
@@ -2077,7 +2093,8 @@ impl App {
         // One time a picture: from the click, the step of the wheel or the edge it answers to the finished
         // picture. A first picture has none.
         if last {
-            self.status = status_of(offer.pixels, self.began.elapsed().as_secs_f32(), offer.at.view);
+            let scale = self.scale_of(offer.at.view.zoom, offer.at.zoom);
+            self.status = status_of(offer.pixels, self.began.elapsed().as_secs_f32(), scale);
         }
         self.turn_picture();
         self.past_eye = self.shown_eye.take();
@@ -2525,6 +2542,11 @@ impl App {
             }
             self.quick = times;
         }
+        if whole {
+            // A view of a kind drawn pixel by pixel is shown as it is drawn only where that takes no time to
+            // speak of: a large picture is waited for as every other.
+            self.brisk = times.1.is_some_and(|seconds| seconds < BRISK);
+        }
         self.chaos_draw(chaos, step == Step::Drawn, whole, ctx, frame);
         if whole && self.chaotic {
             self.rendering = false;
@@ -2553,7 +2575,7 @@ impl App {
         // the first picture of a new scene, and the last. The others would be seen changing behind the blur.
         // A moved view of a kind the card draws within a frame is shown as it is drawn, and so is a tone that
         // changes once the picture is whole.
-        let staged = self.rendering && !(self.swift && self.moved_only);
+        let staged = self.rendering && !(self.swift && self.moved_only && self.brisk);
         let first = staged && fresh && !last && self.takes_first();
         if staged && !last && !first {
             if fresh {
@@ -2570,6 +2592,7 @@ impl App {
         if !fresh && !last && look == self.look {
             return;
         }
+        let scale = self.scale_of(self.chaos_at.0.zoom, self.chaos_at.1);
         let (Some(preview), Some((size, levels))) = (&mut self.preview, chaos.levels()) else {
             return;
         };
@@ -2607,7 +2630,7 @@ impl App {
                 self.shown_size = Some(self.aimed_size);
                 self.pictures += 1;
                 if last {
-                    self.status = status_of(size, self.began.elapsed().as_secs_f32(), self.chaos_at.0);
+                    self.status = status_of(size, self.began.elapsed().as_secs_f32(), scale);
                 }
             }
         }
@@ -2648,9 +2671,9 @@ impl App {
         if let Some(seconds) = waiting.then_some(counted) {
             let size = self.requested.unwrap_or(self.aimed_size);
             let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
-            status_of([full.width, full.height], seconds, self.view)
+            status_of([full.width, full.height], seconds, self.scale())
         } else if self.magnified && self.view.zoom > 1.0 {
-            format!("{}  ·  {}×", self.t("magnified"), self.view.label())
+            format!("{}  ·  {}×", self.t("magnified"), scale_label(self.scale()))
         } else {
             self.status.clone()
         }
@@ -3377,7 +3400,7 @@ impl App {
             return !(followed || self.card_shows(size));
         }
         // The card draws a moved view of these within a frame or two.
-        if (self.previewing && self.latest.is_some()) || (self.swift && self.moved_only) {
+        if (self.previewing && self.latest.is_some()) || (self.swift && self.moved_only && self.brisk) {
             return false;
         }
         if self.rendering {
@@ -3537,6 +3560,7 @@ impl App {
             past: lay(&self.past.unwrap_or(shown), self.past_eye.or(self.shown_eye)),
             fresh,
             veil: veil * self.trace.veil.unwrap_or(motion::VEIL),
+            moved: !fixed && (now_eye != (shown.view, shown.zoom) || shown.size != size),
         }
     }
 
@@ -3625,7 +3649,21 @@ impl App {
     // How far in: to where the numbers of the kind run out, and no further into a picture that is only shown
     // larger than where one of its pixels covers eight of the screen's.
     fn most(&self) -> f64 {
-        if self.covering() { IMAGE_CEILING } else { self.deepest() }
+        if self.covering() {
+            IMAGE_CEILING
+        } else {
+            self.deepest() / self.adjust.zoom
+        }
+    }
+
+    // The scale of the view as it is shown and set everywhere: the wheel's and the controls' in one number. A
+    // wallpaper has the wheel's alone.
+    pub(crate) fn scale(&self) -> f64 {
+        self.scale_of(self.view.zoom, self.adjust.zoom)
+    }
+
+    fn scale_of(&self, view: f64, controls: f64) -> f64 {
+        if self.covering() { view } else { view * controls }
     }
 
     // The wheel, a pinch or a test run's step: the view made larger or smaller around a point, within its limits.
@@ -4179,11 +4217,23 @@ impl App {
             widgets::slider(ui, &self.t("gamma"), &mut self.adjust.gamma, (0.5, 1.8), false);
             widgets::slider(ui, &self.t("glow"), &mut self.adjust.glow, (0.0, 3.0), false);
             widgets::section(ui, &self.t("view"));
-            widgets::slider(ui, &self.t("zoom"), &mut self.adjust.zoom, (0.4, 2.5), true);
+            // The slider is the view's one scale, the wheel's too: it moves with the wheel, and beyond its
+            // range its knob rests at the end while the number beside it goes on.
+            let mut scale = self.scale();
+            let range = if self.covering() {
+                (1.0, IMAGE_CEILING)
+            } else {
+                (FLOOR, SCALE_MOST)
+            };
+            if widgets::slider(ui, &self.t("zoom"), &mut scale, range, true) {
+                self.view.zoom = scale / self.scale_of(1.0, self.adjust.zoom);
+                self.touched = Instant::now();
+            }
 
             ui.add_space(8.0);
             if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
                 self.adjust = NEUTRAL;
+                self.reset_view();
             }
         }
 
@@ -6240,7 +6290,7 @@ mod tests {
         let mut scaled = View { zoom: 0.009, ..WHOLE };
         scaled.limited(size, FLOOR / 0.5, false);
         assert_eq!(scaled.zoom * 0.5, FLOOR);
-        // Dragged away: the middle of the view stays within the picture grown by half a view.
+        // Larger than the view, dragged away: the view stays inside the figure but for a tenth of a view.
         let mut view = View {
             right: 40.0,
             down: -40.0,
@@ -6248,18 +6298,61 @@ mod tests {
         };
         view.limited(size, FLOOR, false);
         let half = 3840.0 / 2160.0 / 2.0;
-        assert!((view.right - half * 1.25).abs() < 1e-12 && (view.down + 0.5 * 1.25).abs() < 1e-12);
-        let [across, _, larger] = view.within(&WHOLE, size);
-        assert!(across - 0.5 / larger <= 1.0 + 1e-6);
+        assert!((view.right - half * 2.0 * (0.375 + 0.025)).abs() < 1e-12);
+        assert!((view.down + 0.375 + 0.025).abs() < 1e-12);
+        let [across, along, larger] = view.within(&WHOLE, size);
+        let seen = 0.5 / larger;
+        assert!(across + seen <= 1.0 + 0.2 * seen + 1e-6 && along - seen >= -0.2 * seen - 1e-6);
+        // Smaller than the view, as at the floor: the figure moves about and never leaves, on any side.
+        for (right, down) in [(40.0, 0.0), (-40.0, 0.0), (0.0, 40.0), (0.0, -40.0)] {
+            let mut view = View {
+                right,
+                down,
+                zoom: FLOOR,
+            };
+            view.limited(size, FLOOR, false);
+            let [across, along, larger] = view.within(&WHOLE, size);
+            let seen = 0.5 / larger;
+            assert!(across - seen <= 1e-6 && across + seen >= 1.0 - 1e-6);
+            assert!(along - seen <= 1e-6 && along + seen >= 1.0 - 1e-6);
+            assert!(view.right.abs() <= half * 4.0 + 1e-9 && view.down.abs() <= 2.0 + 1e-9);
+        }
+        // At the whole picture there is nothing to move, and nothing jumps on the way in.
+        let mut whole = View {
+            right: 0.3,
+            down: 0.3,
+            zoom: 1.0,
+        };
+        whole.limited(size, FLOOR, false);
+        assert_eq!(whole, WHOLE);
+        let mut near = View {
+            right: 9.0,
+            down: 0.0,
+            zoom: 1.001,
+        };
+        near.limited(size, FLOOR, false);
+        assert!(near.right < 0.002);
         // A view within its limits is not touched.
         let inside = View {
-            right: -0.7,
+            right: -0.5,
             down: 0.3,
             zoom: 0.6,
         };
         let mut view = inside;
         view.limited(size, FLOOR, false);
         assert_eq!(view, inside);
+    }
+
+    #[test]
+    fn a_view_has_one_scale() {
+        // The detail line says the wheel's scale and the controls' as one number.
+        assert_eq!(
+            status_of([1280, 800], 0.5, 0.5 * 0.4),
+            "1280 × 800  ·  0.50 s  ·  0.200×"
+        );
+        assert_eq!(status_of([1280, 800], 0.5, 1.0), "1280 × 800  ·  0.50 s");
+        assert_eq!(scale_label(2.0), "2.0");
+        assert_eq!(scale_label(6400.0), "6400");
     }
 
     #[test]
