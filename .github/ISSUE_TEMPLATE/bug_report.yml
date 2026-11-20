@@ -1,0 +1,40 @@
+name: Bug report
+description: Something does not work or works badly.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: For a picture that is wrong, attach the scene (Save in the app gives a .frcq file) or name the preset or the seed.
+      placeholder: |
+        1. Fractals, Burning Ship, the preset Cathedral
+        2. Zoom in three steps
+        3. ...
+  - type: dropdown
+    id: part
+    attributes:
+      label: Part
+      options: [The app, The command line tool, The MCP server, The HTTP server, Installing or updating, Other]
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: Operating system or phone, and the graphics card (the app names it under GPU acceleration).
+      placeholder: Windows 11, NVIDIA RTX 4070
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Fractique version or commit
+      placeholder: 0.1.0 or a commit hash

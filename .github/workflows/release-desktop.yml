@@ -84,5 +84,5 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/*.dmg
-            dist/*.app.tar.gz
+            dist/*.tar.gz
             dist/*.sig

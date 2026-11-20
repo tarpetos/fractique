@@ -22,6 +22,9 @@ end. See [Limits](#limits) before you publish one.
 
 ## Run it
 
+The program comes with every release, inside the Linux and macOS packages and on its own
+([where it is](mcp.md#where-the-program-is)). Or build it:
+
 ```sh
 cargo build --release -p fractique-server
 ./target/release/fractique-server
