@@ -25,7 +25,7 @@
   "export_title": "导出图像",
   "export_magnified": "此视图显示为放大的图像，并按所见导出。",
   "export_shape": "形状与屏幕上的图片不同：图片将重新绘制，耗时更长。",
-  "export_larger": "比屏幕上的图片更大：图片将以此尺寸重新绘制，耗时更长。",
+  "export_larger": "此尺寸下会为文件重新绘制图像，需要更长时间。",
   "magnified": "放大的图像",
   "size": "尺寸",
   "quality": "质量",
