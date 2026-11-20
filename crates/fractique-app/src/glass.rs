@@ -38,8 +38,6 @@ pub struct Shown {
     pub past: [f32; 4],
     pub fresh: f32,
     pub veil: f32,
-    // The picture stands for another view than the one it was drawn for: beside it is its own soft continuation.
-    pub moved: bool,
 }
 
 fn one_pixel(device: &wgpu::Device, queue: &wgpu::Queue, rgba: [u8; 4]) -> wgpu::TextureView {
@@ -339,12 +337,7 @@ impl egui_wgpu::CallbackTrait for Draw {
             optics: [0.0; 4],
             view: self.shown.view,
             past: self.shown.past,
-            blend: [
-                self.shown.fresh,
-                self.shown.veil,
-                1.0,
-                if self.shown.moved { 1.0 } else { 0.0 },
-            ],
+            blend: [self.shown.fresh, self.shown.veil, 1.0, 0.0],
         };
         if let Kind::Pane { rect, optics, opacity } = self.kind {
             uniforms.blend[2] = opacity;
