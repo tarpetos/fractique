@@ -44,6 +44,24 @@ program file for Windows, an AppImage, a macOS app and an Android APK. The iPhon
 The examples below write `fractique` for the tool; use the path from the table, or copy the file to a folder on
 your `PATH`.
 
+### Updating the tool
+
+A `fractique` taken from a release replaces itself with a newer one when told to:
+
+```sh
+fractique --version                 # the version; in a terminal, also a line when a newer one is out
+fractique update --check            # is a newer version out? exit code 0: no, 10: yes, 1: could not find out
+fractique update                    # install the newest release
+fractique update --version 0.2.0    # install that version, an older one too
+```
+
+The download is checked against the signature of the release before the program is replaced. The app updates
+itself in its own window and leaves the tool as it is; `fractique-mcp` and `fractique-server` have the same
+command. A tool built here, or one that came inside the `.deb`, the AppImage or the macOS app, is not replaced
+and says what to do instead. `fractique` contacts the network for nothing else: in a script `--version` prints
+the version alone, and `FRACTIQUE_NO_UPDATE_CHECK=1` switches its look off in a terminal too. The details are in
+[releasing.md](releasing.md#how-the-other-programs-update).
+
 ## 2. The app
 
 `fractique-gui` is the same renderer with a window: the picture fills it and glass panels float over it. It makes

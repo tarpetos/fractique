@@ -5,12 +5,10 @@ use std::time::Duration;
 
 use cargo_packager_updater::semver::Version;
 use cargo_packager_updater::{Config, Update, UpdaterBuilder, WindowsConfig, WindowsUpdateInstallMode, reqwest};
+use fractique_update::{PUBKEY, REPOSITORY};
 
-const REPOSITORY: &str = "tarpetos/fractique";
 /// The first release that carries signed installers and a latest.json.
 pub const OLDEST: &str = "0.1.0";
-/// Public half of the release workflow's signing key (`cargo packager signer generate`).
-const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY2OUVDRDQxQjEzNjk3NEEKUldSS2x6YXhRYzJlOXM3dGJST3B0QUxtek5mVzI5ZjVRTERiendRYkIvTEFIalFnUDk1bmE3L28K";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {

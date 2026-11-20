@@ -1,7 +1,8 @@
 #!/bin/sh
 # Builds the Linux packages and the two programs on their own into dist/:
 # scripts/build/build-linux.sh [--formats appimage,deb]
-# With CARGO_PACKAGER_SIGN_PRIVATE_KEY (and _PASSWORD) set, the AppImage gets the .sig the app's updater checks.
+# With CARGO_PACKAGER_SIGN_PRIVATE_KEY (and _PASSWORD) set, the AppImage gets the .sig the app's updater checks,
+# and each program on its own the .sig its "update" command checks.
 set -eu
 cd "$(dirname "$0")/../.."
 
@@ -31,5 +32,8 @@ for program in fractique fractique-mcp fractique-server; do
         name=fractique-cli
     fi
     tar -czf "dist/${name}_${version}_${arch}.tar.gz" -C target/release "$program"
+    if [ -n "${CARGO_PACKAGER_SIGN_PRIVATE_KEY:-}" ]; then
+        cargo packager signer sign "dist/${name}_${version}_${arch}.tar.gz"
+    fi
 done
 ls -l dist

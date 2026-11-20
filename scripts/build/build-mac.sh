@@ -1,7 +1,8 @@
 #!/bin/sh
 # Builds the macOS app and disk image into dist/: scripts/build/build-mac.sh [--formats app,dmg]
 # With CARGO_PACKAGER_SIGN_PRIVATE_KEY (and _PASSWORD) set, Fractique.app.tar.gz gets the .sig the app's updater
-# checks. The app is not signed by Apple: copied from the .dmg it needs
+# checks, and each program on its own the .sig its "update" command checks.
+# The app is not signed by Apple: copied from the .dmg it needs
 #   xattr -dr com.apple.quarantine /Applications/Fractique.app
 set -eu
 cd "$(dirname "$0")/../.."
@@ -34,6 +35,9 @@ for program in fractique fractique-mcp fractique-server; do
         name=fractique-cli
     fi
     tar -czf "dist/${name}_${version}_${arch}.tar.gz" -C target/release "$program"
+    if [ -n "${CARGO_PACKAGER_SIGN_PRIVATE_KEY:-}" ]; then
+        cargo packager signer sign "dist/${name}_${version}_${arch}.tar.gz"
+    fi
 done
 
 if [ -d dist/Fractique.app ] && [ ! -f dist/Fractique.app.tar.gz ]; then
