@@ -503,6 +503,22 @@ The app carries these fonts in `crates/fractique-app/assets/fonts`, each under t
 `vendor/eframe` and `vendor/egui-wgpu` are copies of those crates (MIT OR Apache-2.0) with one fix; see
 [vendor/README.md](vendor/README.md).
 
+## Scalar API Reference
+
+The page at `/docs` of `fractique-server` is `@scalar/api-reference` **1.77.0** (released 2026-11-05), the
+standalone browser bundle `dist/browser/standalone.js` from
+<https://registry.npmjs.org/@scalar/api-reference/-/api-reference-1.77.0.tgz> (npm integrity
+`sha512-41DOlbgId6h8XX008AtzmX8EpILmLMk14rHs9RcrdwCTP1HCFgE+m/HnJy4pXi9ffMWgEAnnv4Sh13QmAA+muQ==`), project
+<https://github.com/scalar/scalar>. Copyright (c) 2023-present Scalar. MIT License, the text in
+`crates/fractique-server/vendor/scalar/LICENSE`.
+
+It is kept unmodified, compressed with `gzip -9 -n`, as `crates/fractique-server/vendor/scalar/standalone.js.gz` and
+built into the server. SHA-256 of `standalone.js`:
+`4f387c930903fe6b63b3497ebf02ca65005d52016c72dcc8bfc44ac662986cb3`; of the `.gz`:
+`0016325b42471abb5a92760548896c268971cdc86a642a4704433a9557904485`. Its own dependencies (Vue, Tailwind CSS,
+highlight.js and others) are inside that file under their own licenses, mostly MIT (highlight.js BSD-3-Clause),
+with the license comments they carry.
+
 ## The fractal flame algorithm
 
 The renderer implements the fractal flame algorithm published by Scott Draves and Erik Reckase

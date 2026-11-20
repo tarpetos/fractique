@@ -3,7 +3,8 @@
 `fractique-server` puts Fractique behind an HTTP API: presets, random scenes, wallpapers and renders that come back
 as PNG. It calls the same renderer as the command line tool and the app, so a request renders to the same pixels
 there, here and in a container. When it is given the web build of the app it serves that too, so one address offers
-both the API and the app in a browser. AI agents reach the same renderer through MCP at `/mcp`.
+both the API and the app in a browser. AI agents reach the same renderer through MCP at `/mcp`, and `/docs` is a
+reference of the API to read and to try in a browser.
 
 Renders go through a queue with hard limits, so an instance open to the internet cannot be made to work without
 end. See [Limits](#limits) before you publish one.
@@ -12,13 +13,14 @@ end. See [Limits](#limits) before you publish one.
 
 1. [Run it](#run-it)
 2. [Endpoints](#endpoints)
-3. [Errors](#errors)
-4. [Limits](#limits)
-5. [The queue](#the-queue)
-6. [MCP](#mcp)
-7. [The web app](#the-web-app)
-8. [Docker](#docker)
-9. [Publishing an instance](#publishing-an-instance)
+3. [The reference in the browser](#the-reference-in-the-browser)
+4. [Errors](#errors)
+5. [Limits](#limits)
+6. [The queue](#the-queue)
+7. [MCP](#mcp)
+8. [The web app](#the-web-app)
+9. [Docker](#docker)
+10. [Publishing an instance](#publishing-an-instance)
 
 ## Run it
 
@@ -45,6 +47,7 @@ It listens on `127.0.0.1:8080`. Every setting is an option and an environment va
 | `--timeout` | `FRACTIQUE_TIMEOUT` | 120 | Seconds a render may take before it is stopped |
 | `--mcp` | `FRACTIQUE_MCP` | `on` | MCP for AI agents at `/mcp`: `on` or `off` |
 | `--mcp-origin` | `FRACTIQUE_MCP_ORIGINS` | none | Origins of web pages that may call `/mcp` besides the pages of this machine; the option once per origin, the variable with commas between them; `*` for any |
+| `--docs` | `FRACTIQUE_DOCS` | `on` | The reference at `/docs` and the description at `/openapi.json`: `on` or `off` |
 
 ## Endpoints
 
@@ -59,9 +62,11 @@ refused, so a misspelt name is an error and not a silent default.
 | `GET /fractals` | | `{"fractals": [...]}`: the kinds of fractal besides flames, each with its `name`, `family`, how it is `drawn`, its `params` (`name`, `default`, `min`, `max`, `whole`), its `texts` (`name`, `default`) and its `presets` |
 | `POST /wallpaper` | `{"seed", "layout"?, "material"?, "dark"?, "hue"?, "width"?, "height"?}` | The wallpaper of the seed as a scene |
 | `POST /render` | One source, a size and a quality, see below | `image/png` |
-| `GET /limits` | | The limits of this instance, whether MCP is on (`"mcp"`) and the names of the qualities, layouts and materials |
+| `GET /limits` | | The limits of this instance, whether MCP and the reference are on (`"mcp"`, `"docs"`) and the names of the qualities, layouts and materials |
 | `GET /health` | | `{"status": "ok", "busy": 0}`: renders running and waiting |
 | `POST /mcp`, `DELETE /mcp` | JSON-RPC | MCP for AI agents, see [MCP](#mcp) |
+| `GET /docs` | | The reference as a page, see [The reference in the browser](#the-reference-in-the-browser) |
+| `GET /openapi.json` | | The same as an OpenAPI 3.1 description |
 
 A scene is the JSON document described in [scene-format.md](scene-format.md). A seed is a whole number from 0 to
 2⁶⁴ − 1.
@@ -125,6 +130,25 @@ A scene sent back to the server renders exactly as the server would render it fr
 numbers in it are kept as they were written. A client that reads the scene into its own number type and writes it
 out again may round the last digit of a coordinate; the render is then of that slightly different scene.
 
+## The reference in the browser
+
+`http://127.0.0.1:8080/docs` is every endpoint on one page: its fields with their types, limits and defaults, the
+answers and the errors, and a **Test Request** button that sends a request to this server and shows the answer, a
+render as the picture. `GET /openapi.json` is the same as an OpenAPI 3.1 description, for a client generator or
+another tool.
+
+- The description is the file `crates/fractique-server/openapi.json`, compiled into the program. The server puts
+  its own version and its own limits into it, and leaves `/mcp` out when MCP is off. A test compares its paths
+  with the routes of the server both ways and sends its examples, so the two cannot drift apart.
+- The page is [Scalar API Reference](https://github.com/scalar/scalar) (MIT), kept in
+  `crates/fractique-server/vendor/scalar` and served by the program itself: nothing comes from another address,
+  so it works without a network, and the page's content security policy allows only this server. Scalar's fonts,
+  telemetry and online extras are off.
+- Both are small fixed answers outside the render queue. A request sent from the page is a request like any other:
+  the same limits, the same queue.
+- `--docs off` or `FRACTIQUE_DOCS=off` takes both away: they then answer 404 and `GET /limits` says
+  `"docs": false`.
+
 ## Errors
 
 An error is a status and `{"error": "what went wrong"}`.
@@ -133,7 +157,7 @@ An error is a status and `{"error": "what went wrong"}`.
 | --- | --- |
 | 400 | The body is not valid, a name is unknown, the scene is not valid or the request is outside the limits |
 | 404 | No preset of that name, or nothing at that path |
-| 413 | The body is larger than 1 MiB |
+| 413 | The body is larger than 1 MiB; this answer is a line of plain text |
 | 429 | The queue is full; `Retry-After` says to try again in a second |
 | 503 | The render took longer than the time limit and was stopped |
 
@@ -237,5 +261,7 @@ the browser.
   requests per address in the proxy.
 - Give the container a memory limit that fits `FRACTIQUE_JOBS` renders at the largest size you allow.
 - The API sends no CORS headers, so a page on another address cannot call it from a browser.
+- `/docs` and `/openapi.json` tell a visitor what the API takes and the limits of the instance, which `GET /limits`
+  tells too. Turn them off (`FRACTIQUE_DOCS=off`) when the instance is not meant to be explored.
 - `/mcp` has no accounts either. Turn it off (`FRACTIQUE_MCP=off`) when no agent uses it, or let the proxy ask
   for a token on that path. A session id is a random number that tells sessions apart, not a password.

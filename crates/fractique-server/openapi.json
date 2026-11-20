@@ -1,0 +1,1167 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Fractique server",
+    "version": "0.0.0",
+    "summary": "Presets, random scenes, wallpapers and renders over HTTP.",
+    "description": "Fractique is a deterministic fractal flame generator: the same scene and the same render options give the same pixels here, in the command line tool and in the app.\n\nRequests and answers are JSON, except the PNG that `POST /render` returns. A field the server does not know is refused, so a misspelt name is an error and not a silent default.\n\n**Scenes.** A scene is a JSON document; its format is in `docs/scene-format.md` of the repository. The scene endpoints return one, and `POST /render` takes one.\n\n**Limits.** Renders go through a queue with hard limits. `GET /limits` returns the ones of this server, and the largest values in this description are its own. A request outside a limit is refused with 400 before it takes a place in the queue.\n\n**Errors** are a status and `{\"error\": \"what went wrong\"}`: 400 a request that is not valid or is outside the limits, 404 an unknown preset or path, 429 a full queue (with `Retry-After`), 503 a render stopped at the time limit, 500 a failure inside the server. A body over the size limit is answered with 413 and a line of plain text.\n\n**No accounts.** The server has no tokens and sends no CORS headers, so only pages it serves itself, such as this one, can call it from a browser.",
+    "license": {
+      "name": "PolyForm Noncommercial License 1.0.0",
+      "identifier": "PolyForm-Noncommercial-1.0.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "This server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Scenes",
+      "description": "Presets, random scenes and wallpapers, as scene documents. They do not go through the render queue."
+    },
+    {
+      "name": "Render",
+      "description": "A scene, a preset, a seed or a wallpaper rendered to a PNG, through the queue."
+    },
+    {
+      "name": "Server",
+      "description": "The limits and the state of this server."
+    },
+    {
+      "name": "MCP",
+      "description": "The same renderer as MCP tools for AI agents."
+    },
+    {
+      "name": "Docs",
+      "description": "This reference."
+    }
+  ],
+  "paths": {
+    "/presets": {
+      "get": {
+        "tags": [
+          "Scenes"
+        ],
+        "operationId": "listPresets",
+        "summary": "List the presets",
+        "description": "The names of the built-in flame scenes. The presets of the other fractals are listed by `GET /fractals`.",
+        "responses": {
+          "200": {
+            "description": "The names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "presets"
+                  ],
+                  "properties": {
+                    "presets": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "presets": [
+                    "aurora-spiral",
+                    "emerald-star",
+                    "ember-vortex"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/presets/{name}": {
+      "get": {
+        "tags": [
+          "Scenes"
+        ],
+        "operationId": "getPreset",
+        "summary": "Get a preset as a scene",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "aurora-spiral",
+            "description": "A name from `GET /presets`, or a preset of a fractal by the name `GET /fractals` gives (`mandelbrot-whole`)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The scene",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scene"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/random": {
+      "post": {
+        "tags": [
+          "Scenes"
+        ],
+        "operationId": "randomScene",
+        "summary": "Make the random scene of a seed",
+        "description": "The same seed always gives the same scene: a flame, or a fractal of the kind named.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RandomRequest"
+              },
+              "examples": {
+                "flame": {
+                  "summary": "A flame",
+                  "value": {
+                    "seed": 42
+                  }
+                },
+                "fractal": {
+                  "summary": "A Julia set",
+                  "value": {
+                    "seed": 42,
+                    "fractal": "julia"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The scene",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scene"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/fractals": {
+      "get": {
+        "tags": [
+          "Scenes"
+        ],
+        "operationId": "listFractals",
+        "summary": "List the kinds of fractal besides flames",
+        "responses": {
+          "200": {
+            "description": "The kinds, each with its parameters, texts and presets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "fractals"
+                  ],
+                  "properties": {
+                    "fractals": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Fractal"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallpaper": {
+      "post": {
+        "tags": [
+          "Scenes"
+        ],
+        "operationId": "randomWallpaper",
+        "summary": "Make the wallpaper of a seed",
+        "description": "A wallpaper of flat shapes, as a scene. The shapes are laid out for `width` x `height`, 1290 x 2796 when they are left out.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WallpaperRequest"
+              },
+              "examples": {
+                "seed": {
+                  "summary": "The seed picks everything",
+                  "value": {
+                    "seed": 7
+                  }
+                },
+                "waves": {
+                  "summary": "Dark glass waves for a phone",
+                  "value": {
+                    "seed": 7,
+                    "layout": "waves",
+                    "material": "glass",
+                    "dark": true,
+                    "width": 1290,
+                    "height": 2796
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The scene",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Scene"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          }
+        }
+      }
+    },
+    "/render": {
+      "post": {
+        "tags": [
+          "Render"
+        ],
+        "operationId": "render",
+        "summary": "Render to a PNG",
+        "description": "Give exactly one source: `scene`, `preset`, `random` or `wallpaper`. The answer is the PNG; its `x-fractique-hash` header is the hash of the pixels, the same number the command line tool prints after a render.\n\nThe render waits for a free slot in the queue, in the order the requests came. When the queue is full the answer is 429 at once. The time limit counts the render, not the wait. A client that closes its connection gives its place up: a waiting render leaves the queue, a running one is cancelled.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenderRequest"
+              },
+              "examples": {
+                "preset": {
+                  "summary": "A preset",
+                  "value": {
+                    "preset": "aurora-spiral",
+                    "width": 960,
+                    "height": 540,
+                    "quality": "mobile"
+                  }
+                },
+                "preset_with_samples": {
+                  "summary": "A preset with its own samples and seed",
+                  "value": {
+                    "preset": "ember-vortex",
+                    "width": 640,
+                    "height": 640,
+                    "samples": 60,
+                    "supersample": 1,
+                    "seed": 99
+                  }
+                },
+                "random": {
+                  "summary": "The random flame of a seed",
+                  "value": {
+                    "random": 42,
+                    "width": 720,
+                    "height": 720,
+                    "quality": "mobile"
+                  }
+                },
+                "random_fractal": {
+                  "summary": "The random Julia set of a seed",
+                  "value": {
+                    "random": 42,
+                    "fractal": "julia",
+                    "width": 960,
+                    "height": 540,
+                    "quality": "draft"
+                  }
+                },
+                "wallpaper": {
+                  "summary": "A wallpaper",
+                  "value": {
+                    "wallpaper": {
+                      "seed": 7,
+                      "layout": "waves",
+                      "dark": true
+                    },
+                    "width": 645,
+                    "height": 1398,
+                    "quality": "draft"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The picture",
+            "headers": {
+              "x-fractique-hash": {
+                "description": "The hash of the pixels: 16 hexadecimal digits",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{16}$"
+                }
+              }
+            },
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "contentMediaType": "image/png",
+                  "contentEncoding": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/QueueFull"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          },
+          "503": {
+            "$ref": "#/components/responses/TimedOut"
+          }
+        }
+      }
+    },
+    "/limits": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "operationId": "limits",
+        "summary": "The limits of this server",
+        "responses": {
+          "200": {
+            "description": "The limits and the names a request may use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Limits"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "operationId": "health",
+        "summary": "Check the server",
+        "responses": {
+          "200": {
+            "description": "The server answers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "busy"
+                  ],
+                  "properties": {
+                    "status": {
+                      "const": "ok"
+                    },
+                    "busy": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Renders running and waiting, those asked for through `/mcp` too"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "ok",
+                  "busy": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp": {
+      "post": {
+        "tags": [
+          "MCP"
+        ],
+        "operationId": "mcpPost",
+        "summary": "Send an MCP message",
+        "description": "The MCP endpoint for AI agents (streamable HTTP): one JSON-RPC message in, a JSON answer or an event stream out. It is made for an MCP client, not for calls by hand: `claude mcp add --transport http fractique <this address>/mcp`. The tools, the sessions, the headers, progress, cancelling and the check of `Origin` are described in `docs/mcp.md` of the repository. Renders asked for here obey the same limits and wait in the same queue; a refusal is a tool error, not an HTTP status.",
+        "externalDocs": {
+          "description": "docs/mcp.md",
+          "url": "https://github.com/tarpetos/fractique/blob/master/docs/mcp.md"
+        },
+        "parameters": [
+          {
+            "name": "Mcp-Session-Id",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "The session the answer to `initialize` gave; required on every other message"
+          },
+          {
+            "name": "MCP-Protocol-Version",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "2025-06-18",
+                "2025-03-26"
+              ]
+            },
+            "description": "The protocol revision agreed on"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "One JSON-RPC 2.0 message; batches are refused",
+                "required": [
+                  "jsonrpc"
+                ],
+                "properties": {
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "integer"
+                    ]
+                  },
+                  "method": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "type": "object"
+                  }
+                }
+              },
+              "example": {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                  "protocolVersion": "2025-06-18"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer: JSON, or for `tools/call` an event stream that ends with the answer. The answer to `initialize` carries `Mcp-Session-Id`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonRpc"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "A notification or an answer of the client was taken"
+          },
+          "400": {
+            "$ref": "#/components/responses/McpRefused"
+          },
+          "403": {
+            "$ref": "#/components/responses/McpRefused"
+          },
+          "404": {
+            "$ref": "#/components/responses/McpRefused"
+          },
+          "406": {
+            "$ref": "#/components/responses/McpRefused"
+          },
+          "413": {
+            "$ref": "#/components/responses/TooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/McpRefused"
+          },
+          "500": {
+            "$ref": "#/components/responses/McpRefused"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "MCP"
+        ],
+        "operationId": "mcpDelete",
+        "summary": "End an MCP session",
+        "description": "Ends the session and stops its renders.",
+        "parameters": [
+          {
+            "name": "Mcp-Session-Id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "MCP-Protocol-Version",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "2025-06-18",
+                "2025-03-26"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The session is ended"
+          },
+          "400": {
+            "$ref": "#/components/responses/McpRefused"
+          },
+          "403": {
+            "$ref": "#/components/responses/McpRefused"
+          },
+          "404": {
+            "$ref": "#/components/responses/McpRefused"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "Docs"
+        ],
+        "operationId": "openapi",
+        "summary": "This description",
+        "description": "OpenAPI 3.1, with the limits this server runs with.",
+        "responses": {
+          "200": {
+            "description": "The description",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs": {
+      "get": {
+        "tags": [
+          "Docs"
+        ],
+        "operationId": "docs",
+        "summary": "This page",
+        "description": "The interactive reference. Its script, styles and icons come from this server; nothing is loaded from another address.",
+        "responses": {
+          "200": {
+            "description": "The page",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Scene": {
+        "type": "object",
+        "description": "A scene document, see `docs/scene-format.md`. Keep its numbers as they were written: a client that reads them into its own number type and writes them out again may round a last digit, and the render is then of that slightly different scene.",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "description": "The version of the scene format"
+          },
+          "name": {
+            "type": "string"
+          },
+          "seed": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": true
+      },
+      "RandomRequest": {
+        "type": "object",
+        "required": [
+          "seed"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "seed": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The seed of the scene. A whole number from 0 to 2^64 - 1."
+          },
+          "fractal": {
+            "type": "string",
+            "description": "The kind of fractal, a `name` from `GET /fractals` (`mandelbrot`, `julia`, `clifford`, ...); a flame when left out",
+            "examples": [
+              "julia"
+            ]
+          }
+        }
+      },
+      "WallpaperRequest": {
+        "type": "object",
+        "required": [
+          "seed"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "seed": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The seed of the wallpaper. A whole number from 0 to 2^64 - 1."
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "bands",
+              "discs",
+              "waves",
+              "ribbons",
+              "burst",
+              "arcs",
+              "tiles",
+              "bars",
+              "fan",
+              "slats",
+              "planes",
+              "steps",
+              "frames",
+              "lines"
+            ],
+            "description": "How the shapes are laid out; the seed picks when left out"
+          },
+          "material": {
+            "type": "string",
+            "enum": [
+              "relief",
+              "paper",
+              "glass",
+              "glow",
+              "steel",
+              "carbon"
+            ],
+            "description": "What the shapes are made of; the seed picks when left out"
+          },
+          "dark": {
+            "type": "boolean",
+            "default": false,
+            "description": "The dark version of the same shapes"
+          },
+          "hue": {
+            "type": "number",
+            "description": "One color for the wallpaper, as an angle in degrees; the seed picks when left out"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295,
+            "description": "The width the shapes are laid out for. In `POST /wallpaper` 1290 when left out; inside `POST /render` the width of the render"
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295,
+            "description": "The height the shapes are laid out for. In `POST /wallpaper` 2796 when left out; inside `POST /render` the height of the render"
+          }
+        }
+      },
+      "RenderRequest": {
+        "type": "object",
+        "required": [
+          "width",
+          "height"
+        ],
+        "additionalProperties": false,
+        "description": "Exactly one of `scene` (a scene document), `preset`, `random` and `wallpaper` (a wallpaper as in `POST /wallpaper`, laid out for the size of the render), with a size.",
+        "properties": {
+          "scene": {
+            "$ref": "#/components/schemas/Scene"
+          },
+          "preset": {
+            "type": "string",
+            "description": "A preset by its name, as in `GET /presets/{name}`",
+            "examples": [
+              "aurora-spiral"
+            ]
+          },
+          "random": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The seed of a random scene, as in `POST /random`. A whole number from 0 to 2^64 - 1."
+          },
+          "fractal": {
+            "type": "string",
+            "description": "With `random` only: the kind of the random scene, a `name` from `GET /fractals`; a flame when left out"
+          },
+          "wallpaper": {
+            "$ref": "#/components/schemas/WallpaperRequest"
+          },
+          "width": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096,
+            "description": "The width of the picture in pixels. `width` x `height` may not be more than the `max_pixels` of `GET /limits`."
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096,
+            "description": "The height of the picture in pixels"
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "mobile",
+              "standard",
+              "high",
+              "ultra"
+            ],
+            "default": "standard",
+            "description": "Samples per pixel and supersample: draft 8 and 1, mobile 30 and 1, standard 100 and 1, high 300 and 2, ultra 1000 and 2. A quality above the limits of the server is refused."
+          },
+          "samples": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "description": "Samples per pixel, instead of the quality's"
+          },
+          "supersample": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "description": "Supersample, instead of the quality's"
+          },
+          "seed": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Replaces the seed of the scene. A whole number from 0 to 2^64 - 1."
+          }
+        }
+      },
+      "Fractal": {
+        "type": "object",
+        "required": [
+          "name",
+          "family",
+          "drawn",
+          "params",
+          "texts",
+          "presets"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name `fractal` takes",
+            "examples": [
+              "julia"
+            ]
+          },
+          "family": {
+            "type": "string",
+            "examples": [
+              "escape-time"
+            ]
+          },
+          "drawn": {
+            "type": "string",
+            "enum": [
+              "density",
+              "per pixel"
+            ],
+            "description": "How the kind is drawn: from the density of many points, or pixel by pixel"
+          },
+          "params": {
+            "type": "array",
+            "description": "The numbers of the kind in a scene",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "default",
+                "min",
+                "max",
+                "whole"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "default": {
+                  "type": "number"
+                },
+                "min": {
+                  "type": "number"
+                },
+                "max": {
+                  "type": "number"
+                },
+                "whole": {
+                  "type": "boolean",
+                  "description": "Whether the number is a whole one"
+                }
+              }
+            }
+          },
+          "texts": {
+            "type": "array",
+            "description": "The texts of the kind in a scene",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "default"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "default": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "presets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names of its presets, for `GET /presets/{name}` and `preset`",
+            "examples": [
+              [
+                "julia-classic"
+              ]
+            ]
+          }
+        }
+      },
+      "Limits": {
+        "type": "object",
+        "required": [
+          "jobs",
+          "queue",
+          "max_side",
+          "max_pixels",
+          "max_samples",
+          "max_supersample",
+          "timeout_seconds",
+          "max_body_bytes",
+          "mcp",
+          "docs",
+          "qualities",
+          "layouts",
+          "materials"
+        ],
+        "properties": {
+          "jobs": {
+            "type": "integer",
+            "description": "Renders that run at once",
+            "default": 1
+          },
+          "queue": {
+            "type": "integer",
+            "description": "Renders that may wait for a free slot; one more is refused with 429",
+            "default": 8
+          },
+          "max_side": {
+            "type": "integer",
+            "description": "Largest width and height, in pixels",
+            "default": 4096
+          },
+          "max_pixels": {
+            "type": "integer",
+            "description": "Largest `width` x `height`",
+            "default": 8294400
+          },
+          "max_samples": {
+            "type": "integer",
+            "description": "Most samples per pixel",
+            "default": 1000
+          },
+          "max_supersample": {
+            "type": "integer",
+            "description": "Largest supersample",
+            "default": 2
+          },
+          "timeout_seconds": {
+            "type": "number",
+            "description": "Seconds a render may take before it is stopped",
+            "default": 120
+          },
+          "max_body_bytes": {
+            "type": "integer",
+            "description": "Largest request body, in bytes",
+            "const": 1048576
+          },
+          "mcp": {
+            "type": "boolean",
+            "description": "Whether `/mcp` is on",
+            "default": true
+          },
+          "docs": {
+            "type": "boolean",
+            "description": "Whether `/docs` and `/openapi.json` are on",
+            "default": true
+          },
+          "qualities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names `quality` takes"
+          },
+          "layouts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names `layout` takes"
+          },
+          "materials": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names `material` takes"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "What went wrong"
+          }
+        }
+      },
+      "JsonRpc": {
+        "type": "object",
+        "description": "A JSON-RPC 2.0 answer",
+        "required": [
+          "jsonrpc"
+        ],
+        "properties": {
+          "jsonrpc": {
+            "const": "2.0"
+          },
+          "id": {
+            "type": [
+              "string",
+              "integer",
+              "null"
+            ]
+          },
+          "result": {
+            "type": "object"
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The body is not valid JSON, a field is unknown or missing, a name is unknown, the scene is not valid, or the request is outside the limits",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "no quality is called 'best'"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No preset of that name",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "no preset is called 'no-such'"
+            }
+          }
+        }
+      },
+      "TooLarge": {
+        "description": "The body is larger than 1 MiB",
+        "content": {
+          "text/plain": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "QueueFull": {
+        "description": "The queue is full",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait before trying again",
+            "schema": {
+              "type": "integer",
+              "const": 1
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "the render queue is full; try again later"
+            }
+          }
+        }
+      },
+      "Internal": {
+        "description": "A failure inside the server",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TimedOut": {
+        "description": "The render took longer than the time limit and was stopped",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "McpRefused": {
+        "description": "The transport refuses the message: 400 not JSON-RPC, a batch, a missing session or an unknown protocol revision; 403 an origin that may not call; 404 an unknown session; 406 an `Accept` header without the kind of the answer; 415 a body that is not `application/json`; 500 no session could be started",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/JsonRpc"
+            },
+            "example": {
+              "jsonrpc": "2.0",
+              "id": null,
+              "error": {
+                "code": -32600,
+                "message": "no such session: initialize again"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

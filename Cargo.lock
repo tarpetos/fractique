@@ -1150,6 +1150,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
+ "flate2",
  "fractique-core",
  "fractique-mcp",
  "futures-core",

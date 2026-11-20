@@ -33,7 +33,7 @@ Fractique üç tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yum
 - **Tam yinelenebilirlik:** aynı sahne her makinede aynı pikselleri verir; bunu Linux, Windows ve macOS’taki testler doğrular ([docs/determinism.md](../determinism.md)).
 - **Komut satırı aracı** (`fractique`): alevleri, fraktalları ve duvar kâğıtlarını PNG olarak işler, rastgele sahneler ve varyantlar üretir, `.flame` ve `.frcq` dosyalarını dönüştürür.
 - **MCP sunucusu** (`fractique mcp`): bir yapay zekâ ajanı sahneler oluşturur, değiştirir ve işler ([docs/mcp.md](../mcp.md)).
-- **HTTP sunucusu** (`fractique-server`): işleme kuyruğu ve sınırları olan bir HTTP API’si; `/mcp` adresinde yapay zekâ ajanları için MCP; web uygulamasını sunar, Docker imajı olarak gelir ([docs/server.md](../server.md)).
+- **HTTP sunucusu** (`fractique-server`): işleme kuyruğu ve sınırları olan bir HTTP API’si; `/docs` adresinde etkileşimli başvuru sayfası; `/mcp` adresinde yapay zekâ ajanları için MCP; web uygulamasını sunar, Docker imajı olarak gelir ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |

@@ -53,7 +53,7 @@ flowchart LR
 | `fractique-cli` | works | The `fractique` command: renders scenes and wallpapers to PNG, converts `.flame` files and the app's `.frcq` files, and runs as an MCP server (`fractique mcp`, see [mcp.md](mcp.md)): an AI agent edits a scene, renders a preview, looks, adjusts |
 | `fractique-mcp` | works | The MCP tools and the JSON-RPC answers, without a transport: `fractique mcp` puts them on stdin and stdout, `fractique-server` on `/mcp` ([MCP](#mcp)) |
 | `fractique-app` | works | The app, `fractique-gui`: one codebase for Windows, macOS, Linux, Android, iOS and the web ([The app](#the-app)) |
-| `fractique-server` | works | The `fractique-server` command: an HTTP API with a render queue and limits, MCP over HTTP at `/mcp`, which also serves the web build of the app; the Docker image ([server.md](server.md)) |
+| `fractique-server` | works | The `fractique-server` command: an HTTP API with a render queue and limits, MCP over HTTP at `/mcp` and a reference of the API at `/docs` (`docs.rs`, `openapi.json`), which also serves the web build of the app; the Docker image ([server.md](server.md)) |
 
 `vendor/` holds `eframe` and `egui-wgpu` with the fix the iOS drawing surface needs and a lock around the
 configuring of a surface ([why](#fractals-drawn-pixel-by-pixel-on-the-graphics-card)); the workspace patches

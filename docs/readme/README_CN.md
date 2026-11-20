@@ -33,7 +33,7 @@ Fractique 生成三类图像。一类是分形火焰：由纤细曲线和柔和�
 - **精确可重复：** 同一个场景在任何机器上都得到相同的像素，并由 Linux、Windows 和 macOS 上的测试验证（[docs/determinism.md](../determinism.md)）。
 - **命令行工具**（`fractique`）：将火焰、分形和壁纸渲染为 PNG，生成随机场景和变异版本，转换 `.flame` 和 `.frcq` 文件。
 - **MCP 服务器**（`fractique mcp`）：AI 智能体创建、修改并渲染场景（[docs/mcp.md](../mcp.md)）。
-- **HTTP 服务器**（`fractique-server`）：带渲染队列和限制的 HTTP API，在 `/mcp` 为 AI 智能体提供 MCP，同时提供网页版应用，并以 Docker 镜像发布（[docs/server.md](../server.md)）。
+- **HTTP 服务器**（`fractique-server`）：带渲染队列和限制的 HTTP API，在 `/docs` 提供交互式参考文档，在 `/mcp` 为 AI 智能体提供 MCP，同时提供网页版应用，并以 Docker 镜像发布（[docs/server.md](../server.md)）。
 
 | | |
 | --- | --- |
