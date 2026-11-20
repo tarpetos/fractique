@@ -100,11 +100,13 @@ impl Motion {
     }
 }
 
-// What is on the screen and how far each part is shown: 0 hidden, 1 whole.
+// What is on the screen and how far each part is shown: 0 hidden, 1 whole. While the whole interface goes or
+// comes back, every part is shown by that much less (`dim`), so they leave and return as one.
 #[derive(Default)]
 pub struct Stage {
     parts: Vec<(&'static str, Motion)>,
     pub now: f64,
+    pub dim: f32,
 }
 
 impl Stage {
@@ -125,6 +127,12 @@ impl Stage {
 
     // How far a part is shown, on its way to open or closed; None once it is closed and need not be drawn.
     pub fn shown(&mut self, key: &'static str, open: bool, seconds: f32) -> Option<f32> {
+        let share = 1.0 - self.dim;
+        self.apart(key, open, seconds).map(|value| value * share)
+    }
+
+    // The same for a part that does not go with the interface: the interface itself, and what stays without it.
+    pub fn apart(&mut self, key: &'static str, open: bool, seconds: f32) -> Option<f32> {
         let now = self.now;
         let part = self.part(key, 0.0);
         part.aim(if open { 1.0 } else { 0.0 }, now, span(seconds), 1.0);
@@ -199,6 +207,124 @@ impl<T: PartialEq + Copy> Rest<T> {
             }
             Some((_, since)) => (seconds - (now - since) as f32).max(0.0),
         }
+    }
+}
+
+// How a picture lies in the window, as the shader takes it: the picture point at the middle of the window, how
+// many times larger it is shown, and its aspect over the window's.
+pub type Lay = [f32; 4];
+
+// The same as the picture point at the window's middle and the share of the picture a window's side spans.
+fn spread(lay: Lay) -> ([f32; 2], [f32; 2]) {
+    let [across, along, larger, stretch] = lay;
+    let larger = larger.max(f32::EPSILON);
+    let spans = if stretch > 1.0 {
+        [1.0 / larger, stretch / larger]
+    } else {
+        [1.0 / (stretch.max(f32::EPSILON) * larger), 1.0 / larger]
+    };
+    ([across, along], spans)
+}
+
+fn folded(middle: [f32; 2], spans: [f32; 2]) -> Lay {
+    [
+        middle[0],
+        middle[1],
+        1.0 / spans[0].min(spans[1]).max(f32::EPSILON),
+        spans[1] / spans[0].max(f32::EPSILON),
+    ]
+}
+
+// A window whose size changes in one step, by a button of the app: full screen, maximized, restored. The system
+// moves the window at once; what is in it goes on from where it stood on the screen. `frame` is where the
+// window's frame of before lies in the window of now: the panes are laid out in the frame that glides from there
+// to the window (`PANEL`), and the picture is drawn as it lies in the window of now, seen through a frame that
+// glides from where the picture stood. A leap begun while another moves goes on from where that one is.
+#[cfg_attr(
+    any(target_os = "android", target_os = "ios", target_arch = "wasm32"),
+    allow(dead_code)
+)]
+#[derive(Clone, Copy, Debug)]
+pub struct Leap {
+    since: f64,
+    span: f32,
+    frame: egui::Rect,
+    middle: [f32; 2],
+    size: [f32; 2],
+    aimed: bool,
+}
+
+#[cfg_attr(
+    any(target_os = "android", target_os = "ios", target_arch = "wasm32"),
+    allow(dead_code)
+)]
+impl Leap {
+    pub fn new(frame: egui::Rect, now: f64) -> Self {
+        Self {
+            since: now,
+            span: span(PANEL),
+            frame,
+            middle: [0.0; 2],
+            size: [1.0; 2],
+            aimed: false,
+        }
+    }
+
+    fn share(&self, now: f64) -> f32 {
+        if self.span <= 0.0 {
+            return 1.0;
+        }
+        ease((now - self.since) as f32 / self.span)
+    }
+
+    pub fn moving(&self, now: f64) -> bool {
+        self.span > 0.0 && ((now - self.since) as f32) < self.span
+    }
+
+    // The frame the panes are laid out in, on its way to the window.
+    pub fn frame(&self, window: egui::Rect, now: f64) -> egui::Rect {
+        self.frame.lerp_towards(&window, self.share(now))
+    }
+
+    // `before`: how the picture lay in the window of before, which is `was` in the points of the window of now;
+    // `after`: how it lies in the window of now. Taken once, in the frame the leap begins in.
+    pub fn aim(&mut self, before: Lay, after: Lay, was: egui::Rect, window: egui::Rect) {
+        if std::mem::replace(&mut self.aimed, true) {
+            return;
+        }
+        let (was_size, size) = (
+            was.size().max(egui::Vec2::splat(1.0)),
+            window.size().max(egui::Vec2::splat(1.0)),
+        );
+        let moved = (window.center() - was.center()) / was_size;
+        let (middle, spans) = spread(before);
+        let (to_middle, to_spans) = spread(after);
+        let middle = [middle[0] + spans[0] * moved.x, middle[1] + spans[1] * moved.y];
+        let spans = [spans[0] * size.x / was_size.x, spans[1] * size.y / was_size.y];
+        self.size = [to_spans[0] / spans[0], to_spans[1] / spans[1]];
+        self.middle = [
+            (to_middle[0] - middle[0]) / spans[0],
+            (to_middle[1] - middle[1]) / spans[1],
+        ];
+    }
+
+    // The picture as it is drawn now: as it lies in the window, seen through the frame that glides.
+    pub fn lay(&self, lay: Lay, now: f64) -> Lay {
+        if !self.aimed {
+            return lay;
+        }
+        let share = self.share(now);
+        let glide = |from: f32, to: f32| from + (to - from) * share;
+        let middle = [glide(self.middle[0], 0.0), glide(self.middle[1], 0.0)];
+        let size = [glide(self.size[0], 1.0), glide(self.size[1], 1.0)];
+        let (at, spans) = spread(lay);
+        folded(
+            [
+                at[0] - spans[0] * middle[0] / size[0],
+                at[1] - spans[1] * middle[1] / size[1],
+            ],
+            [spans[0] / size[0], spans[1] / size[1]],
+        )
     }
 }
 
@@ -432,6 +558,94 @@ mod tests {
         assert!(midway > 0.0 && midway < 36.0);
         stage.begin(1.2);
         assert_eq!(stage.glide("under", 0.0, 0.2), 0.0);
+    }
+
+    fn rect(left: f32, top: f32, right: f32, bottom: f32) -> egui::Rect {
+        egui::Rect::from_min_max(egui::pos2(left, top), egui::pos2(right, bottom))
+    }
+
+    // Where a picture lies in the window, in points.
+    fn on_screen(lay: Lay, window: egui::Rect) -> egui::Rect {
+        let (middle, spans) = spread(lay);
+        let corner = |u: f32, v: f32| {
+            window.center() + egui::vec2((u - middle[0]) / spans[0], (v - middle[1]) / spans[1]) * window.size()
+        };
+        egui::Rect::from_min_max(corner(0.0, 0.0), corner(1.0, 1.0))
+    }
+
+    fn near(one: egui::Rect, other: egui::Rect) -> bool {
+        (one.min - other.min).length() < 0.05 && (one.max - other.max).length() < 0.05
+    }
+
+    #[test]
+    fn a_lay_is_the_same_spread_and_folded() {
+        for lay in [[0.5, 0.5, 1.0, 1.0], [0.4, 0.6, 2.5, 0.8], [0.3, 0.5, 0.7, 1.3]] {
+            let (middle, spans) = spread(lay);
+            let back = folded(middle, spans);
+            assert!(
+                lay.iter().zip(back).all(|(one, other)| (one - other).abs() < 1e-5),
+                "{lay:?} {back:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn after_a_leap_the_frame_and_the_picture_go_on_from_where_they_stood() {
+        // A window of 1290 by 690 at (305, 185) of its screen goes full screen: 1900 by 1060 at (0, 0).
+        let (was, window) = (rect(305.0, 185.0, 1595.0, 875.0), rect(0.0, 0.0, 1900.0, 1060.0));
+        let mut leap = Leap::new(was, 3.0);
+        let (before, after) = ([0.5, 0.5, 1.0, 1.0], [0.5, 0.5, 1.0, 0.9572]);
+        leap.aim(before, after, was, window);
+        assert_eq!(leap.frame(window, 3.0), was);
+        assert!(near(on_screen(leap.lay(after, 3.0), window), was));
+        let end = 3.0 + f64::from(PANEL);
+        assert_eq!(leap.frame(window, end), window);
+        assert!(near(on_screen(leap.lay(after, end), window), on_screen(after, window)));
+        assert!(leap.moving(3.1) && !leap.moving(end));
+        // Nothing steps farther than the easing's first step, and nothing turns back.
+        let whole = on_screen(after, window);
+        let reach = whole.width() - was.width();
+        let (mut last, mut wide) = (was.left(), was.width());
+        for step in 1..=11 {
+            let now = 3.0 + f64::from(step) / 60.0;
+            let frame = leap.frame(window, now);
+            assert!(frame.left() <= last && last - frame.left() <= 305.0 * ease(1.0 / 60.0 / PANEL) + 0.01);
+            last = frame.left();
+            let picture = on_screen(leap.lay(after, now), window);
+            assert!(picture.width() >= wide && picture.width() - wide <= reach * ease(1.0 / 60.0 / PANEL) + 0.01);
+            wide = picture.width();
+        }
+    }
+
+    #[test]
+    fn a_leap_begun_while_another_moves_goes_on_from_where_that_one_is() {
+        let (small, full) = (rect(305.0, 185.0, 1595.0, 875.0), rect(0.0, 0.0, 1900.0, 1060.0));
+        let whole = [0.5, 0.5, 1.0, 1.0];
+        let mut out = Leap::new(small, 0.0);
+        out.aim(whole, whole, small, full);
+        let (frame, lay) = (out.frame(full, 0.05), out.lay(whole, 0.05));
+        // Back to the window midway: the screen's frame is now seen from the small window's corner.
+        let by = egui::vec2(-305.0, -185.0);
+        let window = rect(0.0, 0.0, 1290.0, 690.0);
+        let mut back = Leap::new(frame.translate(by), 0.05);
+        back.aim(lay, whole, full.translate(by), window);
+        assert_eq!(back.frame(window, 0.05), frame.translate(by));
+        assert!(near(
+            on_screen(back.lay(whole, 0.05), window),
+            on_screen(lay, full).translate(by)
+        ));
+        assert!(near(on_screen(back.lay(whole, 1.0), window), window));
+    }
+
+    #[test]
+    fn every_part_goes_with_the_interface_but_what_stands_apart() {
+        let mut stage = Stage::default();
+        stage.begin(0.0);
+        assert_eq!(stage.shown("panel", true, 0.0), Some(1.0));
+        assert_eq!(stage.apart("reset", true, 0.0), Some(1.0));
+        stage.dim = 0.75;
+        assert_eq!(stage.shown("panel", true, 0.0), Some(0.25));
+        assert_eq!(stage.apart("reset", true, 0.0), Some(1.0));
     }
 
     #[test]

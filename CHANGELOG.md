@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+* **Full screen, maximizing and hiding the panels are one smooth move:** recorded frame by frame, off screen, on
+  an RTX 4070 at 3800 × 2120 pixels. Going to full screen from a maximized window, the window was restored to
+  its small size for one drawn frame and then made full screen, and the same on the way back: every pane and the
+  picture went there and back, which is the jump that was seen. Both steps are now sent to the system in one
+  frame, and no frame is drawn between them. Whenever the window became smaller, the panel stood over the title
+  bar for one frame and came back down; the panes are no longer held inside the window by the size they had a
+  frame ago. And everything was simply somewhere else in the first frame of the new size. Now what is in the
+  window goes on from where it stood on the screen: the panes glide to their places and the picture grows or
+  shrinks to its new framing in 0.18 s, as one, under the one blur, and the new picture comes once, in the one
+  cross-fade. On Windows the system's own animation of a maximized window is off for that moment, so that only
+  one thing moves. The eye in the title bar, **H** and a tap on a phone made every pane vanish and appear in a
+  single frame; they fade and rise together now, a second press turns them back from where they are, and the
+  picture does not move. Counted the same way before and after, over full screen, maximizing and both together
+  from a window of 800 × 520 and of 1290 × 690: 4 to 8 panes or pictures that jumped at each change and up to 4
+  that turned back, now none; 3 panes that popped at each press of the eye, now none. A frame takes 17 ms
+  through all of it, as before. A real switch to full screen cannot be made in a test run; it was emulated by
+  the window's size ([architecture.md](docs/architecture.md#motion)).
+
 * **No long first batch of a picture:** the first batch of a flame was sized by the best speed any flame had
   shown, so a flame that costs more a step began with a batch far over its slice of a frame: 35 to 119 ms in
   seven of 23 pictures of a live run, a stutter at the start of each. Every run now begins with the smallest

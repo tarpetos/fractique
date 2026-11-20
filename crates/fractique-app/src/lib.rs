@@ -982,10 +982,18 @@ struct App {
     layer: usize,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     maximize_again: bool,
+    // The window's size, its place on the screen and the frame its panes stood in, a frame ago.
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-    full_pending: bool,
+    window_was: Option<(egui::Rect, egui::Pos2, egui::Rect)>,
+    // When a button of the app asked the system for another size of the window.
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-    maximize_pending: bool,
+    leaping: Option<f64>,
+    #[cfg(windows)]
+    handle: Option<isize>,
+    leap: Option<motion::Leap>,
+    leap_from: egui::Rect,
+    lay_was: motion::Lay,
+    reset_home: Option<egui::Pos2>,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     probe: u32,
     language_anchor: egui::Pos2,
@@ -1383,6 +1391,9 @@ impl App {
         join_scene(cc);
         let mut probe = probe::Probe::new();
         probe.stage("app");
+        if screenshot.is_none() {
+            probe.sham = None;
+        }
         let stored = |key: &str| cc.storage.and_then(|storage| storage.get_string(key));
         let lang = Lang::forced()
             .or_else(|| stored("language").map(|code| Lang::from_locale(&code)))
@@ -1617,9 +1628,15 @@ impl App {
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             maximize_again: false,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-            full_pending: false,
+            window_was: None,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-            maximize_pending: false,
+            leaping: None,
+            #[cfg(windows)]
+            handle: None,
+            leap: None,
+            leap_from: egui::Rect::ZERO,
+            lay_was: [0.5, 0.5, 1.0, 1.0],
+            reset_home: None,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             probe: 0,
             results: mpsc::channel(),
@@ -3690,13 +3707,56 @@ impl App {
             zoom: self.shown_zoom,
             size: self.shown_size.unwrap_or(size),
         };
-        glass::Shown {
+        let mut laid = glass::Shown {
             view: lay(&shown, self.shown_eye),
             past: lay(&self.past.unwrap_or(shown), self.past_eye.or(self.shown_eye)),
             fresh,
             veil: veil * self.trace.veil.unwrap_or(motion::VEIL),
             moved: !fixed && (now_eye != (shown.view, shown.zoom) || shown.size != size),
+        };
+        if let Some(leap) = &mut self.leap {
+            leap.aim(self.lay_was, laid.view, self.leap_from, screen);
+            laid.view = leap.lay(laid.view, now);
+            laid.past = leap.lay(laid.past, now);
         }
+        self.lay_was = laid.view;
+        if self.trace.on() {
+            use std::fmt::Write as _;
+            let four = |lay: [f32; 4]| format!("{:.4},{:.4},{:.4},{:.4}", lay[0], lay[1], lay[2], lay[3]);
+            let _ = write!(
+                self.trace.note,
+                " lay {} past {} px {}x{} scale {:.2} window {} bare {}",
+                four(laid.view),
+                four(laid.past),
+                size[0],
+                size[1],
+                ctx.pixels_per_point(),
+                self.window_note(ctx),
+                u8::from(self.bare),
+            );
+        }
+        laid
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn window_note(&self, ctx: &egui::Context) -> String {
+        let (maximized, full) = self.window_state(ctx);
+        let at = self.window_origin(ctx);
+        format!("{}{}:{:.0}:{:.0}", u8::from(maximized), u8::from(full), at.x, at.y)
+    }
+
+    #[cfg(any(target_os = "android", target_os = "ios", target_arch = "wasm32"))]
+    fn window_note(&self, _ctx: &egui::Context) -> String {
+        String::new()
+    }
+
+    // Where the window's picture begins on its screen, in points.
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn window_origin(&self, ctx: &egui::Context) -> egui::Pos2 {
+        if let Some(sham) = &self.trace.sham {
+            return sham.origin(ctx.viewport_rect().size());
+        }
+        ctx.input(|input| input.viewport().inner_rect.map_or(egui::Pos2::ZERO, |rect| rect.min))
     }
 
     fn glaze(
@@ -3736,10 +3796,25 @@ impl App {
         self.panes = panes;
     }
 
+    // Where the button that resets the view stands: above the toolbar, and at the window's foot without the
+    // interface. It glides from the one to the other.
+    pub(crate) fn reset_at(&mut self, home: Option<egui::Pos2>, content: egui::Rect) -> egui::Pos2 {
+        let foot = egui::pos2(content.center().x, content.bottom() - 20.0);
+        if home.is_some() {
+            self.reset_home = home;
+        }
+        let home = self.reset_home.unwrap_or(foot);
+        let up = self
+            .stage
+            .glide("reset_up", if self.bare { 0.0 } else { 1.0 }, motion::PANEL);
+        foot + (home - foot) * up
+    }
+
     pub(crate) fn reset_button(&mut self, ctx: &egui::Context, at: egui::Pos2, shown: f32, live: bool) -> egui::Rect {
         let area = egui::Area::new(egui::Id::unique("reset_view"))
             .fixed_pos(at)
             .pivot(egui::Align2::CENTER_BOTTOM)
+            .constrain(false)
             .interactable(live)
             .fade_in(false)
             .show(ctx, |ui| {
@@ -3931,14 +4006,14 @@ impl App {
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn window_keys(&mut self, ctx: &egui::Context) {
         let typing = ctx.egui_wants_keyboard_input();
-        let (hide, full, leave, is_full, back, forward) = ctx.input(|input| {
+        let is_full = self.window_state(ctx).1;
+        let (hide, full, leave, back, forward) = ctx.input(|input| {
             let arrow = |key| input.modifiers.alt && input.key_pressed(key) && !typing;
             let side = |button| input.pointer.button_pressed(button);
             (
                 input.key_pressed(egui::Key::H) && !typing,
                 input.key_pressed(egui::Key::F11),
                 input.key_pressed(egui::Key::Escape),
-                input.viewport().fullscreen.unwrap_or(false),
                 arrow(egui::Key::ArrowLeft) || side(egui::PointerButton::Extra1),
                 arrow(egui::Key::ArrowRight) || side(egui::PointerButton::Extra2),
             )
@@ -3963,58 +4038,137 @@ impl App {
                 self.full_screen(ctx, false);
             }
         }
-        if self.full_pending {
-            if ctx.input(|input| input.viewport().maximized.unwrap_or(false)) {
-                ctx.request_repaint();
-            } else {
-                self.full_screen(ctx, true);
-            }
-        }
-        if self.maximize_pending {
-            if is_full {
-                ctx.request_repaint();
-            } else {
-                self.maximize_pending = false;
-                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
-            }
-        }
         self.probe_full_screen(ctx);
         self.resize_edges(ctx, is_full);
+    }
+
+    // The size the system is asked for comes in one step. What is in the window then moves by itself (`stand`),
+    // so the system's own animation of a window that is maximized or restored is off until that has ended: two
+    // motions at once are read as a jump.
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn leap_asked(&mut self, ctx: &egui::Context) {
+        // macOS moves a window to full screen in its own animation, through many sizes.
+        if !motion::wanted() || cfg!(target_os = "macos") {
+            return;
+        }
+        self.leaping = Some(ctx.input(|input| input.time));
+        self.system_motion(false);
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn system_motion(&self, on: bool) {
+        #[cfg(windows)]
+        if let Some(handle) = self.handle
+            && self.trace.sham.is_none()
+            && std::env::var_os("FRACTIQUE_SYSTEM_MOTION").is_none()
+        {
+            use windows_sys::Win32::Graphics::Dwm::{DWMWA_TRANSITIONS_FORCEDISABLED, DwmSetWindowAttribute};
+            let off = i32::from(!on);
+            // SAFETY: the handle is the app's own window, and the call reads one BOOL through the pointer.
+            unsafe {
+                DwmSetWindowAttribute(
+                    handle as _,
+                    DWMWA_TRANSITIONS_FORCEDISABLED as u32,
+                    (&raw const off).cast(),
+                    size_of::<i32>() as u32,
+                );
+            }
+        }
+        #[cfg(not(windows))]
+        let _ = on;
+    }
+
+    // The frame the panes are laid out in. After a leap of the window it glides from where the window's frame
+    // stood on the screen to the window as it is now; otherwise it is the window.
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn stand(&mut self, ctx: &egui::Context, screen: egui::Rect, now: f64) -> egui::Rect {
+        let origin = self.window_origin(ctx);
+        let asked = self.leaping.is_some_and(|since| now - since < 0.5);
+        if let Some((was, at, stood)) = self.window_was
+            && asked
+            && was.size() != screen.size()
+            && was.width() > 0.0
+            && screen.width() > 0.0
+        {
+            let by = at - origin;
+            self.leap = Some(motion::Leap::new(stood.translate(by), now));
+            self.leap_from = was.translate(by);
+            self.leaping = None;
+        } else if self.leaping.is_some() && !asked {
+            self.leaping = None;
+            self.system_motion(true);
+        }
+        let stand = match self.leap {
+            Some(leap) if leap.moving(now) => {
+                ctx.request_repaint();
+                leap.frame(screen, now)
+            }
+            Some(_) => {
+                self.leap = None;
+                self.system_motion(true);
+                screen
+            }
+            None => screen,
+        };
+        self.window_was = Some((screen, origin, stand));
+        stand
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn window_state(&self, ctx: &egui::Context) -> (bool, bool) {
+        if let Some(sham) = &self.trace.sham {
+            return (sham.maximized, sham.full);
+        }
+        ctx.input(|input| {
+            (
+                input.viewport().maximized.unwrap_or(false),
+                input.viewport().fullscreen.unwrap_or(false),
+            )
+        })
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn set_maximized(&mut self, ctx: &egui::Context, on: bool) {
+        self.leap_asked(ctx);
+        ctx.send_viewport_cmd(match &mut self.trace.sham {
+            Some(sham) => egui::ViewportCommand::InnerSize(sham.maximize(on, ctx.viewport_rect().size())),
+            None => egui::ViewportCommand::Maximized(on),
+        });
+    }
+
+    #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    fn set_full(&mut self, ctx: &egui::Context, on: bool) {
+        self.leap_asked(ctx);
+        ctx.send_viewport_cmd(match &mut self.trace.sham {
+            Some(sham) => egui::ViewportCommand::InnerSize(sham.fullscreen(on, ctx.viewport_rect().size())),
+            None => egui::ViewportCommand::Fullscreen(on),
+        });
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn full_screen(&mut self, ctx: &egui::Context, on: bool) {
         // A maximized window keeps its maximized size in full screen and leaves a black strip where the taskbar was,
-        // so it leaves the maximized state first and goes full screen once the system has done that.
-        if on && ctx.input(|input| input.viewport().maximized.unwrap_or(false)) {
+        // so it leaves the maximized state first. The system takes both in the order they are sent, before the next
+        // frame is drawn: no frame shows the window between the two.
+        if on && self.window_state(ctx).0 {
             self.maximize_again = true;
-            self.full_pending = true;
-            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false));
-            ctx.request_repaint();
-            return;
+            self.set_maximized(ctx, false);
         }
-        self.full_pending = false;
-        ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(on));
+        self.set_full(ctx, on);
         if !on && std::mem::take(&mut self.maximize_again) {
-            self.maximize_pending = true;
-            ctx.request_repaint();
+            self.set_maximized(ctx, true);
         }
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn toggle_maximized(&mut self, ctx: &egui::Context) {
-        let (maximized, is_full) = ctx.input(|input| {
-            (
-                input.viewport().maximized.unwrap_or(false),
-                input.viewport().fullscreen.unwrap_or(false),
-            )
-        });
+        let (maximized, is_full) = self.window_state(ctx);
         // Maximizing a window that is in full screen leaves it over the taskbar with a black strip in its place.
         if is_full {
             self.maximize_again = true;
             self.full_screen(ctx, false);
         } else {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+            self.set_maximized(ctx, !maximized);
         }
     }
 
@@ -4059,7 +4213,7 @@ impl App {
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn resize_edges(&self, ctx: &egui::Context, is_full: bool) {
         use egui::{CursorIcon, ResizeDirection};
-        let maximized = ctx.input(|input| input.viewport().maximized.unwrap_or(false));
+        let maximized = self.window_state(ctx).0;
         let Some(at) = ctx.input(|input| input.pointer.hover_pos()) else {
             return;
         };
@@ -4093,9 +4247,11 @@ impl App {
             screen.min + egui::vec2(BAR_GAP, BAR_GAP),
             egui::pos2(screen.right() - BAR_GAP, screen.top() + BAR_GAP + BAR),
         );
-        let is_full = ctx.input(|input| input.viewport().fullscreen.unwrap_or(false));
+        let is_full = self.window_state(ctx).1;
         egui::Area::new(egui::Id::unique("title bar"))
             .fixed_pos(bar.min)
+            .constrain(false)
+            .interactable(!self.bare)
             .fade_in(false)
             .show(ctx, |ui| {
                 ui.set_opacity(shown);
@@ -5440,6 +5596,22 @@ impl App {
             self.shown_frames = 1;
             return;
         }
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        if matches!(step, "fullscreen" | "maximize" | "restore") {
+            if step == "fullscreen" {
+                let full = self.window_state(ctx).1;
+                self.full_screen(ctx, !full);
+            } else {
+                self.toggle_maximized(ctx);
+            }
+            self.shown_frames = 1;
+            return;
+        }
+        if matches!(step, "hide" | "show") {
+            self.bare = step == "hide";
+            self.shown_frames = 1;
+            return;
+        }
         if let Some(code) = step.strip_prefix("lang:") {
             self.set_language(ctx, Lang::from_locale(code));
             self.shown_frames = 1;
@@ -5484,7 +5656,11 @@ fn save_png(path: &std::path::Path, rgba: &[u8], size: [usize; 2]) -> Result<(),
 }
 
 impl eframe::App for App {
-    fn raw_input_hook(&mut self, _ctx: &egui::Context, input: &mut egui::RawInput) {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, input: &mut egui::RawInput) {
+        if let Some(scale) = self.trace.scale {
+            let native = input.viewport().native_pixels_per_point.unwrap_or(1.0);
+            ctx.set_zoom_factor(scale / native);
+        }
         if self.trace.fixed_clock {
             input.time = Some(self.trace.frame as f64 / 60.0);
             input.predicted_dt = 1.0 / 60.0;
@@ -5629,14 +5805,36 @@ impl App {
 
         let screen = ctx.viewport_rect();
         self.explore(ui, screen);
+        // The interface goes and comes back as one: every pane is shown by its share of it.
+        let face = self.stage.apart("interface", !self.bare, motion::PANEL);
+        let aside = face.is_none() || self.phone.preview;
+        if self.bare {
+            self.languages_open = false;
+            self.sizes_open = false;
+            self.presets_open = false;
+        }
+        self.stage.dim = if aside { 0.0 } else { 1.0 - face.unwrap_or(1.0) };
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        let content = {
-            self.window_keys(&ctx);
-            let mut content = safe_content(&ctx);
-            if !self.bare && !self.phone.on {
-                content.min.y += BAR + BAR_GAP;
+        let (stand, content, whole) = {
+            #[cfg(windows)]
+            if self.handle.is_none() {
+                use eframe::egui_wgpu::wgpu::rwh::{HasWindowHandle as _, RawWindowHandle};
+                self.handle = match frame.window_handle().map(|handle| handle.as_raw()) {
+                    Ok(RawWindowHandle::Win32(window)) => Some(window.hwnd.get()),
+                    _ => None,
+                };
             }
-            content
+            self.window_keys(&ctx);
+            let stand = self.stand(&ctx, screen, now);
+            let safe = safe_content(&ctx);
+            let mut content =
+                egui::Rect::from_min_max(stand.min + (safe.min - screen.min), stand.max - (screen.max - safe.max));
+            let mut whole = safe;
+            if face.is_some() && !self.phone.on {
+                content.min.y += BAR + BAR_GAP;
+                whole.min.y += BAR + BAR_GAP;
+            }
+            (stand, content, whole)
         };
         #[cfg(any(target_os = "android", target_os = "ios", target_arch = "wasm32"))]
         let content = {
@@ -5647,6 +5845,9 @@ impl App {
             }
             content
         };
+        // The layout a width decides goes by the window as it is, not by the frame that glides to it.
+        #[cfg(any(target_os = "android", target_os = "ios", target_arch = "wasm32"))]
+        let whole = content;
         let scale = ctx.pixels_per_point();
         let size = [
             (screen.width() * scale).round() as u32,
@@ -5755,7 +5956,7 @@ impl App {
         }
         let mut glass = glass::Frame::new(&painter, screen);
 
-        if self.bare || self.phone.preview {
+        if aside {
             let mut panes = Vec::new();
             if self.phone.preview {
                 for rect in self.clock(&ctx, content, screen) {
@@ -5763,9 +5964,9 @@ impl App {
                 }
             }
             let reset = self.view != WHOLE && !self.phone.preview;
-            if let Some(shown) = self.stage.shown("reset", reset, motion::SMALL) {
+            if let Some(shown) = self.stage.apart("reset", reset, motion::SMALL) {
                 let from = panes.len();
-                let at = egui::pos2(content.center().x, content.bottom() - 20.0);
+                let at = self.reset_at(None, content);
                 let rect = self.reset_button(&ctx, at, shown, reset);
                 panes.push((rect, rect.height() * 0.5, false));
                 self.faded(&panes, from, shown);
@@ -5778,7 +5979,7 @@ impl App {
             return;
         }
 
-        let wide = motion::latch(self.wide, content.width(), 700.0, motion::BAND);
+        let wide = motion::latch(self.wide, whole.width(), 700.0, motion::BAND);
         self.wide = Some(wide);
         let open = *self.inspector_open.get_or_insert(wide);
         // A sheet's glass is drawn under every text, so a pane the sheet reaches, at the place where it will stand,
@@ -5795,15 +5996,18 @@ impl App {
         let hidden = self.gives("inspector");
         let open = open && !hidden;
 
-        let column = (content.width() - 84.0).min(248.0);
-        let beside = content.left() + 20.0 + column + 44.0 + 16.0;
+        let column = (whole.width() - 84.0).min(248.0);
+        let beside = whole.left() + 20.0 + column + 44.0 + 16.0;
         let mut panes = Vec::new();
+        // What does not rise by itself as it comes sinks by as much while the interface goes.
+        let sink = egui::vec2(0.0, self.stage.dim * motion::SHIFT);
+        let live = !self.bare;
         if self.phone.on {
             self.phone_home(&ctx, content, size, &mut panes);
         } else {
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             if let Some(shown) = self.stage.shown("title", true, motion::PANEL) {
-                panes.push((self.title_bar(&ctx, screen, shown), BAR * 0.5, false));
+                panes.push((self.title_bar(&ctx, stand.translate(sink), shown), BAR * 0.5, false));
                 self.faded(&panes, 0, shown);
             }
 
@@ -5816,9 +6020,10 @@ impl App {
             let bar_on = !self.gives("toolbar");
             if let Some(shown) = self.stage.shown("toolbar", bar_on, motion::GIVE) {
                 let toolbar = egui::Area::new(egui::Id::unique("toolbar"))
-                    .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0))
+                    .fixed_pos(egui::pos2(content.center().x, content.bottom() - 20.0) + sink)
                     .pivot(egui::Align2::CENTER_BOTTOM)
-                    .interactable(bar_on)
+                    .constrain(false)
+                    .interactable(bar_on && live)
                     .fade_in(false)
                     .show(&ctx, |ui| {
                         ui.set_opacity(shown);
@@ -5862,8 +6067,8 @@ impl App {
                                 egui::Color32::WHITE,
                             );
                             ui.add_space(5.0);
-                            let tight = egui::remap_clamp(content.width(), 676.0..=724.0, 0.0..=1.0);
-                            self.toolbar(ui, tight, content.width() - 58.0);
+                            let tight = egui::remap_clamp(whole.width(), 676.0..=724.0, 0.0..=1.0);
+                            self.toolbar(ui, tight, whole.width() - 58.0);
                         });
                     });
                 self.toolbar_size = toolbar.response.rect.size();
@@ -5877,7 +6082,7 @@ impl App {
             }
 
             // The panel grows shorter as the buttons come to stand under it, over the last points before they do.
-            let apart = content.center().x - self.toolbar_size.x * 0.5 - beside;
+            let apart = whole.center().x - self.toolbar_size.x * 0.5 - beside;
             let clear = if wide {
                 (apart / motion::RAMP).clamp(0.0, 1.0)
             } else {
@@ -5886,13 +6091,17 @@ impl App {
             let lifted = if self.view != WHOLE { 56.0 } else { 0.0 };
             let lifted = self.stage.glide("lifted", lifted, motion::SMALL);
             let under = (1.0 - clear) * (self.toolbar_size.y.max(60.0) + 12.0 + lifted);
+            // After a leap of the window the panel grows to its new height with everything else.
+            let span = if self.leap.is_some() { motion::PANEL } else { 0.0 };
+            let under = self.stage.glide("under", under, span);
             self.under = under;
             let span = if hidden { motion::GIVE } else { motion::PANEL };
             if let Some(shown) = self.stage.shown("inspector", open, span) {
                 let corner = content.min + egui::vec2(20.0, 20.0);
                 let inspector = egui::Area::new(egui::Id::unique("inspector"))
                     .fixed_pos(corner)
-                    .interactable(open)
+                    .constrain(false)
+                    .interactable(open && live)
                     .fade_in(false)
                     .show(&ctx, |ui| {
                         ui.set_opacity(shown);
@@ -5932,10 +6141,11 @@ impl App {
                 self.seat("reset", egui::Align2::CENTER_BOTTOM.anchor_size(above, seat.size()));
             }
             let reset = self.view != WHOLE && !self.gives("reset");
-            if let Some(shown) = self.stage.shown("reset", reset, motion::SMALL) {
+            if let Some(shown) = self.stage.apart("reset", reset, motion::SMALL) {
                 let above = content.bottom() - 20.0 - self.toolbar_size.y - 10.0;
                 let from = panes.len();
-                let rect = self.reset_button(&ctx, egui::pos2(content.center().x, above), shown, reset);
+                let at = self.reset_at(Some(egui::pos2(content.center().x, above)), content);
+                let rect = self.reset_button(&ctx, at, shown, reset && live);
                 self.seat("reset", rect);
                 panes.push((rect, rect.height() * 0.5, false));
                 self.faded(&panes, from, shown);
@@ -5955,7 +6165,7 @@ impl App {
                 "export",
                 content.center(),
                 egui::Align2::CENTER_CENTER,
-                self.export.open,
+                self.export.open && live,
             )
             .show(&ctx, |ui| {
                 self.unfold(ui, &leaf);
@@ -5985,7 +6195,7 @@ impl App {
                 "updates",
                 content.center(),
                 egui::Align2::CENTER_CENTER,
-                self.updates.open,
+                self.updates.open && live,
             )
             .show(&ctx, |ui| {
                 self.unfold(ui, &leaf);
@@ -6009,18 +6219,21 @@ impl App {
                 pivot: egui::Align2::CENTER_CENTER,
                 shown,
             };
-            let sheet = Self::sheet("pro", content.center(), egui::Align2::CENTER_CENTER, self.pro.is_some()).show(
-                &ctx,
-                |ui| {
-                    self.unfold(ui, &leaf);
-                    widgets::pane().show(ui, |ui| {
-                        self.pro_sheet(ui, width);
-                        if widgets::close(ui, &self.t("close")) {
-                            self.leave_pro();
-                        }
-                    });
-                },
-            );
+            let sheet = Self::sheet(
+                "pro",
+                content.center(),
+                egui::Align2::CENTER_CENTER,
+                self.pro.is_some() && live,
+            )
+            .show(&ctx, |ui| {
+                self.unfold(ui, &leaf);
+                widgets::pane().show(ui, |ui| {
+                    self.pro_sheet(ui, width);
+                    if widgets::close(ui, &self.t("close")) {
+                        self.leave_pro();
+                    }
+                });
+            });
             self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
         }
 
@@ -6165,7 +6378,8 @@ impl App {
             let tuning = egui::Area::new(egui::Id::unique("tuning"))
                 .fixed_pos(egui::pos2(content.right() - 20.0, content.bottom() - 20.0 - lift))
                 .pivot(egui::Align2::RIGHT_BOTTOM)
-                .interactable(tuned)
+                .constrain(false)
+                .interactable(tuned && live)
                 .fade_in(false)
                 .show(&ctx, |ui| {
                     ui.set_opacity(shown);

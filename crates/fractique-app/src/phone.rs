@@ -856,11 +856,11 @@ impl App {
         ];
         let tune = self.phone.tune && !covered[0];
         if let Some(shown) = self.stage.shown("phone_tune", tune, motion::PANEL) {
-            self.phone_tune(ctx, content, panes, shown, tune);
+            self.phone_tune(ctx, content, panes, shown, tune && !self.bare);
         }
         let sheet = self.phone.sheet && !self.phone.tune && !covered[1];
         if let Some(shown) = self.stage.shown("phone_sheet", sheet, motion::PANEL) {
-            self.phone_sheet(ctx, content, size, panes, shown, sheet);
+            self.phone_sheet(ctx, content, size, panes, shown, sheet && !self.bare);
         }
         // The buttons come back when the styles or the controls over them have mostly gone.
         let over = ["phone_sheet", "phone_tune"]
@@ -875,6 +875,8 @@ impl App {
             return;
         };
         self.phone.shown = shown;
+        let stands = live;
+        let live = live && !self.bare;
         let first_pane = panes.len();
         let ink = self.ink();
 
@@ -1052,10 +1054,11 @@ impl App {
         self.placard(ctx, content, [right, foot], size, on_picture);
 
         self.faded(panes, first_pane, shown);
-        let reset = live && self.view != WHOLE;
-        if let Some(shown) = self.stage.shown("reset", reset, motion::SMALL) {
+        let reset = stands && self.view != WHOLE;
+        if let Some(shown) = self.stage.apart("reset", reset, motion::SMALL) {
             let from = panes.len();
-            let rect = self.reset_button(ctx, egui::pos2(content.center().x, below + 44.0), shown, reset);
+            let at = self.reset_at(Some(egui::pos2(content.center().x, below + 44.0)), content);
+            let rect = self.reset_button(ctx, at, shown, reset && live);
             panes.push((rect, rect.height() * 0.5, false));
             self.faded(panes, from, shown);
         }
