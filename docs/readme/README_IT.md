@@ -42,7 +42,7 @@ Fractique crea tre tipi di immagini. Fiamme frattali: frattali luminosi ed etere
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | Fioritura dorata | Mandala solare |
 
-Altre cento fiamme, ognuna con il file `.frcq` che la riproduce a qualsiasi dimensione: [la galleria](../gallery.md).
+Altre cento fiamme, oltre a frattali e sfondi, ogni immagine con il file `.frcq` che la riproduce a qualsiasi dimensione: [la galleria](../gallery.md).
 
 Frattali di altri tipi: l’insieme di Mandelbrot, un insieme di Julia e l’attrattore di Clifford:
 

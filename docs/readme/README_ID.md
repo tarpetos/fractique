@@ -42,7 +42,7 @@ Fractique membuat tiga jenis gambar. Api fraktal: fraktal bercahaya dan halus ya
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | Mekar Keemasan | Mandala Surya |
 
-Seratus api lagi, masing-masing dengan berkas `.frcq` yang merendernya kembali dalam ukuran apa pun: [galeri](../gallery.md).
+Seratus api lagi, juga fraktal dan wallpaper, masing-masing dengan berkas `.frcq` yang merendernya kembali dalam ukuran apa pun: [galeri](../gallery.md).
 
 Fraktal jenis lain: himpunan Mandelbrot, himpunan Julia, dan penarik Clifford:
 

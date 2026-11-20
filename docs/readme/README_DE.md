@@ -42,7 +42,7 @@ Fractique erzeugt drei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fr
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | Goldblüte | Sonnenmandala |
 
-Hundert weitere Flammen, jede mit der `.frcq`-Datei, die sie in jeder Größe erneut rendert: [die Galerie](../gallery.md).
+Hundert weitere Flammen sowie Fraktale und Hintergrundbilder, jeweils mit der `.frcq`-Datei, die das Bild in jeder Größe erneut rendert: [die Galerie](../gallery.md).
 
 Fraktale anderer Art: die Mandelbrot-Menge, eine Julia-Menge und der Clifford-Attraktor:
 

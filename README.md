@@ -42,7 +42,7 @@ Fractique makes three kinds of pictures. Fractal flames: the glowing, wispy kind
 | ![golden-bloom](docs/samples/golden-bloom.png) | ![solar-mandala](docs/samples/solar-mandala.png) |
 | Golden Bloom | Solar Mandala |
 
-One hundred more flames, each with the `.frcq` file that renders it again at any size: [the gallery](docs/gallery.md).
+One hundred more flames, and fractals and wallpapers too, each with the `.frcq` file that renders it again at any size: [the gallery](docs/gallery.md).
 
 Fractals of other kinds: the Mandelbrot set, a Julia set and the Clifford attractor:
 

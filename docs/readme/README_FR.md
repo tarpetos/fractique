@@ -42,7 +42,7 @@ Fractique crée trois sortes d’images. Des flammes fractales : ces fractales l
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | Floraison dorée | Mandala solaire |
 
-Cent autres flammes, chacune avec le fichier `.frcq` qui la restitue à n’importe quelle taille : [la galerie](../gallery.md).
+Cent autres flammes, ainsi que des fractales et des fonds d’écran, chaque image avec le fichier `.frcq` qui la restitue à n’importe quelle taille : [la galerie](../gallery.md).
 
 Des fractales d’autres sortes : l’ensemble de Mandelbrot, un ensemble de Julia et l’attracteur de Clifford :
 

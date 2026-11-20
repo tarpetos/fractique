@@ -42,7 +42,7 @@ Fractique 生成三类图像。一类是分形火焰：由纤细曲线和柔和�
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | 金色绽放 | 太阳曼陀罗 |
 
-另有 100 幅火焰，每幅都附有可按任意尺寸重新渲染的 `.frcq` 文件：[画廊](../gallery.md)。
+另有 100 幅火焰以及一些分形和壁纸，每幅都附有可按任意尺寸重新渲染的 `.frcq` 文件：[画廊](../gallery.md)。
 
 其他种类的分形：曼德博集合、朱利亚集合和克利福德吸引子：
 

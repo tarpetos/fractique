@@ -1,7 +1,8 @@
 # Gallery
 
-One hundred flames made with Fractique, each a small picture and the `.frcq` file it was rendered from. The file
-holds the whole scene, so it renders the same picture again at any size and quality, on any machine.
+100 flames, 12 fractals and 12 wallpapers made with Fractique, each a small picture and the `.frcq` file it was
+rendered from. The file holds the whole scene, so it renders the same picture again at any size and quality, on any
+machine.
 
 To open one in the app, click its picture, download the `.frcq` file from the page that opens, and choose
 **Scene**, **Open** in the app or double-click the file. To render one from the command line at 4K:
@@ -12,6 +13,8 @@ fractique render docs/gallery/001-phoenix-flare.frcq --size 3840x2160 --quality 
 
 The pictures here are 960 × 540 pixels, rendered at `--quality high` and saved as WebP. They are made from the
 `.frcq` files by `tools/gallery/make_gallery.py` ([usage.md](usage.md#14-the-gallery)).
+
+## Flames
 
 | | | | |
 | --- | --- | --- | --- |
@@ -65,3 +68,32 @@ The pictures here are 960 × 540 pixels, rendered at `--quality high` and saved 
 | Steel Whorls | Frost Lattice | Solar Eclipse | Orchid Dragon |
 | [![Pastel Conch](gallery/097-pastel-conch.webp)](gallery/097-pastel-conch.frcq) | [![Amber Triskele](gallery/098-amber-triskele.webp)](gallery/098-amber-triskele.frcq) | [![Blue Diatom](gallery/099-blue-diatom.webp)](gallery/099-blue-diatom.frcq) | [![Amber Windmill](gallery/100-amber-windmill.webp)](gallery/100-amber-windmill.frcq) |
 | Pastel Conch | Amber Triskele | Blue Diatom | Amber Windmill |
+
+## Fractals
+
+Fractals of other kinds, most of them presets of their kind and some views of a random seed. They open in the
+**Fractals** tab.
+
+| | | | |
+| --- | --- | --- | --- |
+| [![Ember Cathedral](gallery/F01-ember-cathedral.webp)](gallery/F01-ember-cathedral.frcq) | [![Teal Maelstrom](gallery/F02-teal-maelstrom.webp)](gallery/F02-teal-maelstrom.frcq) | [![Golden Galaxies](gallery/F03-golden-galaxies.webp)](gallery/F03-golden-galaxies.frcq) | [![Neon Garden](gallery/F04-neon-garden.webp)](gallery/F04-neon-garden.frcq) |
+| Ember Cathedral | Teal Maelstrom | Golden Galaxies | Neon Garden |
+| [![Peacock Star](gallery/F05-peacock-star.webp)](gallery/F05-peacock-star.frcq) | [![Lotus Buddha](gallery/F06-lotus-buddha.webp)](gallery/F06-lotus-buddha.frcq) | [![Silk Strata](gallery/F07-silk-strata.webp)](gallery/F07-silk-strata.frcq) | [![Sunset Lorenz](gallery/F08-sunset-lorenz.webp)](gallery/F08-sunset-lorenz.frcq) |
+| Peacock Star | Lotus Buddha | Silk Strata | Sunset Lorenz |
+| [![Indigo Lace](gallery/F09-indigo-lace.webp)](gallery/F09-indigo-lace.frcq) | [![Marble Gasket](gallery/F10-marble-gasket.webp)](gallery/F10-marble-gasket.frcq) | [![Reef Bulb](gallery/F11-reef-bulb.webp)](gallery/F11-reef-bulb.frcq) | [![Copper Vault](gallery/F12-copper-vault.webp)](gallery/F12-copper-vault.frcq) |
+| Indigo Lace | Marble Gasket | Reef Bulb | Copper Vault |
+
+## Wallpapers
+
+A wallpaper's file holds its seed, layout and material, and the shapes laid out for a 16:9 screen. The app
+opens it in the **Shapes** tab and lays the wallpaper out anew from the seed; the commands draw the shapes
+in the file. The first one is also `fractique render --wallpaper 35 --layout burst --material glass --size 3840x2160`.
+
+| | | | |
+| --- | --- | --- | --- |
+| [![Pink Lotus](gallery/W01-pink-lotus.webp)](gallery/W01-pink-lotus.frcq) | [![Teal Ribbons](gallery/W02-teal-ribbons.webp)](gallery/W02-teal-ribbons.frcq) | [![Aqua Fan](gallery/W03-aqua-fan.webp)](gallery/W03-aqua-fan.frcq) | [![Ember Discs](gallery/W04-ember-discs.webp)](gallery/W04-ember-discs.frcq) |
+| Pink Lotus | Teal Ribbons | Aqua Fan | Ember Discs |
+| [![Dune Waves](gallery/W05-dune-waves.webp)](gallery/W05-dune-waves.frcq) | [![Cyan Frames](gallery/W06-cyan-frames.webp)](gallery/W06-cyan-frames.frcq) | [![Jade Arcs](gallery/W07-jade-arcs.webp)](gallery/W07-jade-arcs.frcq) | [![Plum Tiles](gallery/W08-plum-tiles.webp)](gallery/W08-plum-tiles.frcq) |
+| Dune Waves | Cyan Frames | Jade Arcs | Plum Tiles |
+| [![Peach Planes](gallery/W09-peach-planes.webp)](gallery/W09-peach-planes.frcq) | [![Night Bars](gallery/W10-night-bars.webp)](gallery/W10-night-bars.frcq) | [![Sand Blossom](gallery/W11-sand-blossom.webp)](gallery/W11-sand-blossom.frcq) | [![Slate Slats](gallery/W12-slate-slats.webp)](gallery/W12-slate-slats.frcq) |
+| Peach Planes | Night Bars | Sand Blossom | Slate Slats |

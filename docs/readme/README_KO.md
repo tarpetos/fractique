@@ -42,7 +42,7 @@ Fractique는 세 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | 황금빛 개화 | 태양 만다라 |
 
-불꽃 100점이 더 있으며, 각각 어떤 크기로든 다시 렌더링할 수 있는 `.frcq` 파일이 함께 있습니다: [갤러리](../gallery.md).
+불꽃 100점과 프랙탈, 배경화면이 더 있으며, 각각 어떤 크기로든 다시 렌더링할 수 있는 `.frcq` 파일이 함께 있습니다: [갤러리](../gallery.md).
 
 다른 종류의 프랙탈: 만델브로 집합, 줄리아 집합, 클리퍼드 끌개:
 
