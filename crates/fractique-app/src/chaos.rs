@@ -1,16 +1,16 @@
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use eframe::egui;
 use eframe::egui_wgpu::wgpu;
 use fractique_core::scene::Transform;
-use fractique_core::{Flame, Kind, RenderOptions, Scene, Tone, math, palette};
+use fractique_core::{Flame, Kind, RenderOptions, Scene, Tone, fractal, math, palette, presets};
 use web_time::Instant;
 
 use crate::deep::{self, Stage};
 use crate::field::{self, Batched, Chain, Fields, Planned};
 use crate::orbit::{self, Recipe};
+use crate::pace;
 use crate::preview::{LEVELS, guarded};
 use crate::sheets;
 
@@ -37,10 +37,6 @@ const REFUSED: usize = 8;
 const ROOM: u64 = 1 << 30;
 // Cells a unit, times the distance of the view from the origin: above it 32-bit coordinates show as a grid.
 const FINEST: f64 = 4.0e5;
-// A batch is sized to take about this long, so that the window keeps its pace.
-const PACE: f32 = 0.04;
-// However slow the graphics card, a run takes about this many batches at most.
-const MOST_BATCHES: u64 = 16;
 // A walker of an orbit takes steps that plot nothing before its first point: the walkers of a layer together
 // take up to this many times the points asked of them in a batch.
 const UNSEEN: u64 = 4;
@@ -60,9 +56,20 @@ pub(crate) const LONGEST: u32 = 500;
 // A scene of flames alone is walked as it was before the bounds: its batches grow with the card's pace, and it is
 // given this many milliseconds. A submission of any scene that takes longer ends the card's part for the session.
 const PATIENT: u32 = 20_000;
-// A run whose walkers have plotted nothing after this many batches is given up.
-const IDLE_BATCHES: u32 = 64;
+// A run whose walkers have plotted nothing after this many seconds of the card's work is given up.
+const IDLE: f32 = 2.5;
 const RECIPES: usize = 8;
+// The card's work is cut into units of about this many seconds, sent one after the other while the frame's slice
+// lasts: a unit that takes twice as long costs the frame a millisecond, not a slice. A unit and the way back from
+// it took 0.25 ms on an RTX 4070, so smaller ones would be mostly that.
+const UNIT: f32 = 0.0015;
+const DEEP_UNIT: f32 = 0.003;
+// Milliseconds without a word of the card after which a picture on its way counts as stalled: ten times the
+// longest a batch of a bounded scene may take.
+const SILENT: u32 = 10 * LONGEST;
+// The scenes of the small pictures that run every shader once, and what their run is known by.
+const WARM: [&str; 2] = ["aurora-spiral", "clifford-classic"];
+const WARM_KEY: &str = "warm";
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -106,7 +113,8 @@ struct Batch {
     layer: u32,
     walkers: u32,
     budget: u32,
-    spare: u32,
+    // Unplotted steps of walkers that are on their way already.
+    idle: u32,
 }
 
 #[repr(C)]
@@ -398,6 +406,9 @@ struct Layer {
     sparse: bool,
     landed: u64,
     deep: Option<deep::Plan>,
+    // The levels are being drawn, a strip a submission, after one that looks the tiles over: the next row (none
+    // before the tiles are looked over), the scale, and the samples the levels are of.
+    strip: Option<(Option<u32>, f64, u64)>,
 }
 
 impl Layer {
@@ -406,20 +417,11 @@ impl Layer {
     }
 
     fn pictured(&self) -> bool {
-        if self.told() {
-            self.resolved > 0
-        } else {
-            self.done > 0 && self.checked
-        }
+        self.resolved > 0 && (self.told() || self.checked)
     }
 
     fn settled(&self, goal: u64) -> bool {
-        self.done >= goal
-            && if self.told() {
-                self.resolved == self.done
-            } else {
-                self.checked
-            }
+        self.done >= goal && self.resolved == self.done && (self.told() || self.checked)
     }
 
     // The numbers the card tells of the layer after a batch.
@@ -428,6 +430,31 @@ impl Layer {
             .as_ref()
             .map_or(4, |plan| deep::HEAD + plan.particles as usize)
     }
+}
+
+// The steps a walker of the next batch, after one of `sent` plotted and `fused` unplotted steps a walker that took
+// so long. Every run begins with one plotted step, whatever other scenes have shown: a step of one flame costs
+// twenty times a step of another. That first batch is mostly unplotted steps, so the next is sized by all of its
+// work. An unplotted step writes nothing and is taken for a third of a plotted one: taken for a whole one, the
+// second batch of a flame at 3840 × 2160 took 12 to 18 ms of a slice of 8.3.
+fn following(sent: u32, fused: u32, took: f32, slice: f32) -> u32 {
+    let worked = f64::from(sent) + f64::from(fused) / 3.0;
+    (pace::next(worked, took, slice).floor() as u32).max(1)
+}
+
+// What a run needs of the card, for the frame and for the thread that hears of a finished unit alike.
+#[derive(Clone)]
+struct Parts {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    failed: Arc<AtomicBool>,
+    pipelines: Arc<OnceLock<Pipelines>>,
+    particles: Arc<OnceLock<Option<Particles>>>,
+    longest: Arc<AtomicU32>,
+    #[cfg(not(target_arch = "wasm32"))]
+    waiter: std::sync::mpsc::Sender<wgpu::SubmissionIndex>,
+    #[cfg(test)]
+    plain: Option<f64>,
 }
 
 // What a layer is drawn from.
@@ -445,8 +472,6 @@ struct Flight {
 }
 
 struct Run {
-    keys: Vec<String>,
-    class: String,
     bounded: bool,
     size: [u32; 2],
     seed: u64,
@@ -454,13 +479,29 @@ struct Run {
     walkers: u32,
     steps: u32,
     sent: u32,
+    // The steps every walker of the batch on its way takes unplotted, besides those.
+    fused: u32,
     batches: u32,
     goal: u64,
     staging: wgpu::Buffer,
     flight: Arc<Mutex<Flight>>,
     started: Instant,
     submitted: Instant,
-    fastest: f32,
+    // The batch in flight draws levels only: its time sizes the next strip, not the next walk.
+    resolving: bool,
+    rows: u32,
+    // When the frame opened the slice the units are sent in, and the seconds it allowed then.
+    opened: Instant,
+    allowed: f32,
+    // What a unit sent from the end of another has come to, for the frame to take.
+    told: Step,
+    // The run is over: its picture is the processor's, and is not tried again when this is true.
+    over: Option<bool>,
+    stopped: bool,
+    // The most a unit ended past its frame's slice, in seconds.
+    overrun: f32,
+    // When the card was last heard of: a unit of this run landed, or the run began.
+    heard: Instant,
     took: Vec<(f32, u64)>,
     working: u64,
     spent: f32,
@@ -475,7 +516,7 @@ impl Run {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Step {
     Waiting,
     Drawn,
@@ -502,11 +543,15 @@ pub struct Chaos {
     // should show, with the brightness of the deep view.
     #[cfg(test)]
     plain: Option<f64>,
-    // Samples a second, the most a batch has shown of layers of these kinds: the first batch of the next run
-    // is sized by it.
-    speeds: HashMap<String, f64>,
     recipes: Vec<(String, Option<Arc<Recipe>>)>,
-    run: Option<Run>,
+    // The run is the frame's and the thread's that hears of a finished unit: what the frame reads of it without
+    // asking is kept beside it.
+    run: Option<Arc<Mutex<Run>>>,
+    run_keys: Option<Vec<String>>,
+    run_levels: Option<([u32; 2], Vec<wgpu::TextureView>)>,
+    // How many of the small pictures that run every shader once have been drawn: a card works a shader out when
+    // it first runs it (7 ms on an RTX 4070), and that is not left to the first unit of the first picture.
+    warmed: usize,
     fields: Fields,
     pixels: Option<Pixels>,
     // The batches of a picture drawn pixel by pixel that has ended: the next one sends its first after the last.
@@ -516,6 +561,7 @@ pub struct Chaos {
 // A scene of fractals drawn pixel by pixel: its batches follow one another without the window.
 struct Pixels {
     keys: Vec<String>,
+    heard: Instant,
     size: [u32; 2],
     levels: Vec<wgpu::TextureView>,
     chain: Chain,
@@ -609,6 +655,29 @@ impl Chaos {
             });
             sender
         };
+        // A thread of its own sleeps in the driver until the window's own frame is finished: what the card took
+        // for it is what a picture may not have of a frame.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (sender, frames) = std::sync::mpsc::channel::<(wgpu::SubmissionIndex, Instant)>();
+            let device = device.clone();
+            std::thread::spawn(move || {
+                while let Ok((index, sent)) = frames.recv() {
+                    let waited = device.poll(wgpu::PollType::Wait {
+                        submission_index: Some(index),
+                        timeout: Some(std::time::Duration::from_millis(u64::from(LONGEST))),
+                    });
+                    if waited.is_ok() {
+                        pace::FRAME_ON_CARD.store((sent.elapsed().as_micros() as u32).max(1), Ordering::Relaxed);
+                    }
+                }
+            });
+            let sender = Mutex::new(sender);
+            let _ = eframe::egui_wgpu::AFTER_FRAME.set(Box::new(move |index| {
+                let sender = sender.lock().unwrap_or_else(|e| e.into_inner());
+                let _ = sender.send((index, Instant::now()));
+            }));
+        }
         Some(Self {
             fields: Fields::new(adapter, device, queue, failed.clone()),
             pixels: None,
@@ -627,9 +696,11 @@ impl Chaos {
             finest: None,
             #[cfg(test)]
             plain: None,
-            speeds: HashMap::new(),
             recipes: Vec::new(),
             run: None,
+            run_keys: None,
+            run_levels: None,
+            warmed: 0,
         })
     }
 
@@ -653,16 +724,54 @@ impl Chaos {
 
     // The shaders are still being compiled: a run cannot begin yet, and soon can.
     pub fn pending(&self) -> bool {
-        self.works() && (self.pipelines.get().is_none() || self.fields.pending())
+        self.works() && (self.pipelines.get().is_none() || self.fields.pending() || self.warmed < WARM.len())
+    }
+
+    // Draws the small pictures that run the shaders of flames, of orbits and of the levels once, one unit after
+    // the other like any picture: nothing else is begun meanwhile. Asked for by every frame until it is done.
+    pub fn warming(&self) -> bool {
+        self.works() && self.warmed < WARM.len() && self.pipelines.get().is_some()
+    }
+
+    pub fn warm(&mut self, ctx: &egui::Context, [width, height]: [u32; 2]) {
+        if !self.warming() {
+            return;
+        }
+        if self.keys() != Some(&[WARM_KEY.to_owned()]) {
+            let scene = presets::get(WARM[self.warmed]).or_else(|| fractal::preset(WARM[self.warmed]));
+            // At the size of the picture that follows: the card gives its memory out slowly the first time.
+            let options = RenderOptions {
+                width: width.clamp(64, self.largest_side),
+                height: height.clamp(64, self.largest_side),
+                samples_per_pixel: 1,
+                supersample: 1,
+            };
+            let begun = scene
+                .is_some_and(|scene| self.started(&scene, &options, &[WARM_KEY.to_owned()], Instant::now(), None, ctx));
+            if !begun {
+                self.warmed += 1;
+                ctx.request_repaint();
+                return;
+            }
+        }
+        if self.advance(ctx) == Step::Refused || self.finished() {
+            self.end();
+            self.refused.retain(|keys| keys.as_slice() != [WARM_KEY.to_owned()]);
+            self.warmed += 1;
+            ctx.request_repaint();
+        }
     }
 
     pub fn keys(&self) -> Option<&[String]> {
         let pixels = self.pixels.as_ref().map(|pixels| pixels.keys.as_slice());
-        pixels.or(self.run.as_ref().map(|run| run.keys.as_slice()))
+        pixels.or(self.run_keys.as_deref())
     }
 
     pub fn end(&mut self) {
-        self.run = None;
+        if let Some(run) = self.run.take() {
+            run.lock().unwrap_or_else(|e| e.into_inner()).stopped = true;
+        }
+        (self.run_keys, self.run_levels) = (None, None);
         if let Some(pixels) = self.pixels.take() {
             pixels.chain.stop();
             if pixels.chain.busy() {
@@ -680,17 +789,71 @@ impl Chaos {
     // Seconds the graphics card worked on the run so far, without the waits between its batches.
     pub fn spent(&self) -> f32 {
         let pixels = self.pixels.as_ref().map(|pixels| pixels.report.spent);
-        pixels.unwrap_or(self.run.as_ref().map_or(0.0, |run| run.spent))
+        pixels.unwrap_or(self.read(|run| run.spent).unwrap_or(0.0))
+    }
+
+    // For a test run's trace: the batches so far, the milliseconds the last and the longest took, and all of them.
+    pub fn load(&self) -> (usize, f32, f32, f32) {
+        if let Some(pixels) = &self.pixels {
+            let report = pixels.report;
+            return (
+                report.batches as usize,
+                0.0,
+                report.slowest * 1000.0,
+                report.spent * 1000.0,
+            );
+        }
+        let took = self.batches();
+        let last = took.last().map_or(0.0, |(seconds, _)| *seconds);
+        let worst = took.iter().map(|(seconds, _)| *seconds).fold(0.0, f32::max);
+        let spent: f32 = took.iter().map(|(seconds, _)| *seconds).sum();
+        (took.len(), last * 1000.0, worst * 1000.0, spent * 1000.0)
     }
 
     // The seconds each batch of the run took and the steps its walkers were allowed.
-    pub fn batches(&self) -> &[(f32, u64)] {
-        self.run.as_ref().map_or(&[], |run| run.took.as_slice())
+    pub fn batches(&self) -> Vec<(f32, u64)> {
+        self.read(|run| run.took.clone()).unwrap_or_default()
+    }
+
+    // Of the run: the most a unit ended past the slice of its frame, in seconds.
+    pub fn overrun(&self) -> f32 {
+        self.read(|run| run.overrun).unwrap_or(0.0)
+    }
+
+    // A picture is on its way and the card has not been heard of for longer than any unit or batch may take: a
+    // completion that never came must not leave the screen waiting for ever.
+    pub fn stalled(&self) -> bool {
+        let silent = |heard: Instant| heard.elapsed().as_millis() > u128::from(SILENT);
+        if let Some(pixels) = &self.pixels {
+            return pixels.report.full.is_none() && silent(pixels.heard);
+        }
+        self.read(|run| run.full.is_none() && silent(run.heard))
+            .unwrap_or(false)
+    }
+
+    fn read<T>(&self, of: impl FnOnce(&Run) -> T) -> Option<T> {
+        let run = self.run.as_ref()?;
+        Some(of(&run.lock().unwrap_or_else(|e| e.into_inner())))
+    }
+
+    fn parts(&self) -> Parts {
+        Parts {
+            device: self.device.clone(),
+            queue: self.queue.clone(),
+            failed: self.failed.clone(),
+            pipelines: self.pipelines.clone(),
+            particles: self.particles.clone(),
+            longest: self.longest.clone(),
+            #[cfg(not(target_arch = "wasm32"))]
+            waiter: self.waiter.clone(),
+            #[cfg(test)]
+            plain: self.plain,
+        }
     }
 
     pub fn finished(&self) -> bool {
         let pixels = self.pixels.as_ref().is_some_and(|pixels| pixels.report.full.is_some());
-        pixels || self.run.as_ref().is_some_and(|run| run.full.is_some())
+        pixels || self.read(|run| run.full.is_some()).unwrap_or(false)
     }
 
     // Has the thread that waits for the graphics card wait for this submission too: what was asked to be told
@@ -707,20 +870,34 @@ impl Chaos {
         if let Some(pixels) = &self.pixels {
             return (pixels.report.first, pixels.report.full);
         }
-        self.run.as_ref().map_or((None, None), |run| (run.first, run.full))
+        self.read(|run| (run.first, run.full)).unwrap_or((None, None))
     }
 
     pub fn levels(&self) -> Option<([u32; 2], Vec<&wgpu::TextureView>)> {
         if let Some(pixels) = self.pixels.as_ref().filter(|pixels| pixels.report.batches > 0) {
             return Some((pixels.size, pixels.levels.iter().collect()));
         }
-        let run = self.run.as_ref().filter(|run| run.batches > 0 && run.pictured())?;
-        Some((run.size, run.layers.iter().map(|layer| &layer.levels).collect()))
+        self.read(|run| run.batches > 0 && run.pictured())
+            .filter(|shown| *shown)?;
+        let (size, levels) = self.run_levels.as_ref()?;
+        Some((*size, levels.iter().collect()))
     }
 
     // True when the graphics card draws this scene: a run for it goes on, or a new one has started. The keys
     // name what the layers' histograms depend on.
     pub fn begin(
+        &mut self,
+        scene: &Scene,
+        options: &RenderOptions,
+        keys: &[String],
+        asked: Instant,
+        limit: Option<f32>,
+        ctx: &egui::Context,
+    ) -> bool {
+        self.warmed >= WARM.len() && self.started(scene, options, keys, asked, limit, ctx)
+    }
+
+    fn started(
         &mut self,
         scene: &Scene,
         options: &RenderOptions,
@@ -766,6 +943,7 @@ impl Chaos {
             self.longest.store(LONGEST, Ordering::Relaxed);
             self.pixels = Some(Pixels {
                 keys: keys.to_vec(),
+                heard: Instant::now(),
                 size: [options.width, options.height],
                 levels,
                 chain: Chain::new(layers, device, queue, &self.failed, ctx, self.waiter(), asked),
@@ -779,7 +957,6 @@ impl Chaos {
         };
         let size = [options.width, options.height];
         let cells = u64::from(size[0]) * u64::from(size[1]);
-        let layers = scene.layers.len() as u64;
         let bounded = scene.layers.iter().any(|layer| layer.fractal().is_some());
         let Some((plans, walkers, weights)) = self.plans(scene, options) else {
             return false;
@@ -788,14 +965,6 @@ impl Chaos {
         self.longest
             .store(if bounded { LONGEST } else { PATIENT }, Ordering::Relaxed);
         let goal = u64::from(options.samples_per_pixel) * cells;
-        let class = scene
-            .layers
-            .iter()
-            .map(|layer| layer.fractal().map_or("flame", |shown| shown.kind.as_str()))
-            .collect::<Vec<_>>()
-            .join(" ");
-        let speed = self.speeds.get(&class).copied().unwrap_or(0.0);
-        let first = (f64::from(FIRST_SAMPLES) * cells as f64).max(speed * f64::from(PACE) * 0.5 / layers as f64);
         let (device, failed) = (self.device.clone(), self.failed.clone());
         let made = guarded(&device, &failed, ctx, || {
             let buffer = |label, size: u64, usage| {
@@ -922,6 +1091,7 @@ impl Chaos {
                         sparse: false,
                         landed: 0,
                         deep: None,
+                        strip: None,
                     }
                 })
                 .collect::<Vec<_>>();
@@ -931,22 +1101,29 @@ impl Chaos {
                 wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             );
             Run {
-                keys: keys.to_vec(),
-                class,
                 bounded,
                 size,
                 seed: scene.seed,
                 layers,
                 walkers,
-                steps: ((first / f64::from(walkers)).ceil() as u32).max(1),
+                steps: 1,
                 sent: 0,
+                fused: 0,
                 batches: 0,
                 goal,
                 staging,
                 flight: Arc::default(),
                 started: asked,
                 submitted: asked,
-                fastest: f32::INFINITY,
+                resolving: false,
+                rows: 16,
+                opened: asked,
+                allowed: 0.0,
+                told: Step::Waiting,
+                over: None,
+                stopped: false,
+                overrun: 0.0,
+                heard: Instant::now(),
                 took: Vec::new(),
                 working: 0,
                 spent: 0.0,
@@ -958,7 +1135,12 @@ impl Chaos {
         if !self.works() {
             return false;
         }
-        self.run = Some(made);
+        self.run_keys = Some(keys.to_vec());
+        self.run_levels = Some((
+            made.size,
+            made.layers.iter().map(|layer| layer.levels.clone()).collect(),
+        ));
+        self.run = Some(Arc::new(Mutex::new(made)));
         true
     }
 
@@ -1070,13 +1252,18 @@ impl Chaos {
 
     pub fn advance(&mut self, ctx: &egui::Context) -> Step {
         if let Some(pixels) = &mut self.pixels {
-            if self.draining.as_ref().is_some_and(Chain::busy) {
+            // The picture before this one may have a batch on its way: this one waits for it, but not for ever.
+            let waited = pixels.heard.elapsed().as_millis() < u128::from(2 * LONGEST);
+            if waited && self.draining.as_ref().is_some_and(Chain::busy) {
                 return Step::Waiting;
             }
             self.draining = None;
             pixels.chain.go();
             let fresh;
             (pixels.report, fresh) = pixels.chain.look();
+            if fresh {
+                pixels.heard = Instant::now();
+            }
             if self.failed.load(Ordering::Relaxed) {
                 self.pixels = None;
                 return Step::Refused;
@@ -1089,11 +1276,38 @@ impl Chaos {
             }
             return if fresh { Step::Drawn } else { Step::Waiting };
         }
-        let Some(run) = &mut self.run else {
+        let Some(shared) = self.run.clone() else {
             return Step::Waiting;
         };
-        if self.failed.load(Ordering::Relaxed) {
+        let parts = self.parts();
+        let mut run = shared.lock().unwrap_or_else(|e| e.into_inner());
+        // The frame opens a slice of the card's time: units follow one another in it.
+        (run.opened, run.allowed) = (Instant::now(), pace::slice());
+        let step = parts.pump(&shared, &mut run, ctx);
+        let step = step.max(std::mem::replace(&mut run.told, Step::Waiting));
+        let over = run.over;
+        drop(run);
+        if let Some(refuse) = over {
             self.run = None;
+            self.run_levels = None;
+            if let Some(keys) = self.run_keys.take().filter(|_| refuse) {
+                self.refuse(keys);
+            }
+            return Step::Refused;
+        }
+        step
+    }
+}
+
+impl Parts {
+    // Takes in the unit that has finished and sends the next one, if the frame's slice has room for it. After
+    // Drawn the levels are new and the picture is to be drawn from them again.
+    fn pump(&self, shared: &Arc<Mutex<Run>>, run: &mut Run, ctx: &egui::Context) -> Step {
+        if run.stopped || run.over.is_some() {
+            return Step::Waiting;
+        }
+        if self.failed.load(Ordering::Relaxed) {
+            run.over = Some(false);
             return Step::Refused;
         }
         // A view that holds little of a flame is drawn from particles, where the card has the shaders for it and
@@ -1105,9 +1319,12 @@ impl Chaos {
                 return Step::Waiting;
             }
             if let Some(at) = flight.finished.take() {
+                run.heard = at;
                 let mut sparse = false;
                 let mut told = flight.landed.as_slice();
-                for layer in &mut run.layers {
+                // A submission that drew levels walked nothing: what it tells was told before.
+                let walked = if run.resolving { 0 } else { usize::MAX };
+                for layer in run.layers.iter_mut().take(walked) {
                     let Some((counts, rest)) = told.split_at_checked(layer.told_in()) else {
                         break;
                     };
@@ -1122,6 +1339,10 @@ impl Chaos {
                         layer.done = u64::from(counts[1]);
                     } else {
                         layer.landed = u64::from(counts[0]);
+                        // The unit of unplotted steps alone tells nothing of where the points land.
+                        if layer.done == 0 {
+                            continue;
+                        }
                         layer.sparse = (layer.landed as f64) < deep::IN_VIEW * layer.plotted * layer.done as f64;
                         #[cfg(test)]
                         if self.plain.is_some() {
@@ -1136,6 +1357,12 @@ impl Chaos {
                 // the processor more steps too.
                 let since = run.started.elapsed().as_secs_f32();
                 let took = at.duration_since(run.submitted).as_secs_f32().max(1e-4);
+                // A unit of a deep view tells of every particle and is dearer to send: it is a longer one.
+                let unit = if run.layers.iter().any(|layer| layer.deep.is_some()) {
+                    DEEP_UNIT
+                } else {
+                    UNIT
+                };
                 let worked = run.spent + took;
                 let least = run.layers.iter().map(|layer| layer.done).min().unwrap_or(0);
                 let plans = run.layers.iter().filter_map(|layer| layer.deep.as_ref());
@@ -1147,9 +1374,10 @@ impl Chaos {
                         } else {
                             run.goal as f32 / least as f32
                         };
-                        worked * share > limit * cost
+                        // The card works a share of the time only: that is how long the picture takes.
+                        worked * share > limit * cost * pace::SHARE
                     });
-                let idle = least == 0 && run.batches >= IDLE_BATCHES;
+                let idle = least == 0 && worked >= IDLE;
                 let late = took * 1000.0 > self.longest.load(Ordering::Relaxed) as f32;
                 if late {
                     log::warn!("the graphics card took {took:.2} s for one batch: the picture is given up");
@@ -1159,9 +1387,7 @@ impl Chaos {
                         self.failed.store(true, Ordering::Relaxed);
                     }
                     drop(flight);
-                    if let Some(run) = self.run.take() {
-                        self.refuse(run.keys);
-                    }
+                    run.over = Some(true);
                     return Step::Refused;
                 }
                 if run.pictured() {
@@ -1169,23 +1395,23 @@ impl Chaos {
                 }
                 run.spent += took;
                 run.took.push((took, run.working));
-                if run.sent > 0 {
-                    // Drawing the levels costs the same after a short batch: a batch walks for longer than that
-                    // takes.
-                    run.fastest = run.fastest.min(took);
-                    let pace = PACE.max(2.5 * run.fastest);
-                    let next = (run.sent as f32 * pace / took) as u32;
-                    let least = run.goal.div_ceil(u64::from(run.walkers) * MOST_BATCHES) as u32;
-                    #[cfg(test)]
-                    let least = if self.plain.is_some() { 1 } else { least };
-                    run.steps = next.clamp(run.sent / 4, run.sent.saturating_mul(4)).max(least).max(1);
-                    // Walkers whose points fall outside the picture write nothing: their pace is not the card's.
-                    if run.layers.iter().all(|layer| layer.checked && layer.deep.is_none()) {
-                        let speed =
-                            f64::from(run.sent) * f64::from(run.walkers) * run.layers.len() as f64 / f64::from(took);
-                        let most = self.speeds.entry(run.class.clone()).or_insert(0.0);
-                        *most = most.max(speed);
-                    }
+                let past = at.duration_since(run.opened).as_secs_f32() - run.allowed;
+                run.overrun = run.overrun.max(past);
+                // The submission that looks the tiles over says nothing of how long a strip takes.
+                let stripped = run
+                    .layers
+                    .iter()
+                    .any(|layer| matches!(layer.strip, Some((Some(row), ..)) if row > 0));
+                if run.resolving && (stripped || run.layers.iter().all(|layer| layer.strip.is_none())) {
+                    // Rows where the picture is empty cost little and say little of the next: twice as many at most,
+                    // four times while a strip takes less than a quarter of a unit.
+                    let most = if took < unit / 4.0 { 4.0 } else { 2.0 };
+                    let rows = pace::next(f64::from(run.rows), took, unit).min(most * f64::from(run.rows));
+                    let rows = rows.ceil() as u32;
+                    run.rows = rows.clamp(8, run.size[1].max(8));
+                }
+                if run.sent > 0 || run.fused > 0 {
+                    run.steps = following(run.sent, run.fused, took, unit);
                 }
                 if run.layers.iter().all(|layer| layer.settled(run.goal)) {
                     run.full.get_or_insert(since);
@@ -1196,6 +1422,16 @@ impl Chaos {
         if run.full.is_some() {
             return Step::Waiting;
         }
+        // A unit begins only inside the frame's slice: the next frame opens another.
+        if !pace::within(run.opened.elapsed().as_secs_f32(), pace::slice().min(run.allowed)) {
+            return Step::Waiting;
+        }
+        // wgpu refuses to configure the window's surface while another thread submits: the next frame goes on.
+        let _gate = match eframe::egui_wgpu::SURFACE_GATE.try_read() {
+            Ok(gate) => gate,
+            Err(std::sync::TryLockError::Poisoned(gate)) => gate.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => return Step::Waiting,
+        };
         let Some(pipelines) = self.pipelines.get() else {
             return Step::Waiting;
         };
@@ -1209,9 +1445,7 @@ impl Chaos {
         };
         if deeper {
             if particles.is_none() {
-                if let Some(run) = self.run.take() {
-                    self.refuse(run.keys);
-                }
+                run.over = Some(true);
                 return Step::Refused;
             }
             guarded(&device, &failed, ctx, || {
@@ -1270,13 +1504,15 @@ impl Chaos {
                 );
             });
             if failed.load(Ordering::Relaxed) {
-                self.run = None;
+                run.over = Some(false);
                 return Step::Refused;
             }
+            // The steps were sized by the plain chaos game: a point of a deep view is not a step of it.
+            run.steps = (run.steps / 4).max(1);
         }
         // Before the submission: a graphics card that is the processor in disguise works inside it.
         run.submitted = Instant::now();
-        let (mut sent, mut working) = (0, 0);
+        let (mut sent, mut fused, mut working, mut resolving, mut beginning) = (0, 0, 0, false, false);
         let index = guarded(&device, &failed, ctx, || {
             let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("fractique chaos"),
@@ -1284,6 +1520,14 @@ impl Chaos {
             let (goal, walkers, count) = (run.goal, run.walkers, run.layers.len() as u64);
             let bounded = run.bounded;
             let shorter = run.size[0].min(run.size[1]);
+            // The levels are drawn twice: for the first picture and for the last. Drawing them costs the same
+            // after every batch and nothing shows them in between.
+            let first = (u64::from(FIRST_SAMPLES) * cells as u64).min(goal);
+            // They are drawn a strip of rows a submission, each within the slice, and nothing is walked meanwhile:
+            // the strips are of one histogram.
+            let stripping = run.layers.iter().any(|layer| layer.strip.is_some());
+            let rows = run.rows;
+            resolving = stripping;
             let mut told = 0;
             for (index, layer) in run.layers.iter_mut().enumerate() {
                 let (from, telling) = (told, 4 * layer.told_in() as u64);
@@ -1291,20 +1535,39 @@ impl Chaos {
                 let Some(work) = &layer.work else {
                     continue;
                 };
-                let look = &layer.kernels;
-                let resolve = |encoder: &mut wgpu::CommandEncoder, scale: f64| {
-                    self.queue
-                        .write_buffer(&work.look, 16, bytemuck::bytes_of(&[scale as f32, 0.0, 0.0, 0.0]));
-                    let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                        label: Some("fractique levels"),
-                        timestamp_writes: None,
-                    });
-                    pass.set_bind_group(0, &work.looking, &[]);
-                    pass.set_pipeline(&pipelines.survey);
-                    pass.dispatch_workgroups(look.size[2].div_ceil(8), look.size[3].div_ceil(8), 1);
-                    pass.set_pipeline(&pipelines.resolve);
-                    pass.dispatch_workgroups(look.size[0].div_ceil(8), look.size[1].div_ceil(8), 1);
-                };
+                if stripping {
+                    if let Some((row, scale, done)) = layer.strip {
+                        let look = &layer.kernels;
+                        let from_row = row.unwrap_or(0);
+                        let tall = rows.min(look.size[1] - from_row).div_ceil(8);
+                        self.queue.write_buffer(
+                            &work.look,
+                            16,
+                            bytemuck::bytes_of(&[scale as f32, from_row as f32, 0.0, 0.0]),
+                        );
+                        let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                            label: Some("fractique levels"),
+                            timestamp_writes: None,
+                        });
+                        pass.set_bind_group(0, &work.looking, &[]);
+                        if row.is_none() {
+                            pass.set_pipeline(&pipelines.survey);
+                            pass.dispatch_workgroups(look.size[2].div_ceil(8), look.size[3].div_ceil(8), 1);
+                            layer.strip = Some((Some(0), scale, done));
+                        } else {
+                            pass.set_pipeline(&pipelines.resolve);
+                            pass.dispatch_workgroups(look.size[0].div_ceil(8), tall, 1);
+                            let next = from_row + tall * 8;
+                            if next >= look.size[1] {
+                                (layer.resolved, layer.strip) = (done, None);
+                            } else {
+                                layer.strip = Some((Some(next), scale, done));
+                            }
+                        }
+                    }
+                    encoder.copy_buffer_to_buffer(&work.landed, 0, &run.staging, from, telling);
+                    continue;
+                }
                 let plain = |points: u64| layer.zoom * layer.zoom * cells / points as f64;
                 #[cfg(test)]
                 let before = layer.done.max(1);
@@ -1382,47 +1645,65 @@ impl Chaos {
                         } else {
                             goal
                         };
-                        let first = (u64::from(FIRST_SAMPLES) * cells as u64).min(goal);
-                        if layer.done >= first && layer.done > layer.resolved {
-                            resolve(&mut encoder, plan.exposure * cells / layer.done as f64);
-                            layer.resolved = layer.done;
+                        let due = layer.resolved == 0 || layer.done >= goal;
+                        if layer.done >= first && layer.done > layer.resolved && due {
+                            layer.strip = Some((None, plan.exposure * cells / layer.done as f64, layer.done));
+                            beginning = true;
                         }
                     }
                     encoder.copy_buffer_to_buffer(&work.landed, 0, &run.staging, from, telling);
                     continue;
                 }
-                if layer.orbit && layer.done > layer.resolved {
-                    resolve(&mut encoder, plain(layer.done));
-                    layer.resolved = layer.done;
+                let due = (layer.resolved == 0 && layer.done >= first) || layer.done >= goal;
+                if layer.orbit && layer.done > layer.resolved && due {
+                    layer.strip = Some((None, plain(layer.done), layer.done));
+                    beginning = true;
                 }
                 if left == 0 {
                     encoder.copy_buffer_to_buffer(&work.landed, 0, &run.staging, from, telling);
                     continue;
                 }
                 let few = u64::from(walkers);
-                let fuse = if run.batches == 0 && !layer.orbit { FUSE } else { 0 };
+                // A flame's walkers take half of their unplotted steps in a unit of their own and the rest with the
+                // first they plot: together they are 25 steps of every walker, 8 ms for a dear flame.
+                let fuse = match (layer.orbit, run.batches) {
+                    (false, 0) => FUSE / 2,
+                    (false, 1) => FUSE - FUSE / 2,
+                    _ => 0,
+                };
+                fused = fused.max(fuse);
                 let room = (MOST_STEPS * cells as u64).min(MOST_IN_ALL) / (count * few * layer.weight);
                 let most = if bounded {
                     room.saturating_sub(u64::from(fuse)).max(1)
                 } else {
                     u64::MAX
                 };
-                let steps = (u64::from(run.steps) * u64::from(walkers))
-                    .min(left)
-                    .div_ceil(few)
-                    .min(most);
+                let own = if run.batches == 1 {
+                    run.steps.saturating_sub(fuse / 3).max(1)
+                } else {
+                    run.steps
+                };
+                let steps = if run.batches == 0 && !layer.orbit {
+                    0
+                } else {
+                    (u64::from(own) * u64::from(walkers)).min(left).div_ceil(few).min(most)
+                };
                 let budget = if layer.orbit { (steps * UNSEEN).min(most) } else { steps };
                 if !layer.orbit {
                     layer.done += steps * few;
                 }
                 let batch = Batch {
                     steps: steps as u32,
-                    fuse: if run.batches == 0 { FUSE } else { 0 },
+                    fuse: match (layer.orbit, run.batches) {
+                        (true, 0) => FUSE,
+                        (false, 0) => fuse,
+                        _ => 0,
+                    },
                     seed: [run.seed as u32, (run.seed >> 32) as u32],
                     layer: index as u32,
                     walkers: few as u32,
                     budget: budget as u32,
-                    spare: 0,
+                    idle: if run.batches == 1 { fuse } else { 0 },
                 };
                 self.queue.write_buffer(&work.batch, 0, bytemuck::bytes_of(&batch));
                 {
@@ -1434,8 +1715,9 @@ impl Chaos {
                     pass.set_bind_group(0, &work.walking, &[]);
                     pass.dispatch_workgroups(few as u32 / GROUP, 1, 1);
                 }
-                if !layer.orbit {
-                    resolve(&mut encoder, plain(layer.done));
+                if !layer.orbit && ((layer.resolved == 0 && layer.done >= first) || layer.done >= goal) {
+                    layer.strip = Some((None, plain(layer.done), layer.done));
+                    beginning = true;
                 }
                 sent = sent.max((steps * few).div_ceil(u64::from(walkers)) as u32);
                 working += (budget + u64::from(fuse)) * few * layer.weight;
@@ -1444,24 +1726,40 @@ impl Chaos {
             self.queue.submit([encoder.finish()])
         });
         run.sent = sent;
+        run.fused = fused;
         run.working = working;
+        run.resolving = resolving;
+        if beginning {
+            // The rows of a picture with more samples cost more: each drawing of the levels begins with few.
+            run.rows = 16;
+        }
         run.batches += 1;
         run.flight.lock().unwrap_or_else(|e| e.into_inner()).busy = true;
         let (flight, staging, ctx) = (run.flight.clone(), run.staging.clone(), ctx.clone());
+        let (parts, shared) = (self.clone(), shared.clone());
         run.staging.slice(..).map_async(wgpu::MapMode::Read, move |mapped| {
-            let mut flight = flight.lock().unwrap_or_else(|e| e.into_inner());
-            match mapped {
-                Ok(()) => {
-                    match staging.slice(..).get_mapped_range() {
-                        Ok(view) => flight.landed = bytemuck::pod_collect_to_vec(&view),
-                        Err(_) => flight.broken = true,
+            {
+                let mut flight = flight.lock().unwrap_or_else(|e| e.into_inner());
+                match mapped {
+                    Ok(()) => {
+                        match staging.slice(..).get_mapped_range() {
+                            Ok(view) => flight.landed = bytemuck::pod_collect_to_vec(&view),
+                            Err(_) => flight.broken = true,
+                        }
+                        staging.unmap();
                     }
-                    staging.unmap();
+                    Err(_) => flight.broken = true,
                 }
-                Err(_) => flight.broken = true,
+                flight.busy = false;
+                flight.finished = Some(Instant::now());
             }
-            flight.busy = false;
-            flight.finished = Some(Instant::now());
+            // The end of a unit sends the next, while the frame's slice lasts: nothing waits for a frame of the
+            // window. Where the run is held, by the frame or by this very thread within a submission, the frame
+            // goes on with it.
+            if let Ok(mut run) = shared.try_lock() {
+                let step = parts.pump(&shared, &mut run, &ctx);
+                run.told = run.told.max(step);
+            }
             ctx.request_repaint();
         });
         #[cfg(not(target_arch = "wasm32"))]
@@ -1469,8 +1767,8 @@ impl Chaos {
         #[cfg(target_arch = "wasm32")]
         let _ = index;
         let pictured = run.pictured();
-        if !self.works() {
-            self.run = None;
+        if self.failed.load(Ordering::Relaxed) {
+            run.over = Some(false);
             Step::Refused
         } else if pictured {
             Step::Drawn
@@ -1537,7 +1835,8 @@ pub(crate) mod tests {
         };
         let (device, queue) = ready(adapter.request_device(&descriptor))?.ok()?;
         let ctx = egui::Context::default();
-        let chaos = Chaos::new(&adapter, &device, &queue, &ctx)?;
+        let mut chaos = Chaos::new(&adapter, &device, &queue, &ctx)?;
+        chaos.warmed = WARM.len();
         let preview = Preview::new(&adapter, &device, &queue, &ctx)?;
         while chaos.pending() || chaos.works() && chaos.particles.get().is_none() {
             std::thread::sleep(std::time::Duration::from_millis(20));
@@ -1666,6 +1965,82 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_picture_cut_at_any_stage_does_not_keep_the_next_from_coming() {
+        let Some(mut card) = card() else {
+            return;
+        };
+        let options = options(320, 200);
+        let flame = presets::get("solar-mandala").expect("the preset exists");
+        let other = presets::get("aurora-spiral").expect("the preset exists");
+        let ship = fractal::preset("burning_ship-whole").expect("the preset exists");
+        let seahorse = fractal::preset("mandelbrot-seahorse-valley").expect("the preset exists");
+        let clifford = fractal::preset("clifford-classic").expect("the preset exists");
+        // Every pair of paths: the chaos game, an orbit, a kind drawn pixel by pixel.
+        let scenes = [&flame, &clifford, &ship];
+        for (first, cut) in scenes.iter().enumerate() {
+            for after in [&other, &seahorse, &clifford] {
+                // Cut before anything is sent, after the first unit, and a few units on, with one on its way.
+                for units in [0, 1, 2, 5, 9] {
+                    let keys = vec![format!("cut {first} {units}")];
+                    card.chaos.end();
+                    while !card.chaos.begin(cut, &options, &keys, Instant::now(), None, &card.ctx) {
+                        assert!(card.chaos.pending(), "the card draws the scene");
+                        std::thread::sleep(std::time::Duration::from_millis(20));
+                    }
+                    for unit in 0..units {
+                        card.chaos.advance(&card.ctx);
+                        // The last unit is left on its way: the next picture begins while it is.
+                        if unit + 1 < units {
+                            card.wait();
+                        }
+                    }
+                    assert!(card.drawn(after, &options).is_some(), "after {first} cut at {units}");
+                    assert!(!card.chaos.stalled());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_first_batches_of_a_flame_fit_the_slice_whatever_the_flame_before_cost() {
+        let slice = pace::slice_of(false);
+        let walkers = 262_144.0;
+        // Seconds a step: a cheap flame, and one twenty times dearer that is drawn right after it.
+        // An unplotted step costs a third of a plotted one, or as much.
+        for (each, unplotted) in [(6.0e-11, 1.0 / 3.0), (1.2e-9, 1.0 / 3.0), (6.0e-11, 1.0), (1.2e-9, 1.0)] {
+            let seconds =
+                |sent: u32, fused: u32| ((f64::from(sent) + unplotted * f64::from(fused)) * walkers * each) as f32;
+            // The first unit is half of the unplotted steps and nothing else, as small as a unit can be.
+            let (mut sent, mut fused) = (0, FUSE / 2);
+            let mut took = seconds(sent, fused);
+            assert!(
+                took <= pace::slice_of(true) * 1.05,
+                "{each}: the first unit takes {took} s"
+            );
+            let mut filled = 0;
+            for batch in 1..8 {
+                let steps = following(sent, fused, took, slice);
+                // The second takes the other half of the unplotted steps with its first plotted ones.
+                (sent, fused) = if batch == 1 {
+                    (steps.saturating_sub(FUSE / 2 / 3).max(1), FUSE - FUSE / 2)
+                } else {
+                    (steps, 0)
+                };
+                took = seconds(sent, fused);
+                assert!(
+                    took <= slice * 1.001,
+                    "{each} {unplotted}: batch {batch} takes {took} s"
+                );
+                filled += u32::from(took >= 0.6 * slice);
+            }
+            assert!(filled >= 4, "{each} {unplotted}: {filled}");
+        }
+        // A batch that overran is cut to the slice at once.
+        assert_eq!(following(100, 0, 2.0 * slice, slice), 50);
+        assert_eq!(following(1, 0, 9.0 * slice, slice), 1);
+    }
+
+    #[test]
     fn flames_are_packed_as_the_shader_reads_them() {
         assert_eq!(size_of::<Packed>(), 80 + 65 * 80 + 256 * 32 + 1024 + 512);
         let scene = presets::get("solar-mandala").expect("the preset exists");
@@ -1786,9 +2161,9 @@ pub(crate) mod tests {
             let (quick, _, _) = card
                 .drawn(&scene, &options)
                 .expect("the graphics card draws a deep view");
-            let run = card.chaos.run.as_ref().expect("the run is kept");
+            let deep = card.chaos.read(|run| run.layers[0].deep.is_some());
             assert!(
-                run.layers[0].deep.is_some(),
+                deep.expect("the run is kept"),
                 "{by} times: the view is not drawn from particles"
             );
             // A deep view is as far from itself with other random numbers: the processor's tells how far.
@@ -1915,10 +2290,11 @@ pub(crate) mod tests {
             let (quick, _, _) = card
                 .drawn(&scene, &options)
                 .expect("the graphics card draws a deep view");
-            let plan = card.chaos.run.as_ref().and_then(|run| run.layers[0].deep.as_ref());
-            let (exposure, share) = plan
-                .map(|plan| (plan.exposure, plan.share()))
-                .expect("the view is deep");
+            let plan = |run: &Run| {
+                let plan = run.layers[0].deep.as_ref()?;
+                Some((plan.exposure, plan.share()))
+            };
+            let (exposure, share) = card.chaos.read(plan).flatten().expect("the view is deep");
             card.chaos.plain = Some(exposure);
             let all = RenderOptions {
                 samples_per_pixel: (32.0 / share).min(3.0e5) as u32,

@@ -761,10 +761,14 @@ impl Painter {
             profiling::scope!("Queue::submit");
             // wgpu doesn't document where vsync can happen. Maybe here?
             let start = web_time::Instant::now();
-            render_state
+            let index = render_state
                 .queue
                 .submit(core::iter::chain(user_cmd_bufs, [encoded]));
             vsync_sec += start.elapsed().as_secs_f32();
+            // Fractique: how long the card works on the window's own frame decides what is left of a frame.
+            if let Some(told) = crate::AFTER_FRAME.get() {
+                told(index);
+            }
         };
 
         // Ensure that the queue guard does not do unnecessary work when dropped

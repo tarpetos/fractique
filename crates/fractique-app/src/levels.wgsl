@@ -1,6 +1,6 @@
 struct Look {
     size: vec4<u32>,   // cells across, cells down, tiles across, tiles down
-    scale: vec4<f32>,  // what turns a count into a density
+    scale: vec4<f32>,  // what turns a count into a density, the first row of the strip that is drawn
     kernels: array<vec4<f32>, 20>, // reach, 1 / (2 sigma²), 1 / the sum of the weights
     widths: array<vec4<u32>, 1024>, // the kernel of a cell by its hits, up to 4095
 };
@@ -41,10 +41,11 @@ fn survey(@builtin(global_invocation_id) id: vec3<u32>) {
 
 @compute @workgroup_size(8, 8)
 fn resolve(@builtin(global_invocation_id) id: vec3<u32>) {
-    if (id.x >= look.size.x || id.y >= look.size.y) {
+    // The levels are drawn a strip of rows at a time: scale.y is the strip's first row.
+    let at = vec2<i32>(id.xy) + vec2<i32>(0, i32(look.scale.y));
+    if (at.x >= i32(look.size.x) || at.y >= i32(look.size.y)) {
         return;
     }
-    let at = vec2<i32>(id.xy);
     let tile = at / i32(TILE);
     let last = vec2<i32>(look.size.zw) - vec2<i32>(1);
     var most = 0u;

@@ -1,4 +1,220 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+
+use eframe::egui;
+
+// The window draws a frame in this time and no sooner (`lib.rs` holds it to that), whatever the screen's own pace.
+pub const FRAME: f32 = 1.0 / 60.0;
+// The share of a frame the graphics card may spend on a picture: the rest is the window's and the system's.
+// While the window is used (a button or a finger held, the wheel, a text typed, a pane in motion) it is the
+// smaller share.
+pub const SHARE: f32 = 0.5;
+pub const SHARE_ATTENDED: f32 = 0.25;
+// A batch that overran its slice is followed by one cut to the slice at once; one that ran short by one that
+// aims at this share of the slice, and is at most so many times larger.
+pub const AIM: f64 = 0.8;
+const MOST: f64 = 8.0;
+
+const _: () = assert!(SHARE < 0.6 && SHARE_ATTENDED <= SHARE * 0.5);
+
+static ATTENDED: AtomicBool = AtomicBool::new(false);
+
+pub fn attend(used: bool) {
+    ATTENDED.store(used, Ordering::Relaxed);
+}
+
+// What the card needs for the window's own frame, in microseconds: the most of late, which fades when nothing
+// comes near it again. Nothing until a frame has told.
+static NEED: AtomicU32 = AtomicU32::new(0);
+// The microseconds the card took for the window's last frame, from its submission to its end, until it is taken.
+pub static FRAME_ON_CARD: AtomicU32 = AtomicU32::new(0);
+// A test run's fixed share of a frame, in thousandths; nothing where the share goes by what the window needs.
+static FIXED: AtomicU32 = AtomicU32::new(0);
+// What stays free of a frame beside the window's own work and the picture's: a unit of the picture's work that
+// began at the last moment, the way back from it, and room for a frame that is dearer than the last.
+pub const MARGIN: f32 = 0.003;
+// The most of a frame a picture gets, however little the window needs, and the least, however much.
+pub const MOST_SHARE: f32 = 0.8;
+pub const LEAST: f32 = 0.002;
+
+// A frame that took the card longer than a frame, as the first run of a shader does, counts as a whole frame and
+// is forgotten within a few: what the window needs in a fade over a large picture, 7 to 9 ms, within half a second.
+pub fn needs(micros: u32) {
+    let before = NEED.load(Ordering::Relaxed);
+    let most = (FRAME * 1e6) as u32;
+    NEED.store(micros.min(most).max(before - before / 16), Ordering::Relaxed);
+}
+
+pub fn fix(share: f32) {
+    FIXED.store((share.clamp(0.05, 0.9) * 1000.0) as u32, Ordering::Relaxed);
+}
+
+// The seconds of a frame the card may work on a picture: the frame, less what the card needs for the window's own
+// frame, less the margin; half of that while the window is used. Half a frame where the window's need is not
+// known yet.
+pub fn allowance(need: Option<f32>, used: bool) -> f32 {
+    let idle = match need {
+        Some(need) => (FRAME - need - MARGIN).clamp(LEAST, MOST_SHARE * FRAME),
+        None => SHARE * FRAME,
+    };
+    if used { 0.5 * idle } else { idle }
+}
+
+// The seconds of this frame the units of a picture may be sent in: one follows the other until then.
+pub fn slice() -> f32 {
+    let used = ATTENDED.load(Ordering::Relaxed);
+    match (FIXED.load(Ordering::Relaxed), NEED.load(Ordering::Relaxed)) {
+        (0, 0) => allowance(None, used),
+        (0, need) => allowance(Some(need as f32 * 1e-6), used),
+        (share, _) => allowance(Some(FRAME * (1.0 - share as f32 * 1e-3) - MARGIN), used),
+    }
+}
+
+// The seconds one batch of a picture drawn pixel by pixel or of a wallpaper is sized for: their batches follow
+// one another without a slice of the frame.
+pub fn batch() -> f32 {
+    slice_of(ATTENDED.load(Ordering::Relaxed))
+}
+
+pub fn slice_of(attended: bool) -> f32 {
+    FRAME * if attended { SHARE_ATTENDED } else { SHARE }
+}
+
+// Whether a unit of the card's work may begin, so many seconds after the frame opened its slice. A unit that has
+// begun runs to its end: the frame is late by one unit at the very most, never by a slice.
+pub fn within(spent: f32, slice: f32) -> bool {
+    spent < slice
+}
+
+// The time shown while a picture is on its way: the seconds since it was asked for, a tenth at a step, and
+// nothing before the first tenth. It never passes the time the finished picture is shown with.
+pub fn counted(seconds: f32) -> Option<f32> {
+    (seconds >= 0.1).then(|| (seconds * 10.0).floor() / 10.0)
+}
+
+// The size of the next batch, from the size of the last and the seconds it took.
+pub fn next(sent: f64, took: f32, slice: f32) -> f64 {
+    let fits = f64::from(slice) / f64::from(took.max(1e-5));
+    if fits < 1.0 {
+        sent * fits
+    } else {
+        sent * (AIM * fits).clamp(1.0, MOST)
+    }
+}
+
+// Whether what the window was told in a frame is the window being used: a button or a finger held, the wheel, a
+// pinch, a key, a text. The pointer moving over the window, or leaving it, is not.
+pub fn used(held: bool, events: &[egui::Event]) -> bool {
+    let idle = |event: &egui::Event| {
+        matches!(
+            event,
+            egui::Event::PointerMoved(_)
+                | egui::Event::MouseMoved(_)
+                | egui::Event::PointerGone
+                | egui::Event::WindowFocused(_)
+        )
+    };
+    held || events.iter().any(|event| !idle(event))
+}
+
+// A view that moves is drawn anew for every frame, small, and shown at the picture's size until the view rests:
+// a draft. It is this many times smaller a side, by how long the card takes for it.
+pub const DRAFT_SIDES: [u32; 6] = [2, 3, 4, 6, 8, 12];
+const DRAFT_FIRST: usize = 2;
+// The shorter side of a draft is never under this many pixels: 320 × 180 of a picture of 16 to 9.
+pub const DRAFT_LEAST: u32 = 180;
+// A draft is drawn this many times wider and higher than the view, so that the frames it is late by show the
+// picture too, and nothing beside it.
+pub const DRAFT_MARGIN: f64 = 1.25;
+// One sample a pixel, and none drawn again.
+pub const DRAFT_SAMPLES: u32 = 1;
+// A draft is made finer when so many more than not would have fit in this share of the slice at the finer size.
+const DRAFT_CALM: u32 = 8;
+const DRAFT_ROOM: f32 = 0.7;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Draft {
+    step: usize,
+    calm: u32,
+}
+
+impl Draft {
+    pub const fn new() -> Self {
+        Self {
+            step: DRAFT_FIRST,
+            calm: 0,
+        }
+    }
+
+    fn coarsest(shorter: u32) -> usize {
+        DRAFT_SIDES
+            .iter()
+            .rposition(|side| shorter / side >= DRAFT_LEAST)
+            .unwrap_or(0)
+    }
+
+    // How many times smaller a side than a picture with this shorter side.
+    pub fn side(&self, shorter: u32) -> u32 {
+        DRAFT_SIDES[self.step.min(Self::coarsest(shorter))]
+    }
+
+    pub fn size(&self, picture: [u32; 2]) -> [u32; 2] {
+        let side = f64::from(self.side(picture[0].min(picture[1])));
+        picture.map(|pixels| ((f64::from(pixels) * DRAFT_MARGIN / side).round() as u32).max(1))
+    }
+
+    // Takes in the seconds the card worked on a draft: one that overran the slice is followed by one small enough
+    // to fit, at once; one that would fit a step finer with room to spare, DRAFT_CALM times more often than not, by a
+    // finer one.
+    pub fn took(&mut self, seconds: f32, slice: f32, shorter: u32) {
+        let last = Self::coarsest(shorter);
+        let at = self.step.min(last);
+        let at_side = |to: usize| {
+            let fewer = DRAFT_SIDES[at] as f32 / DRAFT_SIDES[to] as f32;
+            seconds * fewer * fewer
+        };
+        self.step = at;
+        if seconds > slice {
+            self.step = (at..=last).find(|to| at_side(*to) <= slice).unwrap_or(last);
+            self.calm = 0;
+        } else if at > 0 && at_side(at - 1) <= slice * DRAFT_ROOM {
+            self.calm += 1;
+            if self.calm >= DRAFT_CALM {
+                (self.step, self.calm) = (at - 1, 0);
+            }
+        } else {
+            self.calm = self.calm.saturating_sub(1);
+        }
+    }
+}
+
+// What is drawn next for a view that is not the picture's, where the card drafts: one draft at a time, each of the
+// view as it is when the one before has landed, and the picture itself once the draft on the screen is of the very
+// view, which is when the view has stood still for as long as a draft takes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Next {
+    Draft,
+    Wait,
+    Picture,
+}
+
+pub fn hand_over(flying: bool, shown: bool) -> Next {
+    if flying {
+        Next::Wait
+    } else if shown {
+        Next::Picture
+    } else {
+        Next::Draft
+    }
+}
+
+// The share of the window a picture does not cover, when the window shows the part of it around [across, along],
+// `larger` times larger.
+pub fn beside([across, along, larger]: [f32; 3]) -> f32 {
+    let half = 0.5 / larger.max(1e-9);
+    let covered = |at: f32| ((at + half).min(1.0) - (at - half).max(0.0)).max(0.0) / (2.0 * half);
+    1.0 - covered(across) * covered(along)
+}
 
 // A view is rendered when its picture is expected within this many seconds; a longer one is the picture the app
 // has, magnified.
@@ -110,6 +326,249 @@ pub fn magnified(rgba: &[u8], from: [u32; 2], [across, along, larger]: [f32; 3],
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_batch_is_cut_to_its_slice_at_once_and_grows_slowly() {
+        let slice = slice_of(false);
+        assert!((slice - 0.5 / 60.0).abs() < 1e-6);
+        // Four times too long: a quarter as large, at once.
+        assert!((next(1000.0, 4.0 * slice, slice) - 250.0).abs() < 1e-3);
+        // Half the slice: 0.8 of the slice at once.
+        assert!((next(1000.0, 0.5 * slice, slice) - 1600.0).abs() < 1e-2);
+        // Ten times too short: eight times, which is 0.8 of the slice.
+        assert!((next(1000.0, 0.1 * slice, slice) - 8000.0).abs() < 1e-2);
+        // A hundred times too short, as the first batch of an unknown card: eight times and no more.
+        assert!((next(1000.0, 0.01 * slice, slice) - 8000.0).abs() < 1e-2);
+        // Between 0.8 of the slice and the slice a batch stays as it is.
+        assert!((next(1000.0, slice, slice) - 1000.0).abs() < 1e-3);
+        assert!((next(1000.0, 0.9 * slice, slice) - 1000.0).abs() < 1e-3);
+        // From the smallest batch a card a hundred thousand times faster is past 400 times it in three frames.
+        let mut small = 1.0;
+        for _ in 0..3 {
+            small = next(small, (small * 1e-5 * f64::from(slice)) as f32, slice);
+        }
+        assert!(small > 400.0);
+        // From any size a card ten times too slow is within its slice after one batch, and stays there.
+        let mut sent = 1.0e6;
+        let seconds = |sent: f64| (sent * 1e-7) as f32;
+        sent = next(sent, seconds(sent), slice);
+        for _ in 0..50 {
+            assert!(seconds(sent) <= slice * 1.001);
+            sent = next(sent, seconds(sent), slice);
+        }
+        assert!(seconds(sent) > slice * 0.79);
+    }
+
+    #[test]
+    fn a_unit_never_begins_past_the_slice_and_a_frame_is_late_by_one_at_most() {
+        // Units of 0.4 to 2.1 ms, as a card gives them, sent one after the other in slices of every length.
+        let lengths = [0.0011f32, 0.0004, 0.0021, 0.0009, 0.0013, 0.0007];
+        for slice in [slice_of(true), slice_of(false), 0.0115, 0.0005] {
+            let (mut at, mut sent, mut next) = (0.0f32, 0, 0);
+            while within(at, slice) {
+                at += lengths[next % lengths.len()];
+                next += 1;
+                sent += 1;
+            }
+            // The last one began inside the slice and ended within one unit of its end.
+            assert!(sent >= 1 && at - slice <= 0.0021 + 1e-6, "{slice}: {at}");
+            // The slice was filled but for less than the shortest unit.
+            assert!(at >= slice);
+            assert!(!within(at, slice));
+        }
+        // Nothing begins in a slice that is over.
+        assert!(!within(0.0042, 0.0042));
+        assert!(within(0.0041, 0.0042));
+    }
+
+    #[test]
+    fn the_slice_is_what_the_window_leaves_and_half_of_it_while_the_window_is_used() {
+        // A window whose frame costs the card 1 ms leaves 12.7 ms of 16.7; one that costs 6 ms, 7.7.
+        assert!((allowance(Some(0.001), false) - (FRAME - 0.004)).abs() < 1e-6);
+        assert!((allowance(Some(0.006), false) - (FRAME - 0.009)).abs() < 1e-6);
+        // Never more than 0.8 of a frame, and never nothing.
+        assert!((allowance(Some(0.0), false) - 0.8 * FRAME).abs() < 1e-6);
+        assert_eq!(allowance(Some(0.016), false), LEAST);
+        // While the window is used the picture has half of that, at once: a unit that has not begun does not
+        // begin past the new slice.
+        let idle = allowance(Some(0.001), false);
+        assert!((allowance(Some(0.001), true) - 0.5 * idle).abs() < 1e-6);
+        assert!(within(0.008, idle) && !within(0.008, allowance(Some(0.001), true)));
+        // A device that has not told what its window needs: half a frame, a quarter while used.
+        assert_eq!(allowance(None, false), slice_of(false));
+        assert_eq!(allowance(None, true), slice_of(true));
+        // What the window needs is the most of late, and fades when nothing comes near it again.
+        NEED.store(0, Ordering::Relaxed);
+        needs(2000);
+        needs(500);
+        assert!(NEED.load(Ordering::Relaxed) > 1800);
+        // One frame that stalled is a frame at the most, and gone from the slice within ten.
+        needs(45_000);
+        assert_eq!(NEED.load(Ordering::Relaxed), 16_666);
+        for _ in 0..10 {
+            needs(500);
+        }
+        assert!(allowance(Some(NEED.load(Ordering::Relaxed) as f32 * 1e-6), false) > 0.004);
+        for _ in 0..400 {
+            needs(500);
+        }
+        assert_eq!(NEED.load(Ordering::Relaxed), 500);
+        NEED.store(0, Ordering::Relaxed);
+    }
+
+    #[test]
+    fn a_pointer_that_only_moves_does_not_use_the_window() {
+        let at = egui::pos2(10.0, 10.0);
+        let moved = [
+            egui::Event::PointerMoved(at),
+            egui::Event::MouseMoved(egui::vec2(1.0, 0.0)),
+            egui::Event::PointerGone,
+            egui::Event::WindowFocused(true),
+        ];
+        assert!(!used(false, &moved));
+        assert!(!used(false, &[]));
+        // A button held while it moves is a drag.
+        assert!(used(true, &moved));
+        let wheel = egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: egui::vec2(0.0, 1.0),
+            source: egui::MouseWheelSource::Unknown,
+            phase: egui::TouchPhase::Move,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let press = egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        };
+        for event in [wheel, press, egui::Event::Zoom(1.1), egui::Event::Text("a".to_owned())] {
+            assert!(used(false, &[egui::Event::PointerMoved(at), event]));
+        }
+    }
+
+    #[test]
+    fn a_draft_begins_at_a_quarter_a_side_with_its_margin() {
+        let draft = Draft::new();
+        assert_eq!(draft.side(2160), 4);
+        assert_eq!(draft.size([3840, 2160]), [1200, 675]);
+        // A small picture is not made smaller than a picture still is.
+        assert_eq!(draft.side(520), 2);
+        assert_eq!(draft.side(300), 2);
+        assert_eq!(Draft::coarsest(2160), 5);
+        assert_eq!(Draft::coarsest(1080), 3);
+    }
+
+    #[test]
+    fn a_draft_that_overruns_is_made_smaller_at_once_and_finer_slowly() {
+        let slice = slice_of(true);
+        let mut draft = Draft::new();
+        // Three times too long at a quarter: a sixth would take 4/9 of it and still overrun, an eighth fits.
+        draft.took(3.0 * slice, slice, 2160);
+        assert_eq!(draft.side(2160), 8);
+        // Just inside the slice: it stays.
+        for _ in 0..100 {
+            draft.took(0.9 * slice, slice, 2160);
+        }
+        assert_eq!(draft.side(2160), 8);
+        // With room for the finer size it is made finer one step, after eight drafts and not before.
+        for _ in 0..7 {
+            draft.took(0.3 * slice, slice, 2160);
+        }
+        assert_eq!(draft.side(2160), 8);
+        draft.took(0.3 * slice, slice, 2160);
+        assert_eq!(draft.side(2160), 6);
+        // A draft without that room in between takes one from the count and does not start it again.
+        for _ in 0..7 {
+            draft.took(0.1 * slice, slice, 2160);
+        }
+        draft.took(0.95 * slice, slice, 2160);
+        draft.took(0.1 * slice, slice, 2160);
+        assert_eq!(draft.side(2160), 6);
+        draft.took(0.1 * slice, slice, 2160);
+        assert_eq!(draft.side(2160), 4);
+        draft.took(1.5 * slice, slice, 2160);
+        assert_eq!(draft.side(2160), 6);
+        // However slow the card, a draft is not made smaller than the floor, nor finer than half a side.
+        draft.took(1000.0 * slice, slice, 2160);
+        assert_eq!(draft.side(2160), 12);
+        assert_eq!(draft.size([3840, 2160]), [400, 225]);
+        draft.took(1000.0 * slice, slice, 1080);
+        assert_eq!(draft.side(1080), 6);
+        for _ in 0..1000 {
+            draft.took(0.0001 * slice, slice, 2160);
+        }
+        assert_eq!(draft.side(2160), 2);
+    }
+
+    #[test]
+    fn a_card_at_a_steady_speed_settles_on_one_size() {
+        let slice = slice_of(true);
+        // Seconds a pixel such that a quarter a side takes 1.6 slices.
+        let pixels = |draft: &Draft| {
+            let [wide, high] = draft.size([3840, 2160]);
+            (wide * high) as f32
+        };
+        let each = 1.6 * slice / pixels(&Draft::new());
+        let mut draft = Draft::new();
+        let mut sides = Vec::new();
+        for _ in 0..400 {
+            draft.took(each * pixels(&draft), slice, 2160);
+            sides.push(draft.side(2160));
+        }
+        assert!(sides[1..].iter().all(|side| *side == 6), "{sides:?}");
+    }
+
+    #[test]
+    fn the_picture_follows_the_draft_of_the_very_view() {
+        // A view that moved has no draft of its own on the screen: one is drawn.
+        assert_eq!(hand_over(false, false), Next::Draft);
+        // One draft at a time: while one is on its way nothing is begun, whatever the view does.
+        assert_eq!(hand_over(true, false), Next::Wait);
+        assert_eq!(hand_over(true, true), Next::Wait);
+        // The draft on the screen is of this view, so the view stood still while it was drawn: the picture.
+        assert_eq!(hand_over(false, true), Next::Picture);
+    }
+
+    #[test]
+    fn what_is_beside_a_picture_is_the_share_it_does_not_cover() {
+        assert_eq!(beside([0.5, 0.5, 1.0]), 0.0);
+        assert_eq!(beside([0.5, 0.5, 4.0]), 0.0);
+        assert!((beside([0.75, 0.5, 1.0]) - 0.25).abs() < 1e-6);
+        assert!((beside([0.5, 0.5, 0.5]) - 0.75).abs() < 1e-6);
+        // A draft with its margin covers a view that moved an eighth of itself since.
+        let wider = 1.0 / DRAFT_MARGIN as f32;
+        assert!(beside([0.5 + 0.124 * wider, 0.5, DRAFT_MARGIN as f32]) < 1e-6);
+        assert!(beside([0.5 + 0.2 * wider, 0.5, DRAFT_MARGIN as f32]) > 0.05);
+    }
+
+    #[test]
+    fn the_time_of_a_picture_counts_in_tenths_up_to_the_one_it_took() {
+        assert_eq!(counted(0.0), None);
+        assert_eq!(counted(0.09), None);
+        assert_eq!(counted(0.1), Some(0.1));
+        assert_eq!(counted(0.34), Some(0.3));
+        let took = 2.2f32;
+        let mut last = 0.0;
+        for frame in 0..132 {
+            let passed = frame as f32 / 60.0;
+            if let Some(shown) = counted(passed) {
+                assert!(shown >= last && shown <= took);
+                last = shown;
+            }
+        }
+        assert!(took - last < 0.11);
+    }
+
+    #[test]
+    fn a_window_that_is_used_leaves_the_card_half_as_much() {
+        assert!(slice_of(true) < slice_of(false));
+        assert!((slice_of(true) - 0.25 / 60.0).abs() < 1e-6);
+        attend(true);
+        assert_eq!(batch(), slice_of(true));
+        attend(false);
+        assert_eq!(batch(), slice_of(false));
+    }
 
     fn flame(work: f64) -> [Part<'static>; 1] {
         [Part {

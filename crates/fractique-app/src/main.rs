@@ -6,6 +6,8 @@ fn main() -> eframe::Result {
     use eframe::egui;
     use std::path::PathBuf;
 
+    fractique_app::started();
+
     let mut args = std::env::args().skip(1);
     let mut screenshot = None;
     let mut size = [1280.0, 800.0];
@@ -45,9 +47,19 @@ fn main() -> eframe::Result {
         .with_min_inner_size([640.0, 480.0])
         .with_decorations(false)
         .with_icon(fractique_app::window_icon());
-    if screenshot.is_some() {
-        // A screenshot run is a test: it draws into a window nobody sees.
-        viewport = viewport.with_visible(false).with_taskbar(false).with_active(false);
+    // FRACTIQUE_VISIBLE: a test run in a window on the screen, for what only a real window shows; maximised with
+    // FRACTIQUE_VISIBLE=max, as the owner's window is.
+    if std::env::var("FRACTIQUE_VISIBLE").is_ok_and(|how| how == "max") {
+        viewport = viewport.with_maximized(true);
+    }
+    if screenshot.is_some() && std::env::var_os("FRACTIQUE_VISIBLE").is_none() {
+        // A screenshot run is a test: it draws into a window nobody sees. eframe shows every window after its
+        // first frame and draws nothing into a hidden one, so the window stands far outside every screen.
+        viewport = viewport
+            .with_visible(false)
+            .with_taskbar(false)
+            .with_active(false)
+            .with_position([-30000.0, -30000.0]);
     }
     let mut options = eframe::NativeOptions {
         viewport,

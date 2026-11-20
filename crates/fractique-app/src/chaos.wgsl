@@ -4,6 +4,8 @@ struct Batch {
     seed: vec2<u32>,
     layer: u32,
     walkers: u32,
+    budget: u32,
+    idle: u32,
 };
 
 struct Walker {
@@ -34,6 +36,10 @@ fn walk(@builtin(global_invocation_id) id: vec3<u32>) {
     } else {
         at = walkers[index].at.xyz;
         state = walkers[index].random.xy;
+        // The rest of the steps a walker takes before it plots: the first unit took the others.
+        for (var i = 0u; i < batch.idle; i = i + 1u) {
+            at = stepped(at).xyz;
+        }
     }
 
     let across = flame.scale.z;

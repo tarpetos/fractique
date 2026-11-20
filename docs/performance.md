@@ -382,6 +382,37 @@ At 640×400 the card took 0.03 to 0.26 s there and at 1280×720 0.10 to 0.69 s; 
 49 ms, and the pictures differ from the processor's by 0.3 of 255 on average and by 4 at most. No other card
 was measured.
 
+### A view that moves
+
+While a view of a kind drawn pixel by pixel is dragged or wheeled, the screen shows a small draft of the view
+itself ([architecture.md](architecture.md#motion)). Measured on an **NVIDIA GeForce RTX 4070** (Vulkan), in a
+window nobody sees, with a picture of 3840 × 2160, from the trace alone (no frames saved): a drag of 40 frames
+sideways and 30 steps of the wheel outwards, both at twice the framing. "Not the picture" is the share of the view
+that the picture on the screen does not cover, where the blurred continuation or the dark is shown.
+
+| Scene, movement | Not the picture: before, mean and most | After | The draft, the card's time for one | A frame of the window: before | After | From the last move to the picture: before | After |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `burning_ship-cathedral`, drag | 20 %, 39 % | 0.03 %, 1 % in the first frame, then none | 1200 × 675, 2.6 ms | 0.6 ms, 1.0 at most | 0.9 ms, 1.2 at most | 0.12 s | 0.14 s |
+| `burning_ship-cathedral`, wheel | 55 %, 84 % | 0.4 %, 6 % in one frame | 1200 × 675, 2.8 ms | 0.8 ms, 1.2 | 1.0 ms, 1.4 | 0.14 s | 0.13 s |
+| `mandelbrot-whole`, drag | 20 %, 39 % | 0.03 %, 1 % in the first frame, then none | 1200 × 675 and 1600 × 900, 0.9 ms | 0.7 ms, 0.9 | 0.9 ms, 1.4 | 0.02 s | 0.03 s |
+| `mandelbrot-whole`, wheel | 55 %, 84 % | 0.4 %, 6 % in one frame | 1200 × 675, 0.7 ms | 0.8 ms, 1.0 | 1.0 ms, 1.2 | 0.02 s | 0.03 s |
+| `nova`, first preset, drag | 20 %, 39 % | 0.03 %, 1 % in the first frame, then none | 1200 × 675, then 800 × 450, 3.1 ms | 0.7 ms, 1.0 | 1.0 ms, 1.4 | 0.10 s | 0.14 s |
+
+The first frame of a movement has no draft yet and shows the picture it had, moved by that one frame. The wheel
+of the test run turns after the frame has decided what to draw, so its first draft is a frame later than a real
+wheel's. The picture comes one frame later than before, the frame the draft of the resting view takes. Before,
+the picture of a view that moved began anew with every frame and was never whole while the view moved, also for
+the scenes the card draws in 0.02 s: at 3840 × 2160 no kind's first preset is whole within a frame (0.014 s for
+`mandelbrot-whole` to 0.18 s for `nova`).
+
+Flames, attractors and deep views are not drafted. Tried through the chaos game as it is, at 1, 4 and 16 samples
+a pixel: a draft of `aurora-spiral` of 1200 × 675 took the card 0.23 to 0.28 s over 0.9 s of frames, one of
+400 × 225 0.02 to 0.07 s over 0.1 s, since the walk, the look over the tiles and each strip of the levels are a
+submission and a frame each; and it shows the bright core with the fine threads as specks, which is not the
+picture. They keep the picture they had, moved: 10 % of the view is not the picture on average and 20 % at most
+in a drag of a fifth of the window, 55 % and 84 % in the wheel run above, and the picture comes 0.8 to 1.0 s
+after the last move for the flame on the card (0.7 s on the processor at 1600 × 1040, 1.7 s for `clifford`).
+
 ### Wallpapers on the graphics card
 
 A wallpaper is drawn by the graphics card
@@ -431,3 +462,40 @@ pixel each, and the graphics card holds 8 more for each density that has been on
 While the graphics card plays the chaos game it holds, for each layer, 16 bytes a pixel of histogram, 8 of levels
 and up to 8 MB of walkers: about 200 MB a layer at 3840×2160. With the last batch the histogram and the walkers
 are freed, and the levels, 66 MB a layer at that size, stay for as long as the picture is on the screen.
+
+## Where a view stops being a picture
+
+Measured in the app, off screen, on a GeForce RTX 4070 at 3840 × 2160: each view drawn twice from scenes that
+differ only in the seed, and the two pictures compared (the correlation of their brightness in blocks of 4 × 4
+pixels: 1 is the same picture, under 0.8 visibly another one).
+
+A deep view of a flame is drawn from particles (65 536 at this size on the card, 8192 on the processor) that
+descend from the few inside the view, so what counts is not the zoom but the share of the flame's light the view
+holds. Ten flames, three places each (the brightest, a median and a dim one), at 10, 30, 100 and 300 times:
+
+| Share of the flame in view | Two seeds | What is seen |
+| --- | --- | --- |
+| 1/500 and more | 0.96 to 1.00 in 27 of 29 views | The picture |
+| 1/500 to 1/50 000 | 0.44 to 0.99 | Smooth threads that look like a picture, but other threads with another seed |
+| Under 1/1 000 000 | | Specks and dotted trails on black, or nothing |
+
+So a flame is magnified as far as its densest view still holds 1/512 of its light (`ENOUGH` in `lib.rs`), from
+10 to 300 times. At that ceiling and at half of it, in the densest place, the two seeds agree 0.93 to 1.00 for
+eleven of twelve flames; the twelfth is a flame of blur alone, which is grain at any zoom. The rule is the best
+place's: in a median place of a flame a view holds 1/500 of it at 10 to 25 times only, and deeper views there
+are of the second kind. A typical flame takes the card 2 to 3 s at 30 to 300 times; a heavy one (`emerald-star`)
+13 s at 100 times and 21 s at 300.
+
+An attractor is plain accumulation: deeper, fewer samples land in the view and the picture is grain, then specks.
+In its brightest place:
+
+| Kind | Two seeds at 10, 30, 100, 300 times | Ceiling |
+| --- | --- | --- |
+| `buddhabrot` | 0.98, 0.82, 0.19, 0.04 | 10 |
+| `clifford` | 0.99, 0.96, 0.79, 0.70 | 30 |
+| `de_jong` | 1.00, 0.95, 0.58, 0.46 | 30 |
+| `hopalong` | 1.00, 1.00, 0.60, 0.05 | 30 |
+| `gumowski_mira` | 1.00, 1.00, 0.98, 0.51 (blocks at 100) | 50 |
+| `lorenz` | 1.00, 1.00, 0.99, 0.99 (five thick lines at 300) | 100 |
+
+`kleinian` and `l_system` draw lines and were the same picture twice at every zoom tried: unchanged.

@@ -82,6 +82,13 @@ pub struct Preview {
     blur: wgpu::RenderPipeline,
     buffers: Vec<wgpu::Buffer>,
     nothing: wgpu::TextureView,
+    canvas: Canvas,
+    // The small picture of a view that moves: the screen shows it while the picture itself keeps its own.
+    draft: Canvas,
+}
+
+#[derive(Default)]
+struct Canvas {
     picture: Option<Target>,
     soft: Option<[Target; 2]>,
     glows: HashMap<[u32; 2], [Target; 2]>,
@@ -318,9 +325,8 @@ impl Preview {
             layout,
             buffers: Vec::new(),
             nothing: nothing.create_view(&wgpu::TextureViewDescriptor::default()),
-            picture: None,
-            soft: None,
-            glows: HashMap::new(),
+            canvas: Canvas::default(),
+            draft: Canvas::default(),
         }
     }
 
@@ -328,8 +334,43 @@ impl Preview {
         !self.failed.load(Ordering::Relaxed)
     }
 
+    // A copy of the picture and of its blurred one as they are now, for the screen to fade from while the next
+    // picture is drawn into the same textures.
+    pub fn snapshot(&self) -> Option<(wgpu::TextureView, wgpu::TextureView)> {
+        let (picture, soft) = (self.canvas.picture.as_ref()?, &self.canvas.soft.as_ref()?[0]);
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        let mut copy = |from: &Target| {
+            let size = wgpu::Extent3d {
+                width: from.size[0],
+                height: from.size[1],
+                depth_or_array_layers: 1,
+            };
+            let kept = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("fractique picture before"),
+                size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: PICTURE,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            encoder.copy_texture_to_texture(from.view.texture().as_image_copy(), kept.as_image_copy(), size);
+            kept.create_view(&wgpu::TextureViewDescriptor::default())
+        };
+        let kept = (copy(picture), copy(soft));
+        self.queue.submit([encoder.finish()]);
+        Some(kept)
+    }
+
     pub fn views(&self) -> Option<(&wgpu::TextureView, &wgpu::TextureView)> {
-        Some((&self.picture.as_ref()?.view, &self.soft.as_ref()?[0].view))
+        Some((&self.canvas.picture.as_ref()?.view, &self.canvas.soft.as_ref()?[0].view))
+    }
+
+    pub fn draft_views(&self) -> Option<(&wgpu::TextureView, &wgpu::TextureView)> {
+        Some((&self.draft.picture.as_ref()?.view, &self.draft.soft.as_ref()?[0].view))
     }
 
     // Copies the picture drawn last, or the blurred one under the panes, back from the graphics card. `then` gets
@@ -341,9 +382,9 @@ impl Preview {
         then: impl FnOnce(Option<(Vec<u8>, [u32; 2])>) + Send + 'static,
     ) -> Option<wgpu::SubmissionIndex> {
         let target = if soft {
-            &self.soft.as_ref()?[0]
+            &self.canvas.soft.as_ref()?[0]
         } else {
-            self.picture.as_ref()?
+            self.canvas.picture.as_ref()?
         };
         let size = target.size;
         let stride = (size[0] * 4).div_ceil(256) * 256;
@@ -473,19 +514,37 @@ impl Preview {
         ctx: &egui::Context,
     ) -> bool {
         let (device, failed) = (self.device.clone(), self.failed.clone());
-        let drawn = guarded(&device, &failed, ctx, || self.passes(scene, size, levels).is_some());
+        let drawn = guarded(&device, &failed, ctx, || {
+            self.passes(scene, size, levels, false).is_some()
+        });
         drawn && self.works()
     }
 
-    fn passes(&mut self, scene: &Scene, size: [u32; 2], sources: &[&wgpu::TextureView]) -> Option<()> {
+    // The same into the draft's own textures, which the picture drawn last is not in.
+    pub fn draw_draft(
+        &mut self,
+        scene: &Scene,
+        size: [u32; 2],
+        levels: &[&wgpu::TextureView],
+        ctx: &egui::Context,
+    ) -> bool {
+        let (device, failed) = (self.device.clone(), self.failed.clone());
+        let drawn = guarded(&device, &failed, ctx, || {
+            self.passes(scene, size, levels, true).is_some()
+        });
+        drawn && self.works()
+    }
+
+    fn passes(&mut self, scene: &Scene, size: [u32; 2], sources: &[&wgpu::TextureView], draft: bool) -> Option<()> {
         let wallpaper = crate::sheets::drawn(scene);
         if sources.len() != scene.layers.len() + usize::from(wallpaper) {
             return None;
         }
-        if self.picture.as_ref().is_none_or(|picture| picture.size != size) {
-            self.picture = Some(target(&self.device, size));
-            self.soft = None;
-            self.glows.clear();
+        let canvas = if draft { &mut self.draft } else { &mut self.canvas };
+        if canvas.picture.as_ref().is_none_or(|picture| picture.size != size) {
+            canvas.picture = Some(target(&self.device, size));
+            canvas.soft = None;
+            canvas.glows.clear();
         }
         let shorter = size[0].min(size[1]) as f32;
 
@@ -493,8 +552,8 @@ impl Preview {
         let quarter = (shorter * 0.03 / 4.0).max(0.5);
         let fewer = (quarter / (WIDEST_SIGMA * 0.5)).floor().max(1.0);
         let small = size.map(|side| ((side as f32 / (4.0 * fewer)) as u32).max(1));
-        if self.soft.is_none() {
-            self.soft = Some([target(&self.device, small), target(&self.device, small)]);
+        if canvas.soft.is_none() {
+            canvas.soft = Some([target(&self.device, small), target(&self.device, small)]);
         }
 
         let glowing: Vec<Option<(u32, f32)>> = scene
@@ -511,14 +570,16 @@ impl Preview {
             .collect();
         for (shrink, _) in glowing.iter().flatten() {
             let small = size.map(|side| side.div_ceil(*shrink));
-            if !self.glows.contains_key(&small) {
-                let pair = [target(&self.device, small), target(&self.device, small)];
-                self.glows.insert(small, pair);
-            }
+            let device = &self.device;
+            canvas
+                .glows
+                .entry(small)
+                .or_insert_with(|| [target(device, small), target(device, small)]);
         }
 
-        let picture = self.picture.as_ref()?;
-        let soft = self.soft.as_ref()?;
+        let canvas = if draft { &self.draft } else { &self.canvas };
+        let picture = canvas.picture.as_ref()?;
+        let soft = canvas.soft.as_ref()?;
         let mut passes = Vec::new();
         if wallpaper {
             passes.push(Pass {
@@ -550,7 +611,7 @@ impl Preview {
             };
             let mut image = &self.nothing;
             if let Some((shrink, sigma)) = *glow {
-                let [first, second] = self.glows.get(&size.map(|side| side.div_ceil(shrink)))?;
+                let [first, second] = canvas.glows.get(&size.map(|side| side.div_ceil(shrink)))?;
                 let across = shrink as f32;
                 passes.push(Pass {
                     pipeline: &self.toned,

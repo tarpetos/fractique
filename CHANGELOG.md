@@ -2,6 +2,235 @@
 
 ## Unreleased
 
+* **A flame and an attractor are magnified only as far as they are a picture:** a flame at 1373× was clouds of
+  separate dots, and the wheel went on to 10 000 000 000×. Measured in the app at 3840 × 2160 on an RTX 4070, each
+  view drawn twice with another seed: a deep view of a flame is the same picture twice while it holds about
+  1/500 of the flame's light; with less it is smooth threads that are other threads the next time, and with far
+  less, dots. A flame now goes as deep as its densest view holds 1/512 of its light, between 10× and 300×, worked
+  out once a picture beside the window's thread; an attractor to 10× (Buddhabrot), 30× (Clifford, De Jong,
+  Hopalong), 50× (Gumowski-Mira) or 100× (Lorenz), where its grain takes over. The Scale slider ends there, and
+  a saved or a recent view beyond it opens at the ceiling. Fractals drawn pixel by pixel, the solids, Kleinian
+  groups, L-systems and wallpapers keep their limits. Known and not changed here: in a median place of a flame the
+  picture is already of the second kind from about 15×, and a heavy flame (Emerald Star) takes the card 13 s at
+  100×, over the 10 seconds a view may take ([performance.md](docs/performance.md#where-a-view-stops-being-a-picture)).
+
+* **A dragged edge is followed twice as often:** measured on the screen (a capture at 60 frames a second of a
+  real drag of the window's right edge, 900 pixels a second and 2700). Every size of the window was painted
+  twice, the second time for a redraw of the same size, and with the app's pacing of a frame the window's edge
+  itself moved only 30 times a second, in the releases before as well (there the content was a frame behind
+  on top, 20 pixels at the median). A size is painted once now: the edge and the content move 55 times a second,
+  the content one frame behind the edge (15 pixels at 900 pixels a second), with a picture of a chosen size and
+  with one that follows the window.
+
+* **The button that hides the interface is an eye:** it was drawn as an oval with a slash and did not read as
+  one. It is an eye with an iris and a pupil now, chosen by the owner from five variants drawn in the real title
+  bar. It has one state: the title bar goes away with the interface.
+
+* **A picture that never came:** after a preset of a kind whose shader was not compiled yet, the picture could
+  stay blurred with its time counting for ever. The render that begins again once the shader is ready was held
+  back when the card had drawn the picture before; it began again only if the processor's stand-in arrived
+  first, which it does not on a loaded machine (2 of 24 runs with four windows and a build beside them). It
+  now asks whether a run of the card exists for the picture. And where the card is not heard of for 5 s while a
+  picture is on its way, the picture is begun again once and is the processor's the second time; a batch left
+  on its way by the picture before is waited for a second at most.
+
+* **The card works on a picture in small units until the frame's time is up:** a picture of the chaos game was
+  sent to the card one batch a frame, sized to fill the card's slice of the frame by what the last batch took.
+  The guess was wrong both ways: a batch ran 11 to 24 ms where 8.3 were allowed in half of the pictures of a
+  live run, and the card was busy a third of a picture's time where it was allowed half. Now the work is cut
+  into units of about 1.5 ms, the end of one sends the next, and none begins once the frame's slice is over: the
+  slice is filled whatever the scene costs, and a frame is late by one unit at the most, by construction. The
+  slice itself is no longer half a frame but what the window leaves: the device measures what the card needs
+  for the window's own frame as it runs (0.4 to 2 ms on an RTX 4070) and gives a picture the rest less 3 ms,
+  at most 0.8 of a frame, and half of that while the window is used. The shaders are run once at the start, on
+  two small pictures, and a flame's unplotted steps are split over two units. Off screen on an RTX 4070 at
+  3840 × 2160: a flame is finished after 0.15 to 0.36 s instead of 0.53 to 0.94 s, a deep zoom after 1.8 s
+  instead of 3.8 s, a Clifford or Lorenz attractor after 0.21 to 0.69 s instead of 1.4 to 1.5 s, and the first
+  picture comes after 0.02 to 0.09 s; the longest unit is 2 to 3 ms (5 for a stage of a deep view, which is one
+  piece) and the latest end of one is 1 to 1.5 ms past its slice. The kinds drawn pixel by pixel and the
+  wallpapers are sent as they were.
+
+* **Leaving full screen no longer shows the desktop, and a picture that is waited for is never one flat colour:**
+  captured from the screen at 60 frames a second with a magenta window behind the app. Full screen from a
+  maximized window was made by restoring the window first and maximizing it again on the way back, because a
+  maximized window without decorations keeps the taskbar's strip empty in full screen. On the way back the
+  window stood on the screen at its small size, the desktop around it, for 9 to 11 frames in the releases
+  before (the system animated it) and for 1 to 3 since the glide (a hard blink). The window now stays maximized
+  through full screen and the app tells Windows that the whole window is its client area meanwhile: 0 frames
+  with anything but the app in the window's place in 10 runs, no strip. Separately: a deep fractal that the
+  processor draws in seconds, wheeled further while its picture was awaited, showed the last picture magnified
+  with the view, up to 440 times in the owner's session: a few of its pixels under the blur, one flat colour.
+  The picture that stands for a view is magnified 8 times at most.
+
+* **The Scale slider spans the range of the view:** the slider ended at 100× while the wheel went on, so its knob
+  rested at the end and the number ran on (1373.13, and 9523809523.81 where the toolbar said 9.5e9×). The slider
+  now spans exactly what the view of the picture on the screen can take, logarithmically, from its smallest scale
+  to its largest: the knob is at an end if and only if the view is at that limit, and the wheel, a pinch and the
+  slider are one quantity with one range. When another picture has another range (another kind, or the
+  processor in the place of the graphics card) the ends glide there and the knob with them; a scale set elsewhere
+  (the wheel, **Reset view**) moves the knob in 0.12 s, not in one frame. The slider and the toolbar's line write
+  the scale the same way: two decimals below 10, one below 100, none above, and `9.5e9×` from a million on. A
+  drag of the slider that ends at a limit starts no render, no blur and no count, as a step of the wheel does
+  not. Off screen on an RTX 4070 at 2580 × 1380: a flame's slider ran from 0.20× to 2056× (where the card's
+  32-bit numbers end for that picture) and to 8× that once the picture at 2056× stood; with the processor alone
+  from 0.20× to 8×; a Burning Ship's to 9.5e9×, and after the Mandelbrot seahorse valley was picked the end
+  glided to 3.8e7× in 0.18 s.
+
+* **Full screen, maximizing and hiding the panels are one smooth move:** recorded frame by frame, off screen, on
+  an RTX 4070 at 3800 × 2120 pixels. Going to full screen from a maximized window, the window was restored to
+  its small size for one drawn frame and then made full screen, and the same on the way back: every pane and the
+  picture went there and back, which is the jump that was seen. Both steps are now sent to the system in one
+  frame, and no frame is drawn between them. Whenever the window became smaller, the panel stood over the title
+  bar for one frame and came back down; the panes are no longer held inside the window by the size they had a
+  frame ago. And everything was simply somewhere else in the first frame of the new size. Now what is in the
+  window goes on from where it stood on the screen: the panes glide to their places and the picture grows or
+  shrinks to its new framing in 0.18 s, as one, under the one blur, and the new picture comes once, in the one
+  cross-fade. On Windows the system's own animation of a maximized window is off for that moment, so that only
+  one thing moves. The eye in the title bar, **H** and a tap on a phone made every pane vanish and appear in a
+  single frame; they fade and rise together now, a second press turns them back from where they are, and the
+  picture does not move. Counted the same way before and after, over full screen, maximizing and both together
+  from a window of 800 × 520 and of 1290 × 690: 4 to 8 panes or pictures that jumped at each change and up to 4
+  that turned back, now none; 3 panes that popped at each press of the eye, now none. A frame takes 17 ms
+  through all of it, as before. A real switch to full screen cannot be made in a test run; it was emulated by
+  the window's size ([architecture.md](docs/architecture.md#motion)). The owner's own run then showed what that
+  emulation had missed, and a run of the same steps in a real window on his screen (1920 × 1080 points, the
+  picture fixed at 3840 × 2160) now shows none of it: with a picture of a chosen size, every change of the window
+  raised the whole blur for a fifth of a second and showed a time of many seconds though nothing was drawn (the
+  rest watched the window's size, not the picture's); on the way to and from a small window the panel and the
+  toolbar crossed by up to 11 points for one to three frames (the panel now makes room first); and the panes
+  began to fade one frame after the press of the eye (now in its frame).
+
+* **No long first batch of a picture:** the first batch of a flame was sized by the best speed any flame had
+  shown, so a flame that costs more a step began with a batch far over its slice of a frame: 35 to 119 ms in
+  seven of 23 pictures of a live run, a stutter at the start of each. Every run now begins with the smallest
+  batch there is and the next is sized by what that one took. Off screen, eight random flames at 3840 × 2160 one
+  after another: the first batch takes 1 ms (5 to 13 before) and no batch more than 9 ms (8 to 13 before); a
+  picture is finished after 0.37 to 0.51 s instead of 0.34 to 0.44 s, which is what staying inside the slice
+  costs.
+
+* **An export says what it is doing until the file is there, and is not offered where it cannot be made:** the
+  bar of an export showed the render only: at 100 % the PNG was still to be written, on one thread with no
+  sign of it, 7 s for 7680 × 4320 and about half a minute for 15360 × 8640. The bar now covers the rendering and
+  the writing, names the stage, and is full when the file is on the disk; **Cancel** works while the file is
+  written and removes what was written. The file is compressed fast: 0.4 s instead of 7.1 s at 7680 × 4320, a
+  file about 40 % larger (45 MB instead of 32 MB), the same pixels. **High** and **Ultra** at 15360 × 8640 ended
+  in "could not save: the image is too large for this supersample", an English sentence of the renderer in a
+  sheet in any language: a quality the renderer does not take at the chosen size is now dim and cannot be
+  chosen, with a line that names the qualities that can. No error text of the renderer, of a file or of the
+  network is shown any more: an export, an opened or a saved file, the list of versions and a download that
+  fail say so in the app's language, and the error goes to the log.
+
+* **The graphics card's slice of a frame is filled, and a pointer that only moves is not use:** a live run showed
+  where a picture's time went: one batch is sent a frame, and about half of the frames carried almost none. A
+  batch that ran short was followed by one only 1.5 times larger, the strips of the density estimation began
+  with 16 rows at every drawing, and the first batch of a known card was sized without the 24 unplotted steps
+  of its walkers and took 34 ms. Now a batch that ran short is followed by one that aims at 0.8 of the slice,
+  up to 8 times larger; the strips begin with what the last drawing of such a scene showed; and the first batch
+  leaves room for its unplotted steps. The window counted as used, with the smaller slice of 4.2 ms, at any
+  event of the mouse, so in nearly every frame; now a held button or finger, the wheel, a pinch, a key and a
+  pane in motion count, and a pointer that only moves leaves the picture its 8.3 ms. A draft of a moved view
+  that was made smaller after one slow frame comes back to its size after eight that fit, not thirty in a row.
+  Off screen on an RTX 4070 the first picture of a flame at 3840 × 2160 comes after 0.25, 0.10 and 0.20 s
+  instead of 0.36, 0.15 and 0.25 s and the finished one after 0.68, 0.34 and 0.81 s instead of 0.69, 0.41 and
+  0.90 s; no batch takes longer than before (10 ms), and a frame of the window is 17.0 ms as it was. A scene
+  with an attractor is as it was (1.3 to 1.5 s): its batches are held to 4 194 304 steps.
+
+* **A fractal drawn pixel by pixel follows the hand:** a Burning Ship, a Mandelbrot or any other kind the
+  graphics card draws pixel by pixel was drawn anew for a moved view only when the view stood still: while it was
+  dragged or wheeled the screen showed the picture it had, moved, with an empty or blurred slab where the picture
+  ended, up to 84 % of the window on the way out. Now the view itself is drawn for every frame, small, and shown
+  at the window's size: soft, but whole. It starts at a quarter of the picture a side and is made smaller at once
+  when the card needs more than its 4 ms of a frame for it, finer slowly when it has room, never smaller than
+  180 pixels on its shorter side. When the view rests the picture is drawn and takes the draft's place in one
+  cross-fade; the blur over a picture that takes the card longer than 0.1 s stands over the draft meanwhile, as
+  it did over the moved picture. Measured on an RTX 4070 at 3840 × 2160: what is not the picture fell from 20 %
+  of the view on average (39 % at most) in a drag to 1 % in its first frame and nothing after; a frame of the
+  window takes 0.9 ms instead of 0.7; the picture comes one frame later. Flames, attractors, deep views and
+  what the processor renders are as they were: a draft of them is specks and takes the chaos game a tenth of a
+  second or more ([performance.md](docs/performance.md#a-view-that-moves)).
+
+* **A new picture opens at 1.0×:** before the view had one scale, the **Scale** slider of the controls kept a
+  number of its own in the app's settings. The slider is the view's scale now and nothing sets that number any
+  more, but it was still read back at the start and multiplied into every picture: with the old slider left at
+  0.4, every preset, every random flame and every fractal opened at 0.4×, and a view zoomed out to its limit read
+  0.200×. The number is no longer saved or read as a setting. The app starts at the whole picture, **Mutate**
+  goes back to it as **Randomize** does, and a file saved with the old slider moved opens at the view it was
+  saved with.
+
+* **One scale, tighter bounds, no black slab beside a moved picture:** the toolbar's line showed the wheel's
+  scale and the controls had a **Scale** of their own, so one view read 0.5× in one place and 0.4 in the other.
+  There is one number now: the line shows it, the slider shows and sets it and moves with the wheel, and the
+  limits hold for it; **Reset** and **Reset view** both go back to the whole picture. A figure smaller than the
+  window can no longer be parked half outside it: it stays inside whole, and of a figure larger than the window
+  at most a tenth of the window shows what is beside it. While a picture stands moved or made smaller until the
+  next one is drawn, what is beside it is its own blurred copy fading into the background instead of a flat dark
+  slab with a hard edge. A moved view of a kind drawn pixel by pixel is blurred like any other when the card
+  needs more than 0.1 s for it.
+
+* **Views have limits:** a wallpaper could be wheeled out to a small rectangle in the middle of the window with
+  its edge smeared around it, and a fractal to a speck of a few pixels, drawn anew for that. A wallpaper is no
+  longer made smaller than the window, is moved only as far as it still covers it and is shown at most 8 times
+  larger. A flame and a fractal of any kind are shown no smaller than a fifth of their framing (0.2×) and cannot
+  be dragged out of sight; a view that is only the picture the app has, magnified, stops at 8 times that
+  picture. A step of the wheel that ends at a limit draws nothing. A file or a **Recent** picture with a view
+  outside the limits opens at the limit; the files themselves are read as before. Beside a picture that does
+  not fill the window, as one of a chosen size, there is now the window's dark background instead of the
+  picture's own edge, blurred.
+
+* **A pane hides when a list reaches it, and only then:** which panes go under an open list or sheet was a
+  table: the toolbar always, the panel under some lists below a width, never under the list of languages. In a
+  narrow window that list lay over the panel and both were read at once; in a wide one the toolbar hid although
+  nothing came near it. Now a pane gives way if and only if the open sheet, where it stands, comes nearer to it
+  than 12 points, by the rectangles as they are at that size and in that language; it goes whole and comes back
+  when the sheet closes. On a computer the list of languages has no close button: it is a dropdown, left by a
+  row, by its button, by a click beside it or by Escape, and its heading has the padding of every pane.
+
+* **One time a picture:** the toolbar showed the time of the first, small picture while the blur stood (0.34 s)
+  and another when the picture was finished (2.20 s). It shows one: from the click, the last step of the wheel
+  or the dragged edge that asked for the picture to the finished picture on the screen. While the picture is on
+  its way the time counts in tenths of a second and ends on that number; the line keeps room for the widest
+  digits, so nothing beside it moves. A view that is only magnified keeps the time of its picture.
+
+* **The window keeps its pace while the graphics card draws:** a picture drawn by the card took the card for 40 ms
+  at a time, so the window drew 25 frames a second and the card showed as fully used until the picture was done
+  (on master as much as after the two stages). Now the card gets a slice of every frame, half of it, and a
+  quarter while the window is used; one batch is sent a frame, sized by how long the last one took, cut at once
+  when it overruns; and the density estimation, which followed every batch and nothing showed, is drawn twice a
+  picture, in strips. Measured on an RTX 4070 during a zoom into a flame at 2560 × 1600 with a list opened and
+  closed meanwhile: a frame took 39 ms (median) and 51 ms at worst, now 4.6 ms and 13.7 ms; the card was busy
+  96 % of the time, now 20 %; the picture takes 2.3 s instead of 0.6 s. A card is told to leave a picture to the
+  processor when its work, at the share it gets, would take longer than the processor.
+
+* **Everything opens, closes and resizes smoothly:** every sheet, list and panel (the presets, **Recent**, the
+  types, the sizes, the languages, the export, the updates, Fractique Pro, the inspector, the glass panel of
+  **F2**, a phone's styles and controls) fades and rises in over 0.18 s and leaves the same way, glass and texts
+  together; closed midway it turns back from where it is. Before, each appeared at once, and its glass one frame
+  after its texts: for that frame the panes of what it replaced stood empty on the screen, and in a window that
+  was resized the glass trailed its panel by a frame at every step. What a sheet covers gives way in 0.08 s and
+  comes back when the sheet has mostly gone; a click acts at once, also while something moves. A sheet whose
+  content changes height (the updates when the list of releases arrives) grows to it instead of jumping. The
+  panel no longer loses 100 points of height at one width as the toolbar comes under it: it makes room over the
+  last 48 points, and the toolbar's buttons change their padding between 676 and 724 points of width instead of
+  at 700. On a phone the buttons no longer start a frame at the wrong place. A window that is resized keeps its
+  picture, at the scale the new one will have, and draws anew once its size has stood for 0.18 s; before, every
+  step of the drag started a render (161 for 161 steps) and a frame of the drag took 25 ms where the graphics
+  card draws, now 9 ms. A new picture fades in over the one before it, the first over the dark window, and the
+  window's panes fade in with it. From the frame that asks for a new picture (a click, a step of the wheel, a
+  control that renders, an edge that is dragged) to the finished one the screen shows two stages and one change
+  between them: one still picture under a blur (70 % of the blurred copy the panes already use, whole after
+  0.08 s, at no cost of its own), then the finished picture, which fades in as the blur leaves over 0.18 s. The
+  still picture is the one on the screen, or once, for a new scene, a first small picture of it that takes its
+  place under the whole blur; drafts that follow and the graphics card's batches in between are no longer shown,
+  so nothing moves behind the blur. A picture that is there at once, a view that is only magnified, a moved view
+  of a kind the card draws within a frame and a tone the card follows by itself get no blur. A test run's window
+  now stands outside every screen: eframe showed it after its first frame although it was asked to stay hidden.
+  Controls light up
+  under the pointer over 0.12 s, a switch slides, the mark of a chosen segment glides and a small picture fades
+  in when it is drawn. Where Windows is set to show no animations, nothing is animated. Test runs:
+  `FRACTIQUE_TRACE`, `FRACTIQUE_FRAMES`, `FRACTIQUE_FIRST`, `FRACTIQUE_CLOCK`, `FRACTIQUE_VEIL`,
+  `FRACTIQUE_MOTION` and the steps `frames`, `sweep`, `size`, `zoom`, `drag`, `preset`, `gpu`, `skip`, `rest`
+  ([architecture.md](docs/architecture.md#motion)).
+
 * **One set of measures for every pane, lists in the middle of a phone's screen:** every sheet, list and panel
   now has the same padding on all four sides, 22 points, and the close button fills the corner of it: 22 points
   from the top and from the right edge, on the title's line. Before, the list of languages had 10, the glass

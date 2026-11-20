@@ -7,10 +7,9 @@ use fractique_core::scene::{MAX_SHAPES, MAX_SHEETS, MAX_SWELLS, Shape, Sheets};
 use fractique_core::{RenderOptions, Scene, math};
 
 use crate::field::{Batched, strip};
+use crate::pace;
 use crate::preview::{LEVELS, guarded};
 
-// A batch is sized to take about this long, so that the window keeps its pace.
-const PACE: f64 = 0.02;
 // However wrong the guess of a batch's time, its pixels at their dearest take no longer than this.
 const DEAREST: f64 = 0.05;
 // Units of work a second of a card nothing is known about yet. No card is taken to be slower: one that is has
@@ -582,9 +581,9 @@ impl Layer {
         let pixels = match self.last {
             Some((pixels, seconds)) => {
                 let before = pixels as f64;
-                (before * PACE / seconds).clamp(0.25 * before, 4.0 * before)
+                pace::next(before, seconds as f32, pace::batch())
             }
-            None if rate.pixels > 0.0 => rate.pixels * PACE,
+            None if rate.pixels > 0.0 => rate.pixels * f64::from(pace::batch()),
             None => most,
         };
         (pixels.min(most) as u64).max(LEAST)
