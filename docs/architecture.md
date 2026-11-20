@@ -718,7 +718,9 @@ scrolls the controls down, to where the switch is. `FRACTIQUE_SHOW=gpu` hides th
 picture; `FRACTIQUE_SHOW=gpu-first` stops it after the first batch; `FRACTIQUE_SHOW=picture` hides the panels
 over whatever picture the device makes. `FRACTIQUE_EXPORT=file` starts an Instant export to that file as soon as
 the card's first picture is on the screen, so that it has to wait, and the screenshot waits for it: the two files
-are then the same picture. A scene file given on the command line is the scene, and `FRACTIQUE_PICTURE=320x200`
+are then the same picture. `FRACTIQUE_QUALITY=1` makes it an export of that quality (0 Instant to 3 Ultra),
+`FRACTIQUE_CANCEL=writing` (or `rendering`) cancels it in that stage, and the trace holds how far the export is
+and its stage in every frame (`export 0.874 writing`). A scene file given on the command line is the scene, and `FRACTIQUE_PICTURE=320x200`
 is the size of the picture whatever the window's. `FRACTIQUE_THEN=14,1,14:0.01:0` shows these views one after
 another before the screenshot is taken (the magnification, or the magnification and the place to the right and
 down), each when the picture of the one before is whole, or 1.5 s after it was asked for where the processor

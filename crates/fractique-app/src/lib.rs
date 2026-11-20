@@ -1648,6 +1648,11 @@ impl App {
             #[cfg(not(target_arch = "wasm32"))]
             export: export::Sheet {
                 open: std::env::var("FRACTIQUE_SHOW").is_ok_and(|what| what.starts_with("export")),
+                quality: std::env::var("FRACTIQUE_QUALITY")
+                    .ok()
+                    .and_then(|index| index.parse().ok())
+                    .filter(|index| *index < export::QUALITIES.len())
+                    .unwrap_or(0),
                 ..Default::default()
             },
             #[cfg(feature = "store")]
@@ -4815,7 +4820,8 @@ impl App {
         let text = match read {
             Ok(text) => text,
             Err(error) => {
-                self.status = error;
+                log::warn!("the file was not read: {error}");
+                self.status = self.t("open_failed");
                 return;
             }
         };
@@ -4854,7 +4860,10 @@ impl App {
                 self.follow(&scene);
                 self.pick(scene, name, false);
             }
-            Err(error) => self.status = error,
+            Err(error) => {
+                log::warn!("the file is no scene: {error}");
+                self.status = self.t("open_failed");
+            }
         }
     }
 
@@ -4896,7 +4905,10 @@ impl App {
         };
         self.status = match std::fs::write(&path, bytes) {
             Ok(()) => self.t("saved"),
-            Err(error) => format!("{}: {error}", self.t("failed")),
+            Err(error) => {
+                log::warn!("the scene was not saved: {error}");
+                self.t("failed")
+            }
         };
     }
 
@@ -4916,7 +4928,14 @@ impl App {
             ui.painter()
                 .rect_filled(done, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(225));
             ui.add_space(8.0);
-            ui.label(format!("{} · {:.0}%", self.t("exporting"), share * 100.0));
+            if job.timed() {
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+            }
+            let stage = match job.stage() {
+                export::Stage::Rendering => "rendering",
+                export::Stage::Writing => "writing_file",
+            };
+            ui.label(format!("{} · {:.0}%", self.t(stage), share * 100.0));
             ui.add_space(12.0);
             if widgets::pill(ui, &self.t("cancel"), false, ui.available_width()) {
                 job.cancel();
@@ -4957,7 +4976,7 @@ impl App {
                     list(height),
                 );
                 columns[1].spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-                clicked = self.export_choices(&mut columns[1]);
+                clicked = self.export_choices(&mut columns[1], self.export.size.unwrap_or(shown));
             });
             clicked
         } else {
@@ -4972,7 +4991,7 @@ impl App {
                 &mut self.export.custom,
                 list(height),
             );
-            self.export_choices(ui)
+            self.export_choices(ui, self.export.size.unwrap_or(shown))
         };
         let [width, height] = self.export.size.unwrap_or(shown);
         #[cfg(feature = "store")]
@@ -5033,7 +5052,7 @@ impl App {
         let as_shown = samples == export::AS_SHOWN && (self.shown, self.shown_zoom) == (self.view, self.adjust.zoom);
         let on_card = self.chaos.as_ref().and_then(Chaos::levels).map(|(size, _)| size);
         if as_shown && on_card == Some([width, height]) && self.requested.is_some_and(|size| self.card_shows(size)) {
-            let (job, later) = export::Job::later(path, ctx.clone());
+            let (job, later) = export::Job::later([width, height], path, ctx.clone());
             self.export.job = Some(job);
             self.instant = Some((later, [width, height], None));
             ctx.request_repaint();
@@ -5072,7 +5091,7 @@ impl App {
     fn export_magnified(&mut self, ctx: &egui::Context, size: [u32; 2], path: PathBuf) {
         let at = self.view.within(&self.shown, self.requested.unwrap_or(size));
         if self.chaotic {
-            let (job, later) = export::Job::later(path, ctx.clone());
+            let (job, later) = export::Job::later(size, path, ctx.clone());
             self.export.job = Some(job);
             self.instant = Some((later, size, Some(at)));
             ctx.request_repaint();
@@ -5087,19 +5106,38 @@ impl App {
                     rgba: pace::magnified(&image.rgba, [image.width, image.height], at, size),
                 })
             };
-            self.export.job = Some(export::Job::made(make, path, ctx.clone()));
+            self.export.job = Some(export::Job::made(size, make, path, ctx.clone()));
         } else {
             self.export.note = self.t("rendering");
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn export_choices(&mut self, ui: &mut egui::Ui) -> bool {
+    fn export_choices(&mut self, ui: &mut egui::Ui, size: [u32; 2]) -> bool {
         widgets::section(ui, &self.t("quality"));
         ui.add_space(2.0);
         let qualities = export::QUALITIES.map(|(key, _, _)| self.t(key));
-        if let Some(index) = widgets::segments(ui, &qualities, self.export.quality) {
+        // What the renderer does not take at this size is not offered: the highest quality that it takes is.
+        let off = export::QUALITIES.map(|(_, _, supersample)| !export::fits(size, supersample));
+        if off[self.export.quality] {
+            self.export.quality = off.iter().rposition(|off| !off).unwrap_or(0);
+        }
+        if let Some(index) = widgets::segments_of(ui, &qualities, self.export.quality, &off) {
             self.export.quality = index;
+        }
+        if off.contains(&true) {
+            let fitting: Vec<&str> = qualities
+                .iter()
+                .zip(off)
+                .filter(|(_, off)| !off)
+                .map(|(name, _)| name.as_str())
+                .collect();
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new(format!("{} {}", self.t("q_only_here"), fitting.join(", ")))
+                    .size(12.5)
+                    .color(egui::Color32::from_white_alpha(190)),
+            );
         }
         if self.magnified && self.view != WHOLE {
             ui.add_space(8.0);
@@ -5181,6 +5219,13 @@ impl App {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn finish_export(&mut self) {
+        if let Some(job) = &self.export.job {
+            let stage = format!("{:?}", job.stage()).to_lowercase();
+            if self.trace.cancel.as_deref() == Some(&stage) {
+                job.cancel();
+            }
+            self.trace.export = format!(" export {:.3} {stage}", job.share());
+        }
         let Some(outcome) = self.export.job.as_ref().and_then(export::Job::finished) else {
             return;
         };
@@ -5213,8 +5258,11 @@ impl App {
                     self.keeping = Some((path, self.export.share, 3));
                 }
             }
-            export::Outcome::Cancelled => self.export.note.clear(),
-            export::Outcome::Failed(error) => self.export.note = format!("{}: {error}", self.t("failed")),
+            export::Outcome::Cancelled => {
+                self.trace.export = " export cancelled".to_owned();
+                self.export.note.clear();
+            }
+            export::Outcome::Failed(why) => self.export.note = format!("{}: {}", self.t("failed"), self.t(why.key())),
         }
     }
 

@@ -316,6 +316,11 @@ pub fn dropdown(ui: &mut Ui, text: &str) -> bool {
 }
 
 pub fn segments(ui: &mut Ui, labels: &[String], chosen: usize) -> Option<usize> {
+    segments_of(ui, labels, chosen, &[])
+}
+
+// The same with some of the segments not to be had: `off` says which, and those are dim and take no click.
+pub fn segments_of(ui: &mut Ui, labels: &[String], chosen: usize, off: &[bool]) -> Option<usize> {
     let (track, _) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::hover());
     ui.painter().rect_filled(track, CornerRadius::same(10), white(18));
     let each = track.width() / labels.len() as f32;
@@ -347,6 +352,12 @@ pub fn segments(ui: &mut Ui, labels: &[String], chosen: usize) -> Option<usize> 
             Sense::click(),
         );
         let selected = index == chosen;
+        if off.get(index).copied().unwrap_or(false) {
+            let font = FontId::proportional(size);
+            ui.painter()
+                .text(cell.center(), Align2::CENTER_CENTER, label, font, white(70));
+            continue;
+        }
         let fill = lift(0, 16.0, lit(ui, &response));
         if !selected && fill > 0 {
             ui.painter()

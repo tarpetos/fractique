@@ -48,6 +48,11 @@ pub struct Probe {
     // Milliseconds of the frame's parts: taking pictures in, asking for one, the card's step.
     pub parts: [f32; 3],
     pub note: String,
+    // How far an export is and what it does, for the frame's line; FRACTIQUE_CANCEL=writing (or rendering)
+    // cancels one in that stage.
+    pub export: String,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub cancel: Option<String>,
     pending: Arc<AtomicU32>,
     stages: Vec<&'static str>,
 }
@@ -79,6 +84,9 @@ impl Probe {
             renders: 0,
             parts: [0.0; 3],
             note: String::new(),
+            export: String::new(),
+            #[cfg(not(target_arch = "wasm32"))]
+            cancel: std::env::var("FRACTIQUE_CANCEL").ok(),
             pending: Arc::default(),
             stages: Vec::new(),
         }
@@ -182,7 +190,7 @@ impl Probe {
             };
             let _ = writeln!(
                 out,
-                "frame {} t {:.1} gap {:.2} slept {:.2} work {:.2} size {:.0}x{:.0} renders {} shot {} drawn [{}] laid [{}] {}",
+                "frame {} t {:.1} gap {:.2} slept {:.2} work {:.2} size {:.0}x{:.0} renders {} shot {} drawn [{}] laid [{}] {}{}",
                 self.frame,
                 since_start(),
                 gap,
@@ -195,6 +203,7 @@ impl Probe {
                 list(panes[0]),
                 list(panes[1]),
                 self.note,
+                std::mem::take(&mut self.export),
             );
             let _ = out.flush();
         }

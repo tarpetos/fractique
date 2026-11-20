@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* **An export says what it is doing until the file is there, and is not offered where it cannot be made:** the
+  bar of an export showed the render only: at 100 % the PNG was still to be written, on one thread with no
+  sign of it, 7 s for 7680 × 4320 and about half a minute for 15360 × 8640. The bar now covers the rendering and
+  the writing, names the stage, and is full when the file is on the disk; **Cancel** works while the file is
+  written and removes what was written. The file is compressed fast: 0.4 s instead of 7.1 s at 7680 × 4320, a
+  file about 40 % larger (45 MB instead of 32 MB), the same pixels. **High** and **Ultra** at 15360 × 8640 ended
+  in "could not save: the image is too large for this supersample", an English sentence of the renderer in a
+  sheet in any language: a quality the renderer does not take at the chosen size is now dim and cannot be
+  chosen, with a line that names the qualities that can. No error text of the renderer, of a file or of the
+  network is shown any more: an export, an opened or a saved file, the list of versions and a download that
+  fail say so in the app's language, and the error goes to the log.
+
 * **The graphics card's slice of a frame is filled, and a pointer that only moves is not use:** a live run showed
   where a picture's time went: one batch is sent a frame, and about half of the frames carried almost none. A
   batch that ran short was followed by one only 1.5 times larger, the strips of the density estimation began

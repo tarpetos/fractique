@@ -20,7 +20,6 @@ enum Phase {
     Ready(String),
     Failed {
         version: String,
-        error: String,
     },
 }
 
@@ -28,7 +27,7 @@ enum List {
     NotAsked,
     Loading,
     Loaded(Vec<Release>),
-    Failed(String),
+    Failed,
 }
 
 pub struct Updates {
@@ -125,7 +124,7 @@ impl Updates {
 
     pub fn show(&mut self, ctx: &egui::Context) {
         self.open = true;
-        if matches!(self.list, List::NotAsked | List::Failed(_)) {
+        if matches!(self.list, List::NotAsked | List::Failed) {
             self.list = List::Loading;
             let post = self.post(ctx);
             std::thread::spawn(move || {
@@ -133,7 +132,10 @@ impl Updates {
                 post(Box::new(move |updates| {
                     updates.list = match loaded {
                         Ok(releases) => List::Loaded(releases),
-                        Err(error) => List::Failed(error),
+                        Err(error) => {
+                            log::warn!("the versions were not loaded: {error}");
+                            List::Failed
+                        }
                     }
                 }));
             });
@@ -160,7 +162,10 @@ impl Updates {
                         text
                     }
                     Ok(None) => newest,
-                    Err(error) => format!("{failed}: {error}"),
+                    Err(error) => {
+                        log::warn!("the updates were not checked: {error}");
+                        failed
+                    }
                 });
             }));
         });
@@ -197,7 +202,10 @@ impl Updates {
             post(Box::new(move |updates| {
                 updates.phase = match result {
                     Ok(()) => Phase::Ready(version),
-                    Err(error) => Phase::Failed { version, error },
+                    Err(error) => {
+                        log::warn!("the update was not downloaded: {error}");
+                        Phase::Failed { version }
+                    }
                 }
             }));
         });
@@ -261,8 +269,8 @@ impl Updates {
                         List::NotAsked | List::Loading => {
                             ui.label(egui::RichText::new(texts.get("loading_versions")).size(13.0).color(dim));
                         }
-                        List::Failed(error) => {
-                            let text = format!("{}: {error}", texts.get("versions_failed"));
+                        List::Failed => {
+                            let text = texts.get("versions_failed");
                             ui.label(egui::RichText::new(text).size(13.0).color(dim));
                         }
                         List::Loaded(releases) => {
@@ -381,8 +389,8 @@ impl Updates {
                 } else if widgets::pill(ui, &texts.get("download_page"), true, 0.0) {
                     page = Some(update::release_page(version));
                 }
-                if let Phase::Failed { version: failed, error } = phase {
-                    let text = format!("Fractique {failed} {}: {error}", texts.get("download_failed"));
+                if let Phase::Failed { version: failed } = phase {
+                    let text = format!("Fractique {failed} {}", texts.get("download_failed"));
                     ui.add(egui::Label::new(egui::RichText::new(text).size(13.0).color(dim)).wrap());
                 }
             }
