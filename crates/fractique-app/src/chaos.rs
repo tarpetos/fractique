@@ -60,6 +60,9 @@ const PATIENT: u32 = 20_000;
 // A run whose walkers have plotted nothing after this many seconds of the card's work is given up.
 const IDLE: f32 = 2.5;
 const RECIPES: usize = 8;
+// The first strip of the levels is sized for this share of the slice by what the last drawing showed: the rows of
+// another view of the scene cost up to eight times more (51 ms where 6.7 were meant, a zoomed clifford at 3840 × 2160).
+const STRIP_FIRST: f64 = 0.125;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -453,6 +456,8 @@ struct Run {
     submitted: Instant,
     // The batch in flight draws levels only: its time sizes the next strip, not the next walk.
     resolving: bool,
+    // The levels being drawn are those of the finished picture, not of the first.
+    finishing: bool,
     rows: u32,
     took: Vec<(f32, u64)>,
     working: u64,
@@ -498,6 +503,9 @@ pub struct Chaos {
     // Samples a second, the most a batch has shown of layers of these kinds: the first batch of the next run
     // is sized by it.
     speeds: HashMap<String, f64>,
+    // Rows of the levels a second, the last a strip has shown for such a scene at this size, of the first picture
+    // and of the last: the next drawing begins with as many as fit the slice, not with the fewest.
+    strips: HashMap<(String, [u32; 2], bool), f64>,
     recipes: Vec<(String, Option<Arc<Recipe>>)>,
     run: Option<Run>,
     fields: Fields,
@@ -621,6 +629,7 @@ impl Chaos {
             #[cfg(test)]
             plain: None,
             speeds: HashMap::new(),
+            strips: HashMap::new(),
             recipes: Vec::new(),
             run: None,
         })
@@ -807,8 +816,14 @@ impl Chaos {
             .join(" ");
         let speed = self.speeds.get(&class).copied().unwrap_or(0.0);
         // A card nothing is known of begins with a batch small enough for any: it is measured, and the next fits.
+        // A known one begins with what its best speed fits in the slice, less the steps its walkers take unplotted.
+        let unplotted = if scene.layers.iter().any(|layer| layer.flame().is_some()) {
+            f64::from(FUSE) * f64::from(walkers)
+        } else {
+            0.0
+        };
         let first = if speed > 0.0 {
-            speed * f64::from(pace::slice()) / layers as f64
+            (speed * f64::from(pace::slice()) / layers as f64 - unplotted).max(f64::from(walkers))
         } else {
             f64::from(walkers)
         };
@@ -964,6 +979,7 @@ impl Chaos {
                 started: asked,
                 submitted: asked,
                 resolving: false,
+                finishing: false,
                 rows: 16,
                 took: Vec::new(),
                 working: 0,
@@ -1196,7 +1212,15 @@ impl Chaos {
                     .iter()
                     .any(|layer| matches!(layer.strip, Some((Some(row), ..)) if row > 0));
                 if run.resolving && (stripped || run.layers.iter().all(|layer| layer.strip.is_none())) {
-                    let rows = pace::next(f64::from(run.rows), took, pace::slice()).ceil() as u32;
+                    if stripped {
+                        let shown = f64::from(run.rows) / f64::from(took);
+                        self.strips.insert((run.class.clone(), run.size, run.finishing), shown);
+                    }
+                    // Rows where the picture is empty cost little and say little of the next: twice as many at most,
+                    // four times while a strip takes less than a sixteenth of the slice.
+                    let most = if took < pace::slice() / 16.0 { 4.0 } else { 2.0 };
+                    let rows = pace::next(f64::from(run.rows), took, pace::slice()).min(most * f64::from(run.rows));
+                    let rows = rows.ceil() as u32;
                     run.rows = rows.clamp(8, run.size[1].max(8));
                 }
                 if run.sent > 0 {
@@ -1295,6 +1319,8 @@ impl Chaos {
                 self.run = None;
                 return Step::Refused;
             }
+            // The steps were sized by the plain chaos game: a point of a deep view is not a step of it.
+            run.steps = (run.steps / 4).max(1);
         }
         // Before the submission: a graphics card that is the processor in disguise works inside it.
         run.submitted = Instant::now();
@@ -1498,8 +1524,17 @@ impl Chaos {
         run.working = working;
         run.resolving = resolving;
         if beginning {
-            // The rows of a picture with more samples cost more: each drawing of the levels begins with few.
-            run.rows = 16;
+            // The rows of a picture with more samples cost more: the first picture's and the last one's are
+            // remembered apart, and a drawing nothing is known of begins with few.
+            let goal = run.goal;
+            run.finishing = run
+                .layers
+                .iter()
+                .any(|layer| layer.strip.is_some_and(|(_, _, done)| done >= goal));
+            let known = self.strips.get(&(run.class.clone(), run.size, run.finishing));
+            run.rows = known.map_or(16, |rows| {
+                ((rows * f64::from(pace::slice()) * STRIP_FIRST) as u32).clamp(16, run.size[1].max(16))
+            });
         }
         run.batches += 1;
         run.flight.lock().unwrap_or_else(|e| e.into_inner()).busy = true;

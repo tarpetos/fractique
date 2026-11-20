@@ -5543,9 +5543,7 @@ impl App {
         self.fades.clear();
         // The window comes first: while it is used, and for a moment after, a picture gets the smaller share
         // of the graphics card.
-        let used = ctx.input(|input| !input.events.is_empty() || input.pointer.any_down())
-            || ctx.egui_wants_keyboard_input()
-            || self.stage.moving();
+        let used = ctx.input(|input| pace::used(input.pointer.any_down(), &input.events)) || self.stage.moving();
         if used {
             self.used = Instant::now();
         }

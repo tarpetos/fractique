@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use eframe::egui;
+
 // The window draws a frame in this time and no sooner (`lib.rs` holds it to that), whatever the screen's own pace.
 pub const FRAME: f32 = 1.0 / 60.0;
 // The share of a frame the graphics card may spend on a picture: the rest is the window's and the system's.
@@ -8,10 +10,10 @@ pub const FRAME: f32 = 1.0 / 60.0;
 // smaller share.
 pub const SHARE: f32 = 0.5;
 pub const SHARE_ATTENDED: f32 = 0.25;
-// A batch that ran short of its slice is followed by one at most this many times larger; one that overran is
-// followed by one cut to the slice at once.
-pub const GROWTH: f64 = 1.5;
-const FAR: f64 = 8.0;
+// A batch that overran its slice is followed by one cut to the slice at once; one that ran short by one that
+// aims at this share of the slice, and is at most so many times larger.
+pub const AIM: f64 = 0.8;
+const MOST: f64 = 8.0;
 
 const _: () = assert!(SHARE < 0.6 && SHARE_ATTENDED <= SHARE * 0.5);
 
@@ -40,13 +42,26 @@ pub fn counted(seconds: f32) -> Option<f32> {
 // The size of the next batch, from the size of the last and the seconds it took.
 pub fn next(sent: f64, took: f32, slice: f32) -> f64 {
     let fits = f64::from(slice) / f64::from(took.max(1e-5));
-    // A batch far under its slice, as the first of a card nothing is known of, is followed by one half-way there.
-    let grown = if fits > 2.0 * FAR {
-        (fits / 2.0).min(FAR)
+    if fits < 1.0 {
+        sent * fits
     } else {
-        GROWTH
+        sent * (AIM * fits).clamp(1.0, MOST)
+    }
+}
+
+// Whether what the window was told in a frame is the window being used: a button or a finger held, the wheel, a
+// pinch, a key, a text. The pointer moving over the window, or leaving it, is not.
+pub fn used(held: bool, events: &[egui::Event]) -> bool {
+    let idle = |event: &egui::Event| {
+        matches!(
+            event,
+            egui::Event::PointerMoved(_)
+                | egui::Event::MouseMoved(_)
+                | egui::Event::PointerGone
+                | egui::Event::WindowFocused(_)
+        )
     };
-    sent * fits.min(grown)
+    held || events.iter().any(|event| !idle(event))
 }
 
 // A view that moves is drawn anew for every frame, small, and shown at the picture's size until the view rests:
@@ -60,8 +75,8 @@ pub const DRAFT_LEAST: u32 = 180;
 pub const DRAFT_MARGIN: f64 = 1.25;
 // One sample a pixel, and none drawn again.
 pub const DRAFT_SAMPLES: u32 = 1;
-// A draft is made finer when so many in a row would have fit in this share of the slice at the finer size.
-const DRAFT_CALM: u32 = 30;
+// A draft is made finer when so many more than not would have fit in this share of the slice at the finer size.
+const DRAFT_CALM: u32 = 8;
 const DRAFT_ROOM: f32 = 0.7;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -96,7 +111,8 @@ impl Draft {
     }
 
     // Takes in the seconds the card worked on a draft: one that overran the slice is followed by one small enough
-    // to fit, at once; one that would fit a step finer with room to spare, DRAFT_CALM times in a row, by a finer one.
+    // to fit, at once; one that would fit a step finer with room to spare, DRAFT_CALM times more often than not, by a
+    // finer one.
     pub fn took(&mut self, seconds: f32, slice: f32, shorter: u32) {
         let last = Self::coarsest(shorter);
         let at = self.step.min(last);
@@ -114,7 +130,7 @@ impl Draft {
                 (self.step, self.calm) = (at - 1, 0);
             }
         } else {
-            self.calm = 0;
+            self.calm = self.calm.saturating_sub(1);
         }
     }
 }
@@ -264,11 +280,21 @@ mod tests {
         assert!((slice - 0.5 / 60.0).abs() < 1e-6);
         // Four times too long: a quarter as large, at once.
         assert!((next(1000.0, 4.0 * slice, slice) - 250.0).abs() < 1e-3);
-        // Ten times too short: half as large again, not ten times.
-        assert!((next(1000.0, 0.1 * slice, slice) - 1500.0).abs() < 1e-3);
-        // A hundred times too short, as the first batch of an unknown card: eight times, still far inside.
-        assert!((next(1000.0, 0.01 * slice, slice) - 8000.0).abs() < 1e-3);
+        // Half the slice: 0.8 of the slice at once.
+        assert!((next(1000.0, 0.5 * slice, slice) - 1600.0).abs() < 1e-2);
+        // Ten times too short: eight times, which is 0.8 of the slice.
+        assert!((next(1000.0, 0.1 * slice, slice) - 8000.0).abs() < 1e-2);
+        // A hundred times too short, as the first batch of an unknown card: eight times and no more.
+        assert!((next(1000.0, 0.01 * slice, slice) - 8000.0).abs() < 1e-2);
+        // Between 0.8 of the slice and the slice a batch stays as it is.
         assert!((next(1000.0, slice, slice) - 1000.0).abs() < 1e-3);
+        assert!((next(1000.0, 0.9 * slice, slice) - 1000.0).abs() < 1e-3);
+        // From the smallest batch a card a hundred thousand times faster is past 400 times it in three frames.
+        let mut small = 1.0;
+        for _ in 0..3 {
+            small = next(small, (small * 1e-5 * f64::from(slice)) as f32, slice);
+        }
+        assert!(small > 400.0);
         // From any size a card ten times too slow is within its slice after one batch, and stays there.
         let mut sent = 1.0e6;
         let seconds = |sent: f64| (sent * 1e-7) as f32;
@@ -277,7 +303,38 @@ mod tests {
             assert!(seconds(sent) <= slice * 1.001);
             sent = next(sent, seconds(sent), slice);
         }
-        assert!((seconds(sent) - slice).abs() < slice * 0.01);
+        assert!(seconds(sent) > slice * 0.79);
+    }
+
+    #[test]
+    fn a_pointer_that_only_moves_does_not_use_the_window() {
+        let at = egui::pos2(10.0, 10.0);
+        let moved = [
+            egui::Event::PointerMoved(at),
+            egui::Event::MouseMoved(egui::vec2(1.0, 0.0)),
+            egui::Event::PointerGone,
+            egui::Event::WindowFocused(true),
+        ];
+        assert!(!used(false, &moved));
+        assert!(!used(false, &[]));
+        // A button held while it moves is a drag.
+        assert!(used(true, &moved));
+        let wheel = egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: egui::vec2(0.0, 1.0),
+            source: egui::MouseWheelSource::Unknown,
+            phase: egui::TouchPhase::Move,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let press = egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        };
+        for event in [wheel, press, egui::Event::Zoom(1.1), egui::Event::Text("a".to_owned())] {
+            assert!(used(false, &[egui::Event::PointerMoved(at), event]));
+        }
     }
 
     #[test]
@@ -304,21 +361,23 @@ mod tests {
             draft.took(0.9 * slice, slice, 2160);
         }
         assert_eq!(draft.side(2160), 8);
-        // With room for the finer size it is made finer one step, after thirty drafts and not before.
-        for _ in 0..29 {
+        // With room for the finer size it is made finer one step, after eight drafts and not before.
+        for _ in 0..7 {
             draft.took(0.3 * slice, slice, 2160);
         }
         assert_eq!(draft.side(2160), 8);
         draft.took(0.3 * slice, slice, 2160);
         assert_eq!(draft.side(2160), 6);
-        // A draft that does not fit in between starts the count again.
-        for _ in 0..20 {
+        // A draft without that room in between takes one from the count and does not start it again.
+        for _ in 0..7 {
             draft.took(0.1 * slice, slice, 2160);
         }
         draft.took(0.95 * slice, slice, 2160);
-        for _ in 0..29 {
-            draft.took(0.1 * slice, slice, 2160);
-        }
+        draft.took(0.1 * slice, slice, 2160);
+        assert_eq!(draft.side(2160), 6);
+        draft.took(0.1 * slice, slice, 2160);
+        assert_eq!(draft.side(2160), 4);
+        draft.took(1.5 * slice, slice, 2160);
         assert_eq!(draft.side(2160), 6);
         // However slow the card, a draft is not made smaller than the floor, nor finer than half a side.
         draft.took(1000.0 * slice, slice, 2160);

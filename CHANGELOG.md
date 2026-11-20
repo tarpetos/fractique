@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+* **The graphics card's slice of a frame is filled, and a pointer that only moves is not use:** a live run showed
+  where a picture's time went: one batch is sent a frame, and about half of the frames carried almost none. A
+  batch that ran short was followed by one only 1.5 times larger, the strips of the density estimation began
+  with 16 rows at every drawing, and the first batch of a known card was sized without the 24 unplotted steps
+  of its walkers and took 34 ms. Now a batch that ran short is followed by one that aims at 0.8 of the slice,
+  up to 8 times larger; the strips begin with what the last drawing of such a scene showed; and the first batch
+  leaves room for its unplotted steps. The window counted as used, with the smaller slice of 4.2 ms, at any
+  event of the mouse, so in nearly every frame; now a held button or finger, the wheel, a pinch, a key and a
+  pane in motion count, and a pointer that only moves leaves the picture its 8.3 ms. A draft of a moved view
+  that was made smaller after one slow frame comes back to its size after eight that fit, not thirty in a row.
+  Off screen on an RTX 4070 the first picture of a flame at 3840 × 2160 comes after 0.25, 0.10 and 0.20 s
+  instead of 0.36, 0.15 and 0.25 s and the finished one after 0.68, 0.34 and 0.81 s instead of 0.69, 0.41 and
+  0.90 s; no batch takes longer than before (10 ms), and a frame of the window is 17.0 ms as it was. A scene
+  with an attractor is as it was (1.3 to 1.5 s): its batches are held to 4 194 304 steps.
+
 * **A fractal drawn pixel by pixel follows the hand:** a Burning Ship, a Mandelbrot or any other kind the
   graphics card draws pixel by pixel was drawn anew for a moved view only when the view stood still: while it was
   dragged or wheeled the screen showed the picture it had, moved, with an empty or blurred slab where the picture
