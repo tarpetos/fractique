@@ -109,6 +109,8 @@ const SIZES: &[(&str, [u32; 2], Family)] = &[
     ("QHD", [2560, 1440], Family::Screen),
     ("Ultrawide", [3440, 1440], Family::Screen),
     ("4K", [3840, 2160], Family::Screen),
+    ("8K", [7680, 4320], Family::Screen),
+    ("16K", [15360, 8640], Family::Screen),
     ("Android HD+", [720, 1600], Family::Android),
     ("Android HD+ 19.5:9", [720, 1560], Family::Android),
     ("Android Full HD", [1080, 1920], Family::Android),
@@ -273,7 +275,8 @@ fn size_list(
             }
         }
     });
-    if custom[0].is_empty() {
+    // Only while nothing is being typed: a field emptied on the way to another number must stay empty.
+    if custom.iter().all(String::is_empty) && ui.memory(|memory| memory.focused().is_none()) {
         let [width, height] = chosen.unwrap_or(base);
         *custom = [width.to_string(), height.to_string()];
     }
