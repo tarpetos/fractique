@@ -642,6 +642,70 @@ const INSTANT: f32 = 0.5 * pace::FRAME;
 const PAN_MARGIN: f64 = 0.1;
 // A picture that is only magnified is shown at most this many times larger.
 const IMAGE_CEILING: f64 = 8.0;
+// A flame is magnified as far as some view of it still holds this share of its light: a deep view is drawn from
+// particles that descend from the few inside it, and below about a hundred lines of descent two renders of one
+// view are two pictures (docs/performance.md, "Where a view stops being a picture").
+const ENOUGH: f64 = 1.0 / 512.0;
+const FLAME_DEEPEST: (f64, f64) = (10.0, 300.0);
+const DEPTH_STEPS: i32 = 20;
+const DEPTH_SIZE: [u32; 2] = [480, 270];
+const DEPTH_SAMPLES: u32 = 8;
+
+// Where the grain of an attractor's samples takes over, measured at 3840 × 2160 in its brightest place.
+fn orbit_deepest(kind: &str) -> Option<f64> {
+    match kind {
+        "buddhabrot" => Some(10.0),
+        "clifford" | "de_jong" | "hopalong" => Some(30.0),
+        "gumowski_mira" => Some(50.0),
+        "lorenz" => Some(100.0),
+        _ => None,
+    }
+}
+
+// The deepest zoom at which some view of the whole picture still holds `ENOUGH` of a layer's light, from the
+// levels of a small density of it. tone.rs: a level is ln(1 + light) / 8.
+fn flame_deepest(levels: &[f32], [width, height]: [usize; 2]) -> f64 {
+    let light = |cell: &[f32]| fractique_core::math::exp(f64::from(cell[3]) * 8.0) - 1.0;
+    let across = width + 1;
+    let mut sums = vec![0.0; across * (height + 1)];
+    for (at, cell) in levels.chunks_exact(4).take(width * height).enumerate() {
+        let (x, y) = (at % width, at / width);
+        sums[(y + 1) * across + x + 1] =
+            light(cell) + sums[y * across + x + 1] + sums[(y + 1) * across + x] - sums[y * across + x];
+    }
+    let all = sums[across * (height + 1) - 1];
+    if all <= 0.0 {
+        return FLAME_DEEPEST.0;
+    }
+    let held = |zoom: f64| {
+        let (wide, high) = (width as f64 / zoom, height as f64 / zoom);
+        let (cells_wide, cells_high) = (
+            (wide.ceil() as usize).clamp(1, width),
+            (high.ceil() as usize).clamp(1, height),
+        );
+        let mut most = 0.0f64;
+        for y in 0..=height - cells_high {
+            for x in 0..=width - cells_wide {
+                let (right, below) = (x + cells_wide, y + cells_high);
+                let inside = sums[below * across + right] - sums[y * across + right] - sums[below * across + x]
+                    + sums[y * across + x];
+                most = most.max(inside);
+            }
+        }
+        most / all * (wide * high) / (cells_wide * cells_high) as f64
+    };
+    let (least, most) = FLAME_DEEPEST;
+    let at = |step: i32| least * fractique_core::math::pow(most / least, f64::from(step) / f64::from(DEPTH_STEPS));
+    let deepest = (1..=DEPTH_STEPS).take_while(|step| held(at(*step)) >= ENOUGH).last();
+    deepest.map_or(least, at)
+}
+
+// How deep the flames of the picture on the screen go: worked out once a picture, beside the window's thread.
+struct Depth {
+    key: String,
+    ceiling: f64,
+    asked: Option<mpsc::Receiver<(String, f64)>>,
+}
 // A new picture is drawn once the view has stood still this long.
 const SETTLE: f32 = 0.18;
 
@@ -919,6 +983,7 @@ struct App {
     draft_view: View,
     draft_landed: bool,
     draft_shown: Option<(View, f64)>,
+    depth: Depth,
     draft_note: ([u32; 2], f32),
     scale_note: (f64, f64, f32),
     // The card gave a draft of this scene up: its views wait for the picture as they did.
@@ -1543,6 +1608,11 @@ impl App {
             draft_view: WHOLE,
             draft_landed: false,
             draft_shown: None,
+            depth: Depth {
+                key: String::new(),
+                ceiling: FLAME_DEEPEST.1,
+                asked: None,
+            },
             draft_note: ([0; 2], 0.0),
             scale_note: (0.0, 0.0, 0.0),
             draft_off: false,
@@ -3903,14 +3973,66 @@ impl App {
         if self.covering() { 1.0 } else { FLOOR / self.adjust.zoom }
     }
 
-    // How far in: to where the numbers of the kind run out, and no further into a picture that is only shown
-    // larger than where one of its pixels covers eight of the screen's.
+    // How far in: to where the numbers of the kind run out, a flame and an attractor to where a view of them
+    // stops being a picture, and no further into a picture that is only shown larger than where one of its
+    // pixels covers eight of the screen's.
     fn most(&self) -> f64 {
         if self.covering() {
-            IMAGE_CEILING
-        } else {
-            self.deepest() / self.adjust.zoom
+            return IMAGE_CEILING;
         }
+        let of_layer = |layer: &Layer| match layer.fractal() {
+            Some(shown) => orbit_deepest(&shown.kind),
+            None => Some(self.depth.ceiling),
+        };
+        let pictured = self
+            .base
+            .layers
+            .iter()
+            .filter_map(of_layer)
+            .fold(f64::INFINITY, f64::min);
+        self.deepest().min(pictured) / self.adjust.zoom
+    }
+
+    // Asks for the depth of the flames of a new picture, and takes the answer when it is there.
+    fn fathom(&mut self, ctx: &egui::Context) {
+        if self.covering() || !self.base.layers.iter().any(|layer| layer.flame().is_some()) {
+            return;
+        }
+        let key: String = (0..self.base.layers.len())
+            .map(|index| source_key(&self.base, index, ""))
+            .collect();
+        if let Some((of, ceiling)) = self.depth.asked.as_ref().and_then(|asked| asked.try_recv().ok()) {
+            self.depth.asked = None;
+            if of == key {
+                self.depth.ceiling = ceiling;
+            }
+        }
+        if key == self.depth.key {
+            return;
+        }
+        self.depth.key = key.clone();
+        let (sender, receiver) = mpsc::channel();
+        self.depth.asked = Some(receiver);
+        let (scene, ctx) = (self.base.clone(), ctx.clone());
+        let work = move || {
+            let options = RenderOptions {
+                width: DEPTH_SIZE[0],
+                height: DEPTH_SIZE[1],
+                samples_per_pixel: DEPTH_SAMPLES,
+                supersample: 1,
+            };
+            let flames = (0..scene.layers.len()).filter(|index| scene.layers[*index].flame().is_some());
+            let deepest = flames
+                .filter_map(|index| render_density(&scene, index, &options, &Control::default()).ok())
+                .map(|density| flame_deepest(&density.levels(), DEPTH_SIZE.map(|side| side as usize)))
+                .fold(FLAME_DEEPEST.0, f64::max);
+            let _ = sender.send((key, deepest));
+            ctx.request_repaint();
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        std::thread::spawn(move || render_pool().install(work));
+        #[cfg(target_arch = "wasm32")]
+        work();
     }
 
     // The scale of the view as it is shown and set everywhere: the wheel's and the controls' in one number. A
@@ -5681,6 +5803,15 @@ impl App {
             self.shown_frames = 0;
             return;
         }
+        if let Some(place) = step.strip_prefix("view:")
+            && let Some(view) = View::asked(place)
+        {
+            self.view = view;
+            self.touched = Instant::now();
+            self.asked = Instant::now();
+            self.shown_frames = 0;
+            return;
+        }
         if step.starts_with("wheel:")
             && let [by, frames] = numbers[..]
         {
@@ -5935,6 +6066,7 @@ impl App {
         }
 
         let screen = ctx.viewport_rect();
+        self.fathom(&ctx);
         self.explore(ui, screen);
         // The interface goes and comes back as one: every pane is shown by its share of it.
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -6941,6 +7073,41 @@ mod tests {
         let mut view = inside;
         view.limited(size, FLOOR, false);
         assert_eq!(view, inside);
+    }
+
+    #[test]
+    fn a_flame_goes_as_deep_as_a_view_holds_enough_of_it() {
+        let [width, height] = DEPTH_SIZE.map(|side| side as usize);
+        let level = |light: f64| (fractique_core::math::ln(1.0 + light) / 8.0) as f32;
+        let grid = |light: &dyn Fn(usize, usize) -> f64| -> Vec<f32> {
+            (0..width * height)
+                .flat_map(|at| [0.0, 0.0, 0.0, level(light(at % width, at / width))])
+                .collect()
+        };
+        let step = |step: i32| FLAME_DEEPEST.0 * fractique_core::math::pow(30.0, f64::from(step) / 20.0);
+        // Light spread evenly: a view magnified z times holds 1 / z² of it, enough up to 22.6 times.
+        let even = flame_deepest(&grid(&|_, _| 1.0), [width, height]);
+        assert!((even - step(4)).abs() < 1e-9 && even < 22.63 && step(5) > 22.63);
+        // All of it in one spot: every view of that spot holds enough.
+        let spot = flame_deepest(
+            &grid(&|x, y| if (x, y) == (200, 100) { 1e6 } else { 0.0 }),
+            [width, height],
+        );
+        assert_eq!(spot, FLAME_DEEPEST.1);
+        // A knot that holds a hundredth of the light in a 60th of the picture's side, on an even ground.
+        let knot = |x: usize, y: usize| {
+            if (200..208).contains(&x) && (100..104).contains(&y) {
+                41.0
+            } else {
+                1.0
+            }
+        };
+        let knotted = flame_deepest(&grid(&knot), [width, height]);
+        assert!(knotted > even && knotted < FLAME_DEEPEST.1, "{knotted}");
+        assert_eq!(flame_deepest(&grid(&|_, _| 0.0), [width, height]), FLAME_DEEPEST.0);
+        assert_eq!(orbit_deepest("buddhabrot"), Some(10.0));
+        assert_eq!(orbit_deepest("lorenz"), Some(100.0));
+        assert_eq!(orbit_deepest("mandelbrot"), None);
     }
 
     #[test]

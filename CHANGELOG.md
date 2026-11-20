@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+* **A flame and an attractor are magnified only as far as they are a picture:** a flame at 1373× was clouds of
+  separate dots, and the wheel went on to 10 000 000 000×. Measured in the app at 3840 × 2160 on an RTX 4070, each
+  view drawn twice with another seed: a deep view of a flame is the same picture twice while it holds about
+  1/500 of the flame's light; with less it is smooth threads that are other threads the next time, and with far
+  less, dots. A flame now goes as deep as its densest view holds 1/512 of its light, between 10× and 300×, worked
+  out once a picture beside the window's thread; an attractor to 10× (Buddhabrot), 30× (Clifford, De Jong,
+  Hopalong), 50× (Gumowski-Mira) or 100× (Lorenz), where its grain takes over. The Scale slider ends there, and
+  a saved or a recent view beyond it opens at the ceiling. Fractals drawn pixel by pixel, the solids, Kleinian
+  groups, L-systems and wallpapers keep their limits. Known and not changed here: in a median place of a flame the
+  picture is already of the second kind from about 15×, and a heavy flame (Emerald Star) takes the card 13 s at
+  100×, over the 10 seconds a view may take ([performance.md](docs/performance.md#where-a-view-stops-being-a-picture)).
+
 * **A dragged edge is followed twice as often:** measured on the screen (a capture at 60 frames a second of a
   real drag of the window's right edge, 900 pixels a second and 2700). Every size of the window was painted
   twice, the second time for a redraw of the same size, and with the app's pacing of a frame the window's edge
