@@ -27,8 +27,10 @@ build goes to TestFlight and is not among the files.
 
 ## How to release
 
-1. Set the new version in two places: `version` under `[workspace.package]` in `Cargo.toml` and `version` in
-   `crates/fractique-app/Packager.toml`. The build scripts refuse to build when they differ.
+1. Set the new version in three places: `version` under `[workspace.package]` in `Cargo.toml`, `version` in
+   `crates/fractique-app/Packager.toml` and `MARKETING_VERSION` in `ios/project.yml`. The build scripts refuse to
+   build when they differ, and so does the `Release` workflow, before anything is built. Every program takes the
+   one in `Cargo.toml`.
 2. Add a section `## <version>` at the top of `CHANGELOG.md`. It becomes the release's notes and what the app
    shows under "Updates and what's new".
 3. Commit, then tag and push the tag:

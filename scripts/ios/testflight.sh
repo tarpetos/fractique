@@ -6,6 +6,13 @@
 set -eu
 cd "$(dirname "$0")/../../ios"
 
+version="$(sed -n 's/^version *= *"\(.*\)"/\1/p' ../Cargo.toml | head -n1)"
+ios="$(sed -n 's/^ *MARKETING_VERSION: *"\(.*\)"/\1/p' project.yml | head -n1)"
+if [ "$version" != "$ios" ]; then
+    echo "[ios] Cargo.toml says $version, ios/project.yml says $ios: make them equal." >&2
+    exit 1
+fi
+
 team="${FRACTIQUE_TEAM_ID:-73L32W9C88}"
 # In UTC, so that a build from GitHub and one from a Mac in another time zone keep counting upwards.
 build="$(date -u +%y%m%d%H%M)"
