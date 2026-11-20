@@ -32,8 +32,8 @@ Fractique crea tre tipi di immagini. Fiamme frattali: frattali luminosi ed etere
 - **Aggiornamenti:** una finestra elenca ogni versione pubblicata con le sue note e installa una qualsiasi di esse. Su Windows l’app è un unico `.exe` portatile che sostituisce sé stesso.
 - **Ripetibilità esatta:** la stessa scena dà gli stessi pixel su ogni macchina, come verificano i test su Linux, Windows e macOS ([docs/determinism.md](../determinism.md)).
 - **Lo strumento da riga di comando** (`fractique`): renderizza fiamme, frattali e sfondi in PNG, crea scene casuali e varianti, converte i file `.flame` e `.frcq`.
-- **Server MCP** (`fractique mcp`): un agente IA crea, modifica e renderizza scene ([docs/mcp.md](../mcp.md)).
-- **Server HTTP** (`fractique-server`): un’API HTTP con coda di rendering e limiti, il suo riferimento interattivo su `/docs`, MCP per agenti IA su `/mcp`, serve l’app web, distribuito come immagine Docker ([docs/server.md](../server.md)).
+- **Server MCP** (`fractique-mcp`, oppure `fractique mcp`): un agente IA crea, modifica e renderizza scene ([docs/mcp.md](../mcp.md)).
+- **Server HTTP** (`fractique-server`): un’API HTTP con coda di rendering e limiti, il suo riferimento interattivo su `/docs`, MCP per agenti IA su `/mcp`, serve l’app web, un download a sé in ogni versione e un `Dockerfile` per costruire un’immagine ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |

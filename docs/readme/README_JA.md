@@ -32,8 +32,8 @@ Fractique は 3 種類の画像を作ります。ひとつはフラクタルの�
 - **アップデート：** リリースされた各バージョンとそのノートをウィンドウに一覧表示し、どのバージョンでもインストールできます。Windows 版は、自分自身を置き換えるポータブルな `.exe` 1 つです。
 - **完全な再現性：** 同じシーンはどのマシンでも同じピクセルになります。Linux、Windows、macOS のテストで確認しています（[docs/determinism.md](../determinism.md)）。
 - **コマンドラインツール**（`fractique`）：炎、フラクタル、壁紙を PNG にレンダリングし、ランダムなシーンや変種を作り、`.flame` と `.frcq` のファイルを変換します。
-- **MCP サーバー**（`fractique mcp`）：AI エージェントがシーンを作成、変更、レンダリング（[docs/mcp.md](../mcp.md)）。
-- **HTTP サーバー**（`fractique-server`）：レンダリングのキューと上限を備えた HTTP API。`/docs` に対話型のリファレンス。`/mcp` で AI エージェント向けの MCP も提供。Web アプリも配信し、Docker イメージとして提供（[docs/server.md](../server.md)）。
+- **MCP サーバー**（`fractique-mcp`、または `fractique mcp`）：AI エージェントがシーンを作成、変更、レンダリング（[docs/mcp.md](../mcp.md)）。
+- **HTTP サーバー**（`fractique-server`）：レンダリングのキューと上限を備えた HTTP API。`/docs` に対話型のリファレンス。`/mcp` で AI エージェント向けの MCP も提供。Web アプリも配信し、各リリースに単体のダウンロードがあり、イメージを作るための `Dockerfile` も付属（[docs/server.md](../server.md)）。
 
 | | |
 | --- | --- |

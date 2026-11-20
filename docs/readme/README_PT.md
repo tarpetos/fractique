@@ -32,8 +32,8 @@ O Fractique cria três tipos de imagem. Chamas fractais: fractais luminosos e et
 - **Atualizações:** uma janela lista cada versão lançada com suas notas e instala qualquer uma delas. No Windows o aplicativo é um único `.exe` portátil que substitui a si mesmo.
 - **Repetibilidade exata:** a mesma cena gera os mesmos pixels em qualquer máquina, o que é verificado por testes no Linux, Windows e macOS ([docs/determinism.md](../determinism.md)).
 - **A ferramenta de linha de comando** (`fractique`): renderiza chamas, fractais e papéis de parede em PNG, cria cenas aleatórias e variantes, converte arquivos `.flame` e `.frcq`.
-- **Servidor MCP** (`fractique mcp`): um agente de IA cria, altera e renderiza cenas ([docs/mcp.md](../mcp.md)).
-- **Servidor HTTP** (`fractique-server`): uma API HTTP com fila de renderização e limites, a referência interativa dela em `/docs`, MCP para agentes de IA em `/mcp`, serve o aplicativo web, distribuído como imagem Docker ([docs/server.md](../server.md)).
+- **Servidor MCP** (`fractique-mcp`, ou `fractique mcp`): um agente de IA cria, altera e renderiza cenas ([docs/mcp.md](../mcp.md)).
+- **Servidor HTTP** (`fractique-server`): uma API HTTP com fila de renderização e limites, a referência interativa dela em `/docs`, MCP para agentes de IA em `/mcp`, serve o aplicativo web, um download próprio em cada versão e um `Dockerfile` para criar uma imagem ([docs/server.md](../server.md)).
 
 | | |
 | --- | --- |
