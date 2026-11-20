@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use eframe::egui;
 
@@ -23,14 +23,67 @@ pub fn attend(used: bool) {
     ATTENDED.store(used, Ordering::Relaxed);
 }
 
-// The seconds one batch of a picture may keep the graphics card: one batch is sent a frame, and none before the
-// one before it has come back, so the card never has more than this ahead of the window's own frame.
+// What the card needs for the window's own frame, in microseconds: the most of late, which fades when nothing
+// comes near it again. Nothing until a frame has told.
+static NEED: AtomicU32 = AtomicU32::new(0);
+// The microseconds the card took for the window's last frame, from its submission to its end, until it is taken.
+pub static FRAME_ON_CARD: AtomicU32 = AtomicU32::new(0);
+// A test run's fixed share of a frame, in thousandths; nothing where the share goes by what the window needs.
+static FIXED: AtomicU32 = AtomicU32::new(0);
+// What stays free of a frame beside the window's own work and the picture's: a unit of the picture's work that
+// began at the last moment, the way back from it, and room for a frame that is dearer than the last.
+pub const MARGIN: f32 = 0.003;
+// The most of a frame a picture gets, however little the window needs, and the least, however much.
+pub const MOST_SHARE: f32 = 0.8;
+pub const LEAST: f32 = 0.002;
+
+// A frame that took the card longer than a frame, as the first run of a shader does, counts as a whole frame and
+// is forgotten within a few: what the window needs in a fade over a large picture, 7 to 9 ms, within half a second.
+pub fn needs(micros: u32) {
+    let before = NEED.load(Ordering::Relaxed);
+    let most = (FRAME * 1e6) as u32;
+    NEED.store(micros.min(most).max(before - before / 16), Ordering::Relaxed);
+}
+
+pub fn fix(share: f32) {
+    FIXED.store((share.clamp(0.05, 0.9) * 1000.0) as u32, Ordering::Relaxed);
+}
+
+// The seconds of a frame the card may work on a picture: the frame, less what the card needs for the window's own
+// frame, less the margin; half of that while the window is used. Half a frame where the window's need is not
+// known yet.
+pub fn allowance(need: Option<f32>, used: bool) -> f32 {
+    let idle = match need {
+        Some(need) => (FRAME - need - MARGIN).clamp(LEAST, MOST_SHARE * FRAME),
+        None => SHARE * FRAME,
+    };
+    if used { 0.5 * idle } else { idle }
+}
+
+// The seconds of this frame the units of a picture may be sent in: one follows the other until then.
 pub fn slice() -> f32 {
+    let used = ATTENDED.load(Ordering::Relaxed);
+    match (FIXED.load(Ordering::Relaxed), NEED.load(Ordering::Relaxed)) {
+        (0, 0) => allowance(None, used),
+        (0, need) => allowance(Some(need as f32 * 1e-6), used),
+        (share, _) => allowance(Some(FRAME * (1.0 - share as f32 * 1e-3) - MARGIN), used),
+    }
+}
+
+// The seconds one batch of a picture drawn pixel by pixel or of a wallpaper is sized for: their batches follow
+// one another without a slice of the frame.
+pub fn batch() -> f32 {
     slice_of(ATTENDED.load(Ordering::Relaxed))
 }
 
 pub fn slice_of(attended: bool) -> f32 {
     FRAME * if attended { SHARE_ATTENDED } else { SHARE }
+}
+
+// Whether a unit of the card's work may begin, so many seconds after the frame opened its slice. A unit that has
+// begun runs to its end: the frame is late by one unit at the very most, never by a slice.
+pub fn within(spent: f32, slice: f32) -> bool {
+    spent < slice
 }
 
 // The time shown while a picture is on its way: the seconds since it was asked for, a tenth at a step, and
@@ -307,6 +360,63 @@ mod tests {
     }
 
     #[test]
+    fn a_unit_never_begins_past_the_slice_and_a_frame_is_late_by_one_at_most() {
+        // Units of 0.4 to 2.1 ms, as a card gives them, sent one after the other in slices of every length.
+        let lengths = [0.0011f32, 0.0004, 0.0021, 0.0009, 0.0013, 0.0007];
+        for slice in [slice_of(true), slice_of(false), 0.0115, 0.0005] {
+            let (mut at, mut sent, mut next) = (0.0f32, 0, 0);
+            while within(at, slice) {
+                at += lengths[next % lengths.len()];
+                next += 1;
+                sent += 1;
+            }
+            // The last one began inside the slice and ended within one unit of its end.
+            assert!(sent >= 1 && at - slice <= 0.0021 + 1e-6, "{slice}: {at}");
+            // The slice was filled but for less than the shortest unit.
+            assert!(at >= slice);
+            assert!(!within(at, slice));
+        }
+        // Nothing begins in a slice that is over.
+        assert!(!within(0.0042, 0.0042));
+        assert!(within(0.0041, 0.0042));
+    }
+
+    #[test]
+    fn the_slice_is_what_the_window_leaves_and_half_of_it_while_the_window_is_used() {
+        // A window whose frame costs the card 1 ms leaves 12.7 ms of 16.7; one that costs 6 ms, 7.7.
+        assert!((allowance(Some(0.001), false) - (FRAME - 0.004)).abs() < 1e-6);
+        assert!((allowance(Some(0.006), false) - (FRAME - 0.009)).abs() < 1e-6);
+        // Never more than 0.8 of a frame, and never nothing.
+        assert!((allowance(Some(0.0), false) - 0.8 * FRAME).abs() < 1e-6);
+        assert_eq!(allowance(Some(0.016), false), LEAST);
+        // While the window is used the picture has half of that, at once: a unit that has not begun does not
+        // begin past the new slice.
+        let idle = allowance(Some(0.001), false);
+        assert!((allowance(Some(0.001), true) - 0.5 * idle).abs() < 1e-6);
+        assert!(within(0.008, idle) && !within(0.008, allowance(Some(0.001), true)));
+        // A device that has not told what its window needs: half a frame, a quarter while used.
+        assert_eq!(allowance(None, false), slice_of(false));
+        assert_eq!(allowance(None, true), slice_of(true));
+        // What the window needs is the most of late, and fades when nothing comes near it again.
+        NEED.store(0, Ordering::Relaxed);
+        needs(2000);
+        needs(500);
+        assert!(NEED.load(Ordering::Relaxed) > 1800);
+        // One frame that stalled is a frame at the most, and gone from the slice within ten.
+        needs(45_000);
+        assert_eq!(NEED.load(Ordering::Relaxed), 16_666);
+        for _ in 0..10 {
+            needs(500);
+        }
+        assert!(allowance(Some(NEED.load(Ordering::Relaxed) as f32 * 1e-6), false) > 0.004);
+        for _ in 0..400 {
+            needs(500);
+        }
+        assert_eq!(NEED.load(Ordering::Relaxed), 500);
+        NEED.store(0, Ordering::Relaxed);
+    }
+
+    #[test]
     fn a_pointer_that_only_moves_does_not_use_the_window() {
         let at = egui::pos2(10.0, 10.0);
         let moved = [
@@ -455,9 +565,9 @@ mod tests {
         assert!(slice_of(true) < slice_of(false));
         assert!((slice_of(true) - 0.25 / 60.0).abs() < 1e-6);
         attend(true);
-        assert_eq!(slice(), slice_of(true));
+        assert_eq!(batch(), slice_of(true));
         attend(false);
-        assert_eq!(slice(), slice_of(false));
+        assert_eq!(batch(), slice_of(false));
     }
 
     fn flame(work: f64) -> [Part<'static>; 1] {

@@ -581,9 +581,9 @@ impl Layer {
         let pixels = match self.last {
             Some((pixels, seconds)) => {
                 let before = pixels as f64;
-                pace::next(before, seconds as f32, pace::slice())
+                pace::next(before, seconds as f32, pace::batch())
             }
-            None if rate.pixels > 0.0 => rate.pixels * f64::from(pace::slice()),
+            None if rate.pixels > 0.0 => rate.pixels * f64::from(pace::batch()),
             None => most,
         };
         (pixels.min(most) as u64).max(LEAST)

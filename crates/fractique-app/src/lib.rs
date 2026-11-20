@@ -909,6 +909,8 @@ struct App {
     swift: bool,
     // The card draws the picture within a frame: a moved view needs no draft.
     at_once: bool,
+    // The card went silent over the picture on its way and was asked again.
+    stalled: bool,
     // The draft of a view that moves: how small it is drawn, the run that draws it, the view it is of, the view
     // it is drawn for with its margin, whether it has been shown, and the view of the draft on the screen.
     draft: pace::Draft,
@@ -1534,6 +1536,7 @@ impl App {
             chaotic: false,
             swift: false,
             at_once: false,
+            stalled: false,
             draft: pace::Draft::new(),
             draft_keys: None,
             draft_of: (WHOLE, 1.0),
@@ -2503,16 +2506,31 @@ impl App {
         let pending = chaos.pending();
         // The shaders are compiled, or refused: a render that began without them begins again.
         let flames = self.wall.live || on_card(&self.base);
-        if self.compiling && !pending && self.rendering && !self.chaotic && self.gpu_on() && flames {
+        // Whether the card showed the picture before this one says nothing of it: the draft of the processor
+        // that stands in can come after the shaders, and the render would wait for a run that was never begun.
+        if self.compiling && !pending && self.rendering && chaos.keys().is_none() && self.gpu_on() && flames {
             self.requested = None;
         }
         self.compiling = pending;
-        if self.trial.is_some() {
+        if chaos.warming() {
+            let size = self.requested.unwrap_or(self.aimed_size);
+            let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+            chaos.warm(ctx, [full.width, full.height]);
+        } else if self.trial.is_some() {
             self.trial_step(&mut chaos, ctx);
         } else if chaos.keys().is_some() && chaos.keys() == self.draft_keys.as_deref() {
             self.draft_step(&mut chaos, ctx, frame);
         } else if chaos.keys().is_some() {
             self.chaos_step(&mut chaos, ctx, frame);
+        }
+        // A picture on its way whose card has gone silent is begun again, once, and is the processor's the
+        // second time: the screen never waits for an answer that does not come.
+        if self.rendering && self.trial.is_none() && chaos.stalled() {
+            let again = !std::mem::replace(&mut self.stalled, true);
+            log::warn!("the graphics card is silent: the picture is begun again (on the card: {again})");
+            chaos.end();
+            self.given_up |= !again;
+            self.requested = None;
         }
         self.chaos = Some(chaos);
         let measured = self.measured.swap(u32::MAX, Ordering::Relaxed);
@@ -2692,12 +2710,20 @@ impl App {
                 let batches: Vec<String> = chaos
                     .batches()
                     .iter()
-                    .map(|(took, steps)| format!("{:.0}/{:.1}", took * 1000.0, *steps as f64 / 1e6))
+                    .map(|(took, steps)| format!("{:.1}/{:.1}", took * 1000.0, *steps as f64 / 1e6))
                     .collect();
                 eprintln!("times: all samples from the graphics card after {full:.3} s");
                 match chaos.slowest() {
                     Some((slowest, count)) => eprintln!("times: its {count} batches, the longest {slowest:.3} s"),
-                    None => eprintln!("times: its batches, ms/million steps: {}", batches.join(" ")),
+                    None => {
+                        let (count, _, longest, busy) = chaos.load();
+                        let past = chaos.overrun() * 1000.0;
+                        eprintln!(
+                            "times: its {count} units, the longest {longest:.1} ms, the card busy {busy:.0} ms, \
+                             the latest end {past:.1} ms past a slice"
+                        );
+                        eprintln!("times: its batches, ms/million steps: {}", batches.join(" "));
+                    }
                 }
             }
             self.quick = times;
@@ -2710,6 +2736,7 @@ impl App {
         }
         self.chaos_draw(chaos, step == Step::Drawn, whole, ctx, frame);
         if whole && self.chaotic {
+            self.stalled = false;
             self.rendering = false;
             self.shown_frames = self.shown_frames.max(1);
             if let Some(size) = self.requested {
@@ -5878,6 +5905,11 @@ impl App {
         self.trace.parts[0] = clock.elapsed().as_secs_f32() * 1000.0;
         #[cfg(not(target_arch = "wasm32"))]
         self.finish_export();
+        let own = pace::FRAME_ON_CARD.swap(0, Ordering::Relaxed);
+        if own > 0 {
+            pace::needs(own);
+            self.trace.export.push_str(&format!(" own {:.2}", own as f32 * 1e-3));
+        }
         #[cfg(feature = "store")]
         self.settle_store(&ctx);
         #[cfg(target_os = "android")]

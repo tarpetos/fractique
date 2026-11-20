@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+* **A picture that never came:** after a preset of a kind whose shader was not compiled yet, the picture could
+  stay blurred with its time counting for ever. The render that begins again once the shader is ready was held
+  back when the card had drawn the picture before; it began again only if the processor's stand-in arrived
+  first, which it does not on a loaded machine (2 of 24 runs with four windows and a build beside them). It
+  now asks whether a run of the card exists for the picture. And where the card is not heard of for 5 s while a
+  picture is on its way, the picture is begun again once and is the processor's the second time; a batch left
+  on its way by the picture before is waited for a second at most.
+
+* **The card works on a picture in small units until the frame's time is up:** a picture of the chaos game was
+  sent to the card one batch a frame, sized to fill the card's slice of the frame by what the last batch took.
+  The guess was wrong both ways: a batch ran 11 to 24 ms where 8.3 were allowed in half of the pictures of a
+  live run, and the card was busy a third of a picture's time where it was allowed half. Now the work is cut
+  into units of about 1.5 ms, the end of one sends the next, and none begins once the frame's slice is over: the
+  slice is filled whatever the scene costs, and a frame is late by one unit at the most, by construction. The
+  slice itself is no longer half a frame but what the window leaves: the device measures what the card needs
+  for the window's own frame as it runs (0.4 to 2 ms on an RTX 4070) and gives a picture the rest less 3 ms,
+  at most 0.8 of a frame, and half of that while the window is used. The shaders are run once at the start, on
+  two small pictures, and a flame's unplotted steps are split over two units. Off screen on an RTX 4070 at
+  3840 × 2160: a flame is finished after 0.15 to 0.36 s instead of 0.53 to 0.94 s, a deep zoom after 1.8 s
+  instead of 3.8 s, a Clifford or Lorenz attractor after 0.21 to 0.69 s instead of 1.4 to 1.5 s, and the first
+  picture comes after 0.02 to 0.09 s; the longest unit is 2 to 3 ms (5 for a stage of a deep view, which is one
+  piece) and the latest end of one is 1 to 1.5 ms past its slice. The kinds drawn pixel by pixel and the
+  wallpapers are sent as they were.
+
 * **Leaving full screen no longer shows the desktop, and a picture that is waited for is never one flat colour:**
   captured from the screen at 60 frames a second with a magenta window behind the app. Full screen from a
   maximized window was made by restoring the window first and maximizing it again on the way back, because a

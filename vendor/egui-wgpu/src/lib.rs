@@ -45,6 +45,11 @@ use epaint::mutex::RwLock;
 /// window's while it submits work.
 pub static SURFACE_GATE: std::sync::RwLock<()> = std::sync::RwLock::new(());
 
+/// Fractique: what is told of the submission of every frame of the window, so that a thread can wait for it and
+/// tell how long the graphics card took for the frame.
+pub static AFTER_FRAME: std::sync::OnceLock<Box<dyn Fn(wgpu::SubmissionIndex) + Send + Sync>> =
+    std::sync::OnceLock::new();
+
 /// An error produced by egui-wgpu.
 #[derive(thiserror::Error, Debug)]
 pub enum WgpuError {

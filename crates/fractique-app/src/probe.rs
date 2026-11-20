@@ -145,6 +145,13 @@ pub struct Probe {
 
 impl Probe {
     pub fn new() -> Self {
+        // FRACTIQUE_SHARE=0.5: the share of a frame a picture has, whatever the window needs.
+        if let Some(share) = std::env::var("FRACTIQUE_SHARE")
+            .ok()
+            .and_then(|share| share.parse().ok())
+        {
+            crate::pace::fix(share);
+        }
         let out = std::env::var_os("FRACTIQUE_TRACE")
             .and_then(|path| std::fs::File::create(path).ok())
             .map(std::io::BufWriter::new);

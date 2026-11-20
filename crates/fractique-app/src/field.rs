@@ -1009,9 +1009,9 @@ impl Layer {
         let samples = match self.last {
             Some((samples, seconds)) => {
                 let before = samples as f64;
-                pace::next(before, seconds as f32, pace::slice())
+                pace::next(before, seconds as f32, pace::batch())
             }
-            None if known > 0.0 => known * f64::from(pace::slice()),
+            None if known > 0.0 => known * f64::from(pace::batch()),
             None => most,
         };
         (samples.min(most) as u64).max(LEAST)
@@ -1143,7 +1143,7 @@ impl Layer {
                 rate.steps = rate.steps.max(samples as f64 * self.cost / seconds);
                 self.gauged += 1;
                 // A batch this long is the card's work more than the wait for it.
-                if seconds >= 0.5 * f64::from(pace::slice()) || rate.steps * DEAREST >= MOST_WORK || self.gauged >= 4 {
+                if seconds >= 0.5 * f64::from(pace::batch()) || rate.steps * DEAREST >= MOST_WORK || self.gauged >= 4 {
                     rate.gauged = true;
                     self.stage = Stage::First([0, 0]);
                 }
