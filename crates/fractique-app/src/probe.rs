@@ -115,6 +115,9 @@ pub struct Probe {
     out: Option<std::io::BufWriter<std::fs::File>>,
     folder: Option<PathBuf>,
     pub fixed_clock: bool,
+    // FRACTIQUE_EVERY=3: of the frames a step records only every third is saved, so saving them does not slow
+    // what is recorded.
+    every: u64,
     // FRACTIQUE_VEIL: another strength of the blur over the picture, to compare.
     pub veil: Option<f32>,
     // FRACTIQUE_SCALE: the pixels a point, whatever the screen the window stands beside says.
@@ -159,6 +162,10 @@ impl Probe {
             out,
             folder: std::env::var_os("FRACTIQUE_FRAMES").map(PathBuf::from),
             fixed_clock: std::env::var_os("FRACTIQUE_CLOCK").is_some(),
+            every: std::env::var("FRACTIQUE_EVERY")
+                .ok()
+                .and_then(|every| every.parse().ok())
+                .unwrap_or(1),
             veil: std::env::var("FRACTIQUE_VEIL")
                 .ok()
                 .and_then(|share| share.parse().ok()),
@@ -321,7 +328,11 @@ impl Probe {
             self.sweep = None;
             self.chained = false;
         }
-        let Some(folder) = &self.folder else {
+        let Some(folder) = self
+            .folder
+            .as_ref()
+            .filter(|_| self.frame.is_multiple_of(self.every.max(1)))
+        else {
             return;
         };
         self.saved += 1;
