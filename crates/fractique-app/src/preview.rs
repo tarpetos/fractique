@@ -80,11 +80,14 @@ pub struct Preview {
     toned: wgpu::RenderPipeline,
     shrink: wgpu::RenderPipeline,
     blur: wgpu::RenderPipeline,
+    inlay: wgpu::RenderPipeline,
     buffers: Vec<wgpu::Buffer>,
     nothing: wgpu::TextureView,
     canvas: Canvas,
     // The small picture of a view that moves: the screen shows it while the picture itself keeps its own.
     draft: Canvas,
+    // The view alone, drawn from its own levels into the middle of a picture that has a margin around it.
+    inset: Canvas,
 }
 
 #[derive(Default)]
@@ -133,6 +136,12 @@ pub(crate) fn guarded<T>(
     out
 }
 
+// The pixels over which the picture of the view alone fades into the same view drawn with a margin, at its edge:
+// a twenty-fifth of the view's shorter side.
+pub(crate) fn feather(inner: [u32; 2]) -> f32 {
+    (inner[0].min(inner[1]) as f32 * 0.04).max(1.0)
+}
+
 fn target(device: &wgpu::Device, size: [u32; 2]) -> Target {
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("fractique preview"),
@@ -154,6 +163,13 @@ fn target(device: &wgpu::Device, size: [u32; 2]) -> Target {
         size,
         view: texture.create_view(&wgpu::TextureViewDescriptor::default()),
     }
+}
+
+#[derive(Clone, Copy)]
+enum Kind {
+    Picture,
+    Draft,
+    Inset,
 }
 
 struct Pass<'a> {
@@ -316,6 +332,21 @@ impl Preview {
             toned: pipeline("fs_toned", None),
             shrink: pipeline("fs_shrink", None),
             blur: pipeline("fs_blur", None),
+            inlay: pipeline(
+                "fs_inset",
+                Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::SrcAlpha,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::Zero,
+                        dst_factor: wgpu::BlendFactor::One,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                }),
+            ),
             sampler: device.create_sampler(&wgpu::SamplerDescriptor {
                 label: Some("fractique preview"),
                 mag_filter: wgpu::FilterMode::Linear,
@@ -327,6 +358,7 @@ impl Preview {
             nothing: nothing.create_view(&wgpu::TextureViewDescriptor::default()),
             canvas: Canvas::default(),
             draft: Canvas::default(),
+            inset: Canvas::default(),
         }
     }
 
@@ -373,11 +405,13 @@ impl Preview {
         Some((&self.draft.picture.as_ref()?.view, &self.draft.soft.as_ref()?[0].view))
     }
 
-    // Copies the picture drawn last, or the blurred one under the panes, back from the graphics card. `then` gets
-    // its bytes on the thread that hears of the submission returned here: the caller has one listen for it.
+    // Copies the picture drawn last, or the blurred one under the panes, back from the graphics card, without the
+    // margin it was drawn with: so many of the picture's pixels on every side. `then` gets its bytes on the thread
+    // that hears of the submission returned here: the caller has one listen for it.
     pub fn read(
         &self,
         soft: bool,
+        margin: [u32; 2],
         ctx: &egui::Context,
         then: impl FnOnce(Option<(Vec<u8>, [u32; 2])>) + Send + 'static,
     ) -> Option<wgpu::SubmissionIndex> {
@@ -386,7 +420,12 @@ impl Preview {
         } else {
             self.canvas.picture.as_ref()?
         };
-        let size = target.size;
+        let whole = self.canvas.picture.as_ref()?.size;
+        let rim = [0, 1].map(|side| {
+            let cut = u64::from(margin[side]) * u64::from(target.size[side]) / u64::from(whole[side].max(1));
+            (cut as u32).min((target.size[side] - 1) / 2)
+        });
+        let size = [target.size[0] - 2 * rim[0], target.size[1] - 2 * rim[1]];
         let stride = (size[0] * 4).div_ceil(256) * 256;
         let index = guarded(&self.device, &self.failed, ctx, || {
             let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -402,7 +441,11 @@ impl Preview {
                 wgpu::TexelCopyTextureInfo {
                     texture: target.view.texture(),
                     mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
+                    origin: wgpu::Origin3d {
+                        x: rim[0],
+                        y: rim[1],
+                        z: 0,
+                    },
                     aspect: wgpu::TextureAspect::All,
                 },
                 wgpu::TexelCopyBufferInfo {
@@ -502,22 +545,94 @@ impl Preview {
             .iter()
             .map(|source| source.levels.get().filter(|_| source.density.size() == size))
             .collect();
-        levels.is_some_and(|levels| self.draw_levels(scene, size, &levels, ctx))
+        levels.is_some_and(|levels| self.draw_levels(scene, size, size, &levels, ctx))
     }
 
-    // The same from levels that are on the graphics card already, one texture of this size a layer.
+    // The same from levels that are on the graphics card already, one texture of this size a layer. The view in
+    // the middle of them is of the size `inner`: the glow and the blur under the panes go by it.
     pub fn draw_levels(
         &mut self,
         scene: &Scene,
         size: [u32; 2],
+        inner: [u32; 2],
         levels: &[&wgpu::TextureView],
+        ctx: &egui::Context,
+    ) -> bool {
+        self.draw_wide(scene, size, inner, levels, None, ctx)
+    }
+
+    // The same, with the view in the middle drawn from levels of its own: a picture drawn again with a margin
+    // keeps the view it had, pixel for pixel.
+    pub fn draw_wide(
+        &mut self,
+        scene: &Scene,
+        size: [u32; 2],
+        inner: [u32; 2],
+        levels: &[&wgpu::TextureView],
+        inset: Option<&[&wgpu::TextureView]>,
         ctx: &egui::Context,
     ) -> bool {
         let (device, failed) = (self.device.clone(), self.failed.clone());
         let drawn = guarded(&device, &failed, ctx, || {
-            self.passes(scene, size, levels, false).is_some()
+            self.passes(scene, size, inner, levels, Kind::Picture)?;
+            let Some(inset) = inset.filter(|_| inner != size) else {
+                return Some(());
+            };
+            self.passes(scene, inner, inner, inset, Kind::Inset)?;
+            let (from, to) = (self.inset.picture.as_ref()?, self.canvas.picture.as_ref()?);
+            let origin = [(size[0] - inner[0]) / 2, (size[1] - inner[1]) / 2];
+            let uniforms = Uniforms {
+                tone: [0.0; 4],
+                blend: [0.0; 4],
+                reach: [origin[0] as f32, origin[1] as f32, feather(inner), 0.0],
+            };
+            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("fractique preview uniforms"),
+                size: size_of::<Uniforms>() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.queue.write_buffer(&buffer, 0, bytemuck::bytes_of(&uniforms));
+            let entry = |binding, resource| wgpu::BindGroupEntry { binding, resource };
+            let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("fractique preview"),
+                layout: &self.layout,
+                entries: &[
+                    entry(0, buffer.as_entire_binding()),
+                    entry(1, wgpu::BindingResource::TextureView(&self.nothing)),
+                    entry(2, wgpu::BindingResource::TextureView(&from.view)),
+                    entry(3, wgpu::BindingResource::Sampler(&self.sampler)),
+                ],
+            });
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+            {
+                let mut drawing = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("fractique preview"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &to.view,
+                        depth_slice: None,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                drawing.set_pipeline(&self.inlay);
+                drawing.set_bind_group(0, &bind_group, &[]);
+                drawing.set_scissor_rect(origin[0], origin[1], inner[0], inner[1]);
+                drawing.draw(0..3, 0..1);
+            }
+            self.queue.submit([encoder.finish()]);
+            Some(())
         });
-        drawn && self.works()
+        drawn.is_some() && self.works()
     }
 
     // The same into the draft's own textures, which the picture drawn last is not in.
@@ -530,23 +645,34 @@ impl Preview {
     ) -> bool {
         let (device, failed) = (self.device.clone(), self.failed.clone());
         let drawn = guarded(&device, &failed, ctx, || {
-            self.passes(scene, size, levels, true).is_some()
+            self.passes(scene, size, size, levels, Kind::Draft).is_some()
         });
         drawn && self.works()
     }
 
-    fn passes(&mut self, scene: &Scene, size: [u32; 2], sources: &[&wgpu::TextureView], draft: bool) -> Option<()> {
+    fn passes(
+        &mut self,
+        scene: &Scene,
+        size: [u32; 2],
+        inner: [u32; 2],
+        sources: &[&wgpu::TextureView],
+        kind: Kind,
+    ) -> Option<()> {
         let wallpaper = crate::sheets::drawn(scene);
         if sources.len() != scene.layers.len() + usize::from(wallpaper) {
             return None;
         }
-        let canvas = if draft { &mut self.draft } else { &mut self.canvas };
+        let canvas = match kind {
+            Kind::Picture => &mut self.canvas,
+            Kind::Draft => &mut self.draft,
+            Kind::Inset => &mut self.inset,
+        };
         if canvas.picture.as_ref().is_none_or(|picture| picture.size != size) {
             canvas.picture = Some(target(&self.device, size));
             canvas.soft = None;
             canvas.glows.clear();
         }
-        let shorter = size[0].min(size[1]) as f32;
+        let shorter = inner[0].min(inner[1]) as f32;
 
         // The blurred picture under the panes, as `blur::soften` makes it: a quarter of the size, or less.
         let quarter = (shorter * 0.03 / 4.0).max(0.5);
@@ -561,7 +687,7 @@ impl Preview {
             .iter()
             .map(|layer| {
                 let tone = layer.tone();
-                let sigma = (tone.glow_radius * f64::from(size[0].min(size[1]))) as f32;
+                let sigma = (tone.glow_radius * f64::from(inner[0].min(inner[1]))) as f32;
                 (tone.glow_strength > 0.0 && sigma >= 0.5).then(|| {
                     let shrink = (sigma / (WIDEST_SIGMA * 0.5)).floor().max(1.0);
                     (shrink as u32, sigma / shrink)
@@ -577,7 +703,11 @@ impl Preview {
                 .or_insert_with(|| [target(device, small), target(device, small)]);
         }
 
-        let canvas = if draft { &self.draft } else { &self.canvas };
+        let canvas = match kind {
+            Kind::Picture => &self.canvas,
+            Kind::Draft => &self.draft,
+            Kind::Inset => &self.inset,
+        };
         let picture = canvas.picture.as_ref()?;
         let soft = canvas.soft.as_ref()?;
         let mut passes = Vec::new();

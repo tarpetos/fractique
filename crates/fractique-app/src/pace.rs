@@ -213,7 +213,39 @@ pub fn hand_over(flying: bool, shown: bool) -> Next {
 pub fn beside([across, along, larger]: [f32; 3]) -> f32 {
     let half = 0.5 / larger.max(1e-9);
     let covered = |at: f32| ((at + half).min(1.0) - (at - half).max(0.0)).max(0.0) / (2.0 * half);
-    1.0 - covered(across) * covered(along)
+    (1.0 - covered(across) * covered(along)).max(0.0)
+}
+
+// Where a view at [across, along] of a picture's own view, `larger` times larger than it, is in the picture when
+// that is drawn so many times wider and higher than its view, with a margin around it.
+pub fn widened([across, along, larger]: [f32; 3], [wider, higher]: [f64; 2]) -> [f32; 3] {
+    let (wider, higher) = (wider as f32, higher as f32);
+    [
+        0.5 + (across - 0.5) / wider,
+        0.5 + (along - 0.5) / higher,
+        larger * wider.min(higher),
+    ]
+}
+
+// The margins a picture made of samples may be drawn with around its view, as shares of the view's sides on every
+// side, the widest first: a view that moves, or shows more of the scene, inside the margin has its picture at once.
+pub const MARGINS: [f64; 4] = [0.5, 0.375, 0.25, 0.125];
+// A deep view's windows halve down to its view: the picture with a margin is one of them or between two.
+const _: () = assert!(MARGINS[0] <= 0.5);
+// The picture with a margin is drawn behind the finished one, when nothing is waited for. It is drawn where it is
+// expected within this many seconds: later than that the view has moved on, and the card has worked for nothing.
+pub const MARGIN_WITHIN: f64 = 3.0;
+
+// The margins worth drawing, the widest first, around a picture whose view alone took the card so many seconds.
+// The samples of a picture with a margin are those of its view, and its cells are more by the square of its
+// width: on an RTX 4070 it took 1 to 1.5 times the seconds of the view alone at a quarter and at a half on every
+// side, and is taken to cost as many times the seconds as it is wider. A card nothing is known about yet, or a
+// slow one, draws none.
+pub fn margins(took: Option<f32>) -> impl Iterator<Item = f64> {
+    MARGINS.into_iter().filter(move |share| {
+        let wider = 1.0 + 2.0 * share;
+        took.is_some_and(|took| f64::from(took) * wider <= MARGIN_WITHIN)
+    })
 }
 
 // A view is rendered when its picture is expected within this many seconds; a longer one is the picture the app
@@ -632,6 +664,50 @@ mod tests {
         assert!(!covers([0.2, 0.5, 2.0]));
         assert!(!covers([0.5, 0.5, 0.5]));
         assert!(!covers([1.4, 0.5, 100.0]));
+    }
+
+    #[test]
+    fn a_picture_with_a_margin_holds_the_views_that_moved_inside_it() {
+        // A quarter of the view on every side: one and a half times as wide and as high.
+        let wide = [1.5, 1.5];
+        assert_eq!(widened([0.5, 0.5, 1.0], wide), [0.5, 0.5, 1.5]);
+        // The view moved a quarter of itself sideways: it ends at the picture's edge, and is all there.
+        assert!(covers(widened([0.75, 0.5, 1.0], wide)));
+        assert!(covers(widened([0.25, 0.25, 1.0], wide)));
+        assert!(!covers(widened([0.8, 0.5, 1.0], wide)));
+        assert!(beside(widened([0.75, 0.5, 1.0], wide)) < 1e-6);
+        // Past the margin, the share beside the picture is what the view moved past it by.
+        assert!((beside(widened([1.0, 0.5, 1.0], wide)) - 0.25).abs() < 1e-5);
+        assert!((beside([1.0, 0.5, 1.0]) - 0.5).abs() < 1e-6);
+        // A view that shows one and a half times as much of the scene, around the same point, is all there too;
+        // one that shows twice as much is not.
+        assert!(covers(widened([0.5, 0.5, 1.0 / 1.5], wide)));
+        assert!(!covers(widened([0.5, 0.5, 0.5], wide)));
+        assert!((beside(widened([0.5, 0.5, 0.5], wide)) - (1.0 - 0.75 * 0.75)).abs() < 1e-5);
+        // Smaller and moved: what it gained across it may not move by.
+        assert!(covers(widened([0.55, 0.5, 0.8], wide)));
+        assert!(!covers(widened([0.7, 0.5, 0.8], wide)));
+        // Without a margin nothing changes.
+        assert_eq!(widened([0.3, 0.6, 2.0], [1.0, 1.0]), [0.3, 0.6, 2.0]);
+    }
+
+    #[test]
+    fn a_margin_is_as_wide_as_the_card_draws_in_time() {
+        let all = |took| margins(took).collect::<Vec<_>>();
+        // Nothing is known of the card yet: no margin.
+        assert!(all(None).is_empty());
+        // A view the card draws in 0.3 s: with half of it on every side it is taken to cost 0.6 s.
+        assert_eq!(all(Some(0.3)), MARGINS);
+        // 1.4 s, a deep view of 3840 × 2160 on an RTX 4070: every margin still, 2.8 s at the widest.
+        assert_eq!(all(Some(1.4)), MARGINS);
+        // Two seconds: a quarter on every side would be 3 s, and is the widest. A slow card draws a narrow margin
+        // or none, by the same rule.
+        assert_eq!(all(Some(2.0)), [0.25, 0.125]);
+        assert_eq!(all(Some(2.3)), [0.125]);
+        assert!(all(Some(2.5)).is_empty());
+        assert!(all(Some(8.0)).is_empty());
+        // The widest comes first, and none is wider than the view is.
+        assert!(MARGINS.windows(2).all(|pair| pair[0] > pair[1]));
     }
 
     #[test]

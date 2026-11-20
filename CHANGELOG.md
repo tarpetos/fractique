@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+* **A flame, an attractor and a deep view have a margin around the view:** dragged sideways or made smaller, the
+  picture ended where its view had ended, and two thirds of the window could be its blurred continuation until
+  the new picture came. The card now draws the finished picture a second time, behind the one on the screen,
+  with a margin of the scene around the view: a view that moves or shows more inside the margin is sharp at
+  once, with no blur and nothing beside it; the picture of the new view is drawn behind and takes its place with
+  a margin of its own. The time to a finished picture is what it was: the view alone is drawn first, as before,
+  and the picture with the margin comes 0.05 to 0.4 s later on an RTX 4070 (1 s later for a deep view at
+  3840 × 2160). The view in it is the picture it was, pixel for pixel. The margin is a half, three eighths, a
+  quarter or an eighth of the view on every side: the widest the card draws within 3 s and holds in 512 MB (a
+  quarter at 3840 × 2160, a half at 2560 × 1440 and below on that card), none on a card that is slow or short of
+  memory. Measured in the same steps with and without it, at 3840 × 2160: a drag and a step out of a flame, a
+  deep view, Clifford and Lorenz showed 84 to 160 and 46 to 62 blurred frames with 18 % and 36 % of the view
+  beside the picture, and none with the margin. Past the margin, and for a view that magnifies the picture,
+  nothing changes. Exports, small pictures and Recent hold the view alone
+  ([performance.md](docs/performance.md#a-margin-around-the-view)).
+
 * **A flame and an attractor are magnified only as far as they are a picture:** a flame at 1373× was clouds of
   separate dots, and the wheel went on to 10 000 000 000×. Measured in the app at 3840 × 2160 on an RTX 4070, each
   view drawn twice with another seed: a deep view of a flame is the same picture twice while it holds about
