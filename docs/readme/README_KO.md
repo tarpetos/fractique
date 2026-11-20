@@ -128,6 +128,19 @@ Fractique는 세 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입
 
 Windows에서 프로그램은 `target\release\fractique-gui.exe`와 `target\release\fractique.exe`입니다. 앱과 명령으로 할 수 있는 모든 것: [docs/usage.md](../usage.md).
 
+## 테스트한 기기
+
+| 기기 | 시스템 | 프로세서 | 그래픽 |
+| --- | --- | --- | --- |
+| PC | Windows 11 | AMD Ryzen 7 5700X | NVIDIA GeForce RTX 4070 |
+| PC | Ubuntu 24.04 (WSL2) | AMD Ryzen 7 5700X | 없음: 프로세서만 |
+| 노트북, ASUS TUF Gaming FX505DT | Windows 11 | AMD Ryzen 5 3550H | NVIDIA GeForce GTX 1650 |
+| 노트북, HP 15-db1xxx | Debian 13 | AMD Ryzen 3 3200U | AMD Radeon Vega 3 |
+| ZTE Blade A7 | Android 9 | MediaTek Helio P22 | PowerVR GE8320 |
+| Asus Zenfone 10 | Android 15 | Qualcomm Snapdragon 8 Gen 2 | Adreno 740 |
+| iPhone 13 Pro | iOS 27 | Apple A15 Bionic | Apple A15 |
+| iPhone 11 | iOS 27 | Apple A13 Bionic | Apple A13 |
+
 ## 문서
 
 문서는 영어로 되어 있습니다.

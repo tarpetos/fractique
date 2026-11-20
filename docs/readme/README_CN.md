@@ -128,6 +128,19 @@ Fractique 生成三类图像。一类是分形火焰：由纤细曲线和柔和�
 
 在 Windows 上，程序位于 `target\release\fractique-gui.exe` 和 `target\release\fractique.exe`。应用和命令的全部功能：[docs/usage.md](../usage.md)。
 
+## 已测试的设备
+
+| 设备 | 系统 | 处理器 | 显卡 |
+| --- | --- | --- | --- |
+| PC | Windows 11 | AMD Ryzen 7 5700X | NVIDIA GeForce RTX 4070 |
+| PC | Ubuntu 24.04 (WSL2) | AMD Ryzen 7 5700X | 无：仅处理器 |
+| 笔记本电脑, ASUS TUF Gaming FX505DT | Windows 11 | AMD Ryzen 5 3550H | NVIDIA GeForce GTX 1650 |
+| 笔记本电脑, HP 15-db1xxx | Debian 13 | AMD Ryzen 3 3200U | AMD Radeon Vega 3 |
+| ZTE Blade A7 | Android 9 | MediaTek Helio P22 | PowerVR GE8320 |
+| Asus Zenfone 10 | Android 15 | Qualcomm Snapdragon 8 Gen 2 | Adreno 740 |
+| iPhone 13 Pro | iOS 27 | Apple A15 Bionic | Apple A15 |
+| iPhone 11 | iOS 27 | Apple A13 Bionic | Apple A13 |
+
 ## 文档
 
 文档为英文。
