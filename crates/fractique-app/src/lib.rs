@@ -1637,6 +1637,7 @@ impl App {
         app.trace.stage("made");
         if let Some(session) = session {
             let _ = app.restore(&session);
+            app.view = WHOLE;
         }
         // A test run in the Fractals tab: FRACTIQUE_SHOW=fractals (also kinds, fractals-phone, fractals-phone-sheet),
         // with FRACTIQUE_FRACTAL=julia for a kind other than the first.
@@ -2693,6 +2694,7 @@ impl App {
                 .map(|(name, _)| *name)
         };
         let optics = [self.optics.refraction, self.optics.rim, self.optics.bezel];
+        let view = self.view.scaled(self.adjust.zoom);
         let session = serde_json::json!({
             "scene": serde_json::to_value(&self.base).unwrap_or_default(),
             "title": self.title,
@@ -2701,8 +2703,8 @@ impl App {
             "generator": self.generator.number(),
             "fractals": self.fractals,
             "kind": self.kind,
-            "adjust": [self.adjust.brightness, self.adjust.gamma, self.adjust.glow, self.adjust.zoom],
-            "view": [self.view.right, self.view.down, self.view.zoom],
+            "adjust": [self.adjust.brightness, self.adjust.gamma, self.adjust.glow],
+            "view": [view.right, view.down, view.zoom],
             "layer": self.layer,
             "palette": self.palette.map(|at| palette::NAMES[at]),
             "inspector": self.inspector_open,
@@ -2746,18 +2748,12 @@ impl App {
         {
             self.kind = kind.to_owned();
         }
-        if let Some(&[brightness, gamma, glow, zoom]) = numbers("adjust").as_deref() {
-            self.adjust = Adjust {
-                brightness,
-                gamma,
-                glow,
-                zoom,
-            };
+        let (adjust, view) = saved_look(numbers("adjust").as_deref(), numbers("view").as_deref());
+        if let Some(adjust) = adjust {
+            self.adjust = adjust;
         }
-        if let Some(&[right, down, zoom]) = numbers("view").as_deref()
-            && (MIN_MAGNIFICATION..=MAX_MAGNIFICATION).contains(&zoom)
-        {
-            self.view = View { right, down, zoom };
+        if let Some(view) = view {
+            self.view = view;
         }
         self.layer = session.get("layer").and_then(serde_json::Value::as_u64).unwrap_or(0) as usize;
         self.palette = session
@@ -4612,6 +4608,7 @@ impl App {
                 if let Some(changed) = mutate(&alone, self.seed, 0.25).layers.pop() {
                     self.base.layers[at].content = changed.content;
                 }
+                self.view = WHOLE;
                 self.requested = None;
             }
             #[cfg(not(target_arch = "wasm32"))]
@@ -6222,6 +6219,32 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
     }
 }
 
+// The tone and the view of a saved session. A session written while the controls had a scale of their own holds
+// it as a fourth number of the tone: it was part of that picture's view, and is no setting of the app.
+fn saved_look(adjust: Option<&[f64]>, view: Option<&[f64]>) -> (Option<Adjust>, Option<View>) {
+    let old = match adjust {
+        Some(&[.., scale]) if adjust.is_some_and(|numbers| numbers.len() == 4) => scale,
+        _ => 1.0,
+    };
+    let adjust = match adjust {
+        Some(&[brightness, gamma, glow, ..]) => Some(Adjust {
+            brightness,
+            gamma,
+            glow,
+            zoom: 1.0,
+        }),
+        _ => None,
+    };
+    let view = match view {
+        Some(&[right, down, zoom]) if (MIN_MAGNIFICATION..=MAX_MAGNIFICATION).contains(&zoom) => {
+            let old = if old.is_finite() && old > 0.0 { old } else { 1.0 };
+            Some(View { right, down, zoom }.scaled(old))
+        }
+        _ => None,
+    };
+    (adjust, view)
+}
+
 // A session written before the second generator has no number: its random flames came from the first.
 fn generator_of(session: &serde_json::Value) -> Generator {
     session
@@ -6426,6 +6449,40 @@ mod tests {
         assert_eq!(again(""), None);
         let back = renamed("Random", &english, &ukrainian, &titles);
         assert_eq!(back, Some(displayed(&ukrainian, "Random 354")));
+    }
+
+    #[test]
+    fn a_scale_saved_by_the_old_slider_is_that_picture_s_view_and_no_setting() {
+        let (adjust, view) = saved_look(Some(&[1.2, 0.9, 1.5, 0.4]), Some(&[0.3, -0.2, 2.0]));
+        let adjust = adjust.expect("the tone is kept");
+        assert_eq!((adjust.brightness, adjust.gamma, adjust.glow), (1.2, 0.9, 1.5));
+        assert_eq!(adjust.zoom, 1.0);
+        let view = view.expect("the view is kept");
+        assert!((view.zoom - 0.8).abs() < 1e-12);
+        assert!((view.right - 0.75).abs() < 1e-12 && (view.down + 0.5).abs() < 1e-12);
+        let (adjust, view) = saved_look(Some(&[1.0, 1.0, 1.0]), Some(&[0.0, 0.0, 3.0]));
+        assert_eq!(adjust.map(|adjust| adjust.zoom), Some(1.0));
+        assert_eq!(view, Some(View { zoom: 3.0, ..WHOLE }));
+        assert_eq!(saved_look(None, Some(&[0.0, 0.0, 1e40])).1, None);
+        assert!(saved_look(Some(&[1.0]), None).0.is_none());
+    }
+
+    #[test]
+    fn a_session_opens_at_its_whole_view_and_a_document_as_it_was_saved() {
+        let old = serde_json::json!({ "adjust": [1.0, 1.0, 1.0, 0.4], "view": [0.0, 0.0, 1.0] });
+        let numbers = |key: &str| -> Vec<f64> {
+            old[key]
+                .as_array()
+                .expect("a list")
+                .iter()
+                .filter_map(serde_json::Value::as_f64)
+                .collect()
+        };
+        let (adjust, view) = saved_look(Some(&numbers("adjust")), Some(&numbers("view")));
+        // The picture of the document is the one that was saved: 0.4 of its framing.
+        assert!((view.expect("a view").zoom - 0.4).abs() < 1e-12);
+        // What the next picture is scaled by is 1 again.
+        assert_eq!(adjust.expect("a tone").zoom, 1.0);
     }
 
     #[test]

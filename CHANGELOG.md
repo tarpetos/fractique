@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* **A new picture opens at 1.0×:** before the view had one scale, the **Scale** slider of the controls kept a
+  number of its own in the app's settings. The slider is the view's scale now and nothing sets that number any
+  more, but it was still read back at the start and multiplied into every picture: with the old slider left at
+  0.4, every preset, every random flame and every fractal opened at 0.4×, and a view zoomed out to its limit read
+  0.200×. The number is no longer saved or read as a setting. The app starts at the whole picture, **Mutate**
+  goes back to it as **Randomize** does, and a file saved with the old slider moved opens at the view it was
+  saved with.
+
 * **One scale, tighter bounds, no black slab beside a moved picture:** the toolbar's line showed the wheel's
   scale and the controls had a **Scale** of their own, so one view read 0.5× in one place and 0.4 in the other.
   There is one number now: the line shows it, the slider shows and sets it and moves with the wheel, and the
