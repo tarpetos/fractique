@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage guide
+    url: https://github.com/tarpetos/fractique/blob/master/docs/usage.md
+    about: How to install and use the app, the command line tool and the servers.

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* **The HTTP server and the command line tool in every release:** a release held the app, and the command line
+  tool only for Windows and inside the Linux and macOS packages; the HTTP server had to be built from the source.
+  Now `fractique-server` is in the `.deb`, the AppImage and the macOS app beside `fractique`, and both are
+  downloads of their own for Windows, Linux and macOS, for a machine that wants no app.
+  [docs/mcp.md](docs/mcp.md#where-the-program-is) says where each is after installing.
+
 * **Clicking through again: every press shows a quick preview of its scene:** since the blur with its two stages,
   **Randomize**, **Mutate**, a preset or a step back pressed while a picture was still on its way showed the old
   picture under the blur until a finished one landed, and each press began that wait again: of 10 presses 200 ms

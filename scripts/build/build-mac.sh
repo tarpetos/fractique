@@ -19,8 +19,22 @@ if [ "$version" != "$packaged" ]; then
 fi
 
 command -v cargo-packager >/dev/null 2>&1 || cargo install cargo-packager --locked
-FRACTIQUE_RELEASE=1 cargo build --release --locked -p fractique-app -p fractique-cli
+FRACTIQUE_RELEASE=1 cargo build --release --locked -p fractique-app -p fractique-cli -p fractique-server
 cargo packager -c crates/fractique-app/Packager.toml --formats "$formats"
+
+# The command line tool and the server on their own, for a machine that wants no app.
+arch="$(uname -m)"
+if [ "$arch" = arm64 ]; then
+    arch=aarch64
+fi
+arch="$arch-macos"
+for program in fractique fractique-server; do
+    name="$program"
+    if [ "$program" = fractique ]; then
+        name=fractique-cli
+    fi
+    tar -czf "dist/${name}_${version}_${arch}.tar.gz" -C target/release "$program"
+done
 
 if [ -d dist/Fractique.app ] && [ ! -f dist/Fractique.app.tar.gz ]; then
     tar -czf dist/Fractique.app.tar.gz -C dist Fractique.app

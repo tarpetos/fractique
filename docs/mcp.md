@@ -6,7 +6,21 @@ same scene JSON as the command line tool, and what it sees is exactly what a lat
 the same scene always renders to the same pixels.
 
 The server speaks MCP over stdin and stdout. It is the same program as the command line tool, so there is nothing
-else to install: build it with `setup.sh` or `setup.cmd` ([usage.md](usage.md#1-install)).
+else to install: it comes with every release, or build it with `setup.sh` or `setup.cmd`
+([usage.md](usage.md#1-install)).
+
+## Where the program is
+
+| Got as | The command line tool, `fractique` | The HTTP server, `fractique-server` |
+| --- | --- | --- |
+| Windows | `fractique-cli_<version>_x64.exe`, where you saved it | `fractique-server_<version>_x64.exe`, where you saved it |
+| The `.deb` | `/usr/bin/fractique` | `/usr/bin/fractique-server` |
+| The AppImage | Not reachable from outside: take the `.tar.gz` below | The same |
+| macOS, the app | `/Applications/Fractique.app/Contents/MacOS/fractique` | `/Applications/Fractique.app/Contents/MacOS/fractique-server` |
+| `fractique-cli_…tar.gz`, `fractique-server_…tar.gz` (Linux, macOS) | `fractique`, where you unpacked it | `fractique-server`, where you unpacked it |
+| Built here | `target/release/fractique` | `target/release/fractique-server` |
+
+The two `.tar.gz` files are for a machine that wants no app, a server above all.
 
 The HTTP server offers the same tools to a client on another machine, at `/mcp`: see [Over HTTP](#over-http).
 
@@ -34,7 +48,7 @@ claude mcp add fractique -- /full/path/to/fractique mcp
 }
 ```
 
-On Windows the program is `fractique.exe`.
+The path is the one from [Where the program is](#where-the-program-is); on Windows it ends in `.exe`.
 
 ## Tools
 

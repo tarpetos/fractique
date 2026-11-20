@@ -11,13 +11,14 @@ if ($version -ne $packaged) {
 }
 
 $env:FRACTIQUE_RELEASE = '1'
-cargo build --release --locked -p fractique-app -p fractique-cli
+cargo build --release --locked -p fractique-app -p fractique-cli -p fractique-server
 if ($LASTEXITCODE -ne 0) { throw 'The build failed.' }
 
 New-Item -ItemType Directory -Force dist | Out-Null
 $app = "dist\Fractique_${version}_x64.exe"
 Copy-Item target\release\fractique-gui.exe $app -Force
 Copy-Item target\release\fractique.exe "dist\fractique-cli_${version}_x64.exe" -Force
+Copy-Item target\release\fractique-server.exe "dist\fractique-server_${version}_x64.exe" -Force
 
 if ($env:CARGO_PACKAGER_SIGN_PRIVATE_KEY) {
     if (-not (Get-Command cargo-packager -ErrorAction SilentlyContinue)) {

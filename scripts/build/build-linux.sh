@@ -1,5 +1,6 @@
 #!/bin/sh
-# Builds the Linux installers into dist/: scripts/build/build-linux.sh [--formats appimage,deb]
+# Builds the Linux packages and the two programs on their own into dist/:
+# scripts/build/build-linux.sh [--formats appimage,deb]
 # With CARGO_PACKAGER_SIGN_PRIVATE_KEY (and _PASSWORD) set, the AppImage gets the .sig the app's updater checks.
 set -eu
 cd "$(dirname "$0")/../.."
@@ -17,8 +18,18 @@ if [ "$version" != "$packaged" ]; then
 fi
 
 command -v cargo-packager >/dev/null 2>&1 || cargo install cargo-packager --locked
-FRACTIQUE_RELEASE=1 cargo build --release --locked -p fractique-app -p fractique-cli
+FRACTIQUE_RELEASE=1 cargo build --release --locked -p fractique-app -p fractique-cli -p fractique-server
 
 # linuxdeploy's own strip fails on current toolchains, and its AppImage needs no FUSE this way.
 NO_STRIP=true APPIMAGE_EXTRACT_AND_RUN=1 cargo packager -c crates/fractique-app/Packager.toml --formats "$formats"
+
+# The command line tool and the server on their own, for a machine that wants no app.
+arch="$(uname -m)-linux"
+for program in fractique fractique-server; do
+    name="$program"
+    if [ "$program" = fractique ]; then
+        name=fractique-cli
+    fi
+    tar -czf "dist/${name}_${version}_${arch}.tar.gz" -C target/release "$program"
+done
 ls -l dist
