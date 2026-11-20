@@ -447,7 +447,7 @@ mod tests {
             let koch = drawn("F", "F=F+F--F+F", order, 60.0);
             assert_eq!(koch.len(), 4usize.pow(order));
             let end = koch.last().unwrap().to;
-            assert!((end.0.abs() + (end.1 - 3f64.powi(order as i32)).abs()) < 1e-9, "{end:?}");
+            assert!((end.0.abs() + (end.1 - f64::from(3u32.pow(order))).abs()) < 1e-9, "{end:?}");
         }
         assert_eq!(drawn("FX", "X=X+YF+,Y=-FX-Y", 10, 90.0).len(), 1024);
         assert_eq!(drawn("A", "A=-BF+AFA+FB-,B=+AF-BFB-FA+", 5, 90.0).len(), 4usize.pow(5) - 1);

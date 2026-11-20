@@ -238,7 +238,7 @@ Newton fractal, a strange attractor. It blends with the layers around it as a fl
 | `camera` | [camera](#camera) | centered, zoom 1 | The part of the plane the image shows, as for a flame. |
 | `tone` | [tone](#tone) | see below | How the layer is lit. A kind uses the fields its way of drawing has a use for. Left out, it is the defaults of the [tone](#tone) table, not the tone the kind's presets and random scenes carry. |
 | `palette` | [palette](#palette) | required | The colors of the layer. |
-| `params` | object of numbers | empty | The parameters of the kind, by name. One that is left out has its default; an unknown name or a value outside the parameter's range is refused. |
+| `params` | object of numbers | empty | The parameters of the kind, by name. One that is left out has its default; an unknown name or a value outside the parameter's range is refused. A fraction in a parameter that is whole is dropped when the scene is read (300.5 is 300), and in one that stands for one of two choices the nearer choice is taken, so the scene holds the whole number that is drawn. |
 | `text` | object of strings | empty | The parameters of the kind that are text, by name: the axiom and the rules of an `l_system`, the sequence of a `lyapunov`. One that is left out has its default; an unknown name, a text longer than 2000 bytes or one the kind cannot read is refused. A kind without such parameters takes none. |
 
 A kind is drawn in one of two ways:

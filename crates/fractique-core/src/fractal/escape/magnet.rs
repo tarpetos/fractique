@@ -25,7 +25,7 @@ pub(super) static SPEC: Spec = Spec {
     name: NAME,
     family: Family::Escape,
     params: &[
-        Param::whole("type", 1.0, 1.0, 2.0),
+        Param::whole("type", 1.0, 1.0, 2.0).nearest(),
         ITERATIONS,
         COLOR_DENSITY,
         COLOR_SHIFT,

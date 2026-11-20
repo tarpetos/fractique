@@ -16,6 +16,10 @@ pub fn tan(x: f64) -> f64 {
     libm::tan(x)
 }
 #[inline]
+pub fn asin(x: f64) -> f64 {
+    libm::asin(x)
+}
+#[inline]
 pub fn atan2(y: f64, x: f64) -> f64 {
     libm::atan2(y, x)
 }

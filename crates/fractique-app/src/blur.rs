@@ -1,3 +1,5 @@
+use fractique_core::math;
+
 const SHRINK: usize = 4;
 
 pub fn soften(rgba: &[u8], width: usize, height: usize, radius: f32) -> (Vec<u8>, u32, u32) {
@@ -25,7 +27,7 @@ pub fn soften(rgba: &[u8], width: usize, height: usize, radius: f32) -> (Vec<u8>
     let sigma = (radius / SHRINK as f32).max(0.5);
     let reach = (sigma * 3.0).ceil() as usize;
     let kernel: Vec<f32> = (0..=reach)
-        .map(|i| (-((i * i) as f32) / (2.0 * sigma * sigma)).exp())
+        .map(|i| math::exp(f64::from(-((i * i) as f32) / (2.0 * sigma * sigma))) as f32)
         .collect();
     let pass = |source: &[f32], across: bool| {
         let mut out = vec![0f32; source.len()];

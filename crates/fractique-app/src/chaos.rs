@@ -1646,7 +1646,7 @@ impl Parts {
                     && run.limit.is_some_and(|limit| {
                         let left = if least <= 0.0 { 1.0 } else { 1.0 / least };
                         // The card works a share of the time only: that is how long the picture takes.
-                        worked * left > limit * cost * pace::SHARE
+                        worked * left > limit * cost * run.allowed / pace::FRAME
                     });
                 let idle = least <= 0.0 && worked >= IDLE;
                 let late = took * 1000.0 > self.longest.load(Ordering::Relaxed) as f32;

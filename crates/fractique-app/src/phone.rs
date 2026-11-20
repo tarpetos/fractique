@@ -4,7 +4,7 @@ use std::sync::mpsc;
 use eframe::egui;
 use egui::{Align2, Color32, CornerRadius, Pos2, Rect, Sense, Stroke, vec2};
 use fractique_core::wallpaper::{Layout, Material, Request, chosen, random_wallpaper};
-use fractique_core::{Control, RenderOptions, Scene, fractal, palette, presets, render};
+use fractique_core::{Control, RenderOptions, Scene, fractal, math, palette, presets, render};
 use serde_json::{Value, json};
 
 use crate::widgets::{self, MEDIUM, SEMIBOLD, font};
@@ -331,9 +331,8 @@ fn icon(painter: &egui::Painter, at: Pos2, which: Icon, ink: Color32, scale: f32
             let outline: Vec<Pos2> = (0..40)
                 .map(|step| {
                     let t = step as f32 / 40.0 * std::f32::consts::TAU;
-                    let (sin, cos) = t.sin_cos();
-                    let x = 16.0 * sin * sin * sin;
-                    let y = 13.0 * cos - 5.0 * (2.0 * t).cos() - 2.0 * (3.0 * t).cos() - (4.0 * t).cos();
+                    let x = 16.0 * sin(t) * sin(t) * sin(t);
+                    let y = 13.0 * cos(t) - 5.0 * cos(2.0 * t) - 2.0 * cos(3.0 * t) - cos(4.0 * t);
                     at + v(x, -y * 0.92 + 1.0) * 0.52
                 })
                 .collect();
@@ -418,14 +417,22 @@ const LARGE: f32 = 68.0;
 const SMALL: f32 = 46.0;
 const CLEAR: f32 = 8.0;
 
+fn sin(angle: f32) -> f32 {
+    math::sin(f64::from(angle)) as f32
+}
+
+fn cos(angle: f32) -> f32 {
+    math::cos(f64::from(angle)) as f32
+}
+
 // How far from the large button's centre the three small ones around it stand, clear of it and of one another,
 // and how far along the large button's own edge the first and the last of them are from its centre.
 fn reach(scale: f32) -> [f32; 2] {
     let aside = (LARGE - SMALL) * 0.5 * scale;
     let mut away = (LARGE + SMALL) * 0.5 * scale + CLEAR;
     let between = |away: f32| {
-        let turn = std::f32::consts::FRAC_PI_4 + (aside / away).asin();
-        2.0 * away * (turn * 0.5).sin()
+        let turn = std::f32::consts::FRAC_PI_4 + math::asin(f64::from(aside / away)) as f32;
+        2.0 * away * sin(turn * 0.5)
     };
     while between(away) < SMALL * scale + CLEAR {
         away += 0.25;
@@ -572,7 +579,7 @@ fn gradient_disc(painter: &egui::Painter, at: Pos2, reach: f32, shade: impl Fn(f
         };
         for step in 0..AROUND {
             let angle = step as f32 / AROUND as f32 * std::f32::consts::TAU;
-            let offset = vec2(angle.cos(), angle.sin()) * radius;
+            let offset = vec2(cos(angle), sin(angle)) * radius;
             let share = (offset.dot(along) / reach * 0.5 + 0.5).clamp(0.0, 1.0);
             mesh.colored_vertex(at + offset, shade(share).gamma_multiply(alpha));
         }

@@ -1519,8 +1519,7 @@ fn lightness(rgba: &[u8], step: usize) -> f32 {
     sum as f32 / (count.max(1) as f32 * 255.0)
 }
 
-// The verdict kept for a graphics card, if it is this card's and this version's. Only a fast one is believed:
-// a trial run at a bad moment must not leave the card out for good.
+// The verdict kept for a graphics card, if it is this card's and this version's.
 // Not "slow": that was kept by trials that asked a card to be twice as fast on a smaller picture.
 const SLOW: &str = "slow2";
 

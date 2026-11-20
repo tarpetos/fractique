@@ -941,7 +941,7 @@ mod tests {
         assert_eq!(half(0.5), 0x3800);
         assert_eq!(half(2.5), 0x4100);
         assert_eq!(half(1e9), 0x7bff);
-        assert_eq!(half(2.0f32.powi(-24)), 1);
-        assert_eq!(half(2.0f32.powi(-14)), 0x0400);
+        assert_eq!(half(1.0 / 16_777_216.0), 1);
+        assert_eq!(half(1.0 / 16_384.0), 0x0400);
     }
 }

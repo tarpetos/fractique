@@ -11,6 +11,16 @@
   pictures of the README and of its 14 translations are now the names the app shows (Emerald Star, Mandelbrot:
   Spiral) instead of the presets' identifiers.
 
+* **A whole parameter of a fractal holds a whole number:** a scene with a fraction in a parameter that is whole,
+  `"iterations": 300.5`, loaded as it was written and was drawn as 300, so the file, the scene saved again and
+  the picture did not agree. The fraction is now dropped when the scene is read, the way the renderer read it:
+  cut off, or to the nearer of the two for `form`, `type`, `recipe` and `anti`. Such a file still loads and
+  is drawn as before, with two exceptions that no whole number could keep: the steps of an escape-time or a
+  root-finding kind at a zoom above 1, where the fraction was multiplied in before it was cut (such a view gets up
+  to six steps fewer), and a `nova` of form 0 with a fraction in `degree`, whose starting
+  point took the fraction while its steps did not. There the graphics card of the app and the processor drew two
+  pictures; now they draw one.
+
 * **The command line tool and the two servers update themselves on command:** the app updated itself and left
   `fractique`, `fractique-mcp` and `fractique-server` beside it as old as they were. Now each has `update`: it
   asks GitHub for the newest release, downloads this program's file for this system, checks it against the
@@ -155,7 +165,7 @@
   1/500 of the flame's light; with less it is smooth threads that are other threads the next time, and with far
   less, dots. A flame now goes as deep as its densest view holds 1/512 of its light, between 10× and 300×, worked
   out once a picture beside the window's thread; an attractor to 10× (Buddhabrot), 30× (Clifford, De Jong,
-  Hopalong), 50× (Gumowski-Mira) or 100× (Lorenz), where its grain takes over. The Scale slider ends there, and
+  Hopalong), 50× (Gumowski-Mira) or 100× (Lorenz), where its grain takes over. The Zoom slider ends there, and
   a saved or a recent view beyond it opens at the ceiling. Fractals drawn pixel by pixel, the solids, Kleinian
   groups, L-systems and wallpapers keep their limits. Known and not changed here: in a median place of a flame the
   picture is already of the second kind from about 15×, and a heavy flame (Emerald Star) takes the card 13 s at
@@ -209,7 +219,7 @@
   with the view, up to 440 times in the owner's session: a few of its pixels under the blur, one flat colour.
   The picture that stands for a view is magnified 8 times at most.
 
-* **The Scale slider spans the range of the view:** the slider ended at 100× while the wheel went on, so its knob
+* **The Zoom slider spans the range of the view:** the slider ended at 100× while the wheel went on, so its knob
   rested at the end and the number ran on (1373.13, and 9523809523.81 where the toolbar said 9.5e9×). The slider
   now spans exactly what the view of the picture on the screen can take, logarithmically, from its smallest scale
   to its largest: the knob is at an end if and only if the view is at that limit, and the wheel, a pinch and the
@@ -296,7 +306,7 @@
   what the processor renders are as they were: a draft of them is specks and takes the chaos game a tenth of a
   second or more ([performance.md](docs/performance.md#a-view-that-moves)).
 
-* **A new picture opens at 1.0×:** before the view had one scale, the **Scale** slider of the controls kept a
+* **A new picture opens at 1.0×:** before the view had one scale, the **Zoom** slider of the controls kept a
   number of its own in the app's settings. The slider is the view's scale now and nothing sets that number any
   more, but it was still read back at the start and multiplied into every picture: with the old slider left at
   0.4, every preset, every random flame and every fractal opened at 0.4×, and a view zoomed out to its limit read
@@ -305,7 +315,7 @@
   saved with.
 
 * **One scale, tighter bounds, no black slab beside a moved picture:** the toolbar's line showed the wheel's
-  scale and the controls had a **Scale** of their own, so one view read 0.5× in one place and 0.4 in the other.
+  scale and the controls had a **Zoom** of their own, so one view read 0.5× in one place and 0.4 in the other.
   There is one number now: the line shows it, the slider shows and sets it and moves with the wheel, and the
   limits hold for it; **Reset** and **Reset view** both go back to the whole picture. A figure smaller than the
   window can no longer be parked half outside it: it stays inside whole, and of a figure larger than the window

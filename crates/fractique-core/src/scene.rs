@@ -222,7 +222,7 @@ impl TryFrom<LayerFile> for Layer {
     fn try_from(file: LayerFile) -> Result<Self, Self::Error> {
         let content = match (file.flame, file.fractal) {
             (Some(flame), None) => Content::Flame(flame),
-            (None, Some(fractal)) => Content::Fractal(fractal),
+            (None, Some(fractal)) => Content::Fractal(fractal.settled()),
             (None, None) => return Err("a layer needs `flame` or `fractal`"),
             (Some(_), Some(_)) => return Err("a layer holds `flame` or `fractal`, not both"),
         };
@@ -566,6 +566,17 @@ fn validate_look(camera: &Camera, t: &Tone, colors: &Palette, what: &str) -> Res
 }
 
 impl Fractal {
+    fn settled(mut self) -> Self {
+        if let Some(spec) = fractal::spec(&self.kind) {
+            for param in spec.params {
+                if let Some(value) = self.params.get_mut(param.name) {
+                    *value = param.settled(*value);
+                }
+            }
+        }
+        self
+    }
+
     fn validate(&self, what: &str) -> Result<(), SceneError> {
         validate_look(&self.camera, &self.tone, &self.palette, what)?;
         let Some(spec) = fractal::spec(&self.kind) else {
