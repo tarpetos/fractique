@@ -25,7 +25,7 @@
   "export_title": "Export image",
   "export_magnified": "This view is shown as a magnified picture, and is exported as shown.",
   "export_shape": "Another shape than the picture on the screen: the picture is drawn again, which takes longer.",
-  "export_larger": "Larger than the picture on the screen: the picture is drawn again at this size, which takes longer.",
+  "export_larger": "At this size the picture is drawn again for the file, which takes longer.",
   "magnified": "magnified picture",
   "size": "SIZE",
   "quality": "QUALITY",

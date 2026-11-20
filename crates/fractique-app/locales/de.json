@@ -25,7 +25,7 @@
   "export_title": "Bild exportieren",
   "export_magnified": "Diese Ansicht wird als vergrößertes Bild gezeigt und so exportiert.",
   "export_shape": "Andere Form als das Bild auf dem Bildschirm: Das Bild wird neu gezeichnet, das dauert länger.",
-  "export_larger": "Größer als das Bild auf dem Bildschirm: Das Bild wird in dieser Größe neu gezeichnet, das dauert länger.",
+  "export_larger": "In dieser Größe wird das Bild für die Datei neu gezeichnet, das dauert länger.",
   "magnified": "vergrößertes Bild",
   "size": "GRÖSSE",
   "quality": "QUALITÄT",

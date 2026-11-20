@@ -2887,8 +2887,7 @@ impl App {
     // Begins an Instant export larger than the picture on the screen, for a scene the card draws pixel by pixel
     // and whose tiles join without a seam: nothing of a tile reaches past it but the look at its neighbours.
     #[cfg(not(target_arch = "wasm32"))]
-    fn begin_tiles(&mut self, ctx: &egui::Context, size: [u32; 2], path: &std::path::Path) -> bool {
-        let scene = self.scene_at(size);
+    fn tiles_suit(&self, scene: &Scene, size: [u32; 2]) -> Option<u32> {
         let tiled = scene.sheets.is_none() && !scene.layers.is_empty() && scene.layers.iter().all(field::drawn);
         // A glow reaches from one tile into the next: a tile is drawn with as much around it as the widest does.
         let shorter = f64::from(size[0].min(size[1]));
@@ -2901,9 +2900,14 @@ impl App {
             }
         };
         let apron = export::APRON + scene.layers.iter().map(reach).fold(0.0, f64::max).ceil() as u32;
-        if !tiled || !self.gpu_on() || self.given_up || self.wall.live || apron > export::TILE / 4 {
+        (tiled && self.gpu_on() && !self.given_up && !self.wall.live && apron <= export::TILE / 4).then_some(apron)
+    }
+
+    fn begin_tiles(&mut self, ctx: &egui::Context, size: [u32; 2], path: &std::path::Path) -> bool {
+        let scene = self.scene_at(size);
+        let Some(apron) = self.tiles_suit(&scene, size) else {
             return false;
-        }
+        };
         let (across, cells) = export::tiles(size, export::TILE);
         if !self.tile_begun(ctx, &scene, size, cells[0], apron) {
             if timed() {
@@ -6069,7 +6073,14 @@ impl App {
         // An Instant export that is not instant says why, before the press.
         let drawn = self.full(self.requested.unwrap_or(self.aimed_size));
         let instant = export::QUALITIES[self.export.quality].1 == export::AS_SHOWN && !self.magnified;
-        if instant && let Some(key) = export::slow([drawn.width, drawn.height], size) {
+        let quick = |app: &Self| {
+            export::way([drawn.width, drawn.height], size) == export::Way::Larger
+                && app.tiles_suit(&app.scene_at(size), size).is_some()
+        };
+        if instant
+            && let Some(key) = export::slow([drawn.width, drawn.height], size)
+            && !quick(self)
+        {
             ui.add_space(8.0);
             ui.label(
                 egui::RichText::new(self.t(key))

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+* **The export's note no longer calls a picture of the chosen size "larger":** with 15360 × 8640 chosen as the
+  picture's size, the export sheet said an export of 15360 × 8640 was larger than the picture on the screen. The
+  line now says that at this size the picture is drawn again for the file, and it is not shown where the
+  graphics card draws the file in tiles, which takes about a second.
+
 * **An Instant export from the picture on the screen, smaller or in tiles:** **Instant** saved the picture on the
   screen only at that picture's very size; at any other it rendered the scene again on the processor. Now an
   export of the picture's shape and smaller is the screen's picture made smaller, every pixel the mean of those

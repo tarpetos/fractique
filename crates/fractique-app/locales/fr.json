@@ -25,7 +25,7 @@
   "export_title": "Exporter l'image",
   "export_magnified": "Cette vue est affichée comme une image agrandie et exportée telle quelle.",
   "export_shape": "Autre forme que l’image à l’écran : l’image est redessinée, ce qui prend plus de temps.",
-  "export_larger": "Plus grande que l’image à l’écran : l’image est redessinée à cette taille, ce qui prend plus de temps.",
+  "export_larger": "À cette taille, l’image est redessinée pour le fichier, ce qui prend plus de temps.",
   "magnified": "image agrandie",
   "size": "TAILLE",
   "quality": "QUALITÉ",
