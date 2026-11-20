@@ -1,7 +1,7 @@
 <div align="center">
   <img src="../../assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <h1>Fractique</h1>
-  <p><strong>同じ入力からは、どのプラットフォームでも同じ画像を生成する、フラクタルの炎と壁紙のジェネレーター。</strong></p>
+  <p><strong>同じ入力からは、どのプラットフォームでも同じ画像を生成する、フラクタルの炎、古典的なフラクタル、壁紙のジェネレーター。</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <strong>日本語</strong><br>
     <a href="README_CN.md">简体中文</a> · <a href="README_PT.md">Português</a> · <a href="README_KO.md">한국어</a> · <a href="README_HI.md">हिन्दी</a> · <a href="README_TR.md">Türkçe</a> · <a href="README_PL.md">Polski</a> · <a href="README_ID.md">Bahasa Indonesia</a>

@@ -1,7 +1,7 @@
 <div align="center">
   <img src="../../assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <h1>Fractique</h1>
-  <p><strong>फ्रैक्टल लपटों और वॉलपेपर का जनरेटर, जो एक ही इनपुट से हर प्लेटफ़ॉर्म पर एक ही तस्वीर बनाता है।</strong></p>
+  <p><strong>फ्रैक्टल लपटों, क्लासिक फ्रैक्टलों और वॉलपेपर का जनरेटर, जो एक ही इनपुट से हर प्लेटफ़ॉर्म पर एक ही तस्वीर बनाता है।</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
     <a href="README_CN.md">简体中文</a> · <a href="README_PT.md">Português</a> · <a href="README_KO.md">한국어</a> · <strong>हिन्दी</strong> · <a href="README_TR.md">Türkçe</a> · <a href="README_PL.md">Polski</a> · <a href="README_ID.md">Bahasa Indonesia</a>

@@ -1,6 +1,6 @@
 [package]
 name = "fractique-core"
-description = "Deterministic fractal flame renderer"
+description = "Deterministic renderer of fractal flames, classic fractals and wallpapers"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
