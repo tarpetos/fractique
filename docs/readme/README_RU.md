@@ -142,7 +142,7 @@ Fractique создаёт изображения трёх видов. Фракт�
 | ZTE Blade A7 | Android 9 | MediaTek Helio P22 | PowerVR GE8320 |
 | Asus Zenfone 10 | Android 15 | Qualcomm Snapdragon 8 Gen 2 | Adreno 740 |
 | iPhone 13 Pro | iOS 27 | Apple A15 Bionic | Apple A15 |
-| iPhone 11 | iOS 27 | Apple A13 Bionic | Apple A13 |
+| iPhone 18 Pro Max | iOS 27 | Apple A20 Pro | Apple A20 Pro |
 
 ## Документация
 
