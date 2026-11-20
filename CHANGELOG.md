@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* **8K and 16K among the screens:** the list of sizes has 7680 × 4320 and 15360 × 8640 under **Screens**, after
+  4K. On the screen a picture is still drawn at 4096 pixels a side at most; an export has the size chosen.
+
+* **A size of one's own can be typed again:** emptying the width of **Own** to type another number put the old
+  size back in both fields at once. The fields are now filled only while nothing is typed in them.
+
 * **No bars beside a picture of a chosen size:** with the size fixed (3840 × 2160, say) and the window of another
   shape (a maximized window of 1920 × 1032 points is wider than 16 to 9), the picture, fitted whole, left a strip
   of the window's flat dark at each side with a hard edge against the picture, and the title bar and the panel
