@@ -11,7 +11,7 @@
 Fractique तीन तरह की तस्वीरें बनाता है। फ्रैक्टल लपटें: पतली वक्र रेखाओं और कोमल रोशनी से बने चमकदार, धुएँ जैसे फ्रैक्टल। 22 प्रकार के क्लासिक फ्रैक्टल: मैंडलब्रॉट सेट, जूलिया सेट और विचित्र आकर्षकों से लेकर तीन आयामों के मैंडलबल्ब तक। और वॉलपेपर: रोशन किनारों और हल्की परछाइयों वाली सपाट शीटें, हर एक हल्के और गहरे रूप में। आप कोई प्रीसेट चुनते हैं, कोई यादृच्छिक तस्वीर बनाते हैं या कई लपटें एक-दूसरे पर रखते हैं, और नतीजे को फ़ोन की स्क्रीन से लेकर 4K मॉनिटर तक किसी भी आकार में निर्यात करते हैं। एक सीन एक छोटी फ़ाइल है, और वही फ़ाइल Windows, macOS, Linux, Android और iOS पर हमेशा बिल्कुल वही पिक्सेल देती है।
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="aurora-spiral प्रीसेट: गहरे बैकग्राउंड पर फ़िरोज़ी और हरी सर्पिल लहरें" width="880">
+  <img src="../samples/aurora-spiral.png" alt="ऑरोरा सर्पिल प्रीसेट: गहरे बैकग्राउंड पर फ़िरोज़ी और हरी सर्पिल लहरें" width="880">
 </p>
 
 ## Fractique क्या करता है
@@ -38,57 +38,59 @@ Fractique तीन तरह की तस्वीरें बनाता �
 | | |
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
-| `emerald-star` (दो परतें) | `ember-vortex` |
+| पन्ना तारा (दो परतें) | अंगार भँवर |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
-| `golden-bloom` | `solar-mandala` |
+| सुनहरी बहार | सूर्य मंडला |
+
+सौ और लपटें, हर एक के साथ वह `.frcq` फ़ाइल जो उसे किसी भी आकार में फिर से बनाती है: [गैलरी](../gallery.md)।
 
 दूसरी तरह के फ्रैक्टल: मैंडलब्रॉट सेट, एक जूलिया सेट और क्लिफ़र्ड आकर्षक:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
-| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+| मैंडलब्रॉट: सर्पिल | जूलिया: सर्पिल | क्लिफ़र्ड: पंख |
 
 और एस्केप-टाइम फ्रैक्टल तथा मूल-खोज फ्रैक्टल: बर्निंग शिप, ट्राइकॉर्न, मल्टीब्रॉट, फ़ीनिक्स, मैग्नेट, न्यूटन, नोवा:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
-| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| बर्निंग शिप: जहाज़ | ट्राइकॉर्न: द्वीप | मल्टीब्रॉट: सर्पिल | फ़ीनिक्स: आकाशगंगा |
 | ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
-| `magnet-pearls` | `newton-seven` | `nova-star` | |
+| मैग्नेट: मोती | न्यूटन: सात | नोवा: तारा | |
 
 घनत्व के रूप में बनी कक्षाएँ: बुद्धब्रॉट और डी जोंग, लोरेंज़, गुमोव्स्की-मीरा और होपालोंग आकर्षक:
 
 | | | |
 | --- | --- | --- |
 | ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
-| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| बुद्धब्रॉट: निहारिका | डी जोंग: क्लासिक | लोरेंज़: तितली |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
-| `gumowski_mira-feathers` | `hopalong-web` | |
+| गुमोव्स्की-मीरा: पर | होपालोंग: जाला | |
 
 ज्यामितीय फ्रैक्टल: अपोलोनियन गैस्केट, क्लाइनियन समूह का सीमा सेट, एल-सिस्टम और ल्यापुनोव फ्रैक्टल:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
-| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+| अपोलोनियन गैस्केट: तिहरा | क्लाइनियन समूह: नोक | एल-सिस्टम: पौधा | ल्यापुनोव: पंख |
 
 तीन आयामों के ठोस: मैंडलबल्ब, मैंडलबॉक्स और मेंगर स्पंज:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
-| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
+| मैंडलबल्ब: मुकुट | मैंडलबॉक्स: स्टेशन | मेंगर स्पंज: क्लासिक |
 
 हल्के और गहरे वॉलपेपर, हर एक अपने लेआउट और सामग्री के साथ:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
-| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| लहरें, काँच | फूल, चमक | टाइलें, उभार | पंखा, काँच |
 | ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
-| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+| चक्र, काग़ज़ | छड़ें, काग़ज़ | चाप, कार्बन | रेखाएँ, काग़ज़ |
 
 ## झटपट शुरुआत
 

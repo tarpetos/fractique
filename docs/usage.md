@@ -20,6 +20,7 @@ server see [server.md](server.md); for AI agents, over stdio or HTTP, see [mcp.m
 11. [Files of the app](#11-files-of-the-app)
 12. [Troubleshooting](#12-troubleshooting)
 13. [The sample pictures](#13-the-sample-pictures)
+14. [The gallery](#14-the-gallery)
 
 ---
 
@@ -500,6 +501,8 @@ fractique convert document.json -o mine.frcq              # a document, packed a
 Without `-o` the JSON is printed. A scene packed this way opens in the app as a plain scene: whole view, neutral
 tone. A `.frcq` file is about a seventh of the same scene as JSON.
 
+A hundred `.frcq` files to try are in `docs/gallery/`, each beside its picture: [gallery.md](gallery.md).
+
 ## 12. Troubleshooting
 
 | What you see | What to do |
@@ -557,3 +560,24 @@ fractique render --wallpaper 8 --layout bars --material paper --dark --size 360x
 ```
 
 The files were then made smaller without changing a pixel (`optipng -o2`).
+
+## 14. The gallery
+
+[gallery.md](gallery.md) shows one hundred flames. Each is two files in `docs/gallery/`: `NNN-name.frcq`, the
+document the app opens and the commands render, and `NNN-name.webp`, a small picture of it. The `.frcq` files are
+the source and the pictures are made from them:
+
+```sh
+cargo build --release
+uv run --no-project --with pillow python tools/gallery/make_gallery.py
+```
+
+The script renders every file at 960x540 and `--quality high`, saves the picture as WebP (quality 84) and writes
+`docs/gallery.md` anew, with the names taken from the files. `make_gallery.py 007 012` draws only the files whose
+names start so, `--page-only` writes the page alone, and `--fractique PATH` names another build of the command line
+tool. Run it after a change that alters what scenes render to, so the pictures stay those of the files.
+
+To add a flame, save it from the app as `docs/gallery/NNN-name.frcq` (or pack a scene with `fractique convert`),
+with the scene's `name` equal to the file's name after the number and the picture's size set to 3840 × 2160, and
+run the script. A test (`crates/fractique-cli/tests/gallery.rs`) loads every file of the gallery, so a change that
+would stop one from loading fails the build.

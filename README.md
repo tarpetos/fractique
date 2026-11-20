@@ -11,7 +11,7 @@
 Fractique makes three kinds of pictures. Fractal flames: the glowing, wispy kind of fractal made of thin curves and soft light. Classic fractals of 22 kinds, from the Mandelbrot set, Julia sets and strange attractors to the Mandelbulb in three dimensions. And wallpapers: flat sheets with lit edges and soft shadows, each in a light and a dark version. You pick a preset, roll a random picture or layer several flames over each other, and export it at any size, from a phone screen to a 4K monitor. A scene is one small file, and the same file always renders to exactly the same pixels, on Windows, macOS, Linux, Android and iOS alike.
 
 <p align="center">
-  <img src="docs/samples/aurora-spiral.png" alt="The aurora-spiral preset: teal and green spiral wisps on a dark background" width="880">
+  <img src="docs/samples/aurora-spiral.png" alt="The Aurora Spiral preset: teal and green spiral wisps on a dark background" width="880">
 </p>
 
 ## What it does
@@ -38,57 +38,59 @@ Fractique makes three kinds of pictures. Fractal flames: the glowing, wispy kind
 | | |
 | --- | --- |
 | ![emerald-star](docs/samples/emerald-star.png) | ![ember-vortex](docs/samples/ember-vortex.png) |
-| `emerald-star` (two layers) | `ember-vortex` |
+| Emerald Star (two layers) | Ember Vortex |
 | ![golden-bloom](docs/samples/golden-bloom.png) | ![solar-mandala](docs/samples/solar-mandala.png) |
-| `golden-bloom` | `solar-mandala` |
+| Golden Bloom | Solar Mandala |
+
+One hundred more flames, each with the `.frcq` file that renders it again at any size: [the gallery](docs/gallery.md).
 
 Fractals of other kinds: the Mandelbrot set, a Julia set and the Clifford attractor:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbrot](docs/samples/fractal-mandelbrot.png) | ![julia](docs/samples/fractal-julia.png) | ![clifford](docs/samples/fractal-clifford.png) |
-| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+| Mandelbrot: Spiral | Julia: Spirals | Clifford: Wings |
 
 More escape-time fractals and the root-finding ones: Burning Ship, Tricorn, Multibrot, Phoenix, Magnet, Newton, Nova:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![burning_ship](docs/samples/fractal-burning_ship.png) | ![tricorn](docs/samples/fractal-tricorn.png) | ![multibrot](docs/samples/fractal-multibrot.png) | ![phoenix](docs/samples/fractal-phoenix.png) |
-| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| Burning Ship: Ship | Tricorn: Island | Multibrot: Spirals | Phoenix: Galaxy |
 | ![magnet](docs/samples/fractal-magnet.png) | ![newton](docs/samples/fractal-newton.png) | ![nova](docs/samples/fractal-nova.png) | |
-| `magnet-pearls` | `newton-seven` | `nova-star` | |
+| Magnet: Pearls | Newton: Seven | Nova: Star | |
 
 Orbits drawn as densities: the Buddhabrot and the De Jong, Lorenz, Gumowski-Mira and Hopalong attractors:
 
 | | | |
 | --- | --- | --- |
 | ![buddhabrot](docs/samples/fractal-buddhabrot.png) | ![de_jong](docs/samples/fractal-de_jong.png) | ![lorenz](docs/samples/fractal-lorenz.png) |
-| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| Buddhabrot: Nebula | De Jong: Classic | Lorenz: Butterfly |
 | ![gumowski_mira](docs/samples/fractal-gumowski_mira.png) | ![hopalong](docs/samples/fractal-hopalong.png) | |
-| `gumowski_mira-feathers` | `hopalong-web` | |
+| Gumowski-Mira: Feathers | Hopalong: Web | |
 
 Geometric fractals: an Apollonian gasket, the limit set of a Kleinian group, an L-system and a Lyapunov fractal:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![apollonian](docs/samples/fractal-apollonian.png) | ![kleinian](docs/samples/fractal-kleinian.png) | ![l-system](docs/samples/fractal-l_system.png) | ![lyapunov](docs/samples/fractal-lyapunov.png) |
-| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+| Apollonian gasket: Threefold | Kleinian group: Cusp | L-system: Plant | Lyapunov: Feathers |
 
 Solids in three dimensions: the Mandelbulb, the Mandelbox and the Menger sponge:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbulb](docs/samples/fractal-mandelbulb.png) | ![mandelbox](docs/samples/fractal-mandelbox.png) | ![menger sponge](docs/samples/fractal-menger-sponge.png) |
-| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
+| Mandelbulb: Crown | Mandelbox: Station | Menger sponge: Classic |
 
 Wallpapers, light and dark, each with its layout and material:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![waves](docs/samples/wallpaper-waves-light.png) | ![burst](docs/samples/wallpaper-burst-light.png) | ![tiles](docs/samples/wallpaper-tiles-light.png) | ![fan](docs/samples/wallpaper-fan-light.png) |
-| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| Waves, Glass | Burst, Glow | Tiles, Relief | Fan, Glass |
 | ![discs](docs/samples/wallpaper-discs-dark.png) | ![bars](docs/samples/wallpaper-bars-dark.png) | ![arcs](docs/samples/wallpaper-arcs-dark.png) | ![lines](docs/samples/wallpaper-lines-dark.png) |
-| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+| Discs, Paper | Bars, Paper | Arcs, Carbon | Lines, Paper |
 
 ## Quick start
 

@@ -11,7 +11,7 @@
 Fractique は 3 種類の画像を作ります。ひとつはフラクタルの炎。細い曲線と柔らかな光でできた、輝く霞のようなフラクタルです。ひとつは古典的なフラクタル。マンデルブロ集合、ジュリア集合、ストレンジアトラクターから三次元のマンデルバルブまで、22 種類あります。もうひとつは壁紙。縁が光り、柔らかな影を落とす平らなシートを重ねたもので、それぞれにライト版とダーク版があります。プリセットを選ぶ、ランダムな画像を生成する、複数の炎を重ねるなどして、スマートフォンの画面から 4K モニターまで、好きなサイズで書き出せます。シーンは小さなファイル 1 つで、同じファイルは Windows、macOS、Linux、Android、iOS のどれでも常にまったく同じピクセルになります。
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="aurora-spiral プリセット：暗い背景に青緑と緑の渦巻く光の筋" width="880">
+  <img src="../samples/aurora-spiral.png" alt="オーロラの螺旋 プリセット：暗い背景に青緑と緑の渦巻く光の筋" width="880">
 </p>
 
 ## できること
@@ -38,57 +38,59 @@ Fractique は 3 種類の画像を作ります。ひとつはフラクタルの�
 | | |
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
-| `emerald-star`（2 レイヤー） | `ember-vortex` |
+| エメラルドの星（2 レイヤー） | 熾火の渦 |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
-| `golden-bloom` | `solar-mandala` |
+| 黄金の開花 | 太陽の曼荼羅 |
+
+さらに 100 点の炎と、それぞれを任意のサイズで再現できる `.frcq` ファイル：[ギャラリー](../gallery.md)。
 
 ほかの種類のフラクタル。マンデルブロ集合、ジュリア集合、クリフォードアトラクター：
 
 | | | |
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
-| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+| マンデルブロ: 渦巻き | ジュリア: 渦巻き | クリフォード: 翼 |
 
 そのほかの脱出時間型と求根型のフラクタル。バーニングシップ、トライコーン、マルチブロ、フェニックス、マグネット、ニュートン、ノヴァ：
 
 | | | | |
 | --- | --- | --- | --- |
 | ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
-| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| バーニングシップ: 船 | トライコーン: 島 | マルチブロ: 渦巻き | フェニックス: 銀河 |
 | ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
-| `magnet-pearls` | `newton-seven` | `nova-star` | |
+| マグネット: 真珠 | ニュートン: 7 | ノヴァ: 星 | |
 
 密度として描く軌道。ブッダブロと、デ・ヨング、ローレンツ、グモウスキー・ミラ、ホパロングの各アトラクター：
 
 | | | |
 | --- | --- | --- |
 | ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
-| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| ブッダブロ: 星雲 | デ・ヨング: クラシック | ローレンツ: 蝶 |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
-| `gumowski_mira-feathers` | `hopalong-web` | |
+| グモウスキー・ミラ: 羽根 | ホパロング: 蜘蛛の巣 | |
 
 幾何学的なフラクタル。アポロニウスのギャスケット、クライン群の極限集合、Lシステム、リアプノフ・フラクタル：
 
 | | | | |
 | --- | --- | --- | --- |
 | ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
-| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+| アポロニウスのギャスケット: 三重 | クライン群: カスプ | Lシステム: 植物 | リアプノフ: 羽根 |
 
 三次元の立体。マンデルバルブ、マンデルボックス、メンガーのスポンジ：
 
 | | | |
 | --- | --- | --- |
 | ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
-| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
+| マンデルバルブ: 王冠 | マンデルボックス: ステーション | メンガーのスポンジ: クラシック |
 
 ライトとダークの壁紙。それぞれのレイアウトと素材：
 
 | | | | |
 | --- | --- | --- | --- |
 | ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
-| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| 波, ガラス | 花, グロー | タイル, レリーフ | 扇, ガラス |
 | ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
-| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+| 円盤, 紙 | バー, 紙 | 弧, カーボン | 線, 紙 |
 
 ## クイックスタート
 
