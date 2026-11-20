@@ -2,11 +2,11 @@
 
 ## Unreleased
 
-* **A gallery of flames, fractals and wallpapers, each with its file:** [docs/gallery.md](docs/gallery.md) shows a
+* **A gallery of flames, fractals and wallpapers, each with its file:** [docs/gallery](docs/gallery/README.md) shows a
   hundred flames chosen from several thousand random scenes and their mutations, twelve fractals of other kinds and
-  twelve wallpapers. Each has a small picture and a `.frcq` file in `docs/gallery/` that the app opens and
-  `fractique render` draws again at any size and quality. `tools/gallery/make_gallery.py` makes the pictures and
-  the page from the files, and a test loads every one of them, so they keep loading. The captions under the
+  twelve wallpapers, in a folder each (`flames`, `fractals`, `wallpapers`) whose page shows its pictures. Each has
+  a small picture and beside it a `.frcq` file that the app opens and `fractique render` draws again at any size
+  and quality. `tools/gallery/make_gallery.py` makes the pictures and the pages from the files, and a test loads every one of them, so they keep loading. The captions under the
   pictures of the README and of its 14 translations are now the names the app shows (Emerald Star, Mandelbrot:
   Spiral) instead of the presets' identifiers.
 

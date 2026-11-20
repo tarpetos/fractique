@@ -42,7 +42,7 @@ Fractique tworzy obrazy trzech rodzajów. Fraktalne płomienie: świetliste, zwi
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | Złoty rozkwit | Słoneczna mandala |
 
-Jeszcze sto płomieni, a także fraktale i tapety, każdy obraz z plikiem `.frcq`, który odtwarza go w dowolnym rozmiarze: [galeria](../gallery.md).
+Jeszcze sto płomieni, a także fraktale i tapety, każdy obraz z plikiem `.frcq`, który odtwarza go w dowolnym rozmiarze: [galeria](../gallery/README.md).
 
 Fraktale innych rodzajów: zbiór Mandelbrota, zbiór Julii i atraktor Clifforda:
 

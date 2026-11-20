@@ -42,7 +42,7 @@ O Fractique cria três tipos de imagem. Chamas fractais: fractais luminosos e et
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | Floração dourada | Mandala solar |
 
-Mais cem chamas, além de fractais e papéis de parede, cada imagem com o arquivo `.frcq` que a reproduz em qualquer tamanho: [a galeria](../gallery.md).
+Mais cem chamas, além de fractais e papéis de parede, cada imagem com o arquivo `.frcq` que a reproduz em qualquer tamanho: [a galeria](../gallery/README.md).
 
 Fractais de outros tipos: o conjunto de Mandelbrot, um conjunto de Julia e o atrator de Clifford:
 

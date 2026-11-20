@@ -42,7 +42,7 @@ Fractique üç tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yum
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
 | Altın Çiçek | Güneş Mandalası |
 
-Yüz alev daha, ayrıca fraktallar ve duvar kâğıtları; her görsel, onu istenen boyutta yeniden oluşturan `.frcq` dosyasıyla: [galeri](../gallery.md).
+Yüz alev daha, ayrıca fraktallar ve duvar kâğıtları; her görsel, onu istenen boyutta yeniden oluşturan `.frcq` dosyasıyla: [galeri](../gallery/README.md).
 
 Başka türden fraktallar: Mandelbrot kümesi, bir Julia kümesi ve Clifford çekicisi:
 
