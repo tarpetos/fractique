@@ -624,6 +624,9 @@ const MIN_MAGNIFICATION: f64 = 1e-4;
 const FLOOR: f64 = 0.2;
 // A moved view the card draws in less than this many seconds is shown as it is drawn, without a blur.
 const BRISK: f32 = 0.1;
+// A moved view the card draws in less than this many seconds, half a frame, is drawn whole for every frame: it
+// needs no draft.
+const INSTANT: f32 = 0.5 * pace::FRAME;
 // Where the scale slider of the controls ends; the wheel goes on.
 const SCALE_MOST: f64 = 100.0;
 // The share of a view that may lie beside the picture's framing when the view is smaller than the picture.
@@ -895,6 +898,20 @@ struct App {
     chaotic: bool,
     // The card draws the whole scene pixel by pixel: a moved view is drawn again at once, without a rest.
     swift: bool,
+    // The card draws the picture within a frame: a moved view needs no draft.
+    at_once: bool,
+    // The draft of a view that moves: how small it is drawn, the run that draws it, the view it is of, the view
+    // it is drawn for with its margin, whether it has been shown, and the view of the draft on the screen.
+    draft: pace::Draft,
+    draft_keys: Option<Vec<String>>,
+    draft_of: (View, f64),
+    draft_view: View,
+    draft_landed: bool,
+    draft_shown: Option<(View, f64)>,
+    draft_note: ([u32; 2], f32),
+    // The card gave a draft of this scene up: its views wait for the picture as they did.
+    draft_off: bool,
+    wheeled: Option<(f64, u32)>,
     chaos_at: (View, f64),
     quick: (Option<f32>, Option<f32>),
     look: String,
@@ -1494,6 +1511,16 @@ impl App {
             compiling: false,
             chaotic: false,
             swift: false,
+            at_once: false,
+            draft: pace::Draft::new(),
+            draft_keys: None,
+            draft_of: (WHOLE, 1.0),
+            draft_view: WHOLE,
+            draft_landed: false,
+            draft_shown: None,
+            draft_note: ([0; 2], 0.0),
+            draft_off: false,
+            wheeled: None,
             chaos_at: (WHOLE, 1.0),
             quick: (None, None),
             look: String::new(),
@@ -1956,6 +1983,7 @@ impl App {
         self.asked = Instant::now();
         self.aimed_size = size;
         self.trace.renders += 1;
+        self.draft_keys = None;
 
         let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
         let mut passes = vec![(true, fitted(size, DRAFT_SIDE, DRAFT_SAMPLES)), (false, full)];
@@ -2098,6 +2126,7 @@ impl App {
             self.status = status_of(offer.pixels, self.began.elapsed().as_secs_f32(), scale);
         }
         self.turn_picture();
+        self.draft_shown = None;
         self.past_eye = self.shown_eye.take();
         if let Some(gfx) = state.renderer.write().callback_resources.get_mut::<Gfx>() {
             gfx.show(&state.device, &offer.flame, &offer.soft, true);
@@ -2441,6 +2470,8 @@ impl App {
         self.compiling = pending;
         if self.trial.is_some() {
             self.trial_step(&mut chaos, ctx);
+        } else if chaos.keys().is_some() && chaos.keys() == self.draft_keys.as_deref() {
+            self.draft_step(&mut chaos, ctx, frame);
         } else if chaos.keys().is_some() {
             self.chaos_step(&mut chaos, ctx, frame);
         }
@@ -2475,6 +2506,10 @@ impl App {
             later.fail();
             return;
         }
+        if self.drafting() {
+            self.instant = Some((later, size, cut));
+            return;
+        }
         if cut.is_none() && !self.requested.is_some_and(|shown| self.card_shows(shown)) {
             let options = RenderOptions {
                 width: size[0],
@@ -2501,6 +2536,91 @@ impl App {
         if let Some(index) = saved {
             chaos.watch(index);
         }
+    }
+
+    // The card draws a moved view of the scene small while it moves: the whole scene is drawn pixel by pixel, and
+    // the picture itself takes the card longer than a moment.
+    fn drafts(&self) -> bool {
+        self.swift && !self.at_once && !self.draft_off && !self.covering() && !self.given_up && self.gpu_on()
+    }
+
+    fn drafting(&self) -> bool {
+        self.draft_keys.is_some() && self.chaos.as_ref().and_then(Chaos::keys) == self.draft_keys.as_deref()
+    }
+
+    // Begins the draft of the view as it is now: the same view with a margin around it, a few times smaller.
+    fn begin_draft(&mut self, ctx: &egui::Context, size: [u32; 2]) -> bool {
+        let eye = (self.view, self.adjust.zoom);
+        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let whole = self.scene();
+        let around = View {
+            zoom: self.view.zoom / pace::DRAFT_MARGIN,
+            ..self.view
+        };
+        let scene = self.scene_in(around, eye.1);
+        let [width, height] = self.draft.size([full.width, full.height]);
+        let options = RenderOptions {
+            width,
+            height,
+            samples_per_pixel: pace::DRAFT_SAMPLES,
+            supersample: 1,
+        };
+        let Some(chaos) = &mut self.chaos else {
+            return false;
+        };
+        let keys = chaos_keys(&scene, &options);
+        if !chaos.draws(&whole, &full, false) || !chaos.begin(&scene, &options, &keys, Instant::now(), None, ctx) {
+            return false;
+        }
+        (self.draft_keys, self.draft_of, self.draft_view) = (Some(keys), eye, around);
+        self.draft_landed = false;
+        self.rendering = true;
+        true
+    }
+
+    // Takes in the batches of the draft, and puts it on the screen once it is whole: in the place of what was
+    // there, with no fade, as the view moves under the hand.
+    fn draft_step(&mut self, chaos: &mut Chaos, ctx: &egui::Context, frame: &eframe::Frame) {
+        if chaos.advance(ctx) == Step::Refused {
+            (self.draft_keys, self.draft_shown, self.draft_off) = (None, None, true);
+            return;
+        }
+        if self.draft_landed || !chaos.finished() {
+            return;
+        }
+        self.draft_landed = true;
+        let size = self.requested.unwrap_or(self.aimed_size);
+        let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
+        let spent = chaos.spent();
+        self.draft
+            .took(spent, pace::slice_of(true), full.width.min(full.height));
+        let scene = self.scene_in(self.draft_view, self.draft_of.1);
+        let (Some(preview), Some((pixels, levels))) = (&mut self.preview, chaos.levels()) else {
+            return;
+        };
+        self.draft_note = (pixels, spent * 1000.0);
+        if !preview.draw_draft(&scene, pixels, &levels, ctx) {
+            return;
+        }
+        let Some(state) = frame.wgpu_render_state() else {
+            return;
+        };
+        let mut renderer = state.renderer.write();
+        let (Some(gfx), Some((picture, soft))) = (renderer.callback_resources.get_mut::<Gfx>(), preview.draft_views())
+        else {
+            return;
+        };
+        // A picture that was still fading in is cut short: the draft's textures may be the ones it fades from.
+        if self.fresh.moving(self.stage.now) {
+            self.fresh = motion::Motion::at(1.0);
+            gfx.forget_past(&state.device);
+        }
+        gfx.show(&state.device, picture, soft, false);
+        (self.shown, self.shown_zoom, self.shown_size) = (self.draft_view, self.draft_of.1, Some(size));
+        self.shown_eye = None;
+        self.live_card = false;
+        self.draft_shown = Some(self.draft_of);
+        self.pictures += 1;
     }
 
     fn chaos_step(&mut self, chaos: &mut Chaos, ctx: &egui::Context, frame: &eframe::Frame) {
@@ -2547,6 +2667,7 @@ impl App {
             // A view of a kind drawn pixel by pixel is shown as it is drawn only where that takes no time to
             // speak of: a large picture is waited for as every other.
             self.brisk = times.1.is_some_and(|seconds| seconds < BRISK);
+            self.at_once = times.1.is_some_and(|seconds| seconds < INSTANT);
         }
         self.chaos_draw(chaos, step == Step::Drawn, whole, ctx, frame);
         if whole && self.chaotic {
@@ -2576,7 +2697,8 @@ impl App {
         // the first picture of a new scene, and the last. The others would be seen changing behind the blur.
         // A moved view of a kind the card draws within a frame is shown as it is drawn, and so is a tone that
         // changes once the picture is whole.
-        let staged = self.rendering && !(self.swift && self.moved_only && self.brisk);
+        let shown_as_drawn = self.swift && self.moved_only && self.brisk && self.draft_shown.is_none();
+        let staged = self.rendering && !shown_as_drawn;
         let first = staged && fresh && !last && self.takes_first();
         if staged && !last && !first {
             if fresh {
@@ -2629,6 +2751,7 @@ impl App {
                 gfx.show(&state.device, picture, soft, false);
                 (self.shown, self.shown_zoom) = self.chaos_at;
                 self.shown_size = Some(self.aimed_size);
+                self.draft_shown = None;
                 self.pictures += 1;
                 if last {
                     self.status = status_of(size, self.began.elapsed().as_secs_f32(), scale);
@@ -3410,6 +3533,13 @@ impl App {
         self.fast(size) || zoom != asked.1 || !(picture == WHOLE || pace::covers(asked.0.within(&picture, size)))
     }
 
+    // The share of the view the picture on the screen does not cover: what is shown there is not the picture.
+    fn beside(&self, size: [u32; 2]) -> f32 {
+        let (view, zoom) = self.shown_eye.unwrap_or((self.view, self.adjust.zoom));
+        let (shown, of) = (self.shown.scaled(self.shown_zoom), self.shown_size.unwrap_or(size));
+        pace::beside(view.scaled(zoom).within(&shown, of))
+    }
+
     // What `preview_now` asks before it draws: the layers on the card are this scene's.
     fn previews(&self, size: [u32; 2]) -> bool {
         if !self.gpu_on() || self.wall.live {
@@ -3498,7 +3628,7 @@ impl App {
             let (batches, last, worst, spent) = self.chaos.as_ref().map_or((0, 0.0, 0.0, 0.0), Chaos::load);
             self.trace.note = format!(
                 "veil {veil:.3} fresh {fresh:.3} awaited {} picture {} rendering {} first {} view {:.5}:{:.5}:{:.5} \
-                 card {batches} {last:.2} {worst:.2} {spent:.1} slice {:.2} parts {:.1} {:.1} {:.1} detail [{}] seats {} covers {}",
+                 draft {}x{} {:.2} beside {:.4} card {batches} {last:.2} {worst:.2} {spent:.1} slice {:.2} parts {:.1} {:.1} {:.1} detail [{}] seats {} covers {}",
                 u8::from(awaited),
                 self.pictures,
                 u8::from(self.rendering),
@@ -3506,6 +3636,10 @@ impl App {
                 self.view.zoom,
                 self.view.right,
                 self.view.down,
+                self.draft_note.0[0],
+                self.draft_note.0[1],
+                self.draft_note.1,
+                self.beside(size),
                 pace::slice() * 1000.0,
                 self.trace.parts[0],
                 self.trace.parts[1],
@@ -3777,6 +3911,11 @@ impl App {
                 let around = pointer.map_or(egui::Vec2::ZERO, |at| (at - screen.center()) / screen.size());
                 self.zoom_by(f64::from(factor), sides(around, size, stretch), size);
             }
+        }
+        if let Some((by, left)) = self.wheeled.take() {
+            self.zoom_by(by, [0.0; 2], size);
+            self.wheeled = (left > 1).then_some((by, left - 1));
+            ui.ctx().request_repaint();
         }
         self.view.limited(size, self.least(), self.covering());
         if self.view != before {
@@ -5212,6 +5351,13 @@ impl App {
             self.shown_frames = 0;
             return;
         }
+        if step.starts_with("wheel:")
+            && let [by, frames] = numbers[..]
+        {
+            self.wheeled = Some((f64::from(by), frames as u32));
+            self.shown_frames = 1;
+            return;
+        }
         if step == "escape" {
             self.escape = true;
             self.shown_frames = 1;
@@ -5494,6 +5640,7 @@ impl App {
                     self.began = Instant::now();
                 }
                 self.moved_only = self.requested.is_some();
+                self.draft_off = false;
                 if self.card_shows(size) {
                     self.requested = Some(size);
                     self.drawn = Some((self.view, self.adjust.zoom));
@@ -5502,6 +5649,21 @@ impl App {
                 } else {
                     self.previewing = false;
                     self.show_view(&ctx, size, true);
+                }
+            } else if self.drawn != Some((self.view, self.adjust.zoom)) && !self.frozen && self.drafts() {
+                self.moved_only = true;
+                if self.drafting()
+                    && let Some(mut chaos) = self.chaos.take()
+                {
+                    self.draft_step(&mut chaos, &ctx, frame);
+                    self.chaos = Some(chaos);
+                }
+                let flying = self.drafting() && !self.draft_landed;
+                let shown = self.draft_shown == Some((self.view, self.adjust.zoom));
+                match pace::hand_over(flying, shown) {
+                    pace::Next::Wait => {}
+                    pace::Next::Draft if self.begin_draft(&ctx, size) => {}
+                    pace::Next::Draft | pace::Next::Picture => self.show_view(&ctx, size, self.drawn.is_none()),
                 }
             } else if self.drawn != Some((self.view, self.adjust.zoom)) && !self.frozen {
                 let still = self.touched.elapsed().as_secs_f32();

@@ -512,6 +512,8 @@ pub(crate) struct Fields {
     asked: Mutex<Vec<bool>>,
     rates: Arc<Mutex<Vec<Rate>>>,
     spare: Arc<Mutex<Vec<Sheet>>>,
+    // The textures of drafts, a size of their own: asking for one must not drop those of the picture.
+    drafts: Arc<Mutex<Vec<Sheet>>>,
     pub(crate) stacks: Stacks,
     pub(crate) unbounded: bool,
 }
@@ -596,6 +598,7 @@ impl Fields {
             asked: Mutex::new(vec![false; KINDS.len()]),
             rates: Arc::new(Mutex::new(vec![Rate::default(); KINDS.len()])),
             spare: Arc::default(),
+            drafts: Arc::default(),
             unbounded: false,
         }
     }
@@ -628,8 +631,8 @@ impl Fields {
         build();
     }
 
-    fn sheet(&self, size: [u32; 2]) -> Sheet {
-        let mut spare = self.spare.lock().unwrap_or_else(|e| e.into_inner());
+    fn sheet(&self, size: [u32; 2], pool: &Mutex<Vec<Sheet>>) -> Sheet {
+        let mut spare = pool.lock().unwrap_or_else(|e| e.into_inner());
         spare.retain(|sheet| sheet.size == size);
         if let Some(sheet) = spare.pop() {
             return sheet;
@@ -692,7 +695,12 @@ impl Fields {
             return Planned::Soon;
         }
         let size = [options.width, options.height];
-        let sheet = self.sheet(size);
+        let pool = if options.samples_per_pixel == pace::DRAFT_SAMPLES {
+            &self.drafts
+        } else {
+            &self.spare
+        };
+        let sheet = self.sheet(size, pool);
         let buffer = |size: u64, usage| {
             self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("fractique field"),
@@ -734,7 +742,7 @@ impl Fields {
             queue: self.queue.clone(),
             pipes: self.pipes.clone(),
             rates: self.rates.clone(),
-            spare: self.spare.clone(),
+            spare: pool.clone(),
             kind: plan.kind,
             size,
             side: plan.frame.size[2],

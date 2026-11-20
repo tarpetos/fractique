@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* **A fractal drawn pixel by pixel follows the hand:** a Burning Ship, a Mandelbrot or any other kind the
+  graphics card draws pixel by pixel was drawn anew for a moved view only when the view stood still: while it was
+  dragged or wheeled the screen showed the picture it had, moved, with an empty or blurred slab where the picture
+  ended, up to 84 % of the window on the way out. Now the view itself is drawn for every frame, small, and shown
+  at the window's size: soft, but whole. It starts at a quarter of the picture a side and is made smaller at once
+  when the card needs more than its 4 ms of a frame for it, finer slowly when it has room, never smaller than
+  180 pixels on its shorter side. When the view rests the picture is drawn and takes the draft's place in one
+  cross-fade; the blur over a picture that takes the card longer than 0.1 s stands over the draft meanwhile, as
+  it did over the moved picture. Measured on an RTX 4070 at 3840 × 2160: what is not the picture fell from 20 %
+  of the view on average (39 % at most) in a drag to 1 % in its first frame and nothing after; a frame of the
+  window takes 0.9 ms instead of 0.7; the picture comes one frame later. Flames, attractors, deep views and
+  what the processor renders are as they were: a draft of them is specks and takes the chaos game a tenth of a
+  second or more ([performance.md](docs/performance.md#a-view-that-moves)).
+
 * **A new picture opens at 1.0×:** before the view had one scale, the **Scale** slider of the controls kept a
   number of its own in the app's settings. The slider is the view's scale now and nothing sets that number any
   more, but it was still read back at the start and multiplied into every picture: with the old slider left at

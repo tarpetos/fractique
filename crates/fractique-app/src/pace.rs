@@ -49,6 +49,104 @@ pub fn next(sent: f64, took: f32, slice: f32) -> f64 {
     sent * fits.min(grown)
 }
 
+// A view that moves is drawn anew for every frame, small, and shown at the picture's size until the view rests:
+// a draft. It is this many times smaller a side, by how long the card takes for it.
+pub const DRAFT_SIDES: [u32; 6] = [2, 3, 4, 6, 8, 12];
+const DRAFT_FIRST: usize = 2;
+// The shorter side of a draft is never under this many pixels: 320 × 180 of a picture of 16 to 9.
+pub const DRAFT_LEAST: u32 = 180;
+// A draft is drawn this many times wider and higher than the view, so that the frames it is late by show the
+// picture too, and nothing beside it.
+pub const DRAFT_MARGIN: f64 = 1.25;
+// One sample a pixel, and none drawn again.
+pub const DRAFT_SAMPLES: u32 = 1;
+// A draft is made finer when so many in a row would have fit in this share of the slice at the finer size.
+const DRAFT_CALM: u32 = 30;
+const DRAFT_ROOM: f32 = 0.7;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Draft {
+    step: usize,
+    calm: u32,
+}
+
+impl Draft {
+    pub const fn new() -> Self {
+        Self {
+            step: DRAFT_FIRST,
+            calm: 0,
+        }
+    }
+
+    fn coarsest(shorter: u32) -> usize {
+        DRAFT_SIDES
+            .iter()
+            .rposition(|side| shorter / side >= DRAFT_LEAST)
+            .unwrap_or(0)
+    }
+
+    // How many times smaller a side than a picture with this shorter side.
+    pub fn side(&self, shorter: u32) -> u32 {
+        DRAFT_SIDES[self.step.min(Self::coarsest(shorter))]
+    }
+
+    pub fn size(&self, picture: [u32; 2]) -> [u32; 2] {
+        let side = f64::from(self.side(picture[0].min(picture[1])));
+        picture.map(|pixels| ((f64::from(pixels) * DRAFT_MARGIN / side).round() as u32).max(1))
+    }
+
+    // Takes in the seconds the card worked on a draft: one that overran the slice is followed by one small enough
+    // to fit, at once; one that would fit a step finer with room to spare, DRAFT_CALM times in a row, by a finer one.
+    pub fn took(&mut self, seconds: f32, slice: f32, shorter: u32) {
+        let last = Self::coarsest(shorter);
+        let at = self.step.min(last);
+        let at_side = |to: usize| {
+            let fewer = DRAFT_SIDES[at] as f32 / DRAFT_SIDES[to] as f32;
+            seconds * fewer * fewer
+        };
+        self.step = at;
+        if seconds > slice {
+            self.step = (at..=last).find(|to| at_side(*to) <= slice).unwrap_or(last);
+            self.calm = 0;
+        } else if at > 0 && at_side(at - 1) <= slice * DRAFT_ROOM {
+            self.calm += 1;
+            if self.calm >= DRAFT_CALM {
+                (self.step, self.calm) = (at - 1, 0);
+            }
+        } else {
+            self.calm = 0;
+        }
+    }
+}
+
+// What is drawn next for a view that is not the picture's, where the card drafts: one draft at a time, each of the
+// view as it is when the one before has landed, and the picture itself once the draft on the screen is of the very
+// view, which is when the view has stood still for as long as a draft takes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Next {
+    Draft,
+    Wait,
+    Picture,
+}
+
+pub fn hand_over(flying: bool, shown: bool) -> Next {
+    if flying {
+        Next::Wait
+    } else if shown {
+        Next::Picture
+    } else {
+        Next::Draft
+    }
+}
+
+// The share of the window a picture does not cover, when the window shows the part of it around [across, along],
+// `larger` times larger.
+pub fn beside([across, along, larger]: [f32; 3]) -> f32 {
+    let half = 0.5 / larger.max(1e-9);
+    let covered = |at: f32| ((at + half).min(1.0) - (at - half).max(0.0)).max(0.0) / (2.0 * half);
+    1.0 - covered(across) * covered(along)
+}
+
 // A view is rendered when its picture is expected within this many seconds; a longer one is the picture the app
 // has, magnified.
 pub const LONGEST: f64 = 10.0;
@@ -180,6 +278,99 @@ mod tests {
             sent = next(sent, seconds(sent), slice);
         }
         assert!((seconds(sent) - slice).abs() < slice * 0.01);
+    }
+
+    #[test]
+    fn a_draft_begins_at_a_quarter_a_side_with_its_margin() {
+        let draft = Draft::new();
+        assert_eq!(draft.side(2160), 4);
+        assert_eq!(draft.size([3840, 2160]), [1200, 675]);
+        // A small picture is not made smaller than a picture still is.
+        assert_eq!(draft.side(520), 2);
+        assert_eq!(draft.side(300), 2);
+        assert_eq!(Draft::coarsest(2160), 5);
+        assert_eq!(Draft::coarsest(1080), 3);
+    }
+
+    #[test]
+    fn a_draft_that_overruns_is_made_smaller_at_once_and_finer_slowly() {
+        let slice = slice_of(true);
+        let mut draft = Draft::new();
+        // Three times too long at a quarter: a sixth would take 4/9 of it and still overrun, an eighth fits.
+        draft.took(3.0 * slice, slice, 2160);
+        assert_eq!(draft.side(2160), 8);
+        // Just inside the slice: it stays.
+        for _ in 0..100 {
+            draft.took(0.9 * slice, slice, 2160);
+        }
+        assert_eq!(draft.side(2160), 8);
+        // With room for the finer size it is made finer one step, after thirty drafts and not before.
+        for _ in 0..29 {
+            draft.took(0.3 * slice, slice, 2160);
+        }
+        assert_eq!(draft.side(2160), 8);
+        draft.took(0.3 * slice, slice, 2160);
+        assert_eq!(draft.side(2160), 6);
+        // A draft that does not fit in between starts the count again.
+        for _ in 0..20 {
+            draft.took(0.1 * slice, slice, 2160);
+        }
+        draft.took(0.95 * slice, slice, 2160);
+        for _ in 0..29 {
+            draft.took(0.1 * slice, slice, 2160);
+        }
+        assert_eq!(draft.side(2160), 6);
+        // However slow the card, a draft is not made smaller than the floor, nor finer than half a side.
+        draft.took(1000.0 * slice, slice, 2160);
+        assert_eq!(draft.side(2160), 12);
+        assert_eq!(draft.size([3840, 2160]), [400, 225]);
+        draft.took(1000.0 * slice, slice, 1080);
+        assert_eq!(draft.side(1080), 6);
+        for _ in 0..1000 {
+            draft.took(0.0001 * slice, slice, 2160);
+        }
+        assert_eq!(draft.side(2160), 2);
+    }
+
+    #[test]
+    fn a_card_at_a_steady_speed_settles_on_one_size() {
+        let slice = slice_of(true);
+        // Seconds a pixel such that a quarter a side takes 1.6 slices.
+        let pixels = |draft: &Draft| {
+            let [wide, high] = draft.size([3840, 2160]);
+            (wide * high) as f32
+        };
+        let each = 1.6 * slice / pixels(&Draft::new());
+        let mut draft = Draft::new();
+        let mut sides = Vec::new();
+        for _ in 0..400 {
+            draft.took(each * pixels(&draft), slice, 2160);
+            sides.push(draft.side(2160));
+        }
+        assert!(sides[1..].iter().all(|side| *side == 6), "{sides:?}");
+    }
+
+    #[test]
+    fn the_picture_follows_the_draft_of_the_very_view() {
+        // A view that moved has no draft of its own on the screen: one is drawn.
+        assert_eq!(hand_over(false, false), Next::Draft);
+        // One draft at a time: while one is on its way nothing is begun, whatever the view does.
+        assert_eq!(hand_over(true, false), Next::Wait);
+        assert_eq!(hand_over(true, true), Next::Wait);
+        // The draft on the screen is of this view, so the view stood still while it was drawn: the picture.
+        assert_eq!(hand_over(false, true), Next::Picture);
+    }
+
+    #[test]
+    fn what_is_beside_a_picture_is_the_share_it_does_not_cover() {
+        assert_eq!(beside([0.5, 0.5, 1.0]), 0.0);
+        assert_eq!(beside([0.5, 0.5, 4.0]), 0.0);
+        assert!((beside([0.75, 0.5, 1.0]) - 0.25).abs() < 1e-6);
+        assert!((beside([0.5, 0.5, 0.5]) - 0.75).abs() < 1e-6);
+        // A draft with its margin covers a view that moved an eighth of itself since.
+        let wider = 1.0 / DRAFT_MARGIN as f32;
+        assert!(beside([0.5 + 0.124 * wider, 0.5, DRAFT_MARGIN as f32]) < 1e-6);
+        assert!(beside([0.5 + 0.2 * wider, 0.5, DRAFT_MARGIN as f32]) > 0.05);
     }
 
     #[test]

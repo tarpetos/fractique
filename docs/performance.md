@@ -382,6 +382,37 @@ At 640×400 the card took 0.03 to 0.26 s there and at 1280×720 0.10 to 0.69 s; 
 49 ms, and the pictures differ from the processor's by 0.3 of 255 on average and by 4 at most. No other card
 was measured.
 
+### A view that moves
+
+While a view of a kind drawn pixel by pixel is dragged or wheeled, the screen shows a small draft of the view
+itself ([architecture.md](architecture.md#motion)). Measured on an **NVIDIA GeForce RTX 4070** (Vulkan), in a
+window nobody sees, with a picture of 3840 × 2160, from the trace alone (no frames saved): a drag of 40 frames
+sideways and 30 steps of the wheel outwards, both at twice the framing. "Not the picture" is the share of the view
+that the picture on the screen does not cover, where the blurred continuation or the dark is shown.
+
+| Scene, movement | Not the picture: before, mean and most | After | The draft, the card's time for one | A frame of the window: before | After | From the last move to the picture: before | After |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `burning_ship-cathedral`, drag | 20 %, 39 % | 0.03 %, 1 % in the first frame, then none | 1200 × 675, 2.6 ms | 0.6 ms, 1.0 at most | 0.9 ms, 1.2 at most | 0.12 s | 0.14 s |
+| `burning_ship-cathedral`, wheel | 55 %, 84 % | 0.4 %, 6 % in one frame | 1200 × 675, 2.8 ms | 0.8 ms, 1.2 | 1.0 ms, 1.4 | 0.14 s | 0.13 s |
+| `mandelbrot-whole`, drag | 20 %, 39 % | 0.03 %, 1 % in the first frame, then none | 1200 × 675 and 1600 × 900, 0.9 ms | 0.7 ms, 0.9 | 0.9 ms, 1.4 | 0.02 s | 0.03 s |
+| `mandelbrot-whole`, wheel | 55 %, 84 % | 0.4 %, 6 % in one frame | 1200 × 675, 0.7 ms | 0.8 ms, 1.0 | 1.0 ms, 1.2 | 0.02 s | 0.03 s |
+| `nova`, first preset, drag | 20 %, 39 % | 0.03 %, 1 % in the first frame, then none | 1200 × 675, then 800 × 450, 3.1 ms | 0.7 ms, 1.0 | 1.0 ms, 1.4 | 0.10 s | 0.14 s |
+
+The first frame of a movement has no draft yet and shows the picture it had, moved by that one frame. The wheel
+of the test run turns after the frame has decided what to draw, so its first draft is a frame later than a real
+wheel's. The picture comes one frame later than before, the frame the draft of the resting view takes. Before,
+the picture of a view that moved began anew with every frame and was never whole while the view moved, also for
+the scenes the card draws in 0.02 s: at 3840 × 2160 no kind's first preset is whole within a frame (0.014 s for
+`mandelbrot-whole` to 0.18 s for `nova`).
+
+Flames, attractors and deep views are not drafted. Tried through the chaos game as it is, at 1, 4 and 16 samples
+a pixel: a draft of `aurora-spiral` of 1200 × 675 took the card 0.23 to 0.28 s over 0.9 s of frames, one of
+400 × 225 0.02 to 0.07 s over 0.1 s, since the walk, the look over the tiles and each strip of the levels are a
+submission and a frame each; and it shows the bright core with the fine threads as specks, which is not the
+picture. They keep the picture they had, moved: 10 % of the view is not the picture on average and 20 % at most
+in a drag of a fifth of the window, 55 % and 84 % in the wheel run above, and the picture comes 0.8 to 1.0 s
+after the last move for the flame on the card (0.7 s on the processor at 1600 × 1040, 1.7 s for `clifford`).
+
 ### Wallpapers on the graphics card
 
 A wallpaper is drawn by the graphics card
