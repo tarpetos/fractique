@@ -11,7 +11,7 @@
 Fractique membuat tiga jenis gambar. Api fraktal: fraktal bercahaya dan halus yang terbentuk dari kurva tipis dan cahaya lembut. Fraktal klasik dari 22 jenis: dari himpunan Mandelbrot, himpunan Julia, dan penarik aneh hingga Mandelbulb tiga dimensi. Dan wallpaper: lembaran datar dengan tepi bercahaya dan bayangan lembut, masing-masing dalam versi terang dan gelap. Anda memilih preset, membuat gambar acak, atau menumpuk beberapa api, lalu mengekspornya dalam ukuran apa pun, dari layar ponsel hingga monitor 4K. Sebuah adegan adalah satu berkas kecil, dan berkas yang sama selalu menghasilkan piksel yang persis sama, di Windows, macOS, Linux, Android, dan iOS.
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="Preset aurora-spiral: untaian spiral toska dan hijau di atas latar gelap" width="880">
+  <img src="../samples/aurora-spiral.png" alt="Preset Spiral Aurora: untaian spiral toska dan hijau di atas latar gelap" width="880">
 </p>
 
 ## Yang dilakukan Fractique
@@ -38,57 +38,59 @@ Fractique membuat tiga jenis gambar. Api fraktal: fraktal bercahaya dan halus ya
 | | |
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
-| `emerald-star` (dua lapisan) | `ember-vortex` |
+| Bintang Zamrud (dua lapisan) | Pusaran Bara |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
-| `golden-bloom` | `solar-mandala` |
+| Mekar Keemasan | Mandala Surya |
+
+Seratus api lagi, juga fraktal dan wallpaper, masing-masing dengan berkas `.frcq` yang merendernya kembali dalam ukuran apa pun: [galeri](../gallery.md).
 
 Fraktal jenis lain: himpunan Mandelbrot, himpunan Julia, dan penarik Clifford:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
-| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+| Mandelbrot: Spiral | Julia: Spiral | Clifford: Sayap |
 
 Fraktal waktu lolos lainnya dan fraktal pencarian akar: Burning Ship, Tricorn, Multibrot, Phoenix, Magnet, Newton, Nova:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
-| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| Burning Ship: Kapal | Tricorn: Pulau | Multibrot: Spiral | Phoenix: Galaksi |
 | ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
-| `magnet-pearls` | `newton-seven` | `nova-star` | |
+| Magnet: Mutiara | Newton: Tujuh | Nova: Bintang | |
 
 Orbit yang digambar sebagai kerapatan: Buddhabrot serta penarik De Jong, Lorenz, Gumowski-Mira, dan Hopalong:
 
 | | | |
 | --- | --- | --- |
 | ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
-| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| Buddhabrot: Nebula | De Jong: Klasik | Lorenz: Kupu-Kupu |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
-| `gumowski_mira-feathers` | `hopalong-web` | |
+| Gumowski-Mira: Bulu | Hopalong: Jaring Laba-Laba | |
 
 Fraktal geometris: gasket Apollonius, himpunan limit grup Klein, sistem-L, dan fraktal Lyapunov:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
-| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+| Gasket Apollonius: Rangkap Tiga | Grup Klein: Ujung Runcing | Sistem-L: Tanaman | Lyapunov: Bulu |
 
 Benda padat tiga dimensi: Mandelbulb, Mandelbox, dan spons Menger:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
-| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
+| Mandelbulb: Mahkota | Mandelbox: Stasiun | Spons Menger: Klasik |
 
 Wallpaper, terang dan gelap, masing-masing dengan tata letak dan bahannya:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
-| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| Ombak, Kaca | Bunga, Pendar | Ubin, Relief | Kipas, Kaca |
 | ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
-| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+| Cakram, Kertas | Batang, Kertas | Busur, Karbon | Garis, Kertas |
 
 ## Mulai cepat
 

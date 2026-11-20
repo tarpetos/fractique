@@ -11,7 +11,7 @@
 Fractique crée trois sortes d’images. Des flammes fractales : ces fractales lumineuses et vaporeuses faites de courbes fines et de lumière douce. Des fractales classiques de 22 sortes : de l’ensemble de Mandelbrot, des ensembles de Julia et des attracteurs étranges au Mandelbulb en trois dimensions. Et des fonds d’écran : des feuilles plates aux bords éclairés et aux ombres douces, chacun en version claire et en version sombre. Vous choisissez un préréglage, tirez une image au hasard ou superposez plusieurs flammes, puis vous exportez le résultat à n’importe quelle taille, de l’écran d’un téléphone à un moniteur 4K. Une scène est un seul petit fichier, et le même fichier donne toujours exactement les mêmes pixels, sous Windows, macOS, Linux, Android et iOS.
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="Le préréglage aurora-spiral : des volutes en spirale turquoise et vertes sur fond sombre" width="880">
+  <img src="../samples/aurora-spiral.png" alt="Le préréglage Spirale aurorale : des volutes en spirale turquoise et vertes sur fond sombre" width="880">
 </p>
 
 ## Ce que fait Fractique
@@ -38,57 +38,59 @@ Fractique crée trois sortes d’images. Des flammes fractales : ces fractales l
 | | |
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
-| `emerald-star` (deux calques) | `ember-vortex` |
+| Étoile émeraude (deux calques) | Tourbillon de braise |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
-| `golden-bloom` | `solar-mandala` |
+| Floraison dorée | Mandala solaire |
+
+Cent autres flammes, ainsi que des fractales et des fonds d’écran, chaque image avec le fichier `.frcq` qui la restitue à n’importe quelle taille : [la galerie](../gallery.md).
 
 Des fractales d’autres sortes : l’ensemble de Mandelbrot, un ensemble de Julia et l’attracteur de Clifford :
 
 | | | |
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
-| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+| Mandelbrot: Spirale | Julia: Spirales | Clifford: Ailes |
 
 D’autres fractales à temps d’échappement et celles à recherche de racines : Burning Ship, Tricorn, Multibrot, Phénix, Magnet, Newton, Nova :
 
 | | | | |
 | --- | --- | --- | --- |
 | ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
-| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| Burning Ship: Navire | Tricorn: Île | Multibrot: Spirales | Phénix: Galaxie |
 | ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
-| `magnet-pearls` | `newton-seven` | `nova-star` | |
+| Magnet: Perles | Newton: Sept | Nova: Étoile | |
 
 Des orbites dessinées comme des densités : le Buddhabrot et les attracteurs de De Jong, de Lorenz, de Gumowski-Mira et Hopalong :
 
 | | | |
 | --- | --- | --- |
 | ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
-| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| Buddhabrot: Nébuleuse | De Jong: Classique | Lorenz: Papillon |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
-| `gumowski_mira-feathers` | `hopalong-web` | |
+| Gumowski-Mira: Plumes | Hopalong: Toile | |
 
 Des fractales géométriques : une baderne d’Apollonius, l’ensemble limite d’un groupe kleinien, un L-système et une fractale de Liapounov :
 
 | | | | |
 | --- | --- | --- | --- |
 | ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
-| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+| Baderne d’Apollonius: Triple | Groupe kleinien: Pointe | L-système: Plante | Liapounov: Plumes |
 
 Des solides en trois dimensions : le Mandelbulb, la Mandelbox et l’éponge de Menger :
 
 | | | |
 | --- | --- | --- |
 | ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
-| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
+| Mandelbulb: Couronne | Mandelbox: Station | Éponge de Menger: Classique |
 
 Des fonds d’écran, clairs et sombres, chacun avec sa disposition et sa matière :
 
 | | | | |
 | --- | --- | --- | --- |
 | ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
-| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| Vagues, Verre | Fleur, Lueur | Carreaux, Relief | Éventail, Verre |
 | ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
-| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+| Disques, Papier | Barres, Papier | Arcs, Carbone | Lignes, Papier |
 
 ## Démarrage rapide
 

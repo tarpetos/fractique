@@ -11,7 +11,7 @@
 Fractique üç tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumuşak ışıktan oluşan, parlayan, tül gibi fraktallar. 22 türde klasik fraktal: Mandelbrot kümesi, Julia kümeleri ve garip çekicilerden üç boyutlu Mandelbulb’a kadar. Ve duvar kâğıtları: kenarları aydınlatılmış, yumuşak gölgeli düz levhalar; her birinin açık ve koyu sürümü vardır. Bir hazır ayar seçer, rastgele bir görüntü üretir ya da birkaç alevi üst üste bindirirsiniz ve sonucu telefon ekranından 4K monitöre kadar istediğiniz boyutta dışa aktarırsınız. Bir sahne tek bir küçük dosyadır ve aynı dosya Windows, macOS, Linux, Android ve iOS’ta her zaman tam olarak aynı pikselleri verir.
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="aurora-spiral hazır ayarı: koyu bir arka planda turkuaz ve yeşil sarmal tüller" width="880">
+  <img src="../samples/aurora-spiral.png" alt="Aurora Sarmalı hazır ayarı: koyu bir arka planda turkuaz ve yeşil sarmal tüller" width="880">
 </p>
 
 ## Fractique neler yapar
@@ -38,57 +38,59 @@ Fractique üç tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yum
 | | |
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
-| `emerald-star` (iki katman) | `ember-vortex` |
+| Zümrüt Yıldız (iki katman) | Kor Girdabı |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
-| `golden-bloom` | `solar-mandala` |
+| Altın Çiçek | Güneş Mandalası |
+
+Yüz alev daha, ayrıca fraktallar ve duvar kâğıtları; her görsel, onu istenen boyutta yeniden oluşturan `.frcq` dosyasıyla: [galeri](../gallery.md).
 
 Başka türden fraktallar: Mandelbrot kümesi, bir Julia kümesi ve Clifford çekicisi:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
-| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+| Mandelbrot: Sarmal | Julia: Sarmallar | Clifford: Kanatlar |
 
 Diğer kaçış zamanı fraktalları ve kök bulma fraktalları: Burning Ship, Tricorn, Multibrot, Anka, Magnet, Newton, Nova:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
-| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| Burning Ship: Gemi | Tricorn: Ada | Multibrot: Sarmallar | Anka: Galaksi |
 | ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
-| `magnet-pearls` | `newton-seven` | `nova-star` | |
+| Magnet: İnciler | Newton: Yedi | Nova: Yıldız | |
 
 Yoğunluk olarak çizilen yörüngeler: Buddhabrot ile De Jong, Lorenz, Gumowski-Mira ve Hopalong çekicileri:
 
 | | | |
 | --- | --- | --- |
 | ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
-| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| Buddhabrot: Bulutsu | De Jong: Klasik | Lorenz: Kelebek |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
-| `gumowski_mira-feathers` | `hopalong-web` | |
+| Gumowski-Mira: Tüyler | Hopalong: Örümcek Ağı | |
 
 Geometrik fraktallar: bir Apollonius contası, bir Klein grubunun limit kümesi, bir L-sistemi ve bir Lyapunov fraktalı:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
-| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+| Apollonius contası: Üçlü | Klein grubu: Sivri Uç | L-sistemi: Bitki | Lyapunov: Tüyler |
 
 Üç boyutlu katı cisimler: Mandelbulb, Mandelbox ve Menger süngeri:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
-| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
+| Mandelbulb: Taç | Mandelbox: İstasyon | Menger süngeri: Klasik |
 
 Açık ve koyu duvar kâğıtları, her biri kendi düzeni ve malzemesiyle:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
-| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| Dalgalar, Cam | Çiçek, Parıltı | Karolar, Kabartma | Yelpaze, Cam |
 | ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
-| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+| Diskler, Kâğıt | Çubuklar, Kâğıt | Yaylar, Karbon | Çizgiler, Kâğıt |
 
 ## Hızlı başlangıç
 

@@ -11,7 +11,7 @@
 Fractique 生成三类图像。一类是分形火焰：由纤细曲线和柔和光线构成的、发光而轻盈的分形。一类是经典分形：共 22 种，从曼德博集合、朱利亚集合和奇异吸引子到三维的曼德球。另一类是壁纸：边缘受光、带柔和阴影的扁平薄片，每张都有浅色和深色两个版本。你可以选择预设、生成随机图像，或把多个火焰叠加在一起，再以任意尺寸导出，从手机屏幕到 4K 显示器都可以。一个场景就是一个小文件，同一个文件在 Windows、macOS、Linux、Android 和 iOS 上始终渲染出完全相同的像素。
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="aurora-spiral 预设：深色背景上青绿色与绿色的螺旋光丝" width="880">
+  <img src="../samples/aurora-spiral.png" alt="极光螺旋 预设：深色背景上青绿色与绿色的螺旋光丝" width="880">
 </p>
 
 ## 功能
@@ -38,57 +38,59 @@ Fractique 生成三类图像。一类是分形火焰：由纤细曲线和柔和�
 | | |
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
-| `emerald-star`（两个图层） | `ember-vortex` |
+| 祖母绿之星（两个图层） | 余烬漩涡 |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
-| `golden-bloom` | `solar-mandala` |
+| 金色绽放 | 太阳曼陀罗 |
+
+另有 100 幅火焰以及一些分形和壁纸，每幅都附有可按任意尺寸重新渲染的 `.frcq` 文件：[画廊](../gallery.md)。
 
 其他种类的分形：曼德博集合、朱利亚集合和克利福德吸引子：
 
 | | | |
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
-| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+| 曼德博: 螺旋 | 朱利亚: 螺旋 | 克利福德: 翅膀 |
 
 更多逃逸时间类分形和求根类分形：燃烧船、三角帽、多重曼德博、凤凰、磁铁、牛顿、新星：
 
 | | | | |
 | --- | --- | --- | --- |
 | ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
-| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| 燃烧船: 船 | 三角帽: 岛屿 | 多重曼德博: 螺旋 | 凤凰: 星系 |
 | ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
-| `magnet-pearls` | `newton-seven` | `nova-star` | |
+| 磁铁: 珍珠 | 牛顿: 七 | 新星: 星 | |
 
 以密度绘制的轨道：佛陀布罗特，以及德容、洛伦兹、古莫夫斯基-米拉和霍帕隆吸引子：
 
 | | | |
 | --- | --- | --- |
 | ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
-| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| 佛陀布罗特: 星云 | 德容: 经典 | 洛伦兹: 蝴蝶 |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
-| `gumowski_mira-feathers` | `hopalong-web` | |
+| 古莫夫斯基-米拉: 羽毛 | 霍帕隆: 蛛网 | |
 
 几何分形：阿波罗尼奥斯垫片、克莱因群的极限集、L-系统和李雅普诺夫分形：
 
 | | | | |
 | --- | --- | --- | --- |
 | ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
-| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+| 阿波罗尼奥斯垫片: 三重 | 克莱因群: 尖点 | L-系统: 植物 | 李雅普诺夫: 羽毛 |
 
 三维立体：曼德球、曼德盒和门格海绵：
 
 | | | |
 | --- | --- | --- |
 | ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
-| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
+| 曼德球: 王冠 | 曼德盒: 车站 | 门格海绵: 经典 |
 
 浅色和深色壁纸，各自的布局与材质：
 
 | | | | |
 | --- | --- | --- | --- |
 | ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
-| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| 波浪, 玻璃 | 花朵, 辉光 | 瓷砖, 浮雕 | 扇形, 玻璃 |
 | ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
-| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+| 圆盘, 纸张 | 长条, 纸张 | 圆弧, 碳纤维 | 线条, 纸张 |
 
 ## 快速开始
 

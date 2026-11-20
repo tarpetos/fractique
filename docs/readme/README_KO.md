@@ -11,7 +11,7 @@
 Fractique는 세 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입니다. 가는 곡선과 부드러운 빛으로 이루어진, 빛나는 안개 같은 프랙탈입니다. 또 하나는 고전적인 프랙탈입니다. 만델브로 집합, 줄리아 집합, 기묘한 끌개부터 3차원의 만델벌브까지 22종이 있습니다. 다른 하나는 배경화면입니다. 가장자리에 빛이 들고 부드러운 그림자가 지는 평평한 시트를 겹친 것으로, 각각 라이트 버전과 다크 버전이 있습니다. 프리셋을 고르거나, 무작위 이미지를 만들거나, 여러 불꽃을 겹친 다음 휴대폰 화면부터 4K 모니터까지 원하는 크기로 내보낼 수 있습니다. 장면은 작은 파일 하나이며, 같은 파일은 Windows, macOS, Linux, Android, iOS 어디서나 항상 정확히 같은 픽셀로 렌더링됩니다.
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="aurora-spiral 프리셋: 어두운 배경 위의 청록색과 초록색 나선형 빛줄기" width="880">
+  <img src="../samples/aurora-spiral.png" alt="오로라 나선 프리셋: 어두운 배경 위의 청록색과 초록색 나선형 빛줄기" width="880">
 </p>
 
 ## 기능
@@ -38,57 +38,59 @@ Fractique는 세 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입
 | | |
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
-| `emerald-star` (레이어 2개) | `ember-vortex` |
+| 에메랄드 별 (레이어 2개) | 불씨 소용돌이 |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
-| `golden-bloom` | `solar-mandala` |
+| 황금빛 개화 | 태양 만다라 |
+
+불꽃 100점과 프랙탈, 배경화면이 더 있으며, 각각 어떤 크기로든 다시 렌더링할 수 있는 `.frcq` 파일이 함께 있습니다: [갤러리](../gallery.md).
 
 다른 종류의 프랙탈: 만델브로 집합, 줄리아 집합, 클리퍼드 끌개:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
-| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+| 만델브로: 나선 | 줄리아: 나선 | 클리퍼드: 날개 |
 
 그 밖의 탈출 시간형 프랙탈과 근 찾기형 프랙탈: 버닝 십, 트라이콘, 멀티브로, 피닉스, 마그넷, 뉴턴, 노바:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
-| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| 버닝 십: 배 | 트라이콘: 섬 | 멀티브로: 나선 | 피닉스: 은하 |
 | ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
-| `magnet-pearls` | `newton-seven` | `nova-star` | |
+| 마그넷: 진주 | 뉴턴: 일곱 | 노바: 별 | |
 
 밀도로 그리는 궤도: 부다브로와 더용, 로렌츠, 구모프스키-미라, 호팔롱 끌개:
 
 | | | |
 | --- | --- | --- |
 | ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
-| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| 부다브로: 성운 | 더용: 클래식 | 로렌츠: 나비 |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
-| `gumowski_mira-feathers` | `hopalong-web` | |
+| 구모프스키-미라: 깃털 | 호팔롱: 거미줄 | |
 
 기하학적 프랙탈: 아폴로니안 개스킷, 클라인 군의 극한 집합, L-시스템, 랴푸노프 프랙탈:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
-| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+| 아폴로니안 개스킷: 삼중 | 클라인 군: 첨점 | L-시스템: 식물 | 랴푸노프: 깃털 |
 
 3차원 입체: 만델벌브, 만델박스, 멩거 스펀지:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
-| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
+| 만델벌브: 왕관 | 만델박스: 정거장 | 멩거 스펀지: 클래식 |
 
 라이트 배경화면과 다크 배경화면, 각각의 레이아웃과 소재:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
-| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| 물결, 유리 | 꽃, 글로우 | 타일, 릴리프 | 부채, 유리 |
 | ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
-| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+| 원판, 종이 | 막대, 종이 | 호, 카본 | 선, 종이 |
 
 ## 빠른 시작
 

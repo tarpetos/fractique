@@ -11,7 +11,7 @@
 Fractique создаёт изображения трёх видов. Фрактальное пламя: светящиеся, лёгкие фракталы из тонких кривых и мягкого света. Классические фракталы 22 видов: от множества Мандельброта, множеств Жюлиа и странных аттракторов до мандельбалба в трёх измерениях. И обои: плоские листы с подсвеченными краями и мягкими тенями, каждые в светлом и тёмном варианте. Вы выбираете пресет, генерируете случайное изображение или накладываете несколько слоёв пламени друг на друга и экспортируете результат в любом размере, от экрана телефона до монитора 4K. Сцена — это один небольшой файл, и один и тот же файл всегда даёт в точности те же пиксели на Windows, macOS, Linux, Android и iOS.
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="Пресет aurora-spiral: бирюзовые и зелёные спиральные пряди на тёмном фоне" width="880">
+  <img src="../samples/aurora-spiral.png" alt="Пресет Спираль авроры: бирюзовые и зелёные спиральные пряди на тёмном фоне" width="880">
 </p>
 
 ## Что умеет Fractique
@@ -38,57 +38,59 @@ Fractique создаёт изображения трёх видов. Фракт�
 | | |
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
-| `emerald-star` (два слоя) | `ember-vortex` |
+| Изумрудная звезда (два слоя) | Тлеющий вихрь |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
-| `golden-bloom` | `solar-mandala` |
+| Золотое цветение | Солнечная мандала |
+
+Ещё сто изображений пламени, а также фракталы и обои, каждое изображение с файлом `.frcq`, который воспроизводит его в любом размере: [галерея](../gallery.md).
 
 Фракталы других видов: множество Мандельброта, множество Жюлиа и аттрактор Клиффорда:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
-| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+| Мандельброт: Спираль | Жюлиа: Спирали | Клиффорд: Крылья |
 
 Другие фракталы времени убегания и фракталы поиска корней: Горящий корабль, Трикорн, Мультиброт, Феникс, Магнит, Ньютон, Нова:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
-| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| Горящий корабль: Корабль | Трикорн: Остров | Мультиброт: Спирали | Феникс: Галактика |
 | ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
-| `magnet-pearls` | `newton-seven` | `nova-star` | |
+| Магнит: Жемчуг | Ньютон: Семь | Нова: Звезда | |
 
 Орбиты, нарисованные как плотности: Буддаброт и аттракторы Де Йонга, Лоренца, Гумовского–Миры и Хопалонг:
 
 | | | |
 | --- | --- | --- |
 | ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
-| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| Буддаброт: Туманность | Де Йонг: Классика | Лоренц: Бабочка |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
-| `gumowski_mira-feathers` | `hopalong-web` | |
+| Гумовский–Мира: Перья | Хопалонг: Паутина | |
 
 Геометрические фракталы: сетка Аполлония, предельное множество клейновой группы, L-система и фрактал Ляпунова:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
-| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+| Сетка Аполлония: Тройной | Клейнова группа: Остриё | L-система: Растение | Ляпунов: Перья |
 
 Тела в трёх измерениях: мандельбалб, мандельбокс и губка Менгера:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
-| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
+| Мандельбалб: Корона | Мандельбокс: Станция | Губка Менгера: Классический |
 
 Обои, светлые и тёмные, каждые со своей композицией и материалом:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
-| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| Волны, Стекло | Цветок, Свечение | Плитка, Рельеф | Веер, Стекло |
 | ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
-| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+| Диски, Бумага | Бруски, Бумага | Дуги, Карбон | Линии, Бумага |
 
 ## Быстрый старт
 

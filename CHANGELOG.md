@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+* **A gallery of flames, fractals and wallpapers, each with its file:** [docs/gallery.md](docs/gallery.md) shows a
+  hundred flames chosen from several thousand random scenes and their mutations, twelve fractals of other kinds and
+  twelve wallpapers. Each has a small picture and a `.frcq` file in `docs/gallery/` that the app opens and
+  `fractique render` draws again at any size and quality. `tools/gallery/make_gallery.py` makes the pictures and
+  the page from the files, and a test loads every one of them, so they keep loading. The captions under the
+  pictures of the README and of its 14 translations are now the names the app shows (Emerald Star, Mandelbrot:
+  Spiral) instead of the presets' identifiers.
+
 * **The command line tool and the two servers update themselves on command:** the app updated itself and left
   `fractique`, `fractique-mcp` and `fractique-server` beside it as old as they were. Now each has `update`: it
   asks GitHub for the newest release, downloads this program's file for this system, checks it against the

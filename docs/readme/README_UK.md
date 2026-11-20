@@ -11,7 +11,7 @@
 Fractique створює зображення трьох видів. Фрактальне полум’я: сяйливі, легкі фрактали з тонких кривих і м’якого світла. Класичні фрактали 22 видів: від множини Мандельброта, множин Жуліа й дивних атракторів до мандельбалба у трьох вимірах. І шпалери: пласкі аркуші з підсвіченими краями та м’якими тінями, кожні у світлому й темному варіанті. Ви обираєте пресет, генеруєте випадкове зображення або накладаєте кілька шарів полум’я один на один й експортуєте результат у будь-якому розмірі, від екрана телефона до монітора 4K. Сцена — це один невеликий файл, і той самий файл завжди дає точно ті самі пікселі на Windows, macOS, Linux, Android та iOS.
 
 <p align="center">
-  <img src="../samples/aurora-spiral.png" alt="Пресет aurora-spiral: бірюзові й зелені спіральні пасма на темному тлі" width="880">
+  <img src="../samples/aurora-spiral.png" alt="Пресет Спіраль аврори: бірюзові й зелені спіральні пасма на темному тлі" width="880">
 </p>
 
 ## Що вміє Fractique
@@ -38,57 +38,59 @@ Fractique створює зображення трьох видів. Фракт�
 | | |
 | --- | --- |
 | ![emerald-star](../samples/emerald-star.png) | ![ember-vortex](../samples/ember-vortex.png) |
-| `emerald-star` (два шари) | `ember-vortex` |
+| Смарагдова зірка (два шари) | Розжарений вихор |
 | ![golden-bloom](../samples/golden-bloom.png) | ![solar-mandala](../samples/solar-mandala.png) |
-| `golden-bloom` | `solar-mandala` |
+| Золотий розквіт | Сонячна мандала |
+
+Ще сто зображень полум’я, а також фрактали й шпалери, кожне зображення з файлом `.frcq`, який відтворює його в будь-якому розмірі: [галерея](../gallery.md).
 
 Фрактали інших видів: множина Мандельброта, множина Жуліа й атрактор Кліффорда:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbrot](../samples/fractal-mandelbrot.png) | ![julia](../samples/fractal-julia.png) | ![clifford](../samples/fractal-clifford.png) |
-| `mandelbrot-spiral` | `julia-spirals` | `clifford-wings` |
+| Мандельброт: Спіраль | Жуліа: Спіралі | Кліффорд: Крила |
 
 Інші фрактали часу втечі та фрактали пошуку коренів: Палаючий корабель, Трикорн, Мультиброт, Фенікс, Магніт, Ньютон, Нова:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![burning_ship](../samples/fractal-burning_ship.png) | ![tricorn](../samples/fractal-tricorn.png) | ![multibrot](../samples/fractal-multibrot.png) | ![phoenix](../samples/fractal-phoenix.png) |
-| `burning_ship-ship` | `tricorn-island` | `multibrot-spirals` | `phoenix-galaxy` |
+| Палаючий корабель: Корабель | Трикорн: Острів | Мультиброт: Спіралі | Фенікс: Галактика |
 | ![magnet](../samples/fractal-magnet.png) | ![newton](../samples/fractal-newton.png) | ![nova](../samples/fractal-nova.png) | |
-| `magnet-pearls` | `newton-seven` | `nova-star` | |
+| Магніт: Перли | Ньютон: Сім | Нова: Зірка | |
 
 Орбіти, намальовані як густини: Буддаброт і атрактори Де Йонга, Лоренца, Гумовського–Міри та Хопалонг:
 
 | | | |
 | --- | --- | --- |
 | ![buddhabrot](../samples/fractal-buddhabrot.png) | ![de_jong](../samples/fractal-de_jong.png) | ![lorenz](../samples/fractal-lorenz.png) |
-| `buddhabrot-nebula` | `de_jong-classic` | `lorenz-butterfly` |
+| Буддаброт: Туманність | Де Йонг: Класика | Лоренц: Метелик |
 | ![gumowski_mira](../samples/fractal-gumowski_mira.png) | ![hopalong](../samples/fractal-hopalong.png) | |
-| `gumowski_mira-feathers` | `hopalong-web` | |
+| Гумовський–Міра: Пір'я | Хопалонг: Павутина | |
 
 Геометричні фрактали: сітка Аполлонія, гранична множина кляйнової групи, L-система і фрактал Ляпунова:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![apollonian](../samples/fractal-apollonian.png) | ![kleinian](../samples/fractal-kleinian.png) | ![l-system](../samples/fractal-l_system.png) | ![lyapunov](../samples/fractal-lyapunov.png) |
-| `apollonian-threefold` | `kleinian-cusp` | `l_system-plant` | `lyapunov-feathers` |
+| Сітка Аполлонія: Потрійний | Кляйнова група: Вістря | L-система: Рослина | Ляпунов: Пір’я |
 
 Тіла у трьох вимірах: мандельбалб, мандельбокс і губка Менгера:
 
 | | | |
 | --- | --- | --- |
 | ![mandelbulb](../samples/fractal-mandelbulb.png) | ![mandelbox](../samples/fractal-mandelbox.png) | ![menger sponge](../samples/fractal-menger-sponge.png) |
-| `mandelbulb-crown` | `mandelbox-station` | `menger_sponge-classic` |
+| Мандельбалб: Корона | Мандельбокс: Станція | Губка Менгера: Класичний |
 
 Шпалери, світлі й темні, кожні зі своєю композицією й матеріалом:
 
 | | | | |
 | --- | --- | --- | --- |
 | ![waves](../samples/wallpaper-waves-light.png) | ![burst](../samples/wallpaper-burst-light.png) | ![tiles](../samples/wallpaper-tiles-light.png) | ![fan](../samples/wallpaper-fan-light.png) |
-| `waves`, `glass` | `burst`, `glow` | `tiles`, `relief` | `fan`, `glass` |
+| Хвилі, Скло | Квітка, Сяйво | Плитка, Рельєф | Віяло, Скло |
 | ![discs](../samples/wallpaper-discs-dark.png) | ![bars](../samples/wallpaper-bars-dark.png) | ![arcs](../samples/wallpaper-arcs-dark.png) | ![lines](../samples/wallpaper-lines-dark.png) |
-| `discs`, `paper` | `bars`, `paper` | `arcs`, `carbon` | `lines`, `paper` |
+| Диски, Папір | Бруски, Папір | Дуги, Карбон | Лінії, Папір |
 
 ## Швидкий старт
 

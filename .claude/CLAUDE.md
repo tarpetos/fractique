@@ -85,4 +85,5 @@ is stable, not that it is good.
 | `crates/fractique-mcp/src/lib.rs` | The MCP tools, shared by both MCP servers; listed in `docs/mcp.md` |
 | `crates/fractique-cli/src/mcp.rs` | The MCP server over stdio (`fractique mcp`) |
 | `crates/fractique-server/` | The HTTP server (`fractique-server`): `lib.rs` API, queue and limits; `mcp.rs` MCP over HTTP at `/mcp`; `tests/api.rs`, `tests/mcp.rs`; described in `docs/server.md`. `Dockerfile`, `docker-compose.yml` at the root |
+| `docs/gallery/`, `docs/gallery.md`, `tools/gallery/make_gallery.py` | A hundred flames, twelve fractals (`F..`) and twelve wallpapers (`W..`) as `.frcq` files with their pictures; the script makes the pictures and the page from the files ("The gallery" in `docs/usage.md`) |
 | `docs/roadmap.md` | What is done and what comes next |
