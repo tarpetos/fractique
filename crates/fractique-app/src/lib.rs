@@ -627,8 +627,6 @@ const BRISK: f32 = 0.1;
 // A moved view the card draws in less than this many seconds, half a frame, is drawn whole for every frame: it
 // needs no draft.
 const INSTANT: f32 = 0.5 * pace::FRAME;
-// Where the scale slider of the controls ends; the wheel goes on.
-const SCALE_MOST: f64 = 100.0;
 // The share of a view that may lie beside the picture's framing when the view is smaller than the picture.
 const PAN_MARGIN: f64 = 0.1;
 // A picture that is only magnified is shown at most this many times larger.
@@ -909,6 +907,7 @@ struct App {
     draft_landed: bool,
     draft_shown: Option<(View, f64)>,
     draft_note: ([u32; 2], f32),
+    scale_note: (f64, f64, f32),
     // The card gave a draft of this scene up: its views wait for the picture as they did.
     draft_off: bool,
     wheeled: Option<(f64, u32)>,
@@ -1361,10 +1360,10 @@ fn verdict_of(text: &str, card: &str) -> Verdict {
 // one number of a view's scale, the wheel's and the controls' together.
 fn scale_label(scale: f64) -> String {
     match scale {
-        zoom if zoom >= 1e6 => format!("{zoom:.1e}"),
-        zoom if zoom >= 100.0 => format!("{zoom:.0}"),
-        zoom if zoom >= 1.0 => format!("{zoom:.1}"),
-        zoom => format!("{zoom:.3}"),
+        zoom if zoom >= 999_999.5 => format!("{zoom:.1e}"),
+        zoom if zoom >= 99.95 => format!("{zoom:.0}"),
+        zoom if zoom >= 9.995 => format!("{zoom:.1}"),
+        zoom => format!("{zoom:.2}"),
     }
 }
 
@@ -1531,6 +1530,7 @@ impl App {
             draft_landed: false,
             draft_shown: None,
             draft_note: ([0; 2], 0.0),
+            scale_note: (0.0, 0.0, 0.0),
             draft_off: false,
             wheeled: None,
             chaos_at: (WHOLE, 1.0),
@@ -1945,12 +1945,16 @@ impl App {
     // processor has shown the speed for it. The whole view is rendered however long it takes, and a wallpaper has
     // no other view.
     fn fast(&mut self, size: [u32; 2]) -> bool {
-        let (view, zoom) = (self.view, self.adjust.zoom);
+        self.fast_at(self.view, size)
+    }
+
+    fn fast_at(&mut self, view: View, size: [u32; 2]) -> bool {
+        let zoom = self.adjust.zoom;
         if view == WHOLE || self.wall.live || sheets::drawn(&self.base) || self.too_long == Some((view, zoom)) {
             return view == WHOLE;
         }
         let full = fitted(size, FULL_SIDE, FULL_SAMPLES);
-        let scene = self.scene();
+        let scene = self.scene_in(view, zoom);
         let deep = view.zoom * zoom >= pace::DEEP_FROM;
         let card = self.gpu_on() && !self.given_up && on_card(&scene);
         if card
@@ -3652,7 +3656,7 @@ impl App {
             let (batches, last, worst, spent) = self.chaos.as_ref().map_or((0, 0.0, 0.0, 0.0), Chaos::load);
             self.trace.note = format!(
                 "veil {veil:.3} fresh {fresh:.3} awaited {} picture {} rendering {} first {} view {:.5}:{:.5}:{:.5} \
-                 draft {}x{} {:.2} beside {:.4} card {batches} {last:.2} {worst:.2} {spent:.1} slice {:.2} parts {:.1} {:.1} {:.1} detail [{}] seats {} covers {}",
+                 draft {}x{} {:.2} beside {:.4} scale {:.4}..{:.4} knob {:.4} card {batches} {last:.2} {worst:.2} {spent:.1} slice {:.2} parts {:.1} {:.1} {:.1} detail [{}] seats {} covers {}",
                 u8::from(awaited),
                 self.pictures,
                 u8::from(self.rendering),
@@ -3664,6 +3668,9 @@ impl App {
                 self.draft_note.0[1],
                 self.draft_note.1,
                 self.beside(size),
+                self.scale_note.0,
+                self.scale_note.1,
+                self.scale_note.2,
                 pace::slice() * 1000.0,
                 self.trace.parts[0],
                 self.trace.parts[1],
@@ -3878,19 +3885,79 @@ impl App {
         if self.covering() { view } else { view * controls }
     }
 
-    // The wheel, a pinch or a test run's step: the view made larger or smaller around a point, within its limits.
-    // A view that would only be shown as the picture the app has, larger, stops where that picture would be
-    // eight times its size; it is never pulled back out by this.
-    fn zoom_by(&mut self, factor: f64, around: [f64; 2], size: [u32; 2]) {
-        let (before, least, most) = (self.view, self.least(), self.most());
-        self.view.magnified(factor, around, least, most);
-        if self.view.zoom > before.zoom && !self.covering() && !self.fast(size) {
-            let cap = (self.aimed.0.zoom.max(1.0) * IMAGE_CEILING).max(before.zoom);
-            if self.view.zoom > cap {
-                self.view = before;
-                self.view.magnified(cap / before.zoom, around, least, cap);
+    // The range the view's scale has for the picture as it is drawn now: the wheel's, the pinch's and the
+    // slider's. Past the deepest view that is drawn, the picture the app has is shown larger, up to eight times;
+    // a view is never pulled back out by this.
+    fn reach(&mut self, size: [u32; 2]) -> (f64, f64) {
+        let (least, most) = (self.least(), self.most());
+        if self.covering() {
+            return (least, most);
+        }
+        let here = self.view;
+        let at = move |zoom: f64| View { zoom, ..here };
+        if self.fast_at(at(most), size) {
+            return (least, most);
+        }
+        // The deepest view that is drawn lies between the whole picture, which always is, and the ceiling.
+        let (mut drawn, mut shown) = (1.0 / self.adjust.zoom, most);
+        for _ in 0..12 {
+            let middle = (drawn * shown).sqrt();
+            if self.fast_at(at(middle), size) {
+                drawn = middle;
+            } else {
+                shown = middle;
             }
         }
+        let held = (self.aimed.0.zoom.max(1.0) * IMAGE_CEILING).max(self.view.zoom);
+        (least, most.min(drawn.max(held)))
+    }
+
+    fn zoom_to(&mut self, zoom: f64, size: [u32; 2]) {
+        self.zoom_by(zoom / self.view.zoom, [0.0; 2], size);
+        if (self.view.zoom / zoom - 1.0).abs() < 1e-12 {
+            self.view.zoom = zoom;
+        }
+    }
+
+    // The slider of the view's scale: the wheel's quantity and the wheel's range. Its ends glide to those of
+    // another picture and its knob to a scale set elsewhere, so neither jumps.
+    fn scale_slider(&mut self, ui: &mut egui::Ui) {
+        let size = self.requested.unwrap_or(self.aimed_size);
+        let (least, most) = self.reach(size);
+        let unit = self.scale_of(1.0, self.adjust.zoom);
+        let (label, before) = (self.t("zoom"), self.scale());
+        let shown = format!("{}×", scale_label(before));
+        let stage = &mut self.stage;
+        let mut glided = |key: &'static str, end: f64| {
+            let aim = fractique_core::math::ln(end) as f32;
+            let at = stage.glide(key, aim, motion::PANEL);
+            if at == aim {
+                end
+            } else {
+                fractique_core::math::exp(f64::from(at))
+            }
+        };
+        let range = (glided("scale_least", least * unit), glided("scale_most", most * unit));
+        let (mut scale, mut knob) = (before, 0.0);
+        let changed = widgets::slider_as(ui, &label, &mut scale, range, true, &shown, |share, held| {
+            knob = stage.glide("scale_knob", share, if held { 0.0 } else { motion::SMALL });
+            knob
+        });
+        self.scale_note = (range.0, range.1, knob);
+        if changed && size[0] > 0 && size[1] > 0 {
+            let view = self.view;
+            self.zoom_to(scale.clamp(least * unit, most * unit) / unit, size);
+            if self.view != view {
+                self.touched = Instant::now();
+            }
+        }
+    }
+
+    // The wheel, a pinch, the slider or a test run's step: the view made larger or smaller around a point, within
+    // its limits.
+    fn zoom_by(&mut self, factor: f64, around: [f64; 2], size: [u32; 2]) {
+        let (least, most) = self.reach(size);
+        self.view.magnified(factor, around, least, most);
         self.view.limited(size, least, self.covering());
     }
 
@@ -3999,6 +4066,7 @@ impl App {
             self.wheeled = (left > 1).then_some((by, left - 1));
             ui.ctx().request_repaint();
         }
+        self.view.zoom = self.view.zoom.min(self.most());
         self.view.limited(size, self.least(), self.covering());
         if self.view != before {
             self.touched = Instant::now();
@@ -4536,18 +4604,7 @@ impl App {
             widgets::slider(ui, &self.t("gamma"), &mut self.adjust.gamma, (0.5, 1.8), false);
             widgets::slider(ui, &self.t("glow"), &mut self.adjust.glow, (0.0, 3.0), false);
             widgets::section(ui, &self.t("view"));
-            // The slider is the view's one scale, the wheel's too: it moves with the wheel, and beyond its
-            // range its knob rests at the end while the number beside it goes on.
-            let mut scale = self.scale();
-            let range = if self.covering() {
-                (1.0, IMAGE_CEILING)
-            } else {
-                (FLOOR, SCALE_MOST)
-            };
-            if widgets::slider(ui, &self.t("zoom"), &mut scale, range, true) {
-                self.view.zoom = scale / self.scale_of(1.0, self.adjust.zoom);
-                self.touched = Instant::now();
-            }
+            self.scale_slider(ui);
 
             ui.add_space(8.0);
             if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
@@ -6837,11 +6894,23 @@ mod tests {
         // The detail line says the wheel's scale and the controls' as one number.
         assert_eq!(
             status_of([1280, 800], 0.5, 0.5 * 0.4),
-            "1280 × 800  ·  0.50 s  ·  0.200×"
+            "1280 × 800  ·  0.50 s  ·  0.20×"
         );
         assert_eq!(status_of([1280, 800], 0.5, 1.0), "1280 × 800  ·  0.50 s");
-        assert_eq!(scale_label(2.0), "2.0");
-        assert_eq!(scale_label(6400.0), "6400");
+        let labels = [
+            (0.2, "0.20"),
+            (2.0, "2.00"),
+            (9.996, "10.0"),
+            (13.72, "13.7"),
+            (99.96, "100"),
+            (1373.13, "1373"),
+            (999_999.0, "999999"),
+            (999_999.6, "1.0e6"),
+            (9_523_809_523.81, "9.5e9"),
+        ];
+        for (scale, label) in labels {
+            assert_eq!(scale_label(scale), label);
+        }
     }
 
     #[test]

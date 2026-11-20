@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* **The Scale slider spans the range of the view:** the slider ended at 100× while the wheel went on, so its knob
+  rested at the end and the number ran on (1373.13, and 9523809523.81 where the toolbar said 9.5e9×). The slider
+  now spans exactly what the view of the picture on the screen can take, logarithmically, from its smallest scale
+  to its largest: the knob is at an end if and only if the view is at that limit, and the wheel, a pinch and the
+  slider are one quantity with one range. When another picture has another range (another kind, or the
+  processor in the place of the graphics card) the ends glide there and the knob with them; a scale set elsewhere
+  (the wheel, **Reset view**) moves the knob in 0.12 s, not in one frame. The slider and the toolbar's line write
+  the scale the same way: two decimals below 10, one below 100, none above, and `9.5e9×` from a million on. A
+  drag of the slider that ends at a limit starts no render, no blur and no count, as a step of the wheel does
+  not. Off screen on an RTX 4070 at 2580 × 1380: a flame's slider ran from 0.20× to 2056× (where the card's
+  32-bit numbers end for that picture) and to 8× that once the picture at 2056× stood; with the processor alone
+  from 0.20× to 8×; a Burning Ship's to 9.5e9×, and after the Mandelbrot seahorse valley was picked the end
+  glided to 3.8e7× in 0.18 s.
+
 * **Full screen, maximizing and hiding the panels are one smooth move:** recorded frame by frame, off screen, on
   an RTX 4070 at 3800 × 2120 pixels. Going to full screen from a maximized window, the window was restored to
   its small size for one drawn frame and then made full screen, and the same on the way back: every pane and the

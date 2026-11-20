@@ -526,6 +526,21 @@ pub fn slider_to(
     logarithmic: bool,
     digits: usize,
 ) -> bool {
+    let shown = format!("{value:.digits$}");
+    slider_as(ui, label, value, range, logarithmic, &shown, |share, _| share)
+}
+
+// A slider that shows its value as the text given. `settle` gets where the knob belongs, as a share of the
+// track, and whether the slider is held, and says where the knob is drawn.
+pub fn slider_as(
+    ui: &mut Ui,
+    label: &str,
+    value: &mut f64,
+    range: (f64, f64),
+    logarithmic: bool,
+    shown: &str,
+    settle: impl FnOnce(f32, bool) -> f32,
+) -> bool {
     let (low, high) = range;
     let to_share = |v: f64| {
         if logarithmic {
@@ -535,7 +550,11 @@ pub fn slider_to(
         }
     };
     let from_share = |t: f64| {
-        if logarithmic {
+        if t <= 0.0 {
+            low
+        } else if t >= 1.0 {
+            high
+        } else if logarithmic {
             low * math::pow(high / low, t)
         } else {
             low + (high - low) * t
@@ -551,7 +570,6 @@ pub fn slider_to(
         FontId::proportional(13.0),
         white(190),
     );
-    let shown = format!("{value:.digits$}");
     ui.painter().text(
         header.right_center(),
         Align2::RIGHT_CENTER,
@@ -597,7 +615,8 @@ pub fn slider_to(
             changed = true;
         }
     }
-    let at = start + (end - start) * to_share(*value).clamp(0.0, 1.0) as f32;
+    let share = settle(to_share(*value).clamp(0.0, 1.0) as f32, response.dragged());
+    let at = start + (end - start) * share.clamp(0.0, 1.0);
     let middle = rect.center().y;
     let track =
         |from: f32, to: f32| egui::Rect::from_min_max(egui::pos2(from, middle - 2.0), egui::pos2(to, middle + 2.0));
