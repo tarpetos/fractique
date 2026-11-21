@@ -6,20 +6,6 @@ use crate::scene::Tone;
 pub(crate) const LOG_SCALE: f64 = 1.0 / 8.0;
 // The density that reaches full brightness at brightness 1: e^8 - 1.
 const WHITE: f64 = 2979.957987041728;
-// Tuned on a view moved off a flame of three layers, between 0.40 and 0.70 times, and on views magnified 300 times.
-const MEAN: f64 = 4.0;
-const OPENS: f64 = 2.5;
-const MOST: f64 = 1000.0;
-
-// How many times the densities of a view that holds `share` of the flame are raised so that its faint parts show.
-pub(crate) fn lift(share: f64, zoom: f64) -> f64 {
-    if share <= 0.0 {
-        return 1.0;
-    }
-    let most = pow(share, -OPENS).min(MOST);
-    (MEAN / (share * zoom * zoom)).clamp(share, most)
-}
-
 // A lift above 1 raises the faint end and leaves full brightness where it was.
 pub(crate) fn scale(lift: f64) -> f64 {
     if lift > 1.0 {
@@ -73,7 +59,12 @@ fn kernels(levels: usize) -> Vec<Kernel> {
         .collect()
 }
 
-pub(crate) fn estimate(histogram: &Histogram, smoothing: f64) -> Vec<f32> {
+// `weighed` tells how many times a cell's hits were counted each, as a power of two: its kernel goes by the hits.
+pub(crate) fn estimate(
+    histogram: &Histogram,
+    smoothing: f64,
+    weighed: Option<&(dyn Fn(usize, usize) -> u32 + Sync)>,
+) -> Vec<f32> {
     let (width, height) = (histogram.width, histogram.height);
     let spread = (SPREAD_SHARE * smoothing * width.min(height) as f64).min(MAX_SPREAD);
     let top = (spread * 2.0).round() as usize;
@@ -108,7 +99,11 @@ pub(crate) fn estimate(histogram: &Histogram, smoothing: f64) -> Vec<f32> {
     for_each_row(&mut levels, width, |y, row| {
         for (x, level) in row.iter_mut().enumerate() {
             let count = histogram.cell(y * width + x).0;
-            *level = if count == 0 { -1.0 } else { f32::from(level_of(count)) };
+            *level = match (count, weighed) {
+                (0, _) => -1.0,
+                (_, None) => f32::from(level_of(count)),
+                (_, Some(weighed)) => f32::from(level_of((count >> weighed(x, y)).max(1))),
+            };
         }
     });
 
@@ -273,18 +268,4 @@ pub(crate) fn glow(image: &mut [f32], width: usize, height: usize, sigma: f64, s
             row[x * 4 + 3] = row[x * 4 + 3].min(1.0);
         }
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_a_view_that_holds_little_of_the_flame_is_lifted() {
-        assert_eq!(lift(1.0, 0.5), 1.0);
-        assert_eq!(scale(1.0), LOG_SCALE);
-        assert!(lift(0.9, 0.5) < 1.5);
-        assert_eq!(lift(0.01, 0.2), MOST);
-        assert!(lift(1e-4, 300.0) < 1.0);
-    }
 }

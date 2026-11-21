@@ -274,15 +274,6 @@ its shorter side: a wider or taller image shows more of the surroundings, it doe
 `--samples N` and `--supersample N` replace the level's numbers. More samples means less grain; supersample 2
 renders at twice the size and averages, which sharpens thin lines and costs four times the memory.
 
-`--exposure` is a trial of how bright a view that holds less than an eighth of the flame is (a deep zoom, or a
-view moved off the figure). `view`, the default, keeps the average brightness the picture had where the view began
-to hold that little. `scene` gives every place the brightness it has in the whole picture, at any zoom and
-wherever the view is, so a faint place stays faint and a dense one burns. A view that holds more of the flame is
-the same in both. `visible` raises the faint end of a layer as the flame leaves the view, by up to 1000 times once
-a sixteenth of it is left, and keeps full brightness where it was, so what is in a dark part of the scene shows at
-any zoom and nothing burns; a view whose average is already bright is not raised, and a dense magnified one is
-dimmed as `view` dims it. A view of the whole flame is the same as with `view`.
-
 ## 5. Random scenes
 
 Every number is a scene:

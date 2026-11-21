@@ -1,6 +1,5 @@
 use crate::chaos::Compiled;
 use crate::math::{cos, ln, pow, sin};
-use crate::render::Exposure;
 use crate::rng::Rng;
 use crate::scene::Camera;
 
@@ -19,6 +18,19 @@ const RARE: f64 = 0.05;
 const FINE: f64 = 1.0 / 512.0;
 const AHEAD: usize = 8;
 const FAR_EVERY: u64 = 4;
+
+// The view is cut into tiles, this many along its longer side. A tile that holds more of the particles than its
+// fair part is visited less and its points count more, by a power of two, so that the faint tiles get the points:
+// the points of the whole picture count `SPREAD` times at most, and one point `1 << HEAVIEST` times.
+const TILES: usize = 24;
+const SPREAD: f64 = 32.0;
+const HEAVIEST: u32 = 10;
+
+// A view whose average is below `MEAN` has its faint end raised: more as less of the flame is in it, by `MOST` at
+// the most over what the flame has there. Tuned on a view moved off a flame of three layers, from 0.40 to 0.70.
+const MEAN: f64 = 4.0;
+const OPENS: f64 = 12.0;
+const MOST: f64 = 1000.0;
 
 // The particles are moved in groups, each with its own random numbers, so that the threads cannot change the result.
 const GROUP: usize = 128;
@@ -65,12 +77,95 @@ impl Window {
     }
 
     #[inline]
+    fn tile(&self, (x, y, _): Point, tiles: &Tiles) -> usize {
+        let (dx, dy) = (x - self.center[0], y - self.center[1]);
+        let across = (dx * self.cos + dy * self.sin) * self.zoom / self.half[0];
+        let up = (dy * self.cos - dx * self.sin) * self.zoom / self.half[1];
+        let column = (((across + 1.0) * 0.5 * tiles.across as f64).max(0.0) as usize).min(tiles.across - 1);
+        let row = (((up + 1.0) * 0.5 * tiles.up as f64).max(0.0) as usize).min(tiles.up - 1);
+        row * tiles.across + column
+    }
+
+    #[inline]
     fn holds(&self, (x, y, _): Point) -> bool {
         let (dx, dy) = (x - self.center[0], y - self.center[1]);
         let across = dx * self.cos + dy * self.sin;
         let up = dy * self.cos - dx * self.sin;
         across.abs() * self.zoom < self.half[0] && up.abs() * self.zoom < self.half[1]
     }
+}
+
+#[derive(Clone)]
+pub(crate) struct Tiles {
+    across: usize,
+    up: usize,
+    shifts: Vec<u8>,
+}
+
+impl Tiles {
+    // `None`: no tile holds so much more than the others that the points should be spread.
+    fn new(window: &Window, points: &[Point]) -> Option<Self> {
+        let longer = window.half[0].max(window.half[1]);
+        let side = |half: f64| ((TILES as f64 * half / longer).ceil() as usize).max(1);
+        let mut tiles = Self {
+            across: side(window.half[0]),
+            up: side(window.half[1]),
+            shifts: Vec::new(),
+        };
+        let mut held = vec![0u32; tiles.across * tiles.up];
+        for point in points {
+            held[window.tile(*point, &tiles)] += 1;
+        }
+        let mut sorted = held.clone();
+        sorted.sort_unstable();
+        let wanted = points.len() as f64 / SPREAD;
+        let mut below = 0.0;
+        let mut level = f64::from(sorted[sorted.len() - 1]);
+        for (at, count) in sorted.iter().enumerate() {
+            let left = (sorted.len() - at) as f64;
+            if below + f64::from(*count) * left >= wanted {
+                level = (wanted - below) / left;
+                break;
+            }
+            below += f64::from(*count);
+        }
+        tiles.shifts = held
+            .iter()
+            .map(|count| {
+                let mut shift = 0;
+                while shift < HEAVIEST && level * f64::from(2u32 << shift) <= f64::from(*count) {
+                    shift += 1;
+                }
+                shift as u8
+            })
+            .collect();
+        let least = held
+            .iter()
+            .zip(&tiles.shifts)
+            .filter(|(count, _)| **count > 0)
+            .map(|(_, shift)| *shift)
+            .min()
+            .unwrap_or(0);
+        tiles
+            .shifts
+            .iter_mut()
+            .for_each(|shift| *shift = shift.saturating_sub(least));
+        tiles.shifts.iter().any(|shift| *shift > 0).then_some(tiles)
+    }
+
+    #[inline]
+    pub(crate) fn of_cell(&self, x: usize, y: usize, width: usize, height: usize, flipped: bool) -> u32 {
+        let column = (x * self.across / width).min(self.across - 1);
+        let down = (y * self.up / height).min(self.up - 1);
+        let row = if flipped { down } else { self.up - 1 - down };
+        u32::from(self.shifts[row * self.across + column])
+    }
+}
+
+// A move from a tile whose points count `1 << from` times to one whose points count `1 << to` times.
+#[inline]
+fn admitted(from: u32, to: u32, rng: &mut Rng) -> bool {
+    to <= from || rng.below(1 << (to - from)) == 0
 }
 
 // A walker of the chaos game that remembers the seeds of its latest steps.
@@ -139,13 +234,15 @@ pub(crate) struct Plan {
     points: Vec<Point>,
     range: (usize, usize),
     pub(crate) exposure: f64,
-    pub(crate) share: f64,
+    pub(crate) lift: f64,
+    pub(crate) tiles: Option<Tiles>,
 }
 
 // One stream's share of the particles, moved and plotted in turn.
 pub(crate) struct Chains {
     seeds: Vec<u64>,
     points: Vec<Point>,
+    shifts: Vec<u32>,
     next: usize,
 }
 
@@ -161,13 +258,28 @@ impl Plan {
                 .clone()
                 .flat_map(|particle| self.seeds[particle * WIDTH..(particle + 1) * WIDTH].iter().copied())
                 .collect(),
-            points: mine.map(|particle| self.points[particle]).collect(),
+            points: mine.clone().map(|particle| self.points[particle]).collect(),
+            shifts: mine.map(|particle| self.shift(self.points[particle])).collect(),
             next: 0,
         }
     }
 
     #[inline]
-    pub(crate) fn point(&self, flame: &Compiled, chains: &mut Chains, tracer: &mut Tracer, rng: &mut Rng) -> Point {
+    fn shift(&self, point: Point) -> u32 {
+        self.tiles
+            .as_ref()
+            .map_or(0, |tiles| u32::from(tiles.shifts[self.window.tile(point, tiles)]))
+    }
+
+    // A point of the view and how many times it counts.
+    #[inline]
+    pub(crate) fn point(
+        &self,
+        flame: &Compiled,
+        chains: &mut Chains,
+        tracer: &mut Tracer,
+        rng: &mut Rng,
+    ) -> (Point, u32) {
         let particle = chains.next;
         chains.next = (chains.next + 1) % chains.points.len();
         let seeds = &mut chains.seeds[particle * WIDTH..(particle + 1) * WIDTH];
@@ -177,18 +289,24 @@ impl Plan {
             let fresh = rng.next_u64();
             tracer.step(flame, rng);
             if let Some(point) = moved(flame, &self.window, seeds, keep, tracer, fresh) {
-                take(seeds, keep, tracer, fresh);
-                chains.points[particle] = point;
+                let to = self.shift(point);
+                if admitted(chains.shifts[particle], to, rng) {
+                    take(seeds, keep, tracer, fresh);
+                    (chains.points[particle], chains.shifts[particle]) = (point, to);
+                }
             }
         }
         let keep = self.range.0 + rng.below((self.range.1 - self.range.0 + 1) as u64) as usize;
         let fresh = rng.next_u64();
         tracer.step(flame, rng);
         if let Some(point) = moved(flame, &self.window, seeds, keep, tracer, fresh) {
-            take(seeds, keep, tracer, fresh);
-            chains.points[particle] = point;
+            let to = self.shift(point);
+            if admitted(chains.shifts[particle], to, rng) {
+                take(seeds, keep, tracer, fresh);
+                (chains.points[particle], chains.shifts[particle]) = (point, to);
+            }
         }
-        chains.points[particle]
+        (chains.points[particle], 1 << chains.shifts[particle])
     }
 }
 
@@ -201,7 +319,6 @@ pub(crate) fn plan(
     camera: &Camera,
     wide: f64,
     high: f64,
-    held: Exposure,
     rng_of: &(dyn Fn(u64) -> Rng + Sync),
     cancelled: &dyn Fn() -> bool,
 ) -> Option<Plan> {
@@ -257,35 +374,15 @@ pub(crate) fn plan(
         }
 
         let (low, high_end) = (range.0, (range.1 + AHEAD).min(MEMORY));
-        let sweep = |((seeds, points), (tracer, rng)): (Group<'_>, &mut (Tracer, Rng))| {
-            let mut tally = Tally::default();
-            for _ in 0..SWEEPS {
-                for (own, at) in seeds.chunks_exact_mut(WIDTH).zip(points.iter_mut()) {
-                    let keep = low + rng.below((high_end - low + 1) as u64) as usize;
-                    let fresh = rng.next_u64();
-                    tracer.step(flame, rng);
-                    tally.tried[keep] += 1;
-                    if let Some(point) = moved(flame, &window, own, keep, tracer, fresh) {
-                        take(own, keep, tracer, fresh);
-                        tally.travelled[keep] += ((point.0 - at.0).abs() + (point.1 - at.1).abs()) * window.zoom;
-                        tally.accepted[keep] += 1;
-                        *at = point;
-                    }
-                }
-            }
-            tally
-        };
-        let work = seeds
-            .chunks_mut(GROUP * WIDTH)
-            .zip(points.chunks_mut(GROUP))
-            .zip(groups.iter_mut());
-        #[cfg(feature = "parallel")]
-        let tallies: Vec<Tally> = {
-            use rayon::prelude::*;
-            work.collect::<Vec<_>>().into_par_iter().map(sweep).collect()
-        };
-        #[cfg(not(feature = "parallel"))]
-        let tallies: Vec<Tally> = work.map(sweep).collect();
+        let tallies = sweep(
+            flame,
+            &window,
+            None,
+            (low, high_end),
+            &mut seeds,
+            &mut points,
+            &mut groups,
+        );
         // Summed in the order of the groups, whichever thread finished first.
         let mut tried = [0u32; WIDTH];
         let mut accepted = [0u32; WIDTH];
@@ -321,17 +418,97 @@ pub(crate) fn plan(
     }
 
     window.zoom = camera.zoom;
+    let tiles = if points.is_empty() {
+        None
+    } else {
+        Tiles::new(&window, &points)
+    };
+    if let Some(tiles) = &tiles {
+        let parts: Vec<u64> = points
+            .iter()
+            .map(|point| 1 << (HEAVIEST - u32::from(tiles.shifts[window.tile(*point, tiles)])))
+            .collect();
+        let total: u64 = parts.iter().sum();
+        let start = rng.below(total);
+        let (mut spread_seeds, mut spread) = (Vec::with_capacity(seeds.len()), Vec::with_capacity(points.len()));
+        let (mut from, mut passed) = (0, parts[0]);
+        for chosen in 0..points.len() as u64 {
+            let mark = start + chosen * total;
+            while passed * points.len() as u64 <= mark {
+                from += 1;
+                passed += parts[from];
+            }
+            spread_seeds.extend_from_slice(&seeds[from * WIDTH..(from + 1) * WIDTH]);
+            spread.push(points[from]);
+        }
+        (seeds, points) = (spread_seeds, spread);
+        sweep(flame, &window, Some(tiles), range, &mut seeds, &mut points, &mut groups);
+    }
+    let held = exposure(&seen, enough);
     Some(Plan {
         window,
         seeds,
         points,
         range,
-        exposure: match held {
-            Exposure::View => exposure(&seen, enough),
-            Exposure::Scene | Exposure::Visible => share * camera.zoom * camera.zoom,
-        },
-        share,
+        exposure: held,
+        lift: lift(held, share, enough, camera.zoom),
+        tiles,
     })
+}
+
+// Every particle is moved `SWEEPS` times inside the window, keeping from `keeps.0` to `keeps.1` of its steps.
+fn sweep(
+    flame: &Compiled,
+    window: &Window,
+    tiles: Option<&Tiles>,
+    keeps: (usize, usize),
+    seeds: &mut [u64],
+    points: &mut [Point],
+    groups: &mut [(Tracer, Rng)],
+) -> Vec<Tally> {
+    let shift = |point: Point| tiles.map_or(0, |tiles| u32::from(tiles.shifts[window.tile(point, tiles)]));
+    let sweep = |((seeds, points), (tracer, rng)): (Group<'_>, &mut (Tracer, Rng))| {
+        let mut tally = Tally::default();
+        for _ in 0..SWEEPS {
+            for (own, at) in seeds.chunks_exact_mut(WIDTH).zip(points.iter_mut()) {
+                let keep = keeps.0 + rng.below((keeps.1 - keeps.0 + 1) as u64) as usize;
+                let fresh = rng.next_u64();
+                tracer.step(flame, rng);
+                tally.tried[keep] += 1;
+                if let Some(point) = moved(flame, window, own, keep, tracer, fresh)
+                    && admitted(shift(*at), shift(point), rng)
+                {
+                    take(own, keep, tracer, fresh);
+                    tally.travelled[keep] += ((point.0 - at.0).abs() + (point.1 - at.1).abs()) * window.zoom;
+                    tally.accepted[keep] += 1;
+                    *at = point;
+                }
+            }
+        }
+        tally
+    };
+    let work = seeds
+        .chunks_mut(GROUP * WIDTH)
+        .zip(points.chunks_mut(GROUP))
+        .zip(groups.iter_mut());
+    #[cfg(feature = "parallel")]
+    {
+        use rayon::prelude::*;
+        work.collect::<Vec<_>>().into_par_iter().map(sweep).collect()
+    }
+    #[cfg(not(feature = "parallel"))]
+    work.map(sweep).collect()
+}
+
+// How many times the densities of a deep view are raised, with full brightness left where it is, so that its faint
+// parts show: 1 where the view begins to hold less than `enough`, and never less than 1.
+fn lift(held: f64, share: f64, enough: f64, zoom: f64) -> f64 {
+    let own = share * zoom * zoom;
+    if own <= 0.0 || held <= 0.0 {
+        return 1.0;
+    }
+    let wanted = pow(enough / share, OPENS).min(MOST);
+    (wanted * own / held).clamp(1.0, (MEAN / held).max(1.0))
 }
 
 // The brightness a deep view keeps is the one the picture had at the zoom where the view began to hold less than

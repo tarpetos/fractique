@@ -17,8 +17,8 @@ mod sheets;
 mod tone;
 
 pub use render::{
-    Control, Density, Developed, Exposure, Image, Quality, RenderError, RenderOptions, compose, develop, render,
-    render_density, render_exposed, render_layer,
+    Control, Density, Developed, Image, Quality, RenderError, RenderOptions, compose, develop, render, render_density,
+    render_layer,
 };
 pub use scene::{
     Blend, Camera, Content, Flame, Fractal, Layer, Palette, SCENE_VERSION, Scene, SceneError, Shape, Sheet, Sheets,
