@@ -23,6 +23,18 @@ pub fn attend(used: bool) {
     ATTENDED.store(used, Ordering::Relaxed);
 }
 
+// A hand is on the window: a button or a finger held, or the wheel, a pinch or a key within the last 0.3 s. A
+// press that is over is not, and neither is a pane in motion.
+static HELD: AtomicBool = AtomicBool::new(false);
+
+pub fn hold(held: bool) {
+    HELD.store(held, Ordering::Relaxed);
+}
+
+pub fn held() -> bool {
+    HELD.load(Ordering::Relaxed)
+}
+
 // What the card needs for the window's own frame, in microseconds: the most of late, which fades when nothing
 // comes near it again. Nothing until a frame has told.
 static NEED: AtomicU32 = AtomicU32::new(0);
@@ -105,16 +117,25 @@ pub fn next(sent: f64, took: f32, slice: f32) -> f64 {
 // Whether what the window was told in a frame is the window being used: a button or a finger held, the wheel, a
 // pinch, a key, a text. The pointer moving over the window, or leaving it, is not.
 pub fn used(held: bool, events: &[egui::Event]) -> bool {
-    let idle = |event: &egui::Event| {
-        matches!(
-            event,
-            egui::Event::PointerMoved(_)
-                | egui::Event::MouseMoved(_)
-                | egui::Event::PointerGone
-                | egui::Event::WindowFocused(_)
-        )
-    };
     held || events.iter().any(|event| !idle(event))
+}
+
+fn idle(event: &egui::Event) -> bool {
+    matches!(
+        event,
+        egui::Event::PointerMoved(_)
+            | egui::Event::MouseMoved(_)
+            | egui::Event::PointerGone
+            | egui::Event::WindowFocused(_)
+    )
+}
+
+// Whether what the window was told in a frame is a hand that goes on: the wheel, a pinch, a key, a text. A press
+// or its release is not: a tap is over when the picture it asked for begins, and a finger that stays down is
+// seen as held.
+pub fn turned(events: &[egui::Event]) -> bool {
+    let press = |event: &egui::Event| matches!(event, egui::Event::PointerButton { .. } | egui::Event::Touch { .. });
+    events.iter().any(|event| !idle(event) && !press(event))
 }
 
 // A view that moves is drawn anew for every frame, small, and shown at the picture's size until the view rests:
@@ -691,6 +712,28 @@ mod tests {
         assert_eq!(batch(), slice_of(true));
         attend(false);
         assert_eq!(batch(), slice_of(false));
+    }
+
+    #[test]
+    fn a_tap_that_is_over_is_no_hand_on_the_window() {
+        let button = |pressed| egui::Event::PointerButton {
+            pos: egui::Pos2::ZERO,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        assert!(used(false, &[button(false)]));
+        assert!(!turned(&[
+            button(true),
+            button(false),
+            egui::Event::PointerMoved(egui::Pos2::ZERO)
+        ]));
+        assert!(turned(&[egui::Event::Zoom(1.1)]));
+        assert!(turned(&[egui::Event::Text("a".to_owned())]));
+        hold(true);
+        assert!(held());
+        hold(false);
+        assert!(!held());
     }
 
     fn flame(work: f64) -> [Part<'static>; 1] {

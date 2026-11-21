@@ -936,6 +936,28 @@ const CLEARLY: f32 = 1.3;
 // A run of the card may take as long as the processor is expected to, and at least this many seconds.
 const PATIENCE: f64 = 0.3;
 
+const TRIAL: &str = "trial";
+
+// Whose the card's step of a frame is.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Turn {
+    Trial,
+    Draft,
+    Picture,
+    Nobody,
+}
+
+// By the run that is on the card, not by whether a trial is on: a picture asked for during the trial is drawn by
+// the card too, and nothing else would take its units in.
+fn turn(keys: Option<&[String]>, draft: Option<&[String]>) -> Turn {
+    match keys {
+        Some(keys) if keys == [TRIAL] => Turn::Trial,
+        Some(keys) if draft == Some(keys) => Turn::Draft,
+        Some(_) => Turn::Picture,
+        None => Turn::Nobody,
+    }
+}
+
 fn trial_options() -> RenderOptions {
     RenderOptions {
         width: TRIAL_SIZE[0],
@@ -1054,12 +1076,16 @@ struct App {
     aimed: (View, f64),
     magnified: bool,
     given_up: bool,
+    // The picture awaited is the card's alone: the processor renders its small draft at the most.
+    carded: bool,
     speeds: pace::Speeds,
     // A render that was stopped because it would have taken too long: its generation, and the speed it showed.
     late: Late,
     too_long: Option<(View, f64)>,
     touched: Instant,
     gpu: bool,
+    gpu_chosen: bool,
+    gpu_warned: bool,
     preview: Option<Preview>,
     card: String,
     card_key: String,
@@ -1129,6 +1155,7 @@ struct App {
     counting: bool,
     last_size: [u32; 2],
     used: Instant,
+    turned: Option<Instant>,
     moved_only: bool,
     pictures: u32,
     offers: motion::Offers<Offer>,
@@ -1537,8 +1564,9 @@ fn lightness(rgba: &[u8], step: usize) -> f32 {
 }
 
 // The verdict kept for a graphics card, if it is this card's and this version's.
-// Not "slow": that was kept by trials that asked a card to be twice as fast on a smaller picture.
-const SLOW: &str = "slow2";
+// Not "slow": that was kept by trials that asked a card to be twice as fast on a smaller picture. Not "slow2":
+// that was kept by trials whose units were nearly all the way to a phone's chip and back.
+const SLOW: &str = "slow3";
 
 fn verdict_of(text: &str, card: &str) -> Verdict {
     match text.strip_prefix(card).and_then(|rest| rest.strip_prefix('|')) {
@@ -1647,7 +1675,7 @@ impl App {
         // not asked (fast) or one that is asked anew (measure).
         let forced = std::env::var("FRACTIQUE_GPU").ok();
         let able = cfg!(not(target_arch = "wasm32")) && forced.as_deref() != Some("none");
-        let mut preview = cc
+        let preview = cc
             .wgpu_render_state
             .as_ref()
             .filter(|state| able && Chaos::able(&state.adapter, &state.device))
@@ -1683,12 +1711,11 @@ impl App {
         } else {
             verdict
         };
-        if verdict == Verdict::Slow {
-            preview = None;
-        }
+        let gpu_chosen = forced.is_some() || stored("gpu_by").is_some();
         let gpu = match forced.as_deref() {
             Some(choice) => choice != "off",
-            None => stored("gpu").is_none_or(|choice| choice != "off"),
+            None if gpu_chosen => stored("gpu").is_none_or(|choice| choice != "off"),
+            None => verdict != Verdict::Slow,
         };
         let restore = screenshot.is_none() || std::env::var_os("FRACTIQUE_RESTORE").is_some();
         let session = if restore { stored("session") } else { None };
@@ -1730,6 +1757,7 @@ impl App {
             aimed: (WHOLE, 1.0),
             magnified: false,
             given_up: false,
+            carded: false,
             late: Arc::default(),
             too_long: None,
             speeds: {
@@ -1741,6 +1769,8 @@ impl App {
             },
             touched: Instant::now(),
             gpu,
+            gpu_chosen,
+            gpu_warned: false,
             preview,
             card,
             card_key,
@@ -1814,6 +1844,7 @@ impl App {
             counting: false,
             last_size: [0; 2],
             used: Instant::now(),
+            turned: None,
             moved_only: false,
             pictures: 0,
             offers: motion::Offers::new(),
@@ -2139,11 +2170,12 @@ impl App {
     }
 
     fn card_used(&self) -> bool {
-        matches!(self.verdict, Verdict::Fast(_)) && self.preview.as_ref().is_some_and(Preview::works)
+        self.preview.as_ref().is_some_and(Preview::works)
     }
 
+    // Until the trial has told, a switch nobody has set leaves the pictures to the processor.
     fn gpu_on(&self) -> bool {
-        self.gpu && self.card_used()
+        self.gpu && self.card_used() && (self.gpu_chosen || self.verdict != Verdict::Unknown)
     }
 
     // The graphics card's own picture of the scene as it is now is on the screen. It follows the tone, the
@@ -2206,6 +2238,7 @@ impl App {
         self.drawn = None;
         self.touched = Instant::now();
         self.rendering = true;
+        self.carded = false;
         ctx.request_repaint_after(std::time::Duration::from_secs_f32(SETTLE));
     }
 
@@ -2325,8 +2358,9 @@ impl App {
         }
         let (scene, cancel, generation) = (self.scene_at(size), self.cancel.clone(), self.generation);
         let mut aside = false;
+        self.carded = self.begin_chaos(ctx, &scene, &finest);
         // The graphics card's picture is the screen's: the processor renders only what the card does not draw.
-        if self.begin_chaos(ctx, &scene, &finest) {
+        if self.carded {
             self.rendering = !self.chaos.as_ref().is_some_and(Chaos::finished);
             // The first picture of a new scene is the processor's small one: it is there in a frame or two
             // whatever the size of the picture the card draws.
@@ -2724,7 +2758,7 @@ impl App {
             &scene,
             &trial_options(),
             [0; 2],
-            &["trial".to_owned()],
+            &[TRIAL.to_owned()],
             Instant::now(),
             None,
             ctx,
@@ -2745,9 +2779,13 @@ impl App {
             return;
         };
         let Some(card) = trial.card else {
-            // The owner asked for a picture: the trial gives way and begins again when the app rests.
-            if self.rendering {
-                chaos.end();
+            let own = chaos.keys().is_some_and(|keys| keys == [TRIAL]);
+            // The owner asked for a picture: the trial gives way and begins again when the app rests. The run on
+            // the card may be that picture's by now, and is left alone.
+            if self.rendering || !own {
+                if own {
+                    chaos.end();
+                }
                 self.trial = None;
             } else if chaos.advance(ctx) == Step::Refused {
                 self.decide(None);
@@ -2767,7 +2805,7 @@ impl App {
                             &scene,
                             &trial_options(),
                             [0; 2],
-                            &["trial".to_owned()],
+                            &[TRIAL.to_owned()],
                             Instant::now(),
                             None,
                             ctx,
@@ -2850,7 +2888,11 @@ impl App {
             );
         }
         if self.verdict == Verdict::Slow {
-            (self.preview, self.chaos, self.held) = (None, None, None);
+            if seconds.is_none() && !self.measured_slow {
+                (self.preview, self.chaos, self.held) = (None, None, None);
+            } else if !self.gpu_chosen {
+                self.gpu = false;
+            }
         }
     }
 
@@ -2869,24 +2911,31 @@ impl App {
             self.requested = None;
         }
         self.compiling = pending;
+        let mut tried = false;
         if chaos.warming() {
             let size = self.requested.unwrap_or(self.aimed_size);
             let full = self.full(size);
             chaos.warm(ctx, [full.width, full.height]);
-        } else if self.trial.is_some() {
+        } else {
             self.trial_step(&mut chaos, ctx);
-        } else if chaos.keys().is_some() && chaos.keys() == self.draft_keys.as_deref() {
-            self.draft_step(&mut chaos, ctx, frame);
-        } else if chaos.keys().is_some() {
-            self.chaos_step(&mut chaos, ctx, frame);
+            match turn(chaos.keys(), self.draft_keys.as_deref()) {
+                Turn::Trial => tried = true,
+                Turn::Draft => self.draft_step(&mut chaos, ctx, frame),
+                Turn::Picture => self.chaos_step(&mut chaos, ctx, frame),
+                Turn::Nobody => {}
+            }
         }
         // A picture on its way whose card has gone silent is begun again, once, and is the processor's the
         // second time: the screen never waits for an answer that does not come.
-        if self.rendering && self.trial.is_none() && chaos.stalled() {
+        if self.rendering && !tried && chaos.stalled() {
             let again = !std::mem::replace(&mut self.stalled, true);
             log::warn!("the graphics card is silent: the picture is begun again (on the card: {again})");
             chaos.end();
             self.given_up |= !again;
+            self.requested = None;
+        }
+        // A picture that is the card's alone while the card has no run: nothing would end the wait.
+        if self.rendering && self.carded && chaos.keys().is_none() && !chaos.pending() {
             self.requested = None;
         }
         self.chaos = Some(chaos);
@@ -3124,6 +3173,7 @@ impl App {
         (self.draft_keys, self.draft_of, self.draft_view) = (Some(keys), eye, around);
         self.draft_landed = false;
         self.rendering = true;
+        self.carded = false;
         true
     }
 
@@ -3180,7 +3230,7 @@ impl App {
         let step = chaos.advance(ctx);
         if step == Step::Refused {
             if timed() {
-                eprintln!("times: the graphics card gave the scene up");
+                eprintln!("times: the graphics card gave the scene up {}", chaos.why());
             }
             self.given_up = true;
             self.requested = None;
@@ -5365,9 +5415,13 @@ impl App {
 
         if self.card_used() {
             widgets::section(ui, &self.t("graphics"));
-            if widgets::toggle(ui, &self.t("gpu"), &mut self.gpu) {
+            let (turned, pressed) = widgets::toggle_warned(ui, &self.t("gpu"), &mut self.gpu);
+            if turned {
+                self.gpu_chosen = true;
                 self.gpu_turned();
             }
+            self.gpu_warned ^= pressed;
+            widgets::warning(ui, ui.scope_id().with("gpu weak"), &self.t("gpu_weak"), self.gpu_warned);
             if self.gpu {
                 ui.add_space(4.0);
                 let card = egui::RichText::new(&self.card)
@@ -6313,6 +6367,16 @@ impl App {
             return;
         }
         if self.verdict == Verdict::Unknown {
+            // `trial:randomize` presses the button while the card is tried, `tried:randomize` while the processor is.
+            let amid = self.trial.as_ref().map(|trial| match trial.card {
+                Some(_) => "tried:",
+                None => "trial:",
+            });
+            let next = self.steps.last().zip(amid);
+            if let Some(step) = next.and_then(|(step, amid)| step.strip_prefix(amid)).map(str::to_owned) {
+                self.steps.pop();
+                self.step(ctx, &step);
+            }
             ctx.request_repaint();
             return;
         }
@@ -6388,6 +6452,10 @@ impl App {
 impl App {
     fn step(&mut self, ctx: &egui::Context, step: &str) {
         ctx.request_repaint();
+        let step = ["trial:", "tried:"]
+            .iter()
+            .find_map(|amid| step.strip_prefix(amid))
+            .unwrap_or(step);
         let numbers: Vec<f32> = step.split(':').skip(1).filter_map(|part| part.parse().ok()).collect();
         if self.trace.begin(step) {
             self.shown_frames = 1;
@@ -6438,6 +6506,7 @@ impl App {
         }
         if step == "gpu" {
             self.gpu = !self.gpu;
+            self.gpu_chosen = true;
             self.gpu_turned();
             self.shown_frames = 1;
             return;
@@ -6611,6 +6680,9 @@ impl eframe::App for App {
         storage.set_string("glass_blur", self.optics.blur.to_string());
         if std::env::var_os("FRACTIQUE_GPU").is_none() {
             storage.set_string("gpu", if self.gpu { "on" } else { "off" }.to_owned());
+            if self.gpu_chosen {
+                storage.set_string("gpu_by", "owner".to_owned());
+            }
             let verdict = match self.verdict {
                 Verdict::Fast(Some(rate)) => Some(format!("fast|{rate}")),
                 Verdict::Slow if !self.card_key.is_empty() && self.measured_slow => Some(SLOW.to_owned()),
@@ -6656,6 +6728,11 @@ impl App {
             self.used = Instant::now();
         }
         pace::attend(self.used.elapsed().as_secs_f32() < 0.3);
+        let (held, turned) = ctx.input(|input| (input.pointer.any_down(), pace::turned(&input.events)));
+        if turned {
+            self.turned = Some(Instant::now());
+        }
+        pace::hold(held || self.turned.is_some_and(|at| at.elapsed().as_secs_f32() < 0.3));
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         self.arrive(&ctx);
         // Every mouse move asks for a redraw; at a 240 Hz screen's pace that makes a graphics card whine.
@@ -8226,10 +8303,21 @@ mod tests {
     }
 
     #[test]
+    fn a_picture_asked_for_during_the_trial_has_the_card() {
+        let (trial, picture, draft) = ([TRIAL.to_owned()], ["a flame".to_owned()], ["a draft".to_owned()]);
+        assert_eq!(turn(Some(&trial), None), Turn::Trial);
+        assert_eq!(turn(Some(&picture), None), Turn::Picture);
+        assert_eq!(turn(Some(&picture), Some(&draft)), Turn::Picture);
+        assert_eq!(turn(Some(&draft), Some(&draft)), Turn::Draft);
+        assert_eq!(turn(None, None), Turn::Nobody);
+    }
+
+    #[test]
     fn a_verdict_is_kept_for_its_card_and_version() {
         let card = "Adreno 610|V@0502.0|0.1.0";
         assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow", card), Verdict::Unknown);
-        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow2", card), Verdict::Slow);
+        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow2", card), Verdict::Unknown);
+        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow3", card), Verdict::Slow);
         assert_eq!(
             verdict_of("Adreno 610|V@0502.0|0.1.0|fast|1500000.5", card),
             Verdict::Fast(Some(1_500_000.5))

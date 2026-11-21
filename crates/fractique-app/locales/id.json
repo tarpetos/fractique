@@ -126,6 +126,7 @@
   "color": "WARNA",
   "graphics": "GRAFIS",
   "gpu_note": "Saat aktif, gambar dan ekspor Instan bisa tampak sedikit berbeda di tiap perangkat. Ekspor Standar ke atas selalu persis sama.",
+  "gpu_weak": "Pada chip grafis yang lemah, ini bisa lebih lambat daripada tanpa akselerasi.",
   "gpu": "Akselerasi GPU",
   "pro_title": "Fractique Pro",
   "pro_about": "Ekspor gambar berukuran 2560 × 1440 ke atas, juga dalam ukuran kustom apa pun. Bayar sekali, milik Anda selamanya. Fitur lainnya tetap gratis.",
