@@ -8,11 +8,11 @@
   </sub></p>
 </div>
 
-Fractique üç tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumuşak ışıktan oluşan, parlayan, tül gibi fraktallar. 22 türde klasik fraktal: Mandelbrot kümesi, Julia kümeleri ve garip çekicilerden üç boyutlu Mandelbulb’a kadar. Ve duvar kâğıtları: kenarları aydınlatılmış, yumuşak gölgeli düz levhalar; her birinin açık ve koyu sürümü vardır. Bir hazır ayar seçer, rastgele bir görüntü üretir ya da birkaç alevi üst üste bindirirsiniz ve sonucu telefon ekranından 4K monitöre kadar istediğiniz boyutta dışa aktarırsınız. Bir sahne tek bir küçük dosyadır ve aynı dosya Windows, macOS, Linux, Android ve iOS’ta her zaman tam olarak aynı pikselleri verir.
-
 <p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: her ekran için fraktal duvar kağıtları" width="880"></a>
 </p>
+
+Fractique üç tür görüntü üretir. Fraktal alevler: ince eğrilerden ve yumuşak ışıktan oluşan, parlayan, tül gibi fraktallar. 22 türde klasik fraktal: Mandelbrot kümesi, Julia kümeleri ve garip çekicilerden üç boyutlu Mandelbulb’a kadar. Ve duvar kâğıtları: kenarları aydınlatılmış, yumuşak gölgeli düz levhalar; her birinin açık ve koyu sürümü vardır. Bir hazır ayar seçer, rastgele bir görüntü üretir ya da birkaç alevi üst üste bindirirsiniz ve sonucu telefon ekranından 4K monitöre kadar istediğiniz boyutta dışa aktarırsınız. Bir sahne tek bir küçük dosyadır ve aynı dosya Windows, macOS, Linux, Android ve iOS’ta her zaman tam olarak aynı pikselleri verir.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Aurora Sarmalı hazır ayarı: koyu bir arka planda turkuaz ve yeşil sarmal tüller" width="880">
