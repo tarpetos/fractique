@@ -535,6 +535,7 @@ fn parsed_size(text: &str) -> Option<[u32; 2]> {
 const BAR: f32 = 44.0;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 const BAR_GAP: f32 = 10.0;
+const BAR_EDGE: f32 = 14.0;
 
 // What the picture shows: the point `right` and `down` of the scene's own middle, in shorter sides of the picture,
 // magnified `zoom` times.
@@ -1148,6 +1149,7 @@ struct App {
     fading: bool,
     veiled: bool,
     resizing: bool,
+    let_go: bool,
     brisk: bool,
     began: Instant,
     begun: bool,
@@ -1837,6 +1839,7 @@ impl App {
             fading: false,
             veiled: false,
             resizing: false,
+            let_go: false,
             brisk: false,
             began: Instant::now(),
             begun: false,
@@ -5120,10 +5123,11 @@ impl App {
                     self.toggle_maximized(ctx);
                 } else if grip.drag_started_by(egui::PointerButton::Primary) {
                     ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                    self.let_go = true;
                 }
                 let painter = ui.painter().clone();
                 let name = painter.text(
-                    rect.left_center() + egui::vec2(20.0, 0.0),
+                    rect.left_center() + egui::vec2(BAR_EDGE, 0.0),
                     egui::Align2::LEFT_CENTER,
                     "Fractique",
                     font(14.5, SEMIBOLD),
@@ -5159,7 +5163,7 @@ impl App {
 
                 let ink = egui::Stroke::new(1.4, egui::Color32::from_white_alpha(235));
                 let mut slot = egui::Rect::from_center_size(
-                    egui::pos2(rect.right() - 7.0 - 15.0, rect.center().y),
+                    egui::pos2(rect.right() - BAR_EDGE - 15.0, rect.center().y),
                     egui::Vec2::splat(30.0),
                 );
                 for button in ["close", "maximize", "minimize", "full", "hide"] {
@@ -6626,6 +6630,11 @@ impl eframe::App for App {
                 repeat: false,
                 modifiers: egui::Modifiers::NONE,
             });
+        }
+        // Linux takes the pointer for a window it drags and never tells of the button's release; Windows tells.
+        if std::mem::take(&mut self.let_go) && !cfg!(windows) {
+            let at = ctx.input(|input| input.pointer.latest_pos());
+            input.events.push(pace::let_go(at.unwrap_or_default()));
         }
         if let Some((from, to, frames, at)) = self.dragged {
             let pos = from + (to - from) * (at as f32 / frames.max(1) as f32).min(1.0);
