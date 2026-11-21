@@ -5,7 +5,7 @@ use fractique_core::{Scene, file};
 use fractique_mcp::load;
 use serde_json::{Value, json};
 
-const AT_LEAST: [(&str, usize); 3] = [("flames", 100), ("fractals", 12), ("wallpapers", 12)];
+const AT_LEAST: [(&str, usize); 3] = [("flames", 100), ("fractals", 100), ("wallpapers", 100)];
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/gallery")
@@ -46,7 +46,12 @@ fn every_file_of_the_gallery_loads_as_a_valid_scene_of_its_folder() {
     for (folder, path) in gallery() {
         let at = path.display();
         let scene = load(&path).unwrap_or_else(|error| panic!("{error}"));
-        assert_eq!(path.file_stem().unwrap().to_string_lossy()[4..], scene.name, "{at}");
+        let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
+        assert_eq!(
+            stem.split_once('-').map(|(_, name)| name),
+            Some(scene.name.as_str()),
+            "{at}"
+        );
         match folder {
             "flames" => assert!(scene.layers.iter().all(|layer| layer.flame().is_some()), "{at}"),
             "fractals" => assert!(scene.layers.iter().any(|layer| layer.flame().is_none()), "{at}"),
