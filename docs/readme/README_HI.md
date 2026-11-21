@@ -136,6 +136,7 @@ Windows पर प्रोग्राम `target\release\fractique-gui.exe` �
 | --- | --- | --- | --- |
 | PC | Windows 11 | AMD Ryzen 7 5700X | NVIDIA GeForce RTX 4070 |
 | PC | Ubuntu 24.04 (WSL2) | AMD Ryzen 7 5700X | कोई नहीं: केवल प्रोसेसर |
+| PC | Ubuntu 26.04 | AMD Ryzen 7 5700X | NVIDIA GeForce RTX 4070 |
 | PC | Arch Linux (Linux 7.3.4) | AMD Ryzen 7 9800X3D | AMD Radeon RX 9070 XT |
 | लैपटॉप, ASUS TUF Gaming FX505DT | Windows 11 | AMD Ryzen 5 3550H | NVIDIA GeForce GTX 1650 |
 | लैपटॉप, HP 15-db1xxx | Debian 13 | AMD Ryzen 3 3200U | AMD Radeon Vega 3 |
