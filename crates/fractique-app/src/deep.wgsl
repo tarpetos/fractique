@@ -31,9 +31,10 @@ const FINISH: u32 = 2u;
 const FAR_EVERY: u32 = 4u;
 // The notes: 0 the points plotted or found, 1 those of them in the view (of a pilot: in the next window), 2 the
 // particles inside the next window, 3 how often note 1 passed 32 bits, then for every number of kept steps the
-// moves tried, the moves accepted and how far they went, then a mark for every particle (its tile, where the
+// moves tried, the moves accepted and how far they went, then a mark for every particle (its place, where the
 // picture has tiles), the particle each takes the place of, and for every tile the power of two its points count.
 const CARRY: u32 = 3u;
+const PLACES: f32 = 16384.0;
 const TRIED: u32 = 4u;
 const ACCEPTED: u32 = 133u;
 const TRAVELLED: u32 = 262u;
@@ -78,18 +79,42 @@ fn inside(at: vec2<f32>, window: f32) -> bool {
     return abs(off.x) < half.x && abs(off.y) < half.y;
 }
 
-fn tile(at: vec2<f32>) -> u32 {
-    let x = min(u32(max(at.x, 0.0)), flame.extent.x - 1u);
-    let y = min(u32(max(at.y, 0.0)), flame.extent.y - 1u);
-    let across = batch.tiles & 0xFFFFu;
-    return (y * (batch.tiles >> 16u) / flame.extent.y) * across + x * across / flame.extent.x;
+// A point's place in the picture, on a lattice of PLACES a side.
+fn place(at: vec2<f32>) -> vec2<u32> {
+    let part = max(at, vec2<f32>(0.0)) / vec2<f32>(flame.extent.xy);
+    return min(vec2<u32>(part * PLACES), vec2<u32>(u32(PLACES) - 1u));
 }
 
+fn tiled(column: f32, row: f32) -> f32 {
+    let grid = vec2<u32>(batch.tiles & 0xFFFFu, batch.tiles >> 16u);
+    let at = min(vec2<u32>(max(vec2<f32>(column, row), vec2<f32>(0.0))), grid - vec2<u32>(1u));
+    return f32(atomicLoad(&notes[HEAD + 2u * batch.walkers + at.y * grid.x + at.x]));
+}
+
+// fractique-core's shift_at: the tiles' shifts mixed between their middles, and place by place by a hash of the
+// place, so that no edge of a tile shows in the grain.
 fn shift(at: vec2<f32>) -> u32 {
     if (batch.tiles == 0u) {
         return 0u;
     }
-    return atomicLoad(&notes[HEAD + 2u * batch.walkers + tile(at)]);
+    let grid = vec2<f32>(f32(batch.tiles & 0xFFFFu), f32(batch.tiles >> 16u));
+    let part = max(at, vec2<f32>(0.0)) / vec2<f32>(flame.extent.xy);
+    let among = part * grid - vec2<f32>(0.5);
+    let corner = floor(among);
+    let mix = among - corner;
+    let first = tiled(corner.x, corner.y);
+    let lower = first + (tiled(corner.x + 1.0, corner.y) - first) * mix.x;
+    let second = tiled(corner.x, corner.y + 1.0);
+    let upper = second + (tiled(corner.x + 1.0, corner.y + 1.0) - second) * mix.x;
+    let between = lower + (upper - lower) * mix.y;
+    let on = vec2<u32>(part * PLACES);
+    var hash = (on.x * 0x9E3779B1u) ^ (on.y * 0x85EBCA77u);
+    hash = (hash ^ (hash >> 15u)) * 0x2C1B3C6Du;
+    hash = (hash ^ (hash >> 12u)) * 0x297A2D39u;
+    hash = hash ^ (hash >> 15u);
+    // Added to the fraction alone: beside a whole shift of 8 or more a 32-bit sum would round up to the next.
+    let whole = floor(between);
+    return u32(whole) + u32(between - whole + f32(hash >> 8u) / 16777216.0);
 }
 
 // A move into a tile whose points count more is taken as many times less often.
@@ -287,7 +312,7 @@ fn sweep(@builtin(global_invocation_id) id: vec3<u32>) {
     }
 }
 
-// Tells which particles are inside the next window, and in a picture with tiles the tile of each.
+// Tells which particles are inside the next window, and in a picture with tiles the place of each.
 @compute @workgroup_size(64)
 fn mark(@builtin(global_invocation_id) id: vec3<u32>) {
     let index = id.x;
@@ -302,7 +327,8 @@ fn mark(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     atomicAdd(&notes[2], stays);
     if (batch.tiles != 0u) {
-        stays = tile(at);
+        let on = place(at);
+        stays = on.x | (on.y << 14u);
     }
     atomicStore(&notes[HEAD + index], stays);
 }

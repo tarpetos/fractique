@@ -22,12 +22,26 @@ fn level_of(count: u32) -> u32 {
     return look.widths[count >> 2u][count & 3u];
 }
 
+fn tiled(column: f32, row: f32) -> f32 {
+    let at = min(vec2<u32>(max(vec2<f32>(column, row), vec2<f32>(0.0))), look.grid.xy - vec2<u32>(1u));
+    let tile = at.y * look.grid.x + at.x;
+    return f32(look.shifts[tile >> 2u][tile & 3u]);
+}
+
+// The kernel of a cell goes by its hits: its count over the shift mixed between the middles of the tiles around it.
 fn level_at(count: u32, x: u32, y: u32) -> u32 {
     if (look.grid.x == 0u) {
         return level_of(count);
     }
-    let tile = (y * look.grid.y / look.size.y) * look.grid.x + x * look.grid.x / look.size.x;
-    return level_of(max(count >> look.shifts[tile >> 2u][tile & 3u], 1u));
+    let among = (vec2<f32>(f32(x), f32(y)) + vec2<f32>(0.5)) / vec2<f32>(look.size.xy) * vec2<f32>(look.grid.xy)
+        - vec2<f32>(0.5);
+    let corner = floor(among);
+    let mix = among - corner;
+    let first = tiled(corner.x, corner.y);
+    let lower = first + (tiled(corner.x + 1.0, corner.y) - first) * mix.x;
+    let second = tiled(corner.x, corner.y + 1.0);
+    let upper = second + (tiled(corner.x + 1.0, corner.y + 1.0) - second) * mix.x;
+    return level_of(max(count >> u32(lower + (upper - lower) * mix.y + 0.5), 1u));
 }
 
 @compute @workgroup_size(8, 8)

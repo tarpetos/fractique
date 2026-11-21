@@ -24,6 +24,9 @@ pub const HEAD: usize = 392;
 // deep.wgsl: the carry of the points in the view, and the room of the tiles' shifts after the particles' notes.
 const CARRY: usize = 3;
 pub const TILES: usize = 576;
+// deep.wgsl: a mark of the last window is the particle's place in the picture, across and from bit 14 down, on
+// fractique-core's lattice of 16384 places a side.
+const PLACES: u32 = 14;
 // A move is told in this many units for a view's shorter side taken four times.
 const UNITS: f64 = 2048.0;
 
@@ -218,10 +221,14 @@ impl Plan {
     // a particle that is written in the same pass.
     pub fn sources(&self) -> Vec<u32> {
         if let Some(tiles) = self.tiles.as_ref().filter(|_| self.stage == Stage::Spread) {
+            let (across, down) = (self.grid.0 as usize, self.grid.1 as usize);
             let parts: Vec<u64> = self
                 .marks
                 .iter()
-                .map(|tile| 1 << (deep::HEAVIEST - u32::from(tiles[*tile as usize])))
+                .map(|mark| {
+                    let (x, y) = place(*mark);
+                    1 << (deep::HEAVIEST - deep::shift_at(tiles, across, down, x, y))
+                })
                 .collect();
             let (total, count) = (parts.iter().sum::<u64>(), parts.len() as u64);
             let mut copies = vec![0usize; parts.len()];
@@ -305,8 +312,10 @@ impl Plan {
             self.lift = deep::lift(self.exposure, view, self.enough, self.zoom);
             self.marks = notes[HEAD..].iter().take(self.particles as usize).copied().collect();
             let mut held = vec![0u32; (self.grid.0 * self.grid.1) as usize];
-            for tile in &self.marks {
-                held[*tile as usize] += 1;
+            for mark in &self.marks {
+                let (x, y) = place(*mark);
+                let (column, row) = ((x * f64::from(self.grid.0)) as u32, (y * f64::from(self.grid.1)) as u32);
+                held[(row * self.grid.0 + column) as usize] += 1;
             }
             self.tiles = deep::shifts(&held).filter(|_| self.exposure > 0.0);
             self.stage = match self.tiles {
@@ -326,6 +335,12 @@ impl Plan {
     pub fn spread(&mut self) {
         self.stage = Stage::Plot;
     }
+}
+
+fn place(mark: u32) -> (f64, f64) {
+    let side = f64::from(1u32 << PLACES);
+    let (column, row) = (mark & ((1 << PLACES) - 1), mark >> PLACES);
+    ((f64::from(column) + 0.5) / side, (f64::from(row) + 0.5) / side)
 }
 
 // fractique-core's deep.rs: the brightness a deep view keeps is the one the picture had at the zoom where the view
@@ -350,6 +365,12 @@ mod tests {
 
     fn notes(particles: u32) -> Vec<u32> {
         vec![0; HEAD + particles as usize]
+    }
+
+    // The mark of a particle in the middle of a tile of 24 by 14.
+    fn middle(tile: u32) -> u32 {
+        let side = 1 << PLACES;
+        ((tile % 24 * 2 + 1) * side / 48) | (((tile / 24 * 2 + 1) * side / 28) << PLACES)
     }
 
     #[test]
@@ -431,7 +452,7 @@ mod tests {
         }
         // 49 particles in the first tile, one in each of the 15 after it.
         for (particle, mark) in told[HEAD..].iter_mut().enumerate() {
-            *mark = particle.saturating_sub(48) as u32;
+            *mark = middle(particle.saturating_sub(48) as u32);
         }
         plan.swept(&told);
         assert_eq!(plan.stage, Stage::Spread);
@@ -449,8 +470,14 @@ mod tests {
         assert_eq!(plan.grid(), [24, 14]);
         let sources = plan.sources();
         assert!(sources.iter().all(|source| sources[*source as usize] == *source));
+        // A particle is taken as often as a point at its place counts less: fractique-core's shift of the place.
+        let part = |tile: u32| {
+            let (x, y) = place(middle(tile));
+            1.0 / f64::from(1u32 << deep::shift_at(&shifts, 24, 14, x, y))
+        };
+        assert_eq!(part(0), 1.0 / f64::from(1u32 << shifts[0]));
         let bright = sources.iter().filter(|source| **source < 49).count();
-        let fair = 64.0 * 49.0 / (49.0 + 15.0 * f64::from(1u32 << shifts[0]));
+        let fair = 64.0 * 49.0 * part(0) / (49.0 * part(0) + (1..16).map(part).sum::<f64>());
         assert!(
             (bright as f64 - fair).abs() <= 1.0,
             "{bright} of the first tile, {fair} are its part"
@@ -464,7 +491,7 @@ mod tests {
         told[HEAD..].fill(1);
         even.piloted(&told);
         for (particle, mark) in told[HEAD..].iter_mut().enumerate() {
-            *mark = particle as u32;
+            *mark = middle(particle as u32);
         }
         even.swept(&told);
         assert_eq!((even.stage, even.grid()), (Stage::Plot, [0; 2]));
