@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+* **Tiling window managers on Linux:** under i3, sway, Hyprland and the like the top panel has no buttons to
+  minimize and to maximize, which did nothing there; full screen stays. The window's place and size are no longer
+  kept from one run to the next there: a window made to float stood on its old tile, at the tile's size, instead
+  of in the middle of the screen. `FRACTIQUE_TILING=on` or `off` decides it by hand.
+
 * **The blur leaves after the window is dragged, on Linux:** a window dragged by its top panel, to a border of the
   screen or out of a maximized or full-screen state, kept its picture blurred until the next click: the system
   never told the app that the button was released. The title and the close button of the top panel now stand
