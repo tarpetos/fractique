@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+* **Sliders under a finger move only by their knob:** in the controls of a phone a finger that scrolled the list
+  moved a slider it happened to cross, and the knob jumped to the finger. A slider now moves only when the finger
+  lands on its knob and goes clearly sideways, and the knob goes as far as the finger does, from where it stood.
+  A finger anywhere else scrolls the list, which now follows it exactly. A mouse works as before.
+
 * **Tiling window managers on Linux:** under i3, sway, Hyprland and the like the top panel has no buttons to
   minimize and to maximize, which did nothing there; full screen stays. The window's place and size are no longer
   kept from one run to the next there: a window made to float stood on its old tile, at the tile's size, instead
