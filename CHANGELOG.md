@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+* **Layered pictures in the gallery:** the twenty weakest flames and the twenty weakest fractals of `docs/gallery`
+  gave their numbers to scenes of two or three layers, each layer in a palette of its own: a bright figure over a
+  wide veil, two figures of different symmetry, an attractor's silk over a Mandelbrot, Julia or Hopalong ground.
+  The colors are in the layers of the scene, so the app and `fractique render` draw the same picture.
+
 * **A click on a picture of the gallery downloads its file:** a picture in `docs/gallery` led to GitHub's page of
   the `.frcq` file, where the file had to be downloaded by hand. Now the picture is the download itself (the file's
   raw address, which a browser saves), and the name under it leads to the file in the repository.
