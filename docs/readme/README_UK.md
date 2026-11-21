@@ -136,6 +136,7 @@ Fractique створює зображення трьох видів. Фракт�
 | --- | --- | --- | --- |
 | ПК | Windows 11 | AMD Ryzen 7 5700X | NVIDIA GeForce RTX 4070 |
 | ПК | Ubuntu 24.04 (WSL2) | AMD Ryzen 7 5700X | Немає: лише процесор |
+| ПК | Arch Linux | AMD Ryzen 7 9800X3D | AMD Radeon RX 9070 XT |
 | Ноутбук, ASUS TUF Gaming FX505DT | Windows 11 | AMD Ryzen 5 3550H | NVIDIA GeForce GTX 1650 |
 | Ноутбук, HP 15-db1xxx | Debian 13 | AMD Ryzen 3 3200U | AMD Radeon Vega 3 |
 | MacBook Pro | macOS 27 | Apple M5 Pro | Apple M5 Pro |
