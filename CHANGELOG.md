@@ -8,6 +8,11 @@
 
 ### Added
 
+* **The AppImage runs the programs packed in it:** an AppImage starts one program, so the command line tool and
+  the two servers inside it could only be reached by unpacking it. Its first word now chooses one: `cli`, `mcp` or
+  `server`, with that program's own arguments after it (`Fractique_<version>_x86_64.AppImage server --bind
+  0.0.0.0:8080`). Without such a word it opens the app as before, and the word means nothing outside an AppImage.
+
 * **A dot in a layer's colors before its name:** every row of **Layers** starts with a round dot like those of
   the row of colors, in the palette the layer is drawn with: the one chosen for it, or the layer's own. It
   follows a choice, **Randomize**, **Mutate**, a preset and a move of the layer at once, so a scene of several

@@ -33,6 +33,9 @@ cargo build --release -p fractique-server
 ./target/release/fractique-server
 ```
 
+From the AppImage, which starts one program only, it is the app's first word: `Fractique_<version>_x86_64.AppImage
+server`, with the same options after it.
+
 It listens on `127.0.0.1:8080`. Every setting is an option and an environment variable; the option wins.
 `fractique-server update` replaces the program with the newest release ([Updating](#updating)).
 

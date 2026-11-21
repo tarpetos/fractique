@@ -40,7 +40,8 @@ to install one.
 
 A released version needs no build: [releasing.md](releasing.md) lists the files of a release, among them one
 program file for Windows, an AppImage, a macOS app and an Android APK, and the command line tool and the two
-servers as files of their own for Windows, Linux and macOS. The iPhone app is built on a Mac:
+servers as files of their own for Windows, Linux and macOS. The AppImage holds the three as well and starts one by
+its first word: `cli`, `mcp` or `server`, then what that program takes. The iPhone app is built on a Mac:
 [ios.md](ios.md).
 
 The examples below write `fractique` for the tool; use the path from the table, or copy the file to a folder on
