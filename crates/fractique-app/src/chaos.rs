@@ -68,10 +68,14 @@ const UNIT: f32 = 0.0015;
 // finished with those it has by then, so that it stays inside the ten seconds a picture may take.
 const LARGER_WITHIN: f32 = 8.0;
 const DEEP_UNIT: f32 = 0.003;
-// A way to the card and back longer than this is costly: units are then sized by it, `FAR` times as long.
+// A card whose unit of unplotted steps alone comes back after more than this has a long way to it and back, for
+// the session: its units are sized by that way, `FAR` times as long under a hand and `LONG` times with none. Not
+// a card of its own, where such a unit is long by its work: 4 ms for a dear flame on an RTX 4070.
 const COSTLY: f32 = 0.0006;
 const FAR: f32 = 30.0;
 const LONG: f32 = 100.0;
+// `pace::next` aims a unit at 0.8 of what it is sized for: one under half of that is on its way there.
+const GROWN: f32 = 0.5;
 // Milliseconds without a word of the card after which a picture on its way counts as stalled: ten times the
 // longest a batch of a bounded scene may take.
 const SILENT: u32 = 10 * LONGEST;
@@ -466,25 +470,69 @@ fn following(sent: u32, fused: u32, took: f32, slice: f32) -> u32 {
     (pace::next(worked, took, slice).floor() as u32).max(1)
 }
 
-// The seconds a unit is sized for, on a card whose quickest unit of the run came back after `back` seconds. Where
-// the way to the card and back is short, the usual unit. On a phone's chip it is not (an Adreno 740: 1.1 ms for a
-// unit of no steps, 4 ms for one that plots), and units of the usual size were nearly all way: the card took
-// 1.3 s for what its processor renders in 0.5 s. There a unit is `FAR` times the way, two frames at the most,
-// while the window is used; while it is not, `LONG` times, a tenth of a second at the most, one unit from the end
-// of the other whatever the frame's slice: such a chip plots 94 million steps a second in units with pauses and
-// 148 million in long ones without, 3.1 times its processor instead of 1.5.
-fn unit_for(unit: f32, back: f32, attended: bool) -> f32 {
-    if !costly(back) {
-        unit
-    } else if attended {
-        (FAR * back).clamp(unit, 2.0 * pace::FRAME)
-    } else {
-        (LONG * back).clamp(unit, 0.1)
+// The seconds a unit is sized for, with the seconds the quickest unit of the run took to come back where the way
+// to the card and back is long. Where it is short, the usual unit. On a phone's chip it is not (an Adreno 740:
+// 1.1 ms for a unit of no steps, 4 ms for one that plots), and units of the usual size were nearly all way: the
+// card took 1.3 s for what its processor renders in 0.5 s. There a unit is `FAR` times the way, two frames at the
+// most, under a hand; with none on the window, `LONG` times, a tenth of a second at the most, one unit from the
+// end of the other whatever the frame's slice: such a chip plots 94 million steps a second in units with pauses
+// and 148 million in long ones without, 3.1 times its processor instead of 1.5.
+fn unit_for(unit: f32, way: Option<f32>, held: bool) -> f32 {
+    match way {
+        None => unit,
+        Some(way) if held => (FAR * way).clamp(unit, 2.0 * pace::FRAME),
+        Some(way) => (LONG * way).clamp(unit, 0.1),
     }
 }
 
-fn costly(back: f32) -> bool {
-    back.is_finite() && back > COSTLY
+// The share of the time the card works on a picture. Half a frame, not the slice of the moment: a fade or a held
+// button cuts that to an eighth of a frame, and a GTX 1650 then gave up a picture it kept. Where the way to the
+// card is long, all of it: one unit follows the other, and under a hand, which is not there for long, a unit is
+// longer than the frame it waits for.
+fn busy(far: bool) -> f32 {
+    if far { 1.0 } else { pace::SHARE }
+}
+
+// What a run has shown of the card's pace: the seconds of the units that say it, and the share of the picture
+// they plotted.
+#[derive(Clone, Copy, Default)]
+struct Pace {
+    seconds: f32,
+    share: f32,
+}
+
+impl Pace {
+    // Takes in a unit that walked. One that took under `GROWN` of what a unit is sized for is still growing: it
+    // is mostly the way to the card and says little of the card's pace, unless a bound keeps it that small.
+    fn walked(&mut self, took: f32, unit: f32, share: f32, capped: bool) {
+        if share > 0.0 && (capped || took >= GROWN * unit) {
+            self.seconds += took;
+            self.share += share;
+        }
+    }
+
+    // The seconds of the card's work the whole picture is expected to take: what it has taken, and the rest at
+    // the pace shown.
+    fn whole(&self, worked: f32, done: f32) -> f32 {
+        if self.share > 0.0 {
+            worked + (1.0 - done).max(0.0) * self.seconds / self.share
+        } else {
+            worked
+        }
+    }
+}
+
+// FRACTIQUE_WAY=4:3: a test run's card tells of every unit 4 ms late, as a phone's chip does, and takes three times
+// as long for it.
+fn way() -> Option<(f32, f32)> {
+    static WAY: OnceLock<Option<(f32, f32)>> = OnceLock::new();
+    *WAY.get_or_init(|| {
+        let asked = std::env::var("FRACTIQUE_WAY").ok()?;
+        let mut numbers = asked.split(':').map(|number| number.parse::<f32>().ok());
+        let late = numbers.next()??;
+        let times = numbers.next().flatten().unwrap_or(1.0);
+        Some((late.max(0.0) * 1e-3, times.max(1.0)))
+    })
 }
 
 // What a run needs of the card, for the frame and for the thread that hears of a finished unit alike.
@@ -496,6 +544,8 @@ struct Parts {
     pipelines: Arc<OnceLock<Pipelines>>,
     particles: Arc<OnceLock<Option<Particles>>>,
     longest: Arc<AtomicU32>,
+    own: bool,
+    far: Arc<AtomicBool>,
     #[cfg(not(target_arch = "wasm32"))]
     waiter: std::sync::mpsc::Sender<wgpu::SubmissionIndex>,
     #[cfg(test)]
@@ -541,10 +591,16 @@ struct Run {
     allowed: f32,
     // The quickest a unit of the run has come back: what the way to the card and back costs at the least.
     back: f32,
+    pace: Pace,
+    // The share of the picture that was plotted when a unit last landed.
+    reached: f32,
+    // A bound of the work of one submission, not the pace, sized the unit on its way.
+    capped: bool,
     // What a unit sent from the end of another has come to, for the frame to take.
     told: Step,
     // The run is over: its picture is the processor's, and is not tried again when this is true.
     over: Option<bool>,
+    why: String,
     stopped: bool,
     // The most a unit ended past its frame's slice, in seconds.
     overrun: f32,
@@ -586,6 +642,9 @@ pub struct Chaos {
     waiter: std::sync::mpsc::Sender<wgpu::SubmissionIndex>,
     refused: Vec<Vec<String>>,
     longest: Arc<AtomicU32>,
+    // A card of its own, not one that shares the processor's chip; and one with a long way to it and back.
+    own: bool,
+    far: Arc<AtomicBool>,
     finest: Option<f64>,
     // A test plays the plain chaos game for a view that holds little of the flame, to see what a deep view of it
     // should show, with the brightness of the deep view.
@@ -598,6 +657,7 @@ pub struct Chaos {
     run_keys: Option<Vec<String>>,
     run_levels: Option<([u32; 2], Vec<wgpu::TextureView>)>,
     run_margin: [u32; 2],
+    why: String,
     // The finished picture of the view alone, while the run draws the same view again with a margin around it and
     // after: the screen's picture is this one until the wider one is whole, and the view in its middle after.
     base: Option<Base>,
@@ -762,6 +822,8 @@ impl Chaos {
             waiter,
             refused: Vec::new(),
             longest,
+            own: adapter.get_info().device_type == wgpu::DeviceType::DiscreteGpu && way().is_none(),
+            far: Arc::default(),
             finest: None,
             #[cfg(test)]
             plain: None,
@@ -770,6 +832,7 @@ impl Chaos {
             run_keys: None,
             run_levels: None,
             run_margin: [0; 2],
+            why: String::new(),
             base: None,
             warmed: 0,
         })
@@ -840,6 +903,10 @@ impl Chaos {
             self.warmed += 1;
             ctx.request_repaint();
         }
+    }
+
+    pub fn why(&self) -> &str {
+        &self.why
     }
 
     pub fn keys(&self) -> Option<&[String]> {
@@ -928,6 +995,8 @@ impl Chaos {
             pipelines: self.pipelines.clone(),
             particles: self.particles.clone(),
             longest: self.longest.clone(),
+            own: self.own,
+            far: self.far.clone(),
             #[cfg(not(target_arch = "wasm32"))]
             waiter: self.waiter.clone(),
             #[cfg(test)]
@@ -1383,8 +1452,12 @@ impl Chaos {
                 opened: asked,
                 allowed: 0.0,
                 back: f32::INFINITY,
+                pace: Pace::default(),
+                reached: 0.0,
+                capped: false,
                 told: Step::Waiting,
                 over: None,
+                why: String::new(),
                 stopped: false,
                 overrun: 0.0,
                 heard: Instant::now(),
@@ -1583,6 +1656,9 @@ impl Chaos {
         let step = parts.pump(&shared, &mut run, ctx);
         let step = step.max(std::mem::replace(&mut run.told, Step::Waiting));
         let over = run.over;
+        if over.is_some() {
+            self.why = std::mem::take(&mut run.why);
+        }
         drop(run);
         // The picture on the screen is not the one this run draws: nothing of it is shown before it is whole.
         let step = if self.base.is_some() && over.is_none() {
@@ -1679,14 +1755,21 @@ impl Parts {
                 let least = run.layers.iter().map(share).fold(f32::INFINITY, f32::min);
                 let plans = run.layers.iter().filter_map(|layer| layer.deep.as_ref());
                 let cost = plans.map(deep::Plan::cost).max().unwrap_or(1) as f32;
+                run.back = run.back.min(took);
+                if run.batches == 1 && run.sent == 0 && !self.own && took > COSTLY {
+                    self.far.store(true, Ordering::Relaxed);
+                }
+                let far = self.far.load(Ordering::Relaxed);
+                let unit = unit_for(unit, far.then_some(run.back), pace::held());
+                let plotted = least - std::mem::replace(&mut run.reached, least);
+                // The first units of a run take its unplotted steps.
+                if !run.resolving && run.fused == 0 && run.batches > 1 {
+                    run.pace.walked(took, unit, plotted, run.capped);
+                }
                 let slow = least < 1.0
-                    && run.limit.is_some_and(|limit| {
-                        let left = if least <= 0.0 { 1.0 } else { 1.0 / least };
-                        // The card works a share of the time only: that is how long the picture takes. Half a frame,
-                        // not the slice of the moment: a fade or a held button cuts that to an eighth of a frame,
-                        // and a GTX 1650 then gave up a picture it kept.
-                        worked * left > limit * cost * pace::SHARE
-                    });
+                    && run
+                        .limit
+                        .is_some_and(|limit| run.pace.whole(worked, least) > limit * cost * busy(far));
                 let idle = least <= 0.0 && worked >= IDLE;
                 let late = took * 1000.0 > self.longest.load(Ordering::Relaxed) as f32;
                 if late {
@@ -1696,6 +1779,16 @@ impl Parts {
                     if flight.broken {
                         self.failed.store(true, Ordering::Relaxed);
                     }
+                    run.why = format!(
+                        "after unit {} of {took:.4} s: broken {}, sparse {sparse}, slow {slow}, idle {idle}, late \
+                         {late}; {worked:.3} s of work for {least:.4} of the picture, {:.3} s for the whole, the \
+                         processor's {:?} s, the card busy {:.2} of the time",
+                        run.batches,
+                        flight.broken,
+                        run.pace.whole(worked, least),
+                        run.limit,
+                        busy(far)
+                    );
                     drop(flight);
                     run.over = Some(true);
                     return Step::Refused;
@@ -1704,8 +1797,6 @@ impl Parts {
                     run.first.get_or_insert(since);
                 }
                 run.spent += took;
-                run.back = run.back.min(took);
-                let unit = unit_for(unit, run.back, pace::attended());
                 run.took.push((took, run.working));
                 let past = at.duration_since(run.opened).as_secs_f32() - run.allowed;
                 run.overrun = run.overrun.max(past);
@@ -1736,7 +1827,7 @@ impl Parts {
         }
         // A unit begins only inside the frame's slice: the next frame opens another. A card with a long way to
         // it works without a pause while the window is not used.
-        let free = costly(run.back) && !pace::attended();
+        let free = self.far.load(Ordering::Relaxed) && !pace::held();
         if !free && !pace::within(run.opened.elapsed().as_secs_f32(), pace::slice().min(run.allowed)) {
             return Step::Waiting;
         }
@@ -1832,6 +1923,7 @@ impl Parts {
         // Before the submission: a graphics card that is the processor in disguise works inside it.
         run.submitted = Instant::now();
         let (mut sent, mut fused, mut working, mut resolving, mut beginning) = (0, 0, 0, false, false);
+        let mut capped = false;
         let index = guarded(&device, &failed, ctx, || {
             let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("fractique chaos"),
@@ -1937,6 +2029,7 @@ impl Parts {
                     let cost = plan.cost();
                     let steps = if plan.stage == Stage::Plot && plan.exposure > 0.0 && left > 0 {
                         let points = u64::from(run.steps) * u64::from(walkers) / cost;
+                        capped |= points > MOST_DEEP / (cost * layer.weight);
                         points
                             .min(MOST_DEEP / (cost * layer.weight))
                             .min(left)
@@ -2046,6 +2139,7 @@ impl Parts {
                 let steps = if run.batches == 0 && !layer.orbit {
                     0
                 } else {
+                    capped |= u64::from(own) > most;
                     (u64::from(own) * u64::from(walkers)).min(left).div_ceil(few).min(most)
                 };
                 let budget = if layer.orbit { (steps * UNSEEN).min(most) } else { steps };
@@ -2087,6 +2181,7 @@ impl Parts {
         });
         run.sent = sent;
         run.fused = fused;
+        run.capped = capped;
         run.working = working;
         run.resolving = resolving;
         if beginning {
@@ -2097,7 +2192,7 @@ impl Parts {
         run.flight.lock().unwrap_or_else(|e| e.into_inner()).busy = true;
         let (flight, staging, ctx) = (run.flight.clone(), run.staging.clone(), ctx.clone());
         let (parts, shared) = (self.clone(), shared.clone());
-        run.staging.slice(..).map_async(wgpu::MapMode::Read, move |mapped| {
+        let landed = move |mapped: Result<(), wgpu::BufferAsyncError>| {
             {
                 let mut flight = flight.lock().unwrap_or_else(|e| e.into_inner());
                 match mapped {
@@ -2121,7 +2216,20 @@ impl Parts {
                 run.told = run.told.max(step);
             }
             ctx.request_repaint();
-        });
+        };
+        let sent = run.submitted;
+        run.staging
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |mapped| match way() {
+                Some((late, times)) => {
+                    let later = late + sent.elapsed().as_secs_f32() * (times - 1.0);
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs_f32(later));
+                        landed(mapped);
+                    });
+                }
+                None => landed(mapped),
+            });
         #[cfg(not(target_arch = "wasm32"))]
         let _ = self.waiter.send(index);
         #[cfg(target_arch = "wasm32")]
@@ -2476,12 +2584,11 @@ pub(crate) mod tests {
         assert_eq!(following(1, 0, 9.0 * slice, slice), 1);
         // A card of its own: the usual unit. A phone's chip, 1.1 ms there and back for a unit of no steps, 4 ms
         // for one that plots, 14 ns a step of all its walkers: the units grow until most of one is work.
-        for attended in [false, true] {
-            assert_eq!(unit_for(UNIT, 0.25e-3, attended), UNIT);
-            assert_eq!(unit_for(UNIT, f32::INFINITY, attended), UNIT);
+        for held in [false, true] {
+            assert_eq!(unit_for(UNIT, None, held), UNIT);
         }
-        assert_eq!(unit_for(UNIT, 1.1e-3, false), 0.1);
-        let unit = unit_for(UNIT, 1.1e-3, true);
+        assert_eq!(unit_for(UNIT, Some(1.1e-3), false), 0.1);
+        let unit = unit_for(UNIT, Some(1.1e-3), true);
         assert!((0.03..=2.0 * pace::FRAME).contains(&unit), "{unit} s");
         let seconds = |steps: u32| 4.0e-3 + steps as f32 * 57_600.0 * 1.4e-8;
         let mut steps = 1;
@@ -2493,6 +2600,67 @@ pub(crate) mod tests {
         assert!(4.0e-3 / took < 0.2, "the way is {} of a unit", 4.0e-3 / took);
     }
 
+    // A run on a card that answers after `way` seconds and takes `step` for a step of all its walkers, of a picture
+    // of `steps` such steps that the processor renders in `limit` seconds: the seconds of work the card takes for
+    // it, or those after which it gives the picture up.
+    fn played(way: f32, step: f32, steps: u32, limit: f32, held: bool) -> Result<f32, f32> {
+        let (mut pace, mut back, mut worked, mut done, mut next) = (Pace::default(), f32::INFINITY, 0.0, 0, 1);
+        let mut far = false;
+        for unit in 0.. {
+            let fused = [FUSE / 2, FUSE - FUSE / 2].get(unit).copied().unwrap_or(0);
+            let sent = match unit {
+                0 => 0,
+                1 => following(1, 0, 1.0, 1.0).saturating_sub(fused / 3).max(1),
+                _ => next.min(steps - done),
+            };
+            let took = way + step * (sent as f32 + fused as f32 / 3.0);
+            (worked, done, back) = (worked + took, done + sent, back.min(took));
+            far |= unit == 0 && took > COSTLY;
+            let sized = unit_for(UNIT, far.then_some(back), held);
+            if fused == 0 {
+                pace.walked(took, sized, sent as f32 / steps as f32, false);
+            }
+            let least = done as f32 / steps as f32;
+            if least < 1.0 && pace.whole(worked, least) > limit * busy(far) {
+                return Err(worked);
+            }
+            if done >= steps {
+                break;
+            }
+            next = following(sent, fused, took, sized);
+        }
+        Ok(worked)
+    }
+
+    #[test]
+    fn a_card_is_held_against_the_processor_by_units_that_are_mostly_work() {
+        // An Adreno 740 with a picture of 720 × 1600 at 20 samples a pixel: 72 000 walkers take 320 steps each, the
+        // card plots 148 million a second and answers after 4 ms, the processor renders 34 million a second.
+        let (step, steps, limit) = (72_000.0 / 148.0e6, 320, 23.04e6 / 34.0e6);
+        for held in [false, true] {
+            let took = played(4.0e-3, step, steps, limit, held).expect("a card three times as fast keeps the picture");
+            assert!(took < limit / 2.5, "{took} s");
+        }
+        // The same chip half as fast as its processor loses the picture within a few tenths of a second.
+        for held in [false, true] {
+            let gave = played(4.0e-3, step * 8.7, steps, limit, held).expect_err("a card half as fast gives it up");
+            assert!(gave < 0.3, "{gave} s");
+        }
+        // A card with a short way works half of the time: one that takes a third of the processor's time keeps
+        // the picture, one that takes two thirds does not.
+        let (step, way) = (0.08e-3, 0.25e-3);
+        let work = played(way, step, steps, f32::INFINITY, false).unwrap_or(0.0);
+        assert!((0.02..0.04).contains(&work), "{work} s");
+        assert!(played(way, step, steps, 3.0 * work, false).is_ok());
+        let gave = played(way, step, steps, 1.5 * work, false).expect_err("it would take longer");
+        assert!(gave < 0.01, "{gave} s");
+        // A unit that is still growing is mostly the way and is left out, unless a bound keeps it small.
+        let mut pace = Pace::default();
+        pace.walked(0.2 * UNIT, UNIT, 0.01, false);
+        assert_eq!(pace.whole(1.0, 0.01), 1.0);
+        pace.walked(0.2 * UNIT, UNIT, 0.01, true);
+        assert!((pace.whole(0.0, 0.5) - 10.0 * UNIT).abs() < 1e-6);
+    }
     #[test]
     fn flames_are_packed_as_the_shader_reads_them() {
         assert_eq!(size_of::<Packed>(), 80 + 65 * 80 + 256 * 32 + 1024 + 512);
