@@ -32,9 +32,21 @@ fn targets(page: &str) -> Vec<&str> {
     page.split("](")
         .skip(1)
         .filter_map(|rest| rest.split(')').next())
-        .filter(|target| !target.starts_with("http"))
-        .map(|target| target.split('#').next().unwrap_or(target))
         .collect()
+}
+
+fn downloads() -> String {
+    format!("{}/raw/master/", env!("CARGO_PKG_REPOSITORY"))
+}
+
+// A relative link is followed from its page; a download link must be this repository's raw address of a file.
+fn led_to(page: &Path, target: &str) -> Option<PathBuf> {
+    let file = target.split('#').next().unwrap_or(target);
+    if !file.contains("://") {
+        return Some(page.parent()?.join(file));
+    }
+    let inside = file.strip_prefix(&downloads())?;
+    Some(Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(inside))
 }
 
 #[test]
@@ -100,14 +112,19 @@ fn every_file_of_the_gallery_is_a_document_the_app_opens() {
 }
 
 #[test]
-fn every_file_of_the_gallery_has_its_picture_and_its_place_on_the_page_of_its_folder() {
+fn every_file_of_the_gallery_has_its_picture_its_download_and_its_place_on_the_page_of_its_folder() {
     for (folder, _) in AT_LEAST {
         let page = fs::read_to_string(root().join(folder).join("README.md")).unwrap();
         for path in files_of(folder) {
             assert!(path.with_extension("webp").is_file(), "{}", path.display());
             let name = path.file_name().unwrap().to_string_lossy().into_owned();
             let picture = name.replace(".frcq", ".webp");
-            assert!(page.contains(&format!("]({picture})]({name})")), "{name}");
+            let download = format!("{}docs/gallery/{folder}/{name}", downloads());
+            assert!(
+                page.contains(&format!("]({picture})]({download})")),
+                "{name}: the picture"
+            );
+            assert!(page.contains(&format!("]({name})")), "{name}: the name");
         }
     }
 }
@@ -125,11 +142,23 @@ fn every_link_of_the_pages_of_the_gallery_leads_to_a_file() {
         let found = targets(&text);
         assert!(!found.is_empty(), "{}", page.display());
         for target in found {
-            assert!(
-                page.parent().unwrap().join(target).exists(),
-                "{}: {target}",
-                page.display()
-            );
+            let file = led_to(&page, target);
+            assert!(file.is_some_and(|file| file.is_file()), "{}: {target}", page.display());
         }
+    }
+}
+
+#[test]
+fn a_download_link_to_a_wrong_folder_or_name_leads_nowhere() {
+    let page = root().join("README.md");
+    let right = format!("{}docs/gallery/flames/001-phoenix-flare.frcq", downloads());
+    assert!(led_to(&page, &right).is_some_and(|file| file.is_file()));
+    for wrong in [
+        right.replace("/flames/", "/fractals/"),
+        right.replace("001-", "000-"),
+        right.replace("/raw/master/", "/raw/main/"),
+        right.replace("/fractique/", "/another/"),
+    ] {
+        assert!(!led_to(&page, &wrong).is_some_and(|file| file.is_file()), "{wrong}");
     }
 }

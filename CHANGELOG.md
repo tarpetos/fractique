@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* **A click on a picture of the gallery downloads its file:** a picture in `docs/gallery` led to GitHub's page of
+  the `.frcq` file, where the file had to be downloaded by hand. Now the picture is the download itself (the file's
+  raw address, which a browser saves), and the name under it leads to the file in the repository.
+
 ### Fixed
 
 * **A palette is the chosen layer's, not the whole scene's:** the app kept one chosen palette and dressed every

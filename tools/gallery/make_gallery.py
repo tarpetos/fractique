@@ -3,12 +3,16 @@ import json
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 GALLERY = ROOT / "docs" / "gallery"
+REPOSITORY = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["package"]["repository"]
+BRANCH = "master"
+CLICK = "A click on a picture downloads its `.frcq` file; the name under it leads to the file in the repository.\n"
 SIZE = "960x540"
 QUALITY = "high"
 WEBP_QUALITIES = (84, 78, 72, 66, 60, 54, 48)
@@ -38,8 +42,8 @@ FRONT = """# Gallery
 rendered from. The file holds the whole scene, so it renders the same picture again at any size and quality, on any
 machine.
 
-To open one in the app, click its picture, download the `.frcq` file from the page that opens, and choose
-**Scene**, **Open** in the app or double-click the file. To render one from the command line at 4K:
+A click on a picture downloads its `.frcq` file; the name under it leads to the file in the repository. To open a
+file in the app, choose **Scene**, **Open** or double-click the file. To render one from the command line at 4K:
 
 ```sh
 fractique render docs/gallery/{first} --size 3840x2160 --quality high -o {name}.png
@@ -83,14 +87,19 @@ def wallpaper_command(binary, source):
     )
 
 
+def download(source):
+    return f"{REPOSITORY}/raw/{BRANCH}/{source.relative_to(ROOT).as_posix()}"
+
+
 def grid(entries, prefix=""):
     lines = ["|" + " |" * COLUMNS, "|" + " --- |" * COLUMNS]
     for start in range(0, len(entries), COLUMNS):
         row = entries[start : start + COLUMNS]
         blank = [""] * (COLUMNS - len(row))
-        pictures = [f"[![{title}]({prefix}{source.stem}.webp)]({prefix}{source.name})" for source, title in row]
+        pictures = [f"[![{title}]({prefix}{source.stem}.webp)]({download(source)})" for source, title in row]
+        names = [f"[{title}]({prefix}{source.name})" for source, title in row]
         lines.append("| " + " | ".join(pictures + blank) + " |")
-        lines.append("| " + " | ".join([title for _, title in row] + blank) + " |")
+        lines.append("| " + " | ".join(names + blank) + " |")
     return lines
 
 
@@ -121,7 +130,7 @@ def section(binary, parts, at):
     folder, title, note, found = parts[at]
     after = parts[(at + 1) % len(parts)]
     ways = f"[Gallery](../README.md) · next: [{after[1]}](../{after[0]}/README.md)\n"
-    lines = [f"# {title}\n", ways]
+    lines = [f"# {title}\n", ways, CLICK]
     lines.append(note.format(wallpaper=wallpaper_command(binary, found[0][0]) if "{wallpaper}" in note else ""))
     lines.extend(grid(found))
     lines.append("\n" + ways)
