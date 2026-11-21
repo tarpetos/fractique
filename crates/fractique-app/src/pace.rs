@@ -356,6 +356,7 @@ pub fn covers([across, along, larger]: [f32; 3]) -> bool {
 }
 
 // The part of a picture around [across, along] of it, `larger` times larger, as a picture of another size.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub fn magnified(rgba: &[u8], from: [u32; 2], [across, along, larger]: [f32; 3], to: [u32; 2]) -> Vec<u8> {
     let (wide, high) = (from[0] as usize, from[1] as usize);
     let mut out = Vec::with_capacity(to[0] as usize * to[1] as usize * 4);

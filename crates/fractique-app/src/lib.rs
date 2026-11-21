@@ -537,6 +537,7 @@ fn parsed_size(text: &str) -> Option<[u32; 2]> {
 const BAR: f32 = 44.0;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 const BAR_GAP: f32 = 10.0;
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 const BAR_EDGE: f32 = 14.0;
 
 // What the picture shows: the point `right` and `down` of the scene's own middle, in shorter sides of the picture,
@@ -1249,6 +1250,7 @@ struct App {
     #[cfg(target_os = "android")]
     asking: Option<([u32; 2], bool)>,
     last: Option<(u64, Arc<Image>)>,
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     last_frame: Instant,
     trace: probe::Probe,
     #[cfg(not(target_arch = "wasm32"))]
