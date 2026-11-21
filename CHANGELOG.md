@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Fixed
+
+* **A palette is the chosen layer's, not the whole scene's:** the app kept one chosen palette and dressed every
+  layer in it, so a scene of several flames or fractals could only be of one color. The row of colors now acts on
+  the layer chosen in **Layers**, shows that layer's choice and follows the selection; the crossed circle gives
+  that layer its own colors back. A choice stays with its layer when layers are added, removed or reordered, in
+  each of the tabs, between launches and in a `.frcq` file, which holds the choices as `colors`, a name or
+  `null` a layer. A session or a file written before, with its single `palette`, opens as the picture it was:
+  every layer in that palette. A scene of one layer behaves as it did, except that **Flames** and **Fractals**
+  each keep their own choice while the other is shown.
+
 * **A gallery of flames, fractals and wallpapers, each with its file:** [docs/gallery](docs/gallery/README.md) shows a
   hundred flames chosen from several thousand random scenes and their mutations, a hundred fractals of other kinds
   (all 22 kinds) and a hundred wallpapers (all 14 layouts and 6 materials), in a folder each (`flames`, `fractals`, `wallpapers`) whose page shows its pictures. Each has

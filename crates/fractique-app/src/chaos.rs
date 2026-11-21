@@ -2550,6 +2550,24 @@ pub(crate) mod tests {
                 "{name}: {mean:.2} on average, {largest:.1} at most"
             );
         }
+        let mut both = presets::get("aurora-spiral").expect("the preset exists");
+        both.layers
+            .extend(presets::get("ember-vortex").expect("the preset exists").layers);
+        let mut choices = crate::colors::Choices::all(None, 2);
+        choices.choose(0, Some(4));
+        choices.choose(1, Some(2));
+        choices.dress(&mut both);
+        let exact = fractique_core::render(&both, &options, &Control::default()).expect("it renders");
+        let (quick, _, _) = card.drawn(&both, &options).expect("the graphics card draws it");
+        let (mean, largest) = apart(&quick, &exact.rgba, 320, 200);
+        assert!(
+            mean < 3.0 && largest < 40.0,
+            "two palettes: {mean:.2} on average, {largest:.1} at most"
+        );
+        *both.layers[1].palette_mut() = both.layers[0].palette().clone();
+        let (alike, _, _) = card.drawn(&both, &options).expect("the graphics card draws it");
+        let (mean, _) = apart(&alike, &exact.rgba, 320, 200);
+        assert!(mean > 3.0, "one palette for both layers: {mean:.2} on average");
     }
 
     // Moves the flame away from the origin, where 32-bit numbers have fewer digits left for a pixel, and prints

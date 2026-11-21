@@ -4,6 +4,7 @@ mod android;
 mod association;
 mod blur;
 mod chaos;
+mod colors;
 mod deep;
 #[cfg(not(target_arch = "wasm32"))]
 mod export;
@@ -997,6 +998,7 @@ struct Rest {
     seed: u64,
     view: View,
     layer: usize,
+    choices: colors::Choices,
     held: Option<(Layout, Material)>,
     picture: Option<(Rendered, [u32; 2])>,
 }
@@ -1009,7 +1011,7 @@ struct App {
     fractals: bool,
     kind: String,
     latest: Option<Rendered>,
-    palette: Option<usize>,
+    choices: colors::Choices,
     phone: phone::Phone,
     title: String,
     is_random: bool,
@@ -1690,7 +1692,7 @@ impl App {
             fractals: false,
             kind: "mandelbrot".to_owned(),
             latest: None,
-            palette: None,
+            choices: colors::Choices::default(),
             phone: phone::Phone::new(stored("kept"), stored("recent")),
             title,
             is_random: false,
@@ -1943,15 +1945,19 @@ impl App {
         app
     }
 
-    // The scene in the colors chosen for flames, if any were.
+    // The scene with every layer in the colors chosen for it, if any were.
     fn dressed(&self) -> Scene {
         let mut scene = self.base.clone();
-        if let Some(palette) = self.palette.and_then(|at| palette::named(palette::NAMES[at])) {
-            for layer in &mut scene.layers {
-                *layer.palette_mut() = palette.clone();
-            }
-        }
+        self.choices.dress(&mut scene);
         scene
+    }
+
+    fn chosen_layer(&self) -> usize {
+        self.layer.min(self.base.layers.len().saturating_sub(1))
+    }
+
+    fn choice(&self) -> Option<usize> {
+        self.choices.of(self.chosen_layer())
     }
 
     fn tab(&self) -> usize {
@@ -2030,6 +2036,7 @@ impl App {
                 seed: self.seed,
                 view: self.view,
                 layer: self.layer,
+                choices: self.choices.clone(),
                 held,
                 picture: self.latest.take().filter(|_| settled).zip(size),
             });
@@ -2046,6 +2053,7 @@ impl App {
         };
         if !walls {
             self.base = rest.base;
+            self.choices = rest.choices;
         }
         self.wall.live = walls;
         self.wall.held = rest.held.or(self.wall.held);
@@ -3465,7 +3473,7 @@ impl App {
             "adjust": [self.adjust.brightness, self.adjust.gamma, self.adjust.glow],
             "view": [view.right, view.down, view.zoom],
             "layer": self.layer,
-            "palette": self.palette.map(|at| palette::NAMES[at]),
+            "colors": self.choices.saved(self.base.layers.len()),
             "inspector": self.inspector_open,
             "optics": optics,
             "wall": {
@@ -3515,10 +3523,7 @@ impl App {
             self.view = view;
         }
         self.layer = session.get("layer").and_then(serde_json::Value::as_u64).unwrap_or(0) as usize;
-        self.palette = session
-            .get("palette")
-            .and_then(serde_json::Value::as_str)
-            .and_then(|name| palette::NAMES.iter().position(|each| *each == name));
+        self.choices = colors::Choices::restored(&session, self.base.layers.len());
         self.inspector_open = session.get("inspector").and_then(serde_json::Value::as_bool);
         if let Some(&[refraction, rim, bezel]) = numbers("optics").as_deref() {
             self.optics.refraction = refraction as f32;
@@ -3620,6 +3625,7 @@ impl App {
                 layer.name = name;
                 self.base.layers.push(layer);
                 self.layer = self.base.layers.len() - 1;
+                self.choices.choose(self.layer, None);
                 self.requested = None;
             }
         } else {
@@ -5189,6 +5195,7 @@ impl App {
 
     fn pick(&mut self, scene: Scene, title: String, is_random: bool) {
         self.begin();
+        self.choices = colors::Choices::all(self.choice(), scene.layers.len());
         self.base = scene;
         self.title = title;
         self.is_random = is_random;
@@ -5477,14 +5484,17 @@ impl App {
             }
             Some("remove") => {
                 self.base.layers.remove(at);
+                self.choices.remove(at);
                 self.layer = at.min(count - 2);
             }
             Some("up") => {
                 self.base.layers.swap(at, at - 1);
+                self.choices.swap(at, at - 1);
                 self.layer = at - 1;
             }
             Some("down") => {
                 self.base.layers.swap(at, at + 1);
+                self.choices.swap(at, at + 1);
                 self.layer = at + 1;
             }
             _ => {}
@@ -6416,6 +6426,21 @@ impl App {
             self.gpu = !self.gpu;
             self.gpu_turned();
             self.shown_frames = 1;
+            return;
+        }
+        if step.starts_with("layer:")
+            && let [layer] = numbers[..]
+        {
+            self.layer = (layer as usize).min(self.base.layers.len().saturating_sub(1));
+            self.shown_frames = 1;
+            return;
+        }
+        if let Some(name) = step.strip_prefix("palette:") {
+            let choice = palette::NAMES.iter().position(|each| *each == name);
+            self.choices.choose(self.chosen_layer(), choice);
+            self.requested = None;
+            self.asked = Instant::now();
+            self.shown_frames = 0;
             return;
         }
         if let Some(name) = step.strip_prefix("preset:") {

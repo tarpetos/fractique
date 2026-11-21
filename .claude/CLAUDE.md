@@ -76,7 +76,7 @@ is stable, not that it is good.
 | `crates/fractique-core/presets/` | Built-in scenes, compiled into the binary |
 | `crates/fractique-core/src/import.rs` | The `.flame` import |
 | `crates/fractique-cli/src/main.rs` | The `fractique` command |
-| `crates/fractique-app/` | The app (desktop, Android, iOS, web): `lib.rs` UI, `glass.wgsl` shader, `preview.rs` + `preview.wgsl` GPU preview, `chaos.rs` + `chaos.wgsl` the chaos game on the graphics card, `field.rs` + `field*.wgsl` the fractals the card draws pixel by pixel, `store.rs` the App Store purchase, `i18n.rs` + `locales/` texts |
+| `crates/fractique-app/` | The app (desktop, Android, iOS, web): `lib.rs` UI, `glass.wgsl` shader, `preview.rs` + `preview.wgsl` GPU preview, `chaos.rs` + `chaos.wgsl` the chaos game on the graphics card, `field.rs` + `field*.wgsl` the fractals the card draws pixel by pixel, `colors.rs` the palette chosen for each layer, `store.rs` the App Store purchase, `i18n.rs` + `locales/` texts |
 | `crates/fractique-app/src/update.rs`, `updates.rs` | Checking for, listing and installing releases; its window |
 | `crates/fractique-update/` | The `update` command of `fractique`, `fractique-mcp` and `fractique-server`: `tools.json`, the signature, the swap, the refusals; `PUBKEY` for the app too; described in `docs/releasing.md` |
 | `scripts/build/`, `.github/workflows/release.yml` (calls `release-*.yml`), `docs/releasing.md` | Installers and the release workflow |
