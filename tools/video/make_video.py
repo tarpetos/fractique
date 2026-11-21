@@ -328,6 +328,65 @@ def sound(length):
     return graph + f"{last}{level}"
 
 
+# A subtitle as a picture, for a cut that carries its texts in the frame: where a video plays without sound and
+# without subtitles of its own, as in a feed.
+def caption_strip(text, work, size, name):
+    width, height = size
+    unit = height / 1080
+    face = ImageFont.truetype(str(FONTS / "Inter-Medium.ttf"), round(40 * unit))
+    strip = Image.new("RGBA", size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(strip)
+    wide = draw.textlength(text, font=face)
+    pad, tall = round(34 * unit), round(84 * unit)
+    left, top = (width - wide) / 2 - pad, height - round(214 * unit)
+    draw.rounded_rectangle((left, top, left + wide + 2 * pad, top + tall), tall / 2, fill=(8, 10, 16, 190))
+    draw.text((width / 2, top + tall / 2), text, font=face, fill="white", anchor="mm")
+    path = work / f"short-{name}.png"
+    strip.save(path)
+    return path
+
+
+# The short cut: parts of the scenes already filmed, each with its subtitle in the frame, then the last card.
+def short(args, work):
+    spec = FILM["short"]
+    size = spec["size"]
+    pieces, at = [], 0.0
+    for index, part in enumerate(spec["parts"]):
+        scene = next(scene for scene in FILM["parts"] if scene["name"] == part["name"])
+        length = part["to"] - part["from"]
+        fades = f"fade=t=in:st=0:d={FADE},fade=t=out:st={length - FADE:.3f}:d={FADE}"
+        piece = work / f"short-{index:02}.mp4"
+        inputs = [*DECODE, "-ss", str(part["from"]), "-t", f"{length:.3f}", "-i", work / f"{part['name']}.mp4"]
+        graph = f"[0:v]fps={FPS},scale={size[0]}:{size[1]}:flags=lanczos,setpts=PTS-STARTPTS"
+        if scene.get("caption"):
+            text = CAPTIONS["texts"][scene["caption"]][args.short]
+            inputs += ["-loop", "1", "-i", caption_strip(text, work, size, f"{index:02}")]
+            graph += f"[scene];[scene][1:v]overlay=0:0:shortest=1,{fades},format=yuv420p[v]"
+        else:
+            graph += f",{fades},format=yuv420p[v]"
+        ffmpeg(*inputs, "-filter_complex", graph, "-map", "[v]", "-t", f"{length:.3f}", *ENCODE, piece)
+        pieces.append(piece)
+        at += length
+    listing = work / "short.txt"
+    listing.write_text("".join(f"file '{piece}'\n" for piece in pieces), encoding="utf-8")
+    silent = work / "short-silent.mp4"
+    ffmpeg("-f", "concat", "-safe", "0", "-i", listing, "-c", "copy", silent)
+    ffmpeg(
+        "-i", silent, "-stream_loop", "-1", "-vn", "-i", music(args, work),
+        "-filter_complex", sound(at), "-map", "0:v", "-map", "[music]", "-c:v", "copy", "-c:a", "aac",
+        "-b:a", "160k", "-t", f"{at:.3f}", "-movflags", "+faststart", args.out / "short.mp4",
+    )  # fmt: skip
+    # GitHub plays a video dragged into a README where the file is under 10 MB.
+    small = spec["small"]
+    rate = int(small["megabytes"] * 8000 / at)
+    ffmpeg(
+        "-i", silent, "-an", "-vf", f"fps={small['fps']},scale={small['size'][0]}:{small['size'][1]}:flags=lanczos",
+        "-c:v", "libx264", "-preset", "slow", "-b:v", f"{rate}k", "-maxrate", f"{rate}k", "-bufsize", f"{2 * rate}k",
+        "-pix_fmt", "yuv420p", "-movflags", "+faststart", args.out / "short-small.mp4",
+    )  # fmt: skip
+    print(f"{args.out / 'short.mp4'}: {at:.1f} s")
+
+
 def preview(frames, out, work):
     width, height = 1280, 720
     spec = FILM["preview"]
@@ -395,6 +454,7 @@ def main():
     parser.add_argument("--music", help="a file to use instead of the track of film.json")
     parser.add_argument("--no-music", action="store_true")
     parser.add_argument("--keep", action="store_true", help="film nothing: put the scenes already filmed together anew")
+    parser.add_argument("--short", metavar="LANGUAGE", help="only the short cut of the scenes already filmed, with the subtitles of this language in the frame")
     parser.add_argument("--readme", action="store_true", help="also write docs/samples/video.webp, which the READMEs show")
     parser.add_argument("--texts", action="store_true", help="write the subtitles and youtube.md anew from the scenes already filmed")
     args = parser.parse_args()
@@ -407,6 +467,9 @@ def main():
     FILM["size"] = [side * args.scale for side in FILM["size"]]
     work = args.out / "work"
     work.mkdir(parents=True, exist_ok=True)
+    if args.short:
+        short(args, work)
+        return
     clips, spans, chapters, frames, at = [], [], [], {}, 0.0
     for part in FILM["parts"]:
         if args.only and part["name"] != args.only:

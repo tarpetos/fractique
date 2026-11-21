@@ -8,6 +8,8 @@
 | `subtitles/<language>.srt` | The subtitles in the 15 languages of the app, with the same timing |
 | `thumbnail.png` | The picture YouTube shows for the video, 1280 × 720 |
 | `preview.png` | The same with a play button, for a README or a post that links to the video |
+| `short.mp4` | The short cut for a feed, where a video plays in place without sound: 1920 × 1080, about 45 s, with the subtitles of one language in the frame (`--short en`) |
+| `short-small.mp4` | The same without sound, 1280 × 720 and under 10 MB, the most GitHub plays in a README |
 | `youtube.md` | For each of the 15 languages the title and the description to paste: the text, the chapters with their timecodes, the credit of the music and the hashtags |
 
 Nothing is written on the video but the name: the texts are subtitles, so that every viewer reads them in their
@@ -23,6 +25,7 @@ python3 tools/video/make_video.py --scale 1       # 1920 × 1080
 python3 tools/video/make_video.py --music my.mp3  # another track; --no-music for none
 python3 tools/video/make_video.py --keep          # films nothing: the scenes already filmed, put together anew
 python3 tools/video/make_video.py --texts         # the subtitles and youtube.md anew, without filming
+python3 tools/video/make_video.py --short en      # the short cut of the scenes already filmed, texts in English
 python3 tools/video/make_video.py --keep --readme # also docs/samples/video.webp, the picture the READMEs show
 ```
 
@@ -78,6 +81,13 @@ The steps a scene uses most:
 A button is pressed by where it stands, as a share of the window. After a change to the layout of the app, film
 one scene with `--only`, look where the pointer lands and correct the numbers.
 
+## The short cut
+
+`short` in `film.json` names the scenes of the short cut and the seconds of each it shows (`from`, `to`), its size,
+and the size, the frames a second and the megabytes of the small file. It is cut from the scenes already filmed,
+so it needs a full run first. Its texts are in the frame because a feed gives a video no subtitles of its own:
+Reddit only writes down speech it hears, and the video has none.
+
 ## The texts: `captions.json`
 
 `studio` holds the name of each language as the owner's YouTube Studio lists it, in Ukrainian: `youtube.md` shows
@@ -105,7 +115,10 @@ in `youtube.md`, and it must stay in the description of the video.
 
 ## Showing the video elsewhere
 
-- **Reddit:** a link post with the address of the video shows the thumbnail and plays the video in place.
+- **Reddit:** upload `short.mp4` as the video of the post, so it plays in the feed, and put the address of the
+  whole video into the text. A link post with the YouTube address also plays in place, but fewer people start it.
 - **GitHub:** a README cannot hold a player of YouTube. `README.md` and its 14 translations show
   `docs/samples/video.webp`, the preview with the play button, as a picture that links to the video; `--readme`
-  writes it anew. The address of the video is in the READMEs themselves.
+  writes it anew. The address of the video is in the READMEs themselves. GitHub plays a video in a README only from
+  an address of its own: drag `short-small.mp4` into the text box of an issue or of the README's editor on
+  github.com, and put the address it gives on a line of its own.
