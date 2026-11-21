@@ -605,6 +605,6 @@ In its brightest place:
 `kleinian` and `l_system` draw lines and were the same picture twice at every zoom tried: unchanged.
 
 The other limits of a view are set, not measured (`lib.rs`): a flame and a fractal of any kind are shown no smaller
-than 0.2 times their framing (`FLOOR`); a wallpaper from 1 to 8 times; a picture that is only shown magnified to 8
+than 0.2 times their framing (`FLOOR`) and moved within nine framings across and down (`territory`); a wallpaper from 1 to 8 times; a picture that is only shown magnified to 8
 times that picture (`IMAGE_CEILING`); and the kinds without a ceiling above to 10¹⁰ times, the zoom of the scene
 counted in (`MAX_MAGNIFICATION`).
