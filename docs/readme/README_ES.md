@@ -11,6 +11,10 @@
 Fractique crea tres tipos de imágenes. Llamas fractales: esos fractales luminosos y etéreos hechos de curvas finas y luz suave. Fractales clásicos de 22 tipos: desde el conjunto de Mandelbrot, los conjuntos de Julia y los atractores extraños hasta el Mandelbulb en tres dimensiones. Y fondos de pantalla: láminas planas con bordes iluminados y sombras suaves, cada uno en versión clara y oscura. Eliges un preajuste, generas una imagen al azar o superpones varias llamas, y exportas el resultado a cualquier tamaño, desde la pantalla de un teléfono hasta un monitor 4K. Una escena es un único archivo pequeño, y el mismo archivo siempre da exactamente los mismos píxeles, en Windows, macOS, Linux, Android e iOS.
 
 <p align="center">
+  <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: fondos de pantalla fractales para cualquier pantalla" width="880"></a>
+</p>
+
+<p align="center">
   <img src="../samples/aurora-spiral.png" alt="El preajuste Espiral de aurora: volutas en espiral turquesas y verdes sobre un fondo oscuro" width="880">
 </p>
 

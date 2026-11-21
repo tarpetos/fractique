@@ -6557,6 +6557,17 @@ impl App {
             self.shown_frames = 1;
             return;
         }
+        if (step.starts_with("click:") || step.starts_with("move:"))
+            && let Some(pointer) = &mut self.trace.pointer
+            && let [x, y, ref frames @ ..] = numbers[..]
+        {
+            let screen = ctx.content_rect();
+            let to = screen.min + screen.size() * egui::vec2(x, y);
+            let frames = frames.first().map_or(30, |frames| *frames as u32);
+            pointer.lead(to, frames, step.starts_with("click:"));
+            self.shown_frames = 1;
+            return;
+        }
         if step.starts_with("tap:") || step == "wait" {
             if let [across, down] = numbers[..] {
                 let screen = ctx.content_rect();
@@ -6634,6 +6645,9 @@ impl eframe::App for App {
             input.time = Some(self.trace.frame as f64 / 60.0);
             input.predicted_dt = 1.0 / 60.0;
         }
+        if let Some(pointer) = &mut self.trace.pointer {
+            pointer.events(&mut input.events);
+        }
         if std::mem::take(&mut self.escape) {
             input.events.push(egui::Event::Key {
                 key: egui::Key::Escape,
@@ -6688,6 +6702,9 @@ impl eframe::App for App {
         let began = Instant::now();
         self.trace.slept = 0.0;
         self.draw(ui, frame);
+        if let Some(pointer) = &mut self.trace.pointer {
+            pointer.draw(ui.ctx());
+        }
         if self.trace.on() || self.trace.recording() || self.trace.fixed_clock {
             let work = began.elapsed().as_secs_f32() * 1000.0 - self.trace.slept;
             self.trace

@@ -11,6 +11,10 @@
 Fractique crea tre tipi di immagini. Fiamme frattali: frattali luminosi ed eterei fatti di curve sottili e luce morbida. Frattali classici di 22 tipi: dall’insieme di Mandelbrot, dagli insiemi di Julia e dagli attrattori strani fino al Mandelbulb in tre dimensioni. E sfondi: fogli piatti con bordi illuminati e ombre morbide, ciascuno in versione chiara e scura. Scegli un preset, generi un’immagine casuale o sovrapponi più fiamme, ed esporti il risultato a qualsiasi dimensione, dallo schermo di un telefono a un monitor 4K. Una scena è un unico piccolo file, e lo stesso file dà sempre esattamente gli stessi pixel, su Windows, macOS, Linux, Android e iOS.
 
 <p align="center">
+  <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: sfondi frattali per ogni schermo" width="880"></a>
+</p>
+
+<p align="center">
   <img src="../samples/aurora-spiral.png" alt="Il preset Spirale aurorale: volute a spirale turchesi e verdi su sfondo scuro" width="880">
 </p>
 

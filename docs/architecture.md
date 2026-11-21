@@ -497,7 +497,7 @@ is recorded), and `FRACTIQUE_FIRST=30` the first of the run; while
 frames are recorded the steps after it are taken one a frame, `skip:8` waits and `rest` ends that;
 `size:900:700` sets the window's size, `fullscreen`, `maximize` and `restore` press those buttons, `hide` and `show` the eye, `zoom:2` magnifies the view, `wheel:0.97:30` does so by that much a frame for that many frames,
 `drag:0.14:0.9:0.19:0.9:30` drags from a
-point to a point (shares of the window) over that many frames, `preset:emerald-star` picks a preset and `gpu`
+point to a point (shares of the window) over that many frames, `FRACTIQUE_POINTER=arrow` or `finger` draws the pointer the steps lead, for the film of the app (`tools/video`), with `click:0.44:0.96` leading it to a share of the window and pressing there and `move:0.6:0.5` leading it without a press (a third number is the frames the way takes), the trace then says when the frames of `frames:N` begin and end (`start recording`, `start recorded`), `preset:emerald-star` picks a preset and `gpu`
 turns the acceleration off or on; the trace also holds the text of the toolbar's detail line, where each pane was
 last seen and whether it gave way, and where the open sheets stand; the trace also says whether a picture is awaited
 and counts the pictures shown, with the scene the one on the screen is of and the scene asked for last (`picture 9 of 7d asked 8`, `d` for a first, small picture), the range of the scale slider with where its knob is drawn (`scale 0.2000..2055.8351 knob 0.1742`), the scale of the picture the screen holds with how many times larger it is shown for the view (`held 2.20675 stand 135.9467`), and holds the size of the draft shown last with the milliseconds the card worked

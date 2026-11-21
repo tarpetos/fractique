@@ -11,6 +11,10 @@
 Fractique makes three kinds of pictures. Fractal flames: the glowing, wispy kind of fractal made of thin curves and soft light. Classic fractals of 22 kinds, from the Mandelbrot set, Julia sets and strange attractors to the Mandelbulb in three dimensions. And wallpapers: flat sheets with lit edges and soft shadows, each in a light and a dark version. You pick a preset, roll a random picture or layer several flames over each other, and export it at any size, from a phone screen to a 4K monitor. A scene is one small file, and the same file always renders to exactly the same pixels, on Windows, macOS, Linux, Android and iOS alike.
 
 <p align="center">
+  <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="docs/samples/video.webp" alt="Fractique: fractal wallpapers for every screen" width="880"></a>
+</p>
+
+<p align="center">
   <img src="docs/samples/aurora-spiral.png" alt="The Aurora Spiral preset: teal and green spiral wisps on a dark background" width="880">
 </p>
 
