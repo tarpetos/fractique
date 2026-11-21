@@ -14,11 +14,11 @@ line tool and the two servers take it when they are told to.
 | `fractique-server_<version>_x64.exe` | Windows: the HTTP server | on command |
 | `Fractique_<version>_x86_64.AppImage` | Linux, any distribution | yes |
 | `Fractique_<version>_amd64.deb` | Debian, Ubuntu | no: it points at the download page |
-| `Fractique_<version>_aarch64.dmg` | macOS, Apple Silicon | yes (the app inside) |
-| `Fractique_<version>_aarch64.app.tar.gz` | what the macOS update downloads | |
+| `Fractique_<version>_universal.dmg` | macOS, every Mac: one app with the code for Apple Silicon and for Intel | yes (the app inside) |
+| `Fractique_<version>_universal.app.tar.gz` | what the macOS update downloads | |
 | `Fractique_<version>_android.apk` | Android | no: Android installs an APK only by hand |
 | `fractique-cli_<version>_x86_64-linux.tar.gz`, `fractique-mcp_…`, `fractique-server_…` | Linux: the command line tool, the MCP server and the HTTP server on their own, for a machine that wants no app | on command |
-| `fractique-cli_<version>_aarch64-macos.tar.gz`, `fractique-mcp_…`, `fractique-server_…` | macOS: the same three | on command |
+| `fractique-cli_<version>_universal-macos.tar.gz`, `fractique-mcp_…`, `fractique-server_…` | macOS: the same three, universal too | on command |
 | `latest.json` | the update manifest the app reads | |
 | `tools.json` | the update manifest the three other programs read ([its shape](#toolsjson)) | |
 | `SHA256SUMS.txt` | checksums | |
@@ -66,7 +66,7 @@ write to `dist/`.
 | --- | --- | --- |
 | Windows | `scripts/build/build-win.ps1` | The four programs copied as they are; no installer |
 | Linux | `scripts/build/build-linux.sh [--formats appimage,deb]` | `cargo-packager` |
-| macOS | `scripts/build/build-mac.sh [--formats app,dmg]` | `cargo-packager`. The app is not signed by Apple: copied from the `.dmg` it needs `xattr -dr com.apple.quarantine /Applications/Fractique.app` |
+| macOS | `scripts/build/build-mac.sh [--formats app,dmg]` | `cargo-packager`, after both kinds of Mac are built and joined with `lipo` into universal programs. The app is not signed by Apple: copied from the `.dmg` it needs `xattr -dr com.apple.quarantine /Applications/Fractique.app` |
 | Android | `cargo apk build --release --lib` in `crates/fractique-app`, as the workflow does | `cargo-apk`, the Android NDK, Java 17, the keystore |
 | iOS | `scripts/ios/testflight.sh` ([ios.md](ios.md#testflight)), as the workflow does; it goes to TestFlight, not into the release's files | Xcode, xcodegen, the App Store Connect key |
 | Web | `crates/fractique-app/index.html` is a [Trunk](https://trunkrs.dev) page; not part of a release | Trunk |
@@ -203,7 +203,8 @@ server while it runs. There is no check at start, none in the background and non
     "fractique-cli": {
       "windows-x86_64": { "url": "https://github.com/tarpetos/fractique/releases/download/v0.3.0/fractique-cli_0.3.0_x64.exe", "signature": "…" },
       "linux-x86_64": { "url": "…/fractique-cli_0.3.0_x86_64-linux.tar.gz", "signature": "…" },
-      "macos-aarch64": { "url": "…/fractique-cli_0.3.0_aarch64-macos.tar.gz", "signature": "…" }
+      "macos-aarch64": { "url": "…/fractique-cli_0.3.0_universal-macos.tar.gz", "signature": "…" },
+      "macos-x86_64": { "url": "…/fractique-cli_0.3.0_universal-macos.tar.gz", "signature": "…" }
     },
     "fractique-mcp": { "windows-x86_64": { "url": "…", "signature": "…" }, "linux-x86_64": { "…": "…" }, "macos-aarch64": { "…": "…" } },
     "fractique-server": { "windows-x86_64": { "url": "…", "signature": "…" }, "linux-x86_64": { "…": "…" }, "macos-aarch64": { "…": "…" } }

@@ -5,6 +5,9 @@
 The first release: the app for Windows, Linux, macOS, Android, iOS and the web, the command line tool, the MCP
 server and the HTTP server.
 
+* **One download for every Mac:** the macOS app and the three other programs are universal, with the code for
+  Apple Silicon and for Intel in one file.
+
 * **A video of the app, made by a script:** `tools/video/make_video.py` films the app at 3840 × 2160 and 60 frames a
   second on a display nobody sees, and writes the video, its subtitles in the 15 languages, the thumbnail and the
   texts for YouTube. The README and its translations show its preview, which links to the video.

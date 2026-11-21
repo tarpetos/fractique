@@ -96,10 +96,6 @@ jobs:
           for f in fractique-gui_*; do
             [ -e "$f" ] && mv "$f" "Fractique_${f#fractique-gui_}"
           done
-          if [ -f Fractique.app.tar.gz ]; then
-            mv Fractique.app.tar.gz "Fractique_${VERSION}_aarch64.app.tar.gz"
-            mv Fractique.app.tar.gz.sig "Fractique_${VERSION}_aarch64.app.tar.gz.sig"
-          fi
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
           # One manifest entry: <os>-<arch>, a file pattern and the updater's format for it.
           entry() {
@@ -115,7 +111,9 @@ jobs:
             # Windows has no installer: the app replaces its own file. "nsis" is only the name the manifest format wants.
             entry windows-x86_64 'Fractique_*_x64.exe' nsis
             entry linux-x86_64 'Fractique_*_x86_64.AppImage' appimage
-            entry macos-aarch64 '*_aarch64.app.tar.gz' app
+            # One universal app for both kinds of Mac.
+            entry macos-aarch64 '*_universal.app.tar.gz' app
+            entry macos-x86_64 '*_universal.app.tar.gz' app
           } | jq -s 'add // {}' > ../platforms.json
           jq -n --arg v "$VERSION" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --rawfile n ../notes.md \
             --slurpfile p ../platforms.json '{version: $v, notes: $n, pub_date: $d, platforms: $p[0]}' > latest.json
@@ -132,7 +130,8 @@ jobs:
           for p in fractique-cli fractique-mcp fractique-server; do
             tool "$p" windows-x86_64 "${p}_*_x64.exe"
             tool "$p" linux-x86_64 "${p}_*_x86_64-linux.tar.gz"
-            tool "$p" macos-aarch64 "${p}_*_aarch64-macos.tar.gz"
+            tool "$p" macos-aarch64 "${p}_*_universal-macos.tar.gz"
+            tool "$p" macos-x86_64 "${p}_*_universal-macos.tar.gz"
           done | jq -s 'reduce .[] as $e ({}; . * $e)' > ../programs.json
           jq -n --arg v "$VERSION" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --slurpfile p ../programs.json \
             '{version: $v, pub_date: $d, programs: $p[0]}' > tools.json

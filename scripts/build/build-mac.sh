@@ -1,7 +1,9 @@
 #!/bin/sh
 # Builds the macOS app and disk image, and the command line tool and the two servers on their own, into dist/:
 # scripts/build/build-mac.sh [--formats app,dmg]
-# With CARGO_PACKAGER_SIGN_PRIVATE_KEY (and _PASSWORD) set, Fractique.app.tar.gz gets the .sig the app's updater
+# Every program is universal: one file with the code for Apple Silicon and for Intel, so one download runs on
+# every Mac.
+# With CARGO_PACKAGER_SIGN_PRIVATE_KEY (and _PASSWORD) set, the archive of the app gets the .sig the app's updater
 # checks, and each program on its own the .sig its "update" command checks.
 # The app is not signed by Apple: copied from the .dmg it needs
 #   xattr -dr com.apple.quarantine /Applications/Fractique.app
@@ -21,15 +23,28 @@ if [ "$version" != "$packaged" ]; then
 fi
 
 command -v cargo-packager >/dev/null 2>&1 || cargo install cargo-packager --locked
-FRACTIQUE_RELEASE=1 cargo build --release --locked -p fractique-app -p fractique-cli -p fractique-server
+programs="fractique-gui fractique fractique-mcp fractique-server"
+for target in aarch64-apple-darwin x86_64-apple-darwin; do
+    rustup target add "$target"
+    FRACTIQUE_RELEASE=1 cargo build --release --locked --target "$target" \
+        -p fractique-app -p fractique-cli -p fractique-server
+done
+# cargo-packager takes the programs from target/release.
+mkdir -p target/release
+for program in $programs; do
+    lipo -create -output "target/release/$program" \
+        "target/aarch64-apple-darwin/release/$program" "target/x86_64-apple-darwin/release/$program"
+    lipo -archs "target/release/$program"
+done
 cargo packager -c crates/fractique-app/Packager.toml --formats "$formats"
+# cargo-packager names the disk image after the machine that builds it.
+for image in dist/*.dmg; do
+    [ -e "$image" ] || continue
+    mv "$image" "dist/fractique-gui_${version}_universal.dmg"
+done
 
 # The command line tool and the two servers on their own, for a machine that wants no app.
-arch="$(uname -m)"
-if [ "$arch" = arm64 ]; then
-    arch=aarch64
-fi
-arch="$arch-macos"
+arch=universal-macos
 for program in fractique fractique-mcp fractique-server; do
     name="$program"
     if [ "$program" = fractique ]; then
@@ -47,4 +62,8 @@ fi
 if [ -n "${CARGO_PACKAGER_SIGN_PRIVATE_KEY:-}" ] && [ -f dist/Fractique.app.tar.gz ] && [ ! -f dist/Fractique.app.tar.gz.sig ]; then
     cargo packager signer sign dist/Fractique.app.tar.gz
 fi
+for made in dist/Fractique.app.tar.gz dist/Fractique.app.tar.gz.sig; do
+    [ -e "$made" ] || continue
+    mv "$made" "dist/Fractique_${version}_universal${made#dist/Fractique}"
+done
 ls -l dist
