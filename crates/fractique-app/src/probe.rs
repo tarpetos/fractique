@@ -144,6 +144,7 @@ pub struct Probe {
     pending: Arc<AtomicU32>,
     stages: Vec<&'static str>,
     pub sham: Option<Sham>,
+    pub pointer: Option<Pointer>,
 }
 
 impl Probe {
@@ -193,6 +194,7 @@ impl Probe {
             pending: Arc::default(),
             stages: Vec::new(),
             sham: Sham::new(),
+            pointer: Pointer::new(),
         }
     }
 
@@ -242,6 +244,7 @@ impl Probe {
             return false;
         }
         self.chained = true;
+        self.stage("recording");
         true
     }
 
@@ -327,6 +330,7 @@ impl Probe {
         if self.left == 0 {
             self.sweep = None;
             self.chained = false;
+            self.stage("recorded");
         }
         let Some(folder) = self
             .folder
@@ -348,6 +352,118 @@ impl Probe {
             });
         });
         ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(callback));
+    }
+}
+
+struct Way {
+    from: egui::Pos2,
+    to: egui::Pos2,
+    frames: u32,
+    at: u32,
+    press: bool,
+}
+
+const REST: u32 = 6;
+const PRESS: u32 = 5;
+
+// FRACTIQUE_POINTER=arrow or finger: a test run draws the pointer its steps lead, for a film of the app. The
+// steps move:0.5:0.9 and click:0.5:0.9 lead it to a share of the window, a third number being the frames it takes.
+pub struct Pointer {
+    finger: bool,
+    at: Option<egui::Pos2>,
+    down: bool,
+    way: Option<Way>,
+}
+
+impl Pointer {
+    pub fn new() -> Option<Self> {
+        let kind = std::env::var("FRACTIQUE_POINTER").ok()?;
+        Some(Self {
+            finger: kind == "finger",
+            at: None,
+            down: false,
+            way: None,
+        })
+    }
+
+    pub fn lead(&mut self, to: egui::Pos2, frames: u32, press: bool) {
+        self.way = Some(Way {
+            from: self.at.unwrap_or(to + egui::vec2(140.0, 110.0)),
+            to,
+            frames: frames.max(1),
+            at: 0,
+            press,
+        });
+    }
+
+    pub fn events(&mut self, events: &mut Vec<egui::Event>) {
+        let Some(way) = &mut self.way else {
+            return;
+        };
+        way.at += 1;
+        let share = (way.at as f32 / way.frames as f32).min(1.0);
+        let pos = way.from + (way.to - way.from) * (share * share * (3.0 - 2.0 * share));
+        events.push(egui::Event::PointerMoved(pos));
+        let button = |pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let pressed_at = way.frames + REST;
+        if way.press && way.at == pressed_at {
+            events.push(button(true));
+        } else if way.press && way.at == pressed_at + PRESS {
+            events.push(button(false));
+        }
+        if way.at >= if way.press { pressed_at + PRESS } else { way.frames } {
+            self.way = None;
+        }
+    }
+
+    pub fn draw(&mut self, ctx: &egui::Context) {
+        let (seen, down) = ctx.input(|input| (input.pointer.latest_pos(), input.pointer.any_down()));
+        self.at = seen.or(self.at);
+        self.down = down;
+        let Some(at) = self.at else {
+            return;
+        };
+        if self.way.is_some() {
+            ctx.request_repaint();
+        }
+        let mut painter = ctx.layer_painter(egui::LayerId::new(
+            egui::Order::Debug,
+            egui::Id::unique("probe pointer"),
+        ));
+        painter.set_clip_rect(ctx.viewport_rect());
+        if self.finger {
+            let (radius, fill) = if down { (17.0, 120) } else { (21.0, 55) };
+            painter.circle_filled(at, radius, egui::Color32::from_white_alpha(fill));
+            painter.circle_stroke(at, radius, egui::Stroke::new(2.0, egui::Color32::from_white_alpha(210)));
+            return;
+        }
+        let size = if down { 1.2 } else { 1.35 };
+        let point = |x: f32, y: f32| at + egui::vec2(x, y) * size;
+        let outline = vec![
+            point(0.0, 0.0),
+            point(0.0, 17.0),
+            point(4.4, 13.2),
+            point(7.6, 20.4),
+            point(10.4, 19.2),
+            point(7.3, 12.2),
+            point(12.6, 12.2),
+        ];
+        let head = vec![point(0.0, 0.0), point(0.0, 17.0), point(12.6, 12.2)];
+        let tail = vec![point(4.4, 13.2), point(7.6, 20.4), point(10.4, 19.2), point(7.3, 12.2)];
+        let dark = egui::Stroke::new(1.6, egui::Color32::from_black_alpha(230));
+        for part in [head, tail] {
+            painter.add(egui::Shape::convex_polygon(
+                part,
+                egui::Color32::WHITE,
+                egui::Stroke::NONE,
+            ));
+        }
+        painter.add(egui::Shape::closed_line(outline, dark));
     }
 }
 

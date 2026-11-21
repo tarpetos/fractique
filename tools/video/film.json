@@ -1,0 +1,307 @@
+{
+  "size": [
+    1920,
+    1080
+  ],
+  "music": {
+    "file": "long-note-two.mp3",
+    "url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Long%20Note%20Two.mp3",
+    "sha256": "53fd96b8fdcae5d2a9bb35a342cfb67344994952f76ff60ff94f56644262f93b",
+    "loudness": -26,
+    "credit": "\"Long Note Two\" Kevin MacLeod (incompetech.com), an excerpt. Licensed under Creative Commons: By Attribution 4.0 License. http://creativecommons.org/licenses/by/4.0/",
+    "from": 33,
+    "to": 113,
+    "cross": 6
+  },
+  "preview": {
+    "preset": "aurora-spiral",
+    "desk": "mutate",
+    "phone": "phone"
+  },
+  "parts": [
+    {
+      "name": "title",
+      "preset": "aurora-spiral",
+      "seconds": 3.5,
+      "caption": "intro",
+      "chapter": "chapter-flames"
+    },
+    {
+      "name": "random",
+      "caption": "random",
+      "size": [
+        1920,
+        1080
+      ],
+      "steps": [
+        "frames:280",
+        "skip:40",
+        "click:0.439:0.956",
+        "skip:75",
+        "click:0.439:0.956:8",
+        "skip:75",
+        "click:0.439:0.956:8",
+        "skip:70",
+        "rest"
+      ]
+    },
+    {
+      "name": "mutate",
+      "caption": "mutate",
+      "size": [
+        1920,
+        1080
+      ],
+      "steps": [
+        "preset:golden-bloom",
+        "frames:290",
+        "skip:40",
+        "click:0.493:0.956",
+        "skip:75",
+        "click:0.493:0.956:8",
+        "skip:75",
+        "click:0.493:0.956:8",
+        "skip:70",
+        "rest"
+      ]
+    },
+    {
+      "name": "colors",
+      "caption": "colors",
+      "size": [
+        1920,
+        1080
+      ],
+      "steps": [
+        "preset:frost-lotus",
+        "frames:250",
+        "skip:40",
+        "click:0.0563:0.346",
+        "skip:60",
+        "click:0.0844:0.346:14",
+        "skip:60",
+        "click:0.1125:0.346:14",
+        "skip:60",
+        "rest"
+      ]
+    },
+    {
+      "name": "layers",
+      "caption": "layers",
+      "size": [
+        1920,
+        1080
+      ],
+      "steps": [
+        "frames:330",
+        "skip:40",
+        "click:0.0865:0.595",
+        "skip:55",
+        "click:0.4625:0.339",
+        "skip:95",
+        "click:0.0865:0.627",
+        "skip:55",
+        "click:0.458:0.428",
+        "skip:90",
+        "rest"
+      ],
+      "chapter": "chapter-layers"
+    },
+    {
+      "name": "layered",
+      "caption": "layered",
+      "size": [
+        1920,
+        1080
+      ],
+      "open": "docs/gallery/flames/026-sapphire-seal.frcq",
+      "steps": [
+        "frames:400",
+        "skip:40",
+        "move:0.076:0.560",
+        "skip:35",
+        "drag:0.076:0.560:0.033:0.560:40",
+        "skip:75",
+        "drag:0.033:0.560:0.105:0.560:40",
+        "skip:70",
+        "click:0.0505:0.596",
+        "skip:55",
+        "click:0.1406:0.346",
+        "skip:80",
+        "rest"
+      ]
+    },
+    {
+      "name": "zoom",
+      "caption": "zoom",
+      "size": [
+        1920,
+        1080
+      ],
+      "steps": [
+        "preset:emerald-mandala",
+        "frames:400",
+        "skip:30",
+        "move:0.6:0.5",
+        "skip:40",
+        "wheel:1.01:100",
+        "skip:170",
+        "drag:0.6:0.5:0.45:0.62:60",
+        "skip:140",
+        "rest"
+      ],
+      "chapter": "chapter-zoom"
+    },
+    {
+      "name": "fractals",
+      "caption": "fractals",
+      "size": [
+        1920,
+        1080
+      ],
+      "steps": [
+        "frames:360",
+        "skip:40",
+        "click:0.0865:0.168",
+        "skip:90",
+        "click:0.439:0.956",
+        "skip:90",
+        "click:0.439:0.956:8",
+        "skip:90",
+        "rest"
+      ],
+      "chapter": "chapter-fractals"
+    },
+    {
+      "name": "fractal-layers",
+      "caption": "fractal-layers",
+      "size": [
+        1920,
+        1080
+      ],
+      "open": "docs/gallery/fractals/F065-golden-lily.frcq",
+      "steps": [
+        "frames:400",
+        "skip:40",
+        "move:0.1016:0.6185",
+        "skip:35",
+        "drag:0.1016:0.6185:0.04:0.6185:40",
+        "skip:75",
+        "drag:0.04:0.6185:0.115:0.6185:40",
+        "skip:70",
+        "click:0.07:0.654",
+        "skip:55",
+        "click:0.1125:0.4046",
+        "skip:80",
+        "rest"
+      ]
+    },
+    {
+      "name": "shapes",
+      "caption": "shapes",
+      "size": [
+        1920,
+        1080
+      ],
+      "steps": [
+        "frames:320",
+        "skip:40",
+        "click:0.129:0.168",
+        "skip:80",
+        "click:0.439:0.956",
+        "skip:80",
+        "click:0.439:0.956:8",
+        "skip:80",
+        "rest"
+      ],
+      "chapter": "chapter-shapes"
+    },
+    {
+      "name": "export",
+      "caption": "export",
+      "size": [
+        1920,
+        1080
+      ],
+      "steps": [
+        "preset:emerald-star",
+        "frames:200",
+        "skip:40",
+        "click:0.54:0.956",
+        "skip:150",
+        "rest"
+      ]
+    },
+    {
+      "name": "phone",
+      "caption": "phone",
+      "phone": true,
+      "pointer": "finger",
+      "size": [
+        412,
+        892
+      ],
+      "env": {
+        "FRACTIQUE_SHOW": "phone",
+        "FRACTIQUE_WAY": "4:2.5"
+      },
+      "steps": [
+        "frames:340",
+        "skip:40",
+        "click:0.881:0.939",
+        "skip:85",
+        "click:0.881:0.939:8",
+        "skip:85",
+        "click:0.91:0.864",
+        "skip:85",
+        "rest"
+      ],
+      "chapter": "chapter-phone"
+    },
+    {
+      "name": "phone-kinds",
+      "caption": "phone-kinds",
+      "phone": true,
+      "pointer": "finger",
+      "size": [
+        412,
+        892
+      ],
+      "env": {
+        "FRACTIQUE_SHOW": "phone",
+        "FRACTIQUE_WAY": "4:2.5"
+      },
+      "steps": [
+        "frames:400",
+        "skip:40",
+        "click:0.498:0.036",
+        "skip:90",
+        "click:0.881:0.939",
+        "skip:90",
+        "click:0.687:0.036",
+        "skip:80",
+        "click:0.881:0.939",
+        "skip:80",
+        "rest"
+      ]
+    },
+    {
+      "name": "end",
+      "preset": "emerald-star",
+      "line": "github.com/tarpetos/fractique",
+      "seconds": 4.5,
+      "caption": "outro"
+    }
+  ],
+  "font": {
+    "file": "unbounded.ttf",
+    "url": "https://github.com/google/fonts/raw/main/ofl/unbounded/Unbounded%5Bwght%5D.ttf",
+    "sha256": "323b511be380c8d474ef030686b71aedde501f8d9cd46da558b7c40454372c3f"
+  },
+  "github": {
+    "file": "github-mark.png",
+    "url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+    "sha256": "6d6ef7bede0416b6ebee2014be5852576dbce89235fe16ea5c44ed01bd522132"
+  },
+  "hashtags": "#Fractique #fractal #fractalart #wallpaper #generativeart #fractalflame #mandelbrot #free #windows #linux #macos #android #ios #rustlang"
+}

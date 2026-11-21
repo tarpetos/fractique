@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* **A video of the app, made by a script:** `tools/video/make_video.py` films the app at 3840 × 2160 and 60 frames a
+  second on a display nobody sees, and writes the video, its subtitles in the 15 languages, the thumbnail and the
+  texts for YouTube. The README and its translations show its preview, which links to the video.
+
 * **Sliders under a finger move only by their knob:** in the controls of a phone a finger that scrolled the list
   moved a slider it happened to cross, and the knob jumped to the finger. A slider now moves only when the finger
   lands on its knob and goes clearly sideways, and the knob goes as far as the finger does, from where it stood.

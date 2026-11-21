@@ -11,6 +11,10 @@
 Fractique는 세 가지 이미지를 만듭니다. 하나는 프랙탈 불꽃입니다. 가는 곡선과 부드러운 빛으로 이루어진, 빛나는 안개 같은 프랙탈입니다. 또 하나는 고전적인 프랙탈입니다. 만델브로 집합, 줄리아 집합, 기묘한 끌개부터 3차원의 만델벌브까지 22종이 있습니다. 다른 하나는 배경화면입니다. 가장자리에 빛이 들고 부드러운 그림자가 지는 평평한 시트를 겹친 것으로, 각각 라이트 버전과 다크 버전이 있습니다. 프리셋을 고르거나, 무작위 이미지를 만들거나, 여러 불꽃을 겹친 다음 휴대폰 화면부터 4K 모니터까지 원하는 크기로 내보낼 수 있습니다. 장면은 작은 파일 하나이며, 같은 파일은 Windows, macOS, Linux, Android, iOS 어디서나 항상 정확히 같은 픽셀로 렌더링됩니다.
 
 <p align="center">
+  <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: 모든 화면을 위한 프랙탈 배경화면" width="880"></a>
+</p>
+
+<p align="center">
   <img src="../samples/aurora-spiral.png" alt="오로라 나선 프리셋: 어두운 배경 위의 청록색과 초록색 나선형 빛줄기" width="880">
 </p>
 

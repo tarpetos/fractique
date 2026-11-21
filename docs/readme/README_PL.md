@@ -11,6 +11,10 @@
 Fractique tworzy obrazy trzech rodzajów. Fraktalne płomienie: świetliste, zwiewne fraktale z cienkich krzywych i miękkiego światła. Klasyczne fraktale 22 rodzajów: od zbioru Mandelbrota, zbiorów Julii i dziwnych atraktorów po Mandelbulb w trzech wymiarach. Oraz tapety: płaskie arkusze z podświetlonymi krawędziami i miękkimi cieniami, każda w wersji jasnej i ciemnej. Wybierasz preset, losujesz obraz albo nakładasz na siebie kilka płomieni i eksportujesz wynik w dowolnym rozmiarze, od ekranu telefonu po monitor 4K. Scena to jeden mały plik, a ten sam plik zawsze daje dokładnie te same piksele w systemach Windows, macOS, Linux, Android i iOS.
 
 <p align="center">
+  <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: fraktalne tapety na każdy ekran" width="880"></a>
+</p>
+
+<p align="center">
   <img src="../samples/aurora-spiral.png" alt="Preset Spirala zorzy: turkusowe i zielone spiralne smugi na ciemnym tle" width="880">
 </p>
 
