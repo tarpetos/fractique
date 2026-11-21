@@ -6,6 +6,9 @@ fn main() -> eframe::Result {
     use eframe::egui;
     use std::path::PathBuf;
 
+    #[cfg(target_os = "linux")]
+    run_a_tool();
+
     fractique_app::started();
 
     let mut args = std::env::args().skip(1);
@@ -71,6 +74,55 @@ fn main() -> eframe::Result {
         options.persistence_path = Some(std::env::temp_dir().join("fractique-screenshot.ron"));
     }
     fractique_app::run(options, screenshot)
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn tool(word: &str) -> Option<&'static str> {
+    match word {
+        "cli" => Some("fractique"),
+        "mcp" => Some("fractique-mcp"),
+        "server" => Some("fractique-server"),
+        _ => None,
+    }
+}
+
+// An AppImage starts one program only, so its first word chooses one of the programs beside the app.
+#[cfg(target_os = "linux")]
+fn run_a_tool() {
+    use std::os::unix::process::CommandExt as _;
+
+    if std::env::var_os("APPIMAGE").is_none() {
+        return;
+    }
+    let mut args = std::env::args_os().skip(1);
+    let Some(name) = args.next().and_then(|word| tool(word.to_str()?)) else {
+        return;
+    };
+    let Some(program) = std::env::current_exe()
+        .ok()
+        .and_then(|app| Some(app.parent()?.join(name)))
+    else {
+        return;
+    };
+    let failed = std::process::Command::new(&program).args(args).exec();
+    eprintln!("fractique: {}: {failed}", program.display());
+    std::process::exit(1);
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_words_of_an_appimage_name_the_programs_packed_with_the_app() {
+        let packed = include_str!("../Packager.toml");
+        for word in ["cli", "mcp", "server"] {
+            let name = super::tool(word).unwrap();
+            assert!(
+                packed.contains(&format!("{{ path = \"{name}\" }}")),
+                "{name} is not in Packager.toml"
+            );
+        }
+        assert_eq!(super::tool("scene.frcq"), None);
+    }
 }
 
 #[cfg(target_arch = "wasm32")]

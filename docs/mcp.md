@@ -17,7 +17,7 @@ The HTTP server offers the same tools to a client on another machine, at `/mcp`:
 | --- | --- | --- | --- |
 | Windows | `fractique-mcp_<version>_x64.exe`, where you saved it | `fractique-cli_<version>_x64.exe` | `fractique-server_<version>_x64.exe` |
 | The `.deb` | `/usr/bin/fractique-mcp` | `/usr/bin/fractique` | `/usr/bin/fractique-server` |
-| The AppImage | Not reachable from outside: take the `.tar.gz` below | The same | The same |
+| The AppImage | `Fractique_<version>_x86_64.AppImage mcp` | `… cli`, then what the tool takes: `… cli render --preset aurora-spiral -o a.png` | `… server` |
 | macOS, the app | `/Applications/Fractique.app/Contents/MacOS/fractique-mcp` | `…/MacOS/fractique` | `…/MacOS/fractique-server` |
 | The `.tar.gz` of each (Linux, macOS) | `fractique-mcp`, where you unpacked it | `fractique` | `fractique-server` |
 | Built here | `target/release/fractique-mcp` | `target/release/fractique` | `target/release/fractique-server` |
