@@ -19,7 +19,6 @@ const RARE: f64 = 0.05;
 const FINE: f64 = 1.0 / 512.0;
 const AHEAD: usize = 8;
 const FAR_EVERY: u64 = 4;
-const BOUND: f64 = 8.0;
 
 // The particles are moved in groups, each with its own random numbers, so that the threads cannot change the result.
 const GROUP: usize = 128;
@@ -140,6 +139,7 @@ pub(crate) struct Plan {
     points: Vec<Point>,
     range: (usize, usize),
     pub(crate) exposure: f64,
+    pub(crate) share: f64,
 }
 
 // One stream's share of the particles, moved and plotted in turn.
@@ -328,12 +328,9 @@ pub(crate) fn plan(
         range,
         exposure: match held {
             Exposure::View => exposure(&seen, enough),
-            Exposure::Scene => share * camera.zoom * camera.zoom,
-            Exposure::Bounded => {
-                let held = exposure(&seen, enough);
-                (share * camera.zoom * camera.zoom).clamp(held / BOUND, held * BOUND)
-            }
+            Exposure::Scene | Exposure::Visible => share * camera.zoom * camera.zoom,
         },
+        share,
     })
 }
 

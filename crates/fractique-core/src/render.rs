@@ -61,14 +61,14 @@ pub enum Exposure {
     #[default]
     View,
     Scene,
-    Bounded,
+    Visible,
 }
 
 impl Exposure {
     pub const ALL: [(&'static str, Exposure); 3] = [
         ("view", Exposure::View),
         ("scene", Exposure::Scene),
-        ("bounded", Exposure::Bounded),
+        ("visible", Exposure::Visible),
     ];
 
     pub fn parse(name: &str) -> Option<Self> {
@@ -236,6 +236,7 @@ pub struct Density {
     supersample: u32,
     smoothing: f64,
     normalize: f64,
+    scale: f64,
     cells: Vec<f32>,
 }
 
@@ -256,6 +257,7 @@ impl Density {
             (self.width * self.supersample) as usize,
             self.supersample as usize,
             self.normalize,
+            self.scale,
         )
     }
 }
@@ -362,6 +364,7 @@ fn developed(density: &Density, tone: &crate::scene::Tone) -> Developed {
             tone,
             density.supersample as usize,
             density.normalize,
+            density.scale,
         ),
     }
 }
@@ -407,7 +410,7 @@ fn density(
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
 ) -> Result<Density, RenderError> {
-    let (histogram, normalize) = match &scene.layers[index].content {
+    let (histogram, normalize, share) = match &scene.layers[index].content {
         Content::Flame(_) => gather(scene, index, options, exposure, cancel, report, false)?,
         Content::Fractal(fractal) => {
             let Some(orbit) = fractal::spec(&fractal.kind).and_then(|spec| spec.orbit(fractal)) else {
@@ -420,13 +423,19 @@ fn density(
         }
     };
     let smoothing = scene.layers[index].tone().smoothing;
+    let cells = tone::estimate(&histogram, smoothing);
+    let lift = match exposure {
+        Exposure::Visible => tone::lift(share, scene.layers[index].camera().zoom),
+        _ => 1.0,
+    };
     Ok(Density {
         width: options.width,
         height: options.height,
         supersample: options.supersample,
         smoothing,
-        normalize,
-        cells: tone::estimate(&histogram, smoothing),
+        normalize: normalize * lift,
+        scale: tone::scale(lift),
+        cells,
     })
 }
 
@@ -439,7 +448,7 @@ fn gather(
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
     plain: bool,
-) -> Result<(Histogram, f64), RenderError> {
+) -> Result<(Histogram, f64, f64), RenderError> {
     let (width, height) = (options.width as usize, options.height as usize);
     let supersample = options.supersample as usize;
     let per_layer = u64::from(options.samples_per_pixel) * width as u64 * height as u64;
@@ -519,7 +528,11 @@ fn gather(
     if cancelled() {
         return Err(RenderError::Cancelled);
     }
-    Ok((histogram, normalize))
+    let share = match &plan {
+        None => histogram.total() as f64 / per_layer as f64,
+        Some(plan) => plan.share,
+    };
+    Ok((histogram, normalize, share))
 }
 
 struct Plotter<'a> {
@@ -573,7 +586,7 @@ fn gather_orbit(
     options: &RenderOptions,
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
-) -> Result<(Histogram, f64), RenderError> {
+) -> Result<(Histogram, f64, f64), RenderError> {
     let (width, height) = (options.width as usize, options.height as usize);
     let supersample = options.supersample as usize;
     let per_layer = u64::from(options.samples_per_pixel) * width as u64 * height as u64;
@@ -602,6 +615,7 @@ fn gather_orbit(
     Ok((
         histogram,
         fractal.camera.zoom * fractal.camera.zoom / per_cell * orbit.gain(),
+        1.0,
     ))
 }
 
@@ -685,7 +699,7 @@ mod tests {
                 samples_per_pixel: samples,
                 supersample: 1,
             };
-            let (histogram, _) = gather(&scene, 0, &options, Exposure::View, None, &|_| {}, plain).unwrap();
+            let (histogram, ..) = gather(&scene, 0, &options, Exposure::View, None, &|_| {}, plain).unwrap();
             let block = 6;
             let mut sums = vec![0f64; (side as usize / block).pow(2)];
             for cell in 0..(side * side) as usize {
@@ -719,7 +733,7 @@ mod tests {
                 samples_per_pixel: samples,
                 supersample: 1,
             };
-            let (histogram, normalize) = gather(&scene, 0, &options, Exposure::Scene, None, &|_| {}, plain).unwrap();
+            let (histogram, normalize, _) = gather(&scene, 0, &options, Exposure::Scene, None, &|_| {}, plain).unwrap();
             histogram.total() as f64 * normalize
         };
         let (plain, deep) = (density(60_000, true), density(2_000, false));

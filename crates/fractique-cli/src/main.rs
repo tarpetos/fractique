@@ -71,7 +71,7 @@ enum Command {
         /// Replace the scene's seed
         #[arg(long)]
         seed: Option<u64>,
-        /// What sets the brightness of a magnified view: view (as it is now), scene or bounded
+        /// What sets the brightness of a magnified view: view (as it is now), scene or visible
         #[arg(long, default_value = "view")]
         exposure: String,
     },

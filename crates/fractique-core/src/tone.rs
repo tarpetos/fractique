@@ -3,7 +3,31 @@ use crate::render::Histogram;
 use crate::scene::Tone;
 
 // A cell with about 3000 times the average density reaches full brightness at brightness 1.
-const LOG_SCALE: f64 = 1.0 / 8.0;
+pub(crate) const LOG_SCALE: f64 = 1.0 / 8.0;
+// The density that reaches full brightness at brightness 1: e^8 - 1.
+const WHITE: f64 = 2979.957987041728;
+// Tuned on a view moved off a flame of three layers, between 0.40 and 0.70 times, and on views magnified 300 times.
+const MEAN: f64 = 4.0;
+const OPENS: f64 = 2.5;
+const MOST: f64 = 1000.0;
+
+// How many times the densities of a view that holds `share` of the flame are raised so that its faint parts show.
+pub(crate) fn lift(share: f64, zoom: f64) -> f64 {
+    if share <= 0.0 {
+        return 1.0;
+    }
+    let most = pow(share, -OPENS).min(MOST);
+    (MEAN / (share * zoom * zoom)).clamp(share, most)
+}
+
+// A lift above 1 raises the faint end and leaves full brightness where it was.
+pub(crate) fn scale(lift: f64) -> f64 {
+    if lift > 1.0 {
+        1.0 / ln_1p(lift * WHITE)
+    } else {
+        LOG_SCALE
+    }
+}
 
 pub(crate) fn for_each_row(buffer: &mut [f32], row_len: usize, fill: impl Fn(usize, &mut [f32]) + Sync) {
     #[cfg(feature = "parallel")]
@@ -125,7 +149,7 @@ fn offset(center: usize, at: usize, reach: usize) -> usize {
 }
 
 // The average color of every pixel and its brightness before `Tone` shapes it: what a preview starts from.
-pub(crate) fn levels(cells: &[f32], across: usize, supersample: usize, normalize: f64) -> Vec<f32> {
+pub(crate) fn levels(cells: &[f32], across: usize, supersample: usize, normalize: f64, scale: f64) -> Vec<f32> {
     let width = across / supersample;
     let height = cells.len() / 4 / across / supersample;
     let share = 1.0 / (supersample * supersample) as f64;
@@ -143,7 +167,7 @@ pub(crate) fn levels(cells: &[f32], across: usize, supersample: usize, normalize
                     for ch in 0..3 {
                         sum[ch] += f64::from(cells[cell + 1 + ch]);
                     }
-                    sum[3] += ln_1p(count * normalize) * LOG_SCALE;
+                    sum[3] += ln_1p(count * normalize) * scale;
                     sum[4] += count;
                 }
             }
@@ -158,7 +182,14 @@ pub(crate) fn levels(cells: &[f32], across: usize, supersample: usize, normalize
     out
 }
 
-pub(crate) fn develop(cells: &[f32], across: usize, tone: &Tone, supersample: usize, normalize: f64) -> Vec<f32> {
+pub(crate) fn develop(
+    cells: &[f32],
+    across: usize,
+    tone: &Tone,
+    supersample: usize,
+    normalize: f64,
+    scale: f64,
+) -> Vec<f32> {
     let width = across / supersample;
     let height = cells.len() / 4 / across / supersample;
     let inverse_gamma = 1.0 / tone.gamma;
@@ -175,7 +206,7 @@ pub(crate) fn develop(cells: &[f32], across: usize, tone: &Tone, supersample: us
                     if count <= 0.0 {
                         continue;
                     }
-                    let level = tone.brightness * ln_1p(count * normalize) * LOG_SCALE;
+                    let level = tone.brightness * ln_1p(count * normalize) * scale;
                     let capped = level.min(1.0);
                     let alpha = pow(capped, inverse_gamma);
                     let burn = ((level - 1.0).max(0.0) * tone.highlight).min(1.0);
@@ -242,4 +273,18 @@ pub(crate) fn glow(image: &mut [f32], width: usize, height: usize, sigma: f64, s
             row[x * 4 + 3] = row[x * 4 + 3].min(1.0);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_view_that_holds_little_of_the_flame_is_lifted() {
+        assert_eq!(lift(1.0, 0.5), 1.0);
+        assert_eq!(scale(1.0), LOG_SCALE);
+        assert!(lift(0.9, 0.5) < 1.5);
+        assert_eq!(lift(0.01, 0.2), MOST);
+        assert!(lift(1e-4, 300.0) < 1.0);
+    }
 }
