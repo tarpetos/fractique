@@ -104,6 +104,15 @@ pub fn counted(seconds: f32) -> Option<f32> {
     (seconds >= 0.1).then(|| (seconds * 10.0).floor() / 10.0)
 }
 
+pub fn let_go(at: egui::Pos2) -> egui::Event {
+    egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    }
+}
+
 // The size of the next batch, from the size of the last and the seconds it took.
 pub fn next(sent: f64, took: f32, slice: f32) -> f64 {
     let fits = f64::from(slice) / f64::from(took.max(1e-5));
@@ -734,6 +743,29 @@ mod tests {
         assert!(held());
         hold(false);
         assert!(!held());
+    }
+
+    #[test]
+    fn a_button_the_system_took_with_the_window_is_let_go() {
+        let ctx = egui::Context::default();
+        let at = egui::pos2(40.0, 20.0);
+        let frame = |events: Vec<egui::Event>| {
+            let input = egui::RawInput {
+                events,
+                ..Default::default()
+            };
+            let _ = ctx.run_ui(input, |_| {});
+            ctx.input(|input| input.pointer.any_down())
+        };
+        let press = egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        };
+        assert!(frame(vec![egui::Event::PointerMoved(at), press]));
+        assert!(frame(vec![egui::Event::PointerGone]));
+        assert!(!frame(vec![let_go(at)]));
     }
 
     fn flame(work: f64) -> [Part<'static>; 1] {

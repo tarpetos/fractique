@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+* **The blur leaves after the window is dragged, on Linux:** a window dragged by its top panel, to a border of the
+  screen or out of a maximized or full-screen state, kept its picture blurred until the next click: the system
+  never told the app that the button was released. The title and the close button of the top panel now stand
+  equally far from its ends.
+
 * **Layered pictures in the gallery:** the twenty weakest flames and the twenty weakest fractals of `docs/gallery`
   gave their numbers to scenes of two or three layers, each layer in a palette of its own: a bright figure over a
   wide veil, two figures of different symmetry, an attractor's silk over a Mandelbrot, Julia or Hopalong ground.
