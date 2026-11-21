@@ -29,7 +29,7 @@ pub const HEAVIEST: u32 = 10;
 
 // A view whose average is below `MEAN` has its faint end raised: more as less of the flame is in it, by `MOST` at
 // the most over what the flame has there. Tuned on a view moved off a flame of three layers, from 0.40 to 0.70.
-const MEAN: f64 = 4.0;
+const MEAN: f64 = 1.0;
 const OPENS: f64 = 12.0;
 const MOST: f64 = 1000.0;
 

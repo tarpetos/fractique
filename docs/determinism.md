@@ -22,7 +22,7 @@ that what it saw is what you get. It holds for wallpapers and for fractals of ot
 | Fractals drawn as a density (`clifford`) | The points of the orbits go through the same 64 streams and the same integer histogram as a flame's. |
 | The other kinds of the `orbit` family | What a kind measures before a render (the ranks its colors go by, the size it is scaled to, the cells a `buddhabrot` takes its starting points from) is computed on one thread, in a fixed order, from the parameters alone, with a generator of its own. A `lorenz` is integrated with a fixed step. |
 | Curves drawn as a density (`kleinian`, `l_system`) | The segments of the curve are found on one thread, in a fixed order, from the scene alone. Each of the 64 streams then spreads its points along them with its own generator, into the same integer histogram. |
-| Deep views | The particles a magnified view is drawn from are moved in fixed groups of 128, each with its own generator, so the threads cannot change the result. |
+| Deep views | The particles a magnified view is drawn from are moved in fixed groups of 128, each with its own generator, so the threads cannot change the result. Where a bright part of the view is visited less, whether a particle moves into it is an integer draw from the same generators, and each of its points adds a whole number to the histogram. |
 | Hash map order, the clock, the locale | None of them is used on the way to a pixel. |
 
 ## How it is checked

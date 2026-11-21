@@ -485,7 +485,7 @@ mod tests {
         told[HEAD..].fill(0);
         plan.swept(&told);
         assert_eq!(plan.lift, deep::lift(plan.exposure, 0.03125, IN_VIEW, 1.5));
-        assert!((plan.lift - 4.0 / plan.exposure).abs() < 1e-12 && plan.lift > 20.0);
+        assert!((plan.lift - 1.0 / plan.exposure).abs() < 1e-12 && plan.lift > 5.0);
         assert!(deep::scale(plan.lift) < 0.125);
         assert_eq!(deep::scale(1.0) as f32, 0.125);
         // The view of a picture with a margin is lifted as the view alone: by its own share of the flame.
