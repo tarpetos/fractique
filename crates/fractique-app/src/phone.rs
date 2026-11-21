@@ -564,6 +564,13 @@ fn note(recent: &mut Vec<Piece>, mut piece: Piece, step: Step, at: usize, now: u
 
 // A disc filled with a gradient from its upper left to its lower right, with a soft rim: rings of triangles,
 // each corner colored by its place along that line, and a last ring that fades out.
+pub(crate) fn palette_disc(painter: &egui::Painter, at: Pos2, reach: f32, shades: &palette::Lut) {
+    gradient_disc(painter, at, reach, |share| {
+        let [r, g, b] = shades[(share * 255.0).round() as usize];
+        Color32::from_rgb(r, g, b)
+    });
+}
+
 fn gradient_disc(painter: &egui::Painter, at: Pos2, reach: f32, shade: impl Fn(f32) -> Color32) {
     const RINGS: u32 = 6;
     const AROUND: u32 = 48;
@@ -830,10 +837,7 @@ impl App {
                         continue;
                     };
                     let fill = move |painter: &egui::Painter, at: Pos2, reach: f32| {
-                        gradient_disc(painter, at, reach, |share| {
-                            let [r, g, b] = shades[(share * 255.0).round() as usize];
-                            Color32::from_rgb(r, g, b)
-                        });
+                        palette_disc(painter, at, reach, &shades);
                     };
                     if cell(ui, worn == Some(index), &fill) {
                         self.choices.choose(at, Some(index));

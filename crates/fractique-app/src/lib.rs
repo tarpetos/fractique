@@ -5397,6 +5397,17 @@ impl App {
         let (opacity, word) = (self.t("opacity"), self.t("layer"));
         let (chosen, mut pick, mut act) = (self.layer, None, None);
         let title = self.display(&self.title);
+        let shades: Vec<palette::Lut> = self
+            .base
+            .layers
+            .iter()
+            .enumerate()
+            .map(|(index, layer)| {
+                let chosen = self.choices.of(index).and_then(|at| palette::NAMES.get(at));
+                let worn = chosen.and_then(|name| palette::named(name));
+                palette::lut(worn.as_ref().unwrap_or(layer.palette()))
+            })
+            .collect();
         let layers = &mut self.base.layers;
 
         egui::Frame::NONE
@@ -5418,8 +5429,11 @@ impl App {
                     } else {
                         layer.name.clone()
                     };
+                    let dot = |painter: &egui::Painter, at: egui::Pos2, reach: f32| {
+                        phone::palette_disc(painter, at, reach, &shades[index]);
+                    };
                     if index != chosen {
-                        if widgets::row(ui, &label, false) {
+                        if widgets::dot_row(ui, &label, &dot) {
                             pick = Some(index);
                         }
                         continue;
@@ -5435,24 +5449,8 @@ impl App {
                         .corner_radius(10)
                         .inner_margin(card)
                         .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    ui.spacing_mut().item_spacing.x = 4.0;
-                                    for (kind, enabled) in
-                                        [("remove", count > 1), ("down", index + 1 < count), ("up", index > 0)]
-                                    {
-                                        if widgets::round(ui, kind, enabled) {
-                                            act = Some(kind);
-                                        }
-                                    }
-                                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                                        let name = egui::RichText::new(&label)
-                                            .font(font(14.0, MEDIUM))
-                                            .color(egui::Color32::WHITE);
-                                        ui.add(egui::Label::new(name).truncate());
-                                    });
-                                });
-                            });
+                            let enabled = [count > 1, index + 1 < count, index > 0];
+                            act = widgets::layer_head(ui, &label, enabled, &dot).act.or(act);
                             ui.add_space(6.0);
                             ui.scope(|ui| {
                                 ui.set_width(ui.available_width() - 4.0);

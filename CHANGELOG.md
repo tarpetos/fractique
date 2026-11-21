@@ -6,6 +6,13 @@
   the `.frcq` file, where the file had to be downloaded by hand. Now the picture is the download itself (the file's
   raw address, which a browser saves), and the name under it leads to the file in the repository.
 
+### Added
+
+* **A dot in a layer's colors before its name:** every row of **Layers** starts with a round dot like those of
+  the row of colors, in the palette the layer is drawn with: the one chosen for it, or the layer's own. It
+  follows a choice, **Randomize**, **Mutate**, a preset and a move of the layer at once, so a scene of several
+  colors shows which layer has which.
+
 ### Fixed
 
 * **A palette is the chosen layer's, not the whole scene's:** the app kept one chosen palette and dressed every
