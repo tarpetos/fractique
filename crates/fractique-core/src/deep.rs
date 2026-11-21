@@ -2,6 +2,7 @@ use crate::chaos::Compiled;
 use crate::math::{cos, ln, pow, sin};
 use crate::rng::Rng;
 use crate::scene::Camera;
+pub use crate::tone::scale;
 
 // Below this share of the plotted points in view the plain chaos game wastes most of its work.
 const IN_VIEW: f64 = 0.125;
@@ -24,7 +25,7 @@ const FAR_EVERY: u64 = 4;
 // the points of the whole picture count `SPREAD` times at most, and one point `1 << HEAVIEST` times.
 const TILES: usize = 24;
 const SPREAD: f64 = 32.0;
-const HEAVIEST: u32 = 10;
+pub const HEAVIEST: u32 = 10;
 
 // A view whose average is below `MEAN` has its faint end raised: more as less of the flame is in it, by `MOST` at
 // the most over what the flame has there. Tuned on a view moved off a flame of three layers, from 0.40 to 0.70.
@@ -103,54 +104,19 @@ pub(crate) struct Tiles {
 }
 
 impl Tiles {
-    // `None`: no tile holds so much more than the others that the points should be spread.
     fn new(window: &Window, points: &[Point]) -> Option<Self> {
-        let longer = window.half[0].max(window.half[1]);
-        let side = |half: f64| ((TILES as f64 * half / longer).ceil() as usize).max(1);
+        let (across, up) = grid(window.half[0], window.half[1]);
         let mut tiles = Self {
-            across: side(window.half[0]),
-            up: side(window.half[1]),
+            across,
+            up,
             shifts: Vec::new(),
         };
-        let mut held = vec![0u32; tiles.across * tiles.up];
+        let mut held = vec![0u32; across * up];
         for point in points {
             held[window.tile(*point, &tiles)] += 1;
         }
-        let mut sorted = held.clone();
-        sorted.sort_unstable();
-        let wanted = points.len() as f64 / SPREAD;
-        let mut below = 0.0;
-        let mut level = f64::from(sorted[sorted.len() - 1]);
-        for (at, count) in sorted.iter().enumerate() {
-            let left = (sorted.len() - at) as f64;
-            if below + f64::from(*count) * left >= wanted {
-                level = (wanted - below) / left;
-                break;
-            }
-            below += f64::from(*count);
-        }
-        tiles.shifts = held
-            .iter()
-            .map(|count| {
-                let mut shift = 0;
-                while shift < HEAVIEST && level * f64::from(2u32 << shift) <= f64::from(*count) {
-                    shift += 1;
-                }
-                shift as u8
-            })
-            .collect();
-        let least = held
-            .iter()
-            .zip(&tiles.shifts)
-            .filter(|(count, _)| **count > 0)
-            .map(|(_, shift)| *shift)
-            .min()
-            .unwrap_or(0);
-        tiles
-            .shifts
-            .iter_mut()
-            .for_each(|shift| *shift = shift.saturating_sub(least));
-        tiles.shifts.iter().any(|shift| *shift > 0).then_some(tiles)
+        tiles.shifts = shifts(&held)?;
+        Some(tiles)
     }
 
     #[inline]
@@ -160,6 +126,51 @@ impl Tiles {
         let row = if flipped { down } else { self.up - 1 - down };
         u32::from(self.shifts[row * self.across + column])
     }
+}
+
+// The tiles across and up a view of this shape.
+pub fn grid(wide: f64, high: f64) -> (usize, usize) {
+    let longer = wide.max(high);
+    let side = |length: f64| ((TILES as f64 * length / longer).ceil() as usize).max(1);
+    (side(wide), side(high))
+}
+
+// For every tile, from the particles it holds, the power of two its points count: `None` when no tile holds so
+// much more than the others that the points should be spread.
+pub fn shifts(held: &[u32]) -> Option<Vec<u8>> {
+    let mut sorted = held.to_vec();
+    sorted.sort_unstable();
+    let points: u64 = held.iter().map(|count| u64::from(*count)).sum();
+    let wanted = points as f64 / SPREAD;
+    let mut below = 0.0;
+    let mut level = f64::from(sorted[sorted.len() - 1]);
+    for (at, count) in sorted.iter().enumerate() {
+        let left = (sorted.len() - at) as f64;
+        if below + f64::from(*count) * left >= wanted {
+            level = (wanted - below) / left;
+            break;
+        }
+        below += f64::from(*count);
+    }
+    let mut shifts: Vec<u8> = held
+        .iter()
+        .map(|count| {
+            let mut shift = 0;
+            while shift < HEAVIEST && level * f64::from(2u32 << shift) <= f64::from(*count) {
+                shift += 1;
+            }
+            shift as u8
+        })
+        .collect();
+    let least = held
+        .iter()
+        .zip(&shifts)
+        .filter(|(count, _)| **count > 0)
+        .map(|(_, shift)| *shift)
+        .min()
+        .unwrap_or(0);
+    shifts.iter_mut().for_each(|shift| *shift = shift.saturating_sub(least));
+    shifts.iter().any(|shift| *shift > 0).then_some(shifts)
 }
 
 // A move from a tile whose points count `1 << from` times to one whose points count `1 << to` times.
@@ -502,7 +513,7 @@ fn sweep(
 
 // How many times the densities of a deep view are raised, with full brightness left where it is, so that its faint
 // parts show: 1 where the view begins to hold less than `enough`, and never less than 1.
-fn lift(held: f64, share: f64, enough: f64, zoom: f64) -> f64 {
+pub fn lift(held: f64, share: f64, enough: f64, zoom: f64) -> f64 {
     let own = share * zoom * zoom;
     if own <= 0.0 || held <= 0.0 {
         return 1.0;

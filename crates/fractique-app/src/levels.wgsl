@@ -1,8 +1,10 @@
 struct Look {
     size: vec4<u32>,   // cells across, cells down, tiles across, tiles down
-    scale: vec4<f32>,  // what turns a count into a density, the first row of the strip that is drawn
+    scale: vec4<f32>,  // what turns a count into a density, the first row of the strip that is drawn, the logarithm's scale
     kernels: array<vec4<f32>, 20>, // reach, 1 / (2 sigma²), 1 / the sum of the weights
     widths: array<vec4<u32>, 1024>, // the kernel of a cell by its hits, up to 4095
+    grid: vec4<u32>,   // the tiles of a deep view across and down; 0 where every hit counts once
+    shifts: array<vec4<u32>, 144>, // the power of two a hit of a tile counts
 };
 
 @group(0) @binding(0) var<uniform> look: Look;
@@ -20,6 +22,14 @@ fn level_of(count: u32) -> u32 {
     return look.widths[count >> 2u][count & 3u];
 }
 
+fn level_at(count: u32, x: u32, y: u32) -> u32 {
+    if (look.grid.x == 0u) {
+        return level_of(count);
+    }
+    let tile = (y * look.grid.y / look.size.y) * look.grid.x + x * look.grid.x / look.size.x;
+    return level_of(max(count >> look.shifts[tile >> 2u][tile & 3u], 1u));
+}
+
 @compute @workgroup_size(8, 8)
 fn survey(@builtin(global_invocation_id) id: vec3<u32>) {
     if (id.x >= look.size.z || id.y >= look.size.w) {
@@ -32,7 +42,7 @@ fn survey(@builtin(global_invocation_id) id: vec3<u32>) {
         for (var x = corner.x; x < limit.x; x = x + 1u) {
             let count = cells[(y * look.size.x + x) * 4u];
             if (count > 0u) {
-                most = max(most, u32(look.kernels[level_of(count)].x) + 1u);
+                most = max(most, u32(look.kernels[level_at(count, x, y)].x) + 1u);
             }
         }
     }
@@ -63,7 +73,7 @@ fn resolve(@builtin(global_invocation_id) id: vec3<u32>) {
                 let cell = (u32(y) * look.size.x + u32(x)) * 4u;
                 let count = cells[cell];
                 if (count > 0u) {
-                    let kernel = look.kernels[level_of(count)];
+                    let kernel = look.kernels[level_at(count, u32(x), u32(y))];
                     let d = abs(vec2<i32>(x, y) - at);
                     if (max(d.x, d.y) <= i32(kernel.x)) {
                         let weight = exp(-f32(d.x * d.x + d.y * d.y) * kernel.y) * kernel.z;
@@ -82,7 +92,7 @@ fn resolve(@builtin(global_invocation_id) id: vec3<u32>) {
         if (density < 0.001) {
             level = density - 0.5 * density * density;
         }
-        out = vec4<f32>(min(sum.xyz / (sum.w * 255.0), vec3<f32>(1.0)), level * 0.125);
+        out = vec4<f32>(min(sum.xyz / (sum.w * 255.0), vec3<f32>(1.0)), level * look.scale.z);
     }
     textureStore(levels, at, out);
 }

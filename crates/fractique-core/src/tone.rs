@@ -7,7 +7,7 @@ pub(crate) const LOG_SCALE: f64 = 1.0 / 8.0;
 // The density that reaches full brightness at brightness 1: e^8 - 1.
 const WHITE: f64 = 2979.957987041728;
 // A lift above 1 raises the faint end and leaves full brightness where it was.
-pub(crate) fn scale(lift: f64) -> f64 {
+pub fn scale(lift: f64) -> f64 {
     if lift > 1.0 {
         1.0 / ln_1p(lift * WHITE)
     } else {

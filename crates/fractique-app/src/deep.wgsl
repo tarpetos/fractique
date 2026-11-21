@@ -9,7 +9,7 @@ struct Batch {
     far: u32,    // below this many are kept in a far move
     cap: u32,    // the steps a particle remembers
     plots: u32,
-    spare: u32,
+    tiles: u32,  // the tiles of the picture across, and down from bit 16; 0 where the points are not spread
     window: f32, // the picture's size in the window's
     next: f32,   // and in the window after it
     travel: f32, // what turns cells into the units a move is told in
@@ -29,9 +29,11 @@ const MEMORY: u32 = 128u;
 const STEP: u32 = 1u;
 const FINISH: u32 = 2u;
 const FAR_EVERY: u32 = 4u;
-// The notes: 0 the points plotted or found, 1 those of them in the view (of a pilot: in the next window), 2 the particles inside the next window, then for every number of
-// kept steps the moves tried, the moves accepted and how far they went, then a mark for every particle and
-// the particle each takes the place of.
+// The notes: 0 the points plotted or found, 1 those of them in the view (of a pilot: in the next window), 2 the
+// particles inside the next window, 3 how often note 1 passed 32 bits, then for every number of kept steps the
+// moves tried, the moves accepted and how far they went, then a mark for every particle (its tile, where the
+// picture has tiles), the particle each takes the place of, and for every tile the power of two its points count.
+const CARRY: u32 = 3u;
 const TRIED: u32 = 4u;
 const ACCEPTED: u32 = 133u;
 const TRAVELLED: u32 = 262u;
@@ -74,6 +76,36 @@ fn inside(at: vec2<f32>, window: f32) -> bool {
     let half = flame.scale.zw * 0.5;
     let off = (at - half) * window;
     return abs(off.x) < half.x && abs(off.y) < half.y;
+}
+
+fn tile(at: vec2<f32>) -> u32 {
+    let x = min(u32(max(at.x, 0.0)), flame.extent.x - 1u);
+    let y = min(u32(max(at.y, 0.0)), flame.extent.y - 1u);
+    let across = batch.tiles & 0xFFFFu;
+    return (y * (batch.tiles >> 16u) / flame.extent.y) * across + x * across / flame.extent.x;
+}
+
+fn shift(at: vec2<f32>) -> u32 {
+    if (batch.tiles == 0u) {
+        return 0u;
+    }
+    return atomicLoad(&notes[HEAD + 2u * batch.walkers + tile(at)]);
+}
+
+// A move into a tile whose points count more is taken as many times less often.
+fn admitted(out: u32, to: u32) -> bool {
+    return to <= out || (mine() >> (32u - (to - out))) == 0u;
+}
+
+fn weighed(cell: u32, color: f32, times: u32) {
+    let shade = min(u32(color * 255.0 + 0.5), 255u);
+    let rgb = flame.palette[shade >> 2u][shade & 3u];
+    let before = atomicAdd(&cells[cell], times);
+    if (before < FULL) {
+        atomicAdd(&cells[cell + 1u], (rgb & 255u) * times);
+        atomicAdd(&cells[cell + 2u], ((rgb >> 8u) & 255u) * times);
+        atomicAdd(&cells[cell + 3u], ((rgb >> 16u) & 255u) * times);
+    }
 }
 
 // The point a particle would be at with the first `keep` of its seeds and the rest from its walker; w is 1 when
@@ -125,7 +157,7 @@ fn attempt(base: u32, keep: u32, told: bool) {
     if (told) {
         atomicAdd(&notes[TRIED + keep], 1u);
     }
-    if (to.w > 0.0) {
+    if (to.w > 0.0 && admitted(shift(point.xy), shift(to.xy))) {
         taken(base, keep, fresh);
         if (told) {
             let went = (abs(to.x - point.x) + abs(to.y - point.y)) * batch.travel;
@@ -239,20 +271,23 @@ fn sweep(@builtin(global_invocation_id) id: vec3<u32>) {
         if (batch.plots == 1u) {
             let x = min(u32(max(point.x, 0.0)), across - 1u);
             let y = min(u32(max(point.y, 0.0)), down - 1u);
-            plotted((y * flame.extent.x + x) * 4u, point.z);
+            let times = 1u << shift(point.xy);
+            weighed((y * flame.extent.x + x) * 4u, point.z, times);
             if (x >= rim.x && x < across - rim.x && y >= rim.y && y < down - rim.y) {
-                seen = seen + 1u;
+                seen = seen + times;
             }
         }
     }
     closed(base);
     if (batch.plots == 1u) {
         atomicAdd(&notes[0], batch.steps);
-        atomicAdd(&notes[1], seen);
+        if (atomicAdd(&notes[1], seen) > 0xFFFFFFFFu - seen) {
+            atomicAdd(&notes[CARRY], 1u);
+        }
     }
 }
 
-// Tells which particles are inside the next window.
+// Tells which particles are inside the next window, and in a picture with tiles the tile of each.
 @compute @workgroup_size(64)
 fn mark(@builtin(global_invocation_id) id: vec3<u32>) {
     let index = id.x;
@@ -265,6 +300,9 @@ fn mark(@builtin(global_invocation_id) id: vec3<u32>) {
     if (inside(at, batch.next)) {
         stays = 1u;
     }
-    atomicStore(&notes[HEAD + index], stays);
     atomicAdd(&notes[2], stays);
+    if (batch.tiles != 0u) {
+        stays = tile(at);
+    }
+    atomicStore(&notes[HEAD + index], stays);
 }
