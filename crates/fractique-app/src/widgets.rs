@@ -522,32 +522,85 @@ pub fn pill(ui: &mut Ui, text: &str, primary: bool, min_width: f32) -> bool {
     response.clicked()
 }
 
-pub fn toggle(ui: &mut Ui, label: &str, on: &mut bool) -> bool {
+// A switch with a warning sign after its label: whether the switch was turned, and whether the sign was pressed.
+pub fn toggle_warned(ui: &mut Ui, label: &str, on: &mut bool) -> (bool, bool) {
+    switch(ui, label, on, true)
+}
+
+const AMBER: Color32 = Color32::from_rgb(255, 196, 84);
+const SIGN: f32 = 26.0;
+
+fn switch(ui: &mut Ui, label: &str, on: &mut bool, warned: bool) -> (bool, bool) {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
-    if response.clicked() {
-        *on = !*on;
-    }
     let track = egui::Rect::from_center_size(egui::pos2(rect.right() - 19.0, rect.center().y), vec2(38.0, 22.0));
     let ink = white(if response.hovered() { 230 } else { 190 });
-    let galley = fitted(
-        ui,
-        label,
-        FontId::proportional(13.0),
-        ink,
-        track.left() - rect.left() - 10.0,
+    let room = track.left() - rect.left() - 10.0 - if warned { SIGN } else { 0.0 };
+    let galley = fitted(ui, label, FontId::proportional(13.0), ink, room);
+    let sign = egui::Rect::from_center_size(
+        egui::pos2(rect.left() + galley.size().x + SIGN * 0.5 + 2.0, rect.center().y),
+        vec2(SIGN, SIGN),
     );
+    let pressed = warned && ui.interact(sign, response.id.with("sign"), Sense::click()).clicked();
+    let flipped = response.clicked() && !pressed;
+    if flipped {
+        *on = !*on;
+    }
     let painter = ui.painter();
     painter.galley(
         egui::pos2(rect.left(), rect.center().y - galley.size().y * 0.5),
         galley,
         ink,
     );
+    if warned {
+        let (middle, half) = (sign.center(), 7.0);
+        let corners = vec![
+            egui::pos2(middle.x, middle.y - half),
+            egui::pos2(middle.x - half * 1.05, middle.y + half * 0.8),
+            egui::pos2(middle.x + half * 1.05, middle.y + half * 0.8),
+        ];
+        painter.add(egui::Shape::closed_line(corners, egui::Stroke::new(1.5, AMBER)));
+        painter.line_segment(
+            [
+                egui::pos2(middle.x, middle.y - 2.5),
+                egui::pos2(middle.x, middle.y + 1.5),
+            ],
+            egui::Stroke::new(1.5, AMBER),
+        );
+        painter.circle_filled(egui::pos2(middle.x, middle.y + 3.8), 0.9, AMBER);
+    }
     let turned = glided(ui, response.id.with("on"), *on);
     painter.rect_filled(track, CornerRadius::same(11), white(lift(45, 170.0, turned)));
     let at = egui::lerp(track.left() + 11.0..=track.right() - 11.0, turned);
     let knob = Color32::WHITE.lerp_to_gamma(Color32::from_rgb(14, 18, 34), turned);
     painter.circle_filled(egui::pos2(at, track.center().y), 8.0, knob);
-    response.clicked()
+    (flipped, pressed)
+}
+
+// A warning that opens under what it is about, and makes room for itself as it does.
+pub fn warning(ui: &mut Ui, id: egui::Id, text: &str, open: bool) {
+    let share = glided(ui, id, open);
+    if share <= 0.0 {
+        return;
+    }
+    let width = ui.available_width();
+    let galley = ui.painter().layout(
+        text.to_owned(),
+        FontId::proportional(12.0),
+        Color32::from_rgb(255, 226, 160),
+        width - 20.0,
+    );
+    let full = galley.size().y + 16.0;
+    let (rect, _) = ui.allocate_exact_size(vec2(width, (full + 4.0) * share), Sense::hover());
+    let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+    let card = egui::Rect::from_min_size(rect.min, vec2(width, full));
+    painter.rect(
+        card,
+        CornerRadius::same(10),
+        Color32::from_rgb(46, 40, 24).gamma_multiply(share),
+        egui::Stroke::new(1.0, Color32::from_rgb(120, 96, 40).gamma_multiply(share)),
+        egui::StrokeKind::Inside,
+    );
+    painter.galley(card.min + vec2(10.0, 8.0), galley, Color32::from_rgb(255, 226, 160));
 }
 
 pub fn text_field(ui: &mut Ui, label: &str, value: &mut String, limit: usize, valid: bool) -> egui::Response {

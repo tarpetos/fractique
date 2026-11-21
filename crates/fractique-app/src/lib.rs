@@ -1061,6 +1061,7 @@ struct App {
     touched: Instant,
     gpu: bool,
     gpu_chosen: bool,
+    gpu_warned: bool,
     preview: Option<Preview>,
     card: String,
     card_key: String,
@@ -1743,6 +1744,7 @@ impl App {
             touched: Instant::now(),
             gpu,
             gpu_chosen,
+            gpu_warned: false,
             preview,
             card,
             card_key,
@@ -5372,16 +5374,13 @@ impl App {
 
         if self.card_used() {
             widgets::section(ui, &self.t("graphics"));
-            if widgets::toggle(ui, &self.t("gpu"), &mut self.gpu) {
+            let (turned, pressed) = widgets::toggle_warned(ui, &self.t("gpu"), &mut self.gpu);
+            if turned {
                 self.gpu_chosen = true;
                 self.gpu_turned();
             }
-            ui.add_space(4.0);
-            ui.label(
-                egui::RichText::new(self.t("gpu_weak"))
-                    .size(12.0)
-                    .color(egui::Color32::from_white_alpha(150)),
-            );
+            self.gpu_warned ^= pressed;
+            widgets::warning(ui, ui.scope_id().with("gpu weak"), &self.t("gpu_weak"), self.gpu_warned);
             if self.gpu {
                 ui.add_space(4.0);
                 let card = egui::RichText::new(&self.card)

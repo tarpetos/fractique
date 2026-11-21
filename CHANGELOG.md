@@ -56,8 +56,11 @@
   keeps its pace, a phone lost most of the card's speed: the way to the chip and back takes 1 to 5 ms there, a
   quarter of a millisecond on a computer's card, so the units were nearly all way. An Adreno 740 took 1.3 s for
   the trial's picture, which its processor renders in 0.5 s, and the app left the card out. Where that way is
-  long, a unit is now thirty times as long as it, two frames at the most. A verdict against a card kept by an
-  earlier version is measured again.
+  long, a unit is now thirty times as long as it, two frames at the most, while the window is used; while it is
+  not, a hundred times, a tenth of a second at the most, and the units follow one another without a pause: a
+  phone's chip slows its clock in pauses. Measured on that phone: the trial's picture in 0.34 s in units with
+  pauses, 0.17 s without, against 0.52 s on its processor, so 3.1 times as fast instead of 1.5. A verdict against
+  a card kept by an earlier version is measured again.
 
 * **A phone on OpenGL no longer closes ten seconds after a first start:** on a phone older than Android 11, and
   on any card reached through OpenGL, the app tried the chaos game on the graphics card when it first rested.

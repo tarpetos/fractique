@@ -71,6 +71,7 @@ const DEEP_UNIT: f32 = 0.003;
 // A way to the card and back longer than this is costly: units are then sized by it, `FAR` times as long.
 const COSTLY: f32 = 0.0006;
 const FAR: f32 = 30.0;
+const LONG: f32 = 100.0;
 // Milliseconds without a word of the card after which a picture on its way counts as stalled: ten times the
 // longest a batch of a bounded scene may take.
 const SILENT: u32 = 10 * LONGEST;
@@ -468,13 +469,22 @@ fn following(sent: u32, fused: u32, took: f32, slice: f32) -> u32 {
 // The seconds a unit is sized for, on a card whose quickest unit of the run came back after `back` seconds. Where
 // the way to the card and back is short, the usual unit. On a phone's chip it is not (an Adreno 740: 1.1 ms for a
 // unit of no steps, 4 ms for one that plots), and units of the usual size were nearly all way: the card took
-// 1.3 s for what its processor renders in 0.5 s. There a unit is `FAR` times the way, two frames at the most.
-fn unit_for(unit: f32, back: f32) -> f32 {
-    if back.is_finite() && back > COSTLY {
+// 1.3 s for what its processor renders in 0.5 s. There a unit is `FAR` times the way, two frames at the most,
+// while the window is used; while it is not, `LONG` times, a tenth of a second at the most, one unit from the end
+// of the other whatever the frame's slice: such a chip plots 94 million steps a second in units with pauses and
+// 148 million in long ones without, 3.1 times its processor instead of 1.5.
+fn unit_for(unit: f32, back: f32, attended: bool) -> f32 {
+    if !costly(back) {
+        unit
+    } else if attended {
         (FAR * back).clamp(unit, 2.0 * pace::FRAME)
     } else {
-        unit
+        (LONG * back).clamp(unit, 0.1)
     }
+}
+
+fn costly(back: f32) -> bool {
+    back.is_finite() && back > COSTLY
 }
 
 // What a run needs of the card, for the frame and for the thread that hears of a finished unit alike.
@@ -1695,7 +1705,7 @@ impl Parts {
                 }
                 run.spent += took;
                 run.back = run.back.min(took);
-                let unit = unit_for(unit, run.back);
+                let unit = unit_for(unit, run.back, pace::attended());
                 run.took.push((took, run.working));
                 let past = at.duration_since(run.opened).as_secs_f32() - run.allowed;
                 run.overrun = run.overrun.max(past);
@@ -1724,8 +1734,10 @@ impl Parts {
         if run.full.is_some() {
             return Step::Waiting;
         }
-        // A unit begins only inside the frame's slice: the next frame opens another.
-        if !pace::within(run.opened.elapsed().as_secs_f32(), pace::slice().min(run.allowed)) {
+        // A unit begins only inside the frame's slice: the next frame opens another. A card with a long way to
+        // it works without a pause while the window is not used.
+        let free = costly(run.back) && !pace::attended();
+        if !free && !pace::within(run.opened.elapsed().as_secs_f32(), pace::slice().min(run.allowed)) {
             return Step::Waiting;
         }
         // wgpu refuses to configure the window's surface while another thread submits: the next frame goes on.
@@ -2464,9 +2476,12 @@ pub(crate) mod tests {
         assert_eq!(following(1, 0, 9.0 * slice, slice), 1);
         // A card of its own: the usual unit. A phone's chip, 1.1 ms there and back for a unit of no steps, 4 ms
         // for one that plots, 14 ns a step of all its walkers: the units grow until most of one is work.
-        assert_eq!(unit_for(UNIT, 0.25e-3), UNIT);
-        assert_eq!(unit_for(UNIT, f32::INFINITY), UNIT);
-        let unit = unit_for(UNIT, 1.1e-3);
+        for attended in [false, true] {
+            assert_eq!(unit_for(UNIT, 0.25e-3, attended), UNIT);
+            assert_eq!(unit_for(UNIT, f32::INFINITY, attended), UNIT);
+        }
+        assert_eq!(unit_for(UNIT, 1.1e-3, false), 0.1);
+        let unit = unit_for(UNIT, 1.1e-3, true);
         assert!((0.03..=2.0 * pace::FRAME).contains(&unit), "{unit} s");
         let seconds = |steps: u32| 4.0e-3 + steps as f32 * 57_600.0 * 1.4e-8;
         let mut steps = 1;

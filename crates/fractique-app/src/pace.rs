@@ -23,6 +23,10 @@ pub fn attend(used: bool) {
     ATTENDED.store(used, Ordering::Relaxed);
 }
 
+pub fn attended() -> bool {
+    ATTENDED.load(Ordering::Relaxed)
+}
+
 // What the card needs for the window's own frame, in microseconds: the most of late, which fades when nothing
 // comes near it again. Nothing until a frame has told.
 static NEED: AtomicU32 = AtomicU32::new(0);
