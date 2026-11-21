@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 GALLERY = ROOT / "docs" / "gallery"
 SIZE = "960x540"
 QUALITY = "high"
-WEBP_QUALITIES = (84, 78, 72, 66)
+WEBP_QUALITIES = (84, 78, 72, 66, 60, 54, 48)
 LARGEST = 110_000
 COLUMNS = 4
 

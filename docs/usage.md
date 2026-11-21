@@ -501,7 +501,7 @@ fractique convert document.json -o mine.frcq              # a document, packed a
 Without `-o` the JSON is printed. A scene packed this way opens in the app as a plain scene: whole view, neutral
 tone. A `.frcq` file is about a seventh of the same scene as JSON.
 
-Files to try are in `docs/gallery/`, each beside its picture: a hundred flames, twelve fractals and twelve
+Files to try are in `docs/gallery/`, each beside its picture: a hundred flames, a hundred fractals and a hundred
 wallpapers ([gallery/README.md](gallery/README.md)).
 
 ## 12. Troubleshooting
@@ -564,11 +564,11 @@ The files were then made smaller without changing a pixel (`optipng -o2`).
 
 ## 14. The gallery
 
-[gallery/README.md](gallery/README.md) shows one hundred flames, twelve fractals of other kinds and twelve
+[gallery/README.md](gallery/README.md) shows one hundred flames, one hundred fractals of other kinds and one hundred
 wallpapers, in three folders: `docs/gallery/flames/`, `docs/gallery/fractals/` and `docs/gallery/wallpapers/`. Each
 picture is two files side by side: a `.frcq` file, the document the app opens and the commands render, and a
-`.webp` file of the same name, a small picture of it. Flames are `NNN-name`, fractals `FNN-name`, wallpapers
-`WNN-name`. Every folder has a `README.md` with its pictures, which GitHub shows when the folder is opened, and
+`.webp` file of the same name, a small picture of it. Flames are `NNN-name`, fractals `FNNN-name`, wallpapers
+`WNNN-name`. Every folder has a `README.md` with its pictures, which GitHub shows when the folder is opened, and
 `docs/gallery/README.md` is the front page with the first four of each. The `.frcq` files are the source; the
 pictures and the four pages are made from them:
 
@@ -578,7 +578,7 @@ uv run --no-project --with pillow python tools/gallery/make_gallery.py
 ```
 
 The script renders every file at 960x540 and `--quality high`, saves the picture as WebP (quality 84, or the next of
-78, 72 and 66 that brings a picture under 110 KB) and writes the four pages anew, with the names taken from the
+78, 72, 66, 60, 54 and 48 that brings a picture under 110 KB) and writes the four pages anew, with the names taken from the
 files. `make_gallery.py 007 012 F W` draws only the files whose names start so, `--page-only` writes the pages
 alone, and `--fractique PATH` names another build of the command line tool. Run it after a change that alters
 what scenes render to, so the pictures stay those of the files.
