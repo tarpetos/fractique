@@ -42,7 +42,22 @@
   follows a choice, **Randomize**, **Mutate**, a preset and a move of the layer at once, so a scene of several
   colors shows which layer has which.
 
+### Changed
+
+* **The switch of GPU acceleration is on every device whose card is able:** the **Graphics** section was there
+  only where a trial at the first start showed the card clearly faster than the processor, so a phone whose
+  trial went wrong had no switch at all. It is now there wherever the card can do the work, with a line that a
+  weak chip can be slower with it than without. The trial only decides how the switch stands at first; a switch
+  you have set stays as you set it.
+
 ### Fixed
+
+* **A phone's graphics chip is fast again:** since the card's work is cut into units of 1.5 ms so the window
+  keeps its pace, a phone lost most of the card's speed: the way to the chip and back takes 1 to 5 ms there, a
+  quarter of a millisecond on a computer's card, so the units were nearly all way. An Adreno 740 took 1.3 s for
+  the trial's picture, which its processor renders in 0.5 s, and the app left the card out. Where that way is
+  long, a unit is now thirty times as long as it, two frames at the most. A verdict against a card kept by an
+  earlier version is measured again.
 
 * **A phone on OpenGL no longer closes ten seconds after a first start:** on a phone older than Android 11, and
   on any card reached through OpenGL, the app tried the chaos game on the graphics card when it first rested.
