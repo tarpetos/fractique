@@ -271,7 +271,7 @@ pub fn close_at(ui: &mut Ui, center: egui::Pos2, hint: &str) -> bool {
     response.on_hover_text(hint).clicked()
 }
 
-pub fn round(ui: &mut Ui, kind: &str, enabled: bool) -> bool {
+fn round(ui: &mut Ui, kind: &str, enabled: bool) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
     let fill = lift(26, if enabled { 24.0 } else { 0.0 }, lit(ui, &response));
     ui.painter().circle_filled(rect.center(), 14.0, white(fill));
@@ -298,7 +298,69 @@ pub fn round(ui: &mut Ui, kind: &str, enabled: bool) -> bool {
             line(vec2(r, -2.5), vec2(0.0, 2.5));
         }
     }
-    enabled && response.clicked()
+    response
+}
+
+pub const DOT: f32 = 16.0;
+const DOT_GAP: f32 = 8.0;
+const ROW_EDGE: f32 = 12.0;
+// A name with less room than this, an ellipsis and a letter, is left out: it would lie over the buttons.
+const NAME_LEAST: f32 = 24.0;
+
+pub type Dot<'a> = &'a dyn Fn(&egui::Painter, egui::Pos2, f32);
+
+// Along a row of the layers, from its left edge: the middle of the dot, where the name starts and its room.
+pub fn dotted(width: f32) -> (f32, f32, f32) {
+    let start = ROW_EDGE + DOT + DOT_GAP;
+    (ROW_EDGE + DOT * 0.5, start, (width - start - ROW_EDGE).max(0.0))
+}
+
+pub fn dot_row(ui: &mut Ui, text: &str, dot: Dot) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+    let (middle, start, room) = dotted(rect.width());
+    row_text(ui, rect, &response, text, false, start, room);
+    dot(ui.painter(), rect.left_center() + vec2(middle, 0.0), DOT * 0.5);
+    response.clicked()
+}
+
+pub struct Head {
+    pub act: Option<&'static str>,
+    pub dot: egui::Rect,
+    pub name: egui::Rect,
+    pub buttons: [egui::Rect; 3],
+}
+
+// The chosen layer's first line: the dot and the name from the left, the buttons from the right.
+pub fn layer_head(ui: &mut Ui, text: &str, enabled: [bool; 3], dot: Dot) -> Head {
+    let mut head = Head {
+        act: None,
+        dot: egui::Rect::NOTHING,
+        name: egui::Rect::NOTHING,
+        buttons: [egui::Rect::NOTHING; 3],
+    };
+    ui.horizontal(|ui| {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            for (at, kind) in ["remove", "down", "up"].into_iter().enumerate() {
+                let response = round(ui, kind, enabled[at]);
+                if enabled[at] && response.clicked() {
+                    head.act = Some(kind);
+                }
+                head.buttons[at] = response.rect;
+            }
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = DOT_GAP;
+                let (rect, _) = ui.allocate_exact_size(vec2(DOT, DOT), Sense::hover());
+                dot(ui.painter(), rect.center(), DOT * 0.5);
+                head.dot = rect;
+                let name = egui::RichText::new(text).font(font(14.0, MEDIUM)).color(Color32::WHITE);
+                if ui.available_width() >= NAME_LEAST {
+                    head.name = ui.add(egui::Label::new(name).truncate()).rect;
+                }
+            });
+        });
+    });
+    head
 }
 
 pub fn dropdown(ui: &mut Ui, text: &str) -> bool {
@@ -668,6 +730,70 @@ mod tests {
         assert_eq!(at.y, content.top() + 18.0);
         assert_eq!(pane.right() - at.x - CLOSE * 0.5, PAD);
         assert!(inside(pane, 30.0, at));
+    }
+
+    #[test]
+    fn a_layer_s_dot_its_name_and_its_buttons_never_overlap() {
+        for width in [120.0, 180.0, 204.0, 224.0, 236.0] {
+            let (middle, start, room) = dotted(width);
+            assert!(middle - DOT * 0.5 >= ROW_EDGE && middle + DOT * 0.5 + DOT_GAP <= start);
+            assert!(start + room <= width - ROW_EDGE, "{width}");
+        }
+        let names = || {
+            let flames = fractique_core::presets::names().into_iter().map(str::to_owned);
+            flames.chain(fractique_core::fractal::preset_names())
+        };
+        for lang in Lang::ALL {
+            let texts = crate::i18n::Texts::new(lang);
+            let longest = names()
+                .map(|name| crate::displayed(&texts, &name))
+                .max_by_key(|name| name.chars().count())
+                .expect("there are presets");
+            let ctx = egui::Context::default();
+            install_fonts(&ctx, lang);
+            for width in [120.0, 150.0, 180.0, 204.0] {
+                for name in [longest.as_str(), "x"] {
+                    let mut head = None;
+                    for _ in 0..2 {
+                        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+                            ui.scope_builder(
+                                egui::UiBuilder::new()
+                                    .max_rect(egui::Rect::from_min_size(egui::pos2(10.0, 10.0), vec2(width, 40.0))),
+                                |ui| {
+                                    ui.set_width(width);
+                                    let shown = layer_head(ui, name, [true; 3], &|_, _, _| ());
+                                    head = Some((shown, ui.min_rect()));
+                                },
+                            );
+                        });
+                    }
+                    let (head, row) = head.expect("the row was laid out");
+                    let mut parts = vec![head.dot, head.name];
+                    parts.extend(head.buttons);
+                    for (at, one) in parts.iter().enumerate() {
+                        let named = at != 1 || width >= 150.0;
+                        assert!(one.width() > 0.0 || !named, "{} {width} {name}: {parts:?}", lang.code());
+                        if one.width() <= 0.0 {
+                            continue;
+                        }
+                        assert!(
+                            row.expand(0.5).contains_rect(*one) && row.width() <= width + 0.5,
+                            "{} {width} {name}: {one:?} in {row:?}",
+                            lang.code()
+                        );
+                        for other in &parts[at + 1..] {
+                            assert!(
+                                !one.shrink(0.5).intersects(other.shrink(0.5)),
+                                "{} {width} {name}: {one:?} over {other:?}",
+                                lang.code()
+                            );
+                        }
+                    }
+                    assert!(head.name.width() <= 0.0 || head.name.left() - head.dot.right() >= DOT_GAP - 0.5);
+                    assert_eq!(head.dot.size(), vec2(DOT, DOT));
+                }
+            }
+        }
     }
 
     #[test]
