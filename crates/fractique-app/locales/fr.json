@@ -126,6 +126,7 @@
   "color": "COULEUR",
   "graphics": "GRAPHISMES",
   "gpu_note": "Avec l’accélération, l’image et l’export Instantané peuvent varier légèrement d’un appareil à l’autre. Les exports Standard et supérieurs sont toujours exacts.",
+  "gpu_weak": "Sur une puce graphique faible, cela peut être plus lent que sans.",
   "gpu": "Accélération GPU",
   "pro_title": "Fractique Pro",
   "pro_about": "Exportez des images en 2560 × 1440 et plus, ou dans la taille de votre choix. Un seul achat, pour toujours. Tout le reste est gratuit.",

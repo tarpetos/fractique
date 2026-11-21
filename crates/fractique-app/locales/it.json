@@ -126,6 +126,7 @@
   "color": "COLORE",
   "graphics": "GRAFICA",
   "gpu_note": "Con l’accelerazione l’immagine e l’esportazione Istantanea possono apparire leggermente diverse da un dispositivo all’altro. Le esportazioni Standard e superiori sono sempre esatte.",
+  "gpu_weak": "Su un chip grafico debole può essere più lento che senza.",
   "gpu": "Accelerazione GPU",
   "pro_title": "Fractique Pro",
   "pro_about": "Esporta immagini da 2560 × 1440 in su e in qualsiasi dimensione personalizzata. Paghi una volta ed è tuo per sempre. Tutto il resto è gratis.",

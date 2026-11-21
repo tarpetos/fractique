@@ -126,6 +126,7 @@
   "color": "COLOR",
   "graphics": "GRAPHICS",
   "gpu_note": "With acceleration on, the picture and an Instant export can look slightly different from device to device. Standard and higher exports are always exact.",
+  "gpu_weak": "On a weak graphics chip this can be slower than without it.",
   "gpu": "GPU acceleration",
   "pro_title": "Fractique Pro",
   "pro_about": "Export pictures at 2560 × 1440 and larger, and at any custom size. You pay once and it is yours for good. Everything else stays free.",

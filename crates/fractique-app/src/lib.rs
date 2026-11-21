@@ -1060,6 +1060,7 @@ struct App {
     too_long: Option<(View, f64)>,
     touched: Instant,
     gpu: bool,
+    gpu_chosen: bool,
     preview: Option<Preview>,
     card: String,
     card_key: String,
@@ -1537,8 +1538,9 @@ fn lightness(rgba: &[u8], step: usize) -> f32 {
 }
 
 // The verdict kept for a graphics card, if it is this card's and this version's.
-// Not "slow": that was kept by trials that asked a card to be twice as fast on a smaller picture.
-const SLOW: &str = "slow2";
+// Not "slow": that was kept by trials that asked a card to be twice as fast on a smaller picture. Not "slow2":
+// that was kept by trials whose units were nearly all the way to a phone's chip and back.
+const SLOW: &str = "slow3";
 
 fn verdict_of(text: &str, card: &str) -> Verdict {
     match text.strip_prefix(card).and_then(|rest| rest.strip_prefix('|')) {
@@ -1647,7 +1649,7 @@ impl App {
         // not asked (fast) or one that is asked anew (measure).
         let forced = std::env::var("FRACTIQUE_GPU").ok();
         let able = cfg!(not(target_arch = "wasm32")) && forced.as_deref() != Some("none");
-        let mut preview = cc
+        let preview = cc
             .wgpu_render_state
             .as_ref()
             .filter(|state| able && Chaos::able(&state.adapter, &state.device))
@@ -1683,12 +1685,11 @@ impl App {
         } else {
             verdict
         };
-        if verdict == Verdict::Slow {
-            preview = None;
-        }
+        let gpu_chosen = forced.is_some() || stored("gpu_by").is_some();
         let gpu = match forced.as_deref() {
             Some(choice) => choice != "off",
-            None => stored("gpu").is_none_or(|choice| choice != "off"),
+            None if gpu_chosen => stored("gpu").is_none_or(|choice| choice != "off"),
+            None => verdict != Verdict::Slow,
         };
         let restore = screenshot.is_none() || std::env::var_os("FRACTIQUE_RESTORE").is_some();
         let session = if restore { stored("session") } else { None };
@@ -1741,6 +1742,7 @@ impl App {
             },
             touched: Instant::now(),
             gpu,
+            gpu_chosen,
             preview,
             card,
             card_key,
@@ -2139,7 +2141,7 @@ impl App {
     }
 
     fn card_used(&self) -> bool {
-        matches!(self.verdict, Verdict::Fast(_)) && self.preview.as_ref().is_some_and(Preview::works)
+        self.preview.as_ref().is_some_and(Preview::works)
     }
 
     fn gpu_on(&self) -> bool {
@@ -2850,7 +2852,12 @@ impl App {
             );
         }
         if self.verdict == Verdict::Slow {
-            (self.preview, self.chaos, self.held) = (None, None, None);
+            if seconds.is_none() && !self.measured_slow {
+                (self.preview, self.chaos, self.held) = (None, None, None);
+            } else if !self.gpu_chosen && self.gpu {
+                self.gpu = false;
+                self.gpu_turned();
+            }
         }
     }
 
@@ -5366,8 +5373,15 @@ impl App {
         if self.card_used() {
             widgets::section(ui, &self.t("graphics"));
             if widgets::toggle(ui, &self.t("gpu"), &mut self.gpu) {
+                self.gpu_chosen = true;
                 self.gpu_turned();
             }
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(self.t("gpu_weak"))
+                    .size(12.0)
+                    .color(egui::Color32::from_white_alpha(150)),
+            );
             if self.gpu {
                 ui.add_space(4.0);
                 let card = egui::RichText::new(&self.card)
@@ -6438,6 +6452,7 @@ impl App {
         }
         if step == "gpu" {
             self.gpu = !self.gpu;
+            self.gpu_chosen = true;
             self.gpu_turned();
             self.shown_frames = 1;
             return;
@@ -6611,6 +6626,9 @@ impl eframe::App for App {
         storage.set_string("glass_blur", self.optics.blur.to_string());
         if std::env::var_os("FRACTIQUE_GPU").is_none() {
             storage.set_string("gpu", if self.gpu { "on" } else { "off" }.to_owned());
+            if self.gpu_chosen {
+                storage.set_string("gpu_by", "owner".to_owned());
+            }
             let verdict = match self.verdict {
                 Verdict::Fast(Some(rate)) => Some(format!("fast|{rate}")),
                 Verdict::Slow if !self.card_key.is_empty() && self.measured_slow => Some(SLOW.to_owned()),
@@ -8229,7 +8247,8 @@ mod tests {
     fn a_verdict_is_kept_for_its_card_and_version() {
         let card = "Adreno 610|V@0502.0|0.1.0";
         assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow", card), Verdict::Unknown);
-        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow2", card), Verdict::Slow);
+        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow2", card), Verdict::Unknown);
+        assert_eq!(verdict_of("Adreno 610|V@0502.0|0.1.0|slow3", card), Verdict::Slow);
         assert_eq!(
             verdict_of("Adreno 610|V@0502.0|0.1.0|fast|1500000.5", card),
             Verdict::Fast(Some(1_500_000.5))
