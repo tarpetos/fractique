@@ -1645,7 +1645,9 @@ impl Parts {
                 let slow = least < 1.0
                     && run.limit.is_some_and(|limit| {
                         let left = if least <= 0.0 { 1.0 } else { 1.0 / least };
-                        // The card works a share of the time only: that is how long the picture takes.
+                        // The card works a share of the time only: that is how long the picture takes. Half a frame,
+                        // not the slice of the moment: a fade or a held button cuts that to an eighth of a frame,
+                        // and a GTX 1650 then gave up a picture it kept.
                         worked * left > limit * cost * pace::SHARE
                     });
                 let idle = least <= 0.0 && worked >= IDLE;

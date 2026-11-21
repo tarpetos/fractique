@@ -19,7 +19,7 @@ pub(super) static SPEC: Spec = Spec {
     name: NAME,
     family: Family::Escape,
     params: &[
-        Param::whole("form", 1.0, 0.0, 1.0),
+        Param::whole("form", 1.0, 0.0, 1.0).nearest(),
         Param::real("real", 0.566_67, -2.0, 2.0),
         Param::real("imaginary", 0.0, -2.0, 2.0),
         Param::real("feedback", -0.5, -1.5, 1.5),

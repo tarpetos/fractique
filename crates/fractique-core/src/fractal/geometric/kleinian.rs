@@ -15,7 +15,7 @@ const MOST_SEGMENTS: usize = 2_000_000;
 // A piece outside the view is cut until it is this many times smaller than its distance to the view.
 const REACH: f64 = 6.0;
 
-const RECIPE: Param = Param::whole("recipe", 0.0, 0.0, 1.0);
+const RECIPE: Param = Param::whole("recipe", 0.0, 0.0, 1.0).nearest();
 const TA_REAL: Param = Param::real("ta_real", 1.91, 1.5, 3.0);
 const TA_IMAGINARY: Param = Param::real("ta_imaginary", -0.05, -1.0, 1.0);
 const TB_REAL: Param = Param::real("tb_real", 1.91, 1.5, 3.0);

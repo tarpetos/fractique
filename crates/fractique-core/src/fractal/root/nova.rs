@@ -20,7 +20,7 @@ pub(super) static SPEC: Spec = Spec {
     name: NAME,
     family: Family::Root,
     params: &[
-        Param::whole("form", 0.0, 0.0, 1.0),
+        Param::whole("form", 0.0, 0.0, 1.0).nearest(),
         Param::whole("degree", 3.0, 2.0, 8.0),
         RELAXATION,
         Param::real("real", 0.3, -2.0, 2.0),

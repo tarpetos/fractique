@@ -15,7 +15,7 @@ pub(super) static SPEC: Spec = Spec {
     params: &[
         Param::whole("iterations", 1000.0, 20.0, 100_000.0).log(),
         Param::whole("shortest", 10.0, 1.0, 10_000.0).log(),
-        Param::whole("anti", 0.0, 0.0, 1.0),
+        Param::whole("anti", 0.0, 0.0, 1.0).nearest(),
         Param::real("turn", 0.0, -180.0, 180.0),
         Param::real("tilt", 0.0, -180.0, 180.0),
         Param::whole("colored_by", 0.0, 0.0, 2.0),

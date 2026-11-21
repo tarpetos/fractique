@@ -62,6 +62,7 @@ pub struct Param {
     pub min: f64,
     pub max: f64,
     pub whole: bool,
+    pub nearest: bool,
     pub log: bool,
 }
 
@@ -73,6 +74,7 @@ impl Param {
             min,
             max,
             whole: false,
+            nearest: false,
             log: false,
         }
     }
@@ -84,8 +86,25 @@ impl Param {
         }
     }
 
+    pub const fn nearest(self) -> Self {
+        Self { nearest: true, ..self }
+    }
+
     pub const fn log(self) -> Self {
         Self { log: true, ..self }
+    }
+
+    // A whole value as the kinds read one that is not: cut, or the nearer where they compare it with a half.
+    pub fn settled(&self, value: f64) -> f64 {
+        if !self.whole || !(self.min..=self.max).contains(&value) {
+            return value;
+        }
+        let cut = value.trunc();
+        if self.nearest && value - cut >= 0.5 {
+            cut + 1.0
+        } else {
+            cut
+        }
     }
 }
 
@@ -401,12 +420,50 @@ mod tests {
         Scene::from_json(bare).unwrap();
         for wrong in [
             bare.replace("mandelbrot", "nothing"),
+            bare.replace(r#""kind""#, r#""params": {"iterations": 15.5}, "kind""#),
+            bare.replace(r#""kind""#, r#""params": {"iterations": 100000.5}, "kind""#),
             bare.replace(r#""kind""#, r#""params": {"speed": 1}, "kind""#),
             bare.replace(r#""kind""#, r#""params": {"iterations": 0}, "kind""#),
             bare.replace(r#"{"fractal""#, r#"{"flame": null, "extra": 1, "fractal""#),
             bare.replace(r#"{"fractal": {"#, r#"{"other": {"#),
         ] {
             assert!(Scene::from_json(&wrong).is_err(), "{wrong}");
+        }
+    }
+
+    #[test]
+    fn a_fraction_in_a_whole_parameter_is_dropped_as_the_kind_reads_it() {
+        let small = crate::RenderOptions {
+            width: 96,
+            height: 54,
+            samples_per_pixel: 8,
+            supersample: 1,
+        };
+        let hash = |scene: &Scene| {
+            crate::render(scene, &small, &crate::Control::default())
+                .expect("the scene renders")
+                .hash()
+        };
+        for spec in all() {
+            for param in spec.params.iter().filter(|param| param.whole) {
+                for part in [0.25, 0.5, 0.75] {
+                    let mut written = spec.preset(&spec.presets[0]);
+                    let fractal = written.layers[0].fractal_mut().unwrap();
+                    // The steps of a magnified view and the start of a nova's map took the fraction in.
+                    fractal.camera.zoom = fractal.camera.zoom.min(1.0);
+                    if spec.name == "nova" {
+                        fractal.params.insert("form".to_owned(), 1.0);
+                    }
+                    let held = fractal.params.get(param.name).copied().unwrap_or(param.default);
+                    let value = held.min(param.max - 1.0) + part;
+                    fractal.params.insert(param.name.to_owned(), value);
+                    let loaded = Scene::from_json(&written.to_json()).unwrap();
+                    let whole = loaded.layers[0].fractal().unwrap().params[param.name];
+                    assert_eq!(whole, if param.nearest { value.round() } else { value.floor() });
+                    assert_eq!(Scene::from_json(&loaded.to_json()).unwrap(), loaded);
+                    assert_eq!(hash(&loaded), hash(&written), "{} {} {value}", spec.name, param.name);
+                }
+            }
         }
     }
 }
