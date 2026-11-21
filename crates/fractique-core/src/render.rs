@@ -162,10 +162,10 @@ impl Histogram {
 
     // Integer sums do not depend on the order the threads add in: that is what keeps a parallel render exact.
     #[inline]
-    fn add(&self, cell: usize, rgb: [u8; 3]) {
-        self.counts[cell].fetch_add(1, Ordering::Relaxed);
+    fn add(&self, cell: usize, rgb: [u8; 3], times: u32) {
+        self.counts[cell].fetch_add(times, Ordering::Relaxed);
         for (ch, value) in rgb.into_iter().enumerate() {
-            self.colors[cell * 3 + ch].fetch_add(u64::from(value), Ordering::Relaxed);
+            self.colors[cell * 3 + ch].fetch_add(u64::from(value) * u64::from(times), Ordering::Relaxed);
         }
     }
 
@@ -216,6 +216,7 @@ pub struct Density {
     supersample: u32,
     smoothing: f64,
     normalize: f64,
+    scale: f64,
     cells: Vec<f32>,
 }
 
@@ -236,6 +237,7 @@ impl Density {
             (self.width * self.supersample) as usize,
             self.supersample as usize,
             self.normalize,
+            self.scale,
         )
     }
 }
@@ -331,6 +333,7 @@ fn developed(density: &Density, tone: &crate::scene::Tone) -> Developed {
             tone,
             density.supersample as usize,
             density.normalize,
+            density.scale,
         ),
     }
 }
@@ -374,7 +377,12 @@ fn density(
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
 ) -> Result<Density, RenderError> {
-    let (histogram, normalize) = match &scene.layers[index].content {
+    let Gathered {
+        histogram,
+        normalize,
+        lift,
+        tiles,
+    } = match &scene.layers[index].content {
         Content::Flame(_) => gather(scene, index, options, cancel, report, false)?,
         Content::Fractal(fractal) => {
             let Some(orbit) = fractal::spec(&fractal.kind).and_then(|spec| spec.orbit(fractal)) else {
@@ -387,17 +395,35 @@ fn density(
         }
     };
     let smoothing = scene.layers[index].tone().smoothing;
+    let flipped = scene.layers[index].camera().flip_y;
+    let weighed = tiles
+        .as_ref()
+        .map(|tiles| move |x: usize, y: usize| tiles.of_cell(x, y, histogram.width, histogram.height, flipped));
+    let cells = match &weighed {
+        Some(weighed) => tone::estimate(&histogram, smoothing, Some(weighed)),
+        None => tone::estimate(&histogram, smoothing, None),
+    };
     Ok(Density {
         width: options.width,
         height: options.height,
         supersample: options.supersample,
         smoothing,
-        normalize,
-        cells: tone::estimate(&histogram, smoothing),
+        normalize: normalize * lift,
+        scale: tone::scale(lift),
+        cells,
     })
 }
 
-// The histogram of one layer and what turns its counts into densities. `plain` keeps to the plain chaos game.
+// The histogram of one layer and what turns its counts into densities: `lift` raises the faint end, `tiles` tell
+// how many times the hits of a cell were counted.
+struct Gathered {
+    histogram: Histogram,
+    normalize: f64,
+    lift: f64,
+    tiles: Option<deep::Tiles>,
+}
+
+// `plain` keeps to the plain chaos game.
 fn gather(
     scene: &Scene,
     index: usize,
@@ -405,7 +431,7 @@ fn gather(
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
     plain: bool,
-) -> Result<(Histogram, f64), RenderError> {
+) -> Result<Gathered, RenderError> {
     let (width, height) = (options.width as usize, options.height as usize);
     let supersample = options.supersample as usize;
     let per_layer = u64::from(options.samples_per_pixel) * width as u64 * height as u64;
@@ -419,7 +445,7 @@ fn gather(
     let compiled = Compiled::new(flame);
     let plotter = Plotter::new(&histogram, &flame.camera, palette::lut(&flame.palette));
     let (wide, high) = (plotter.wide, plotter.high);
-    let plot = |x: f64, y: f64, color: f64| plotter.plot(x, y, color);
+    let plot = |x: f64, y: f64, color: f64| plotter.plot(x, y, color, 1);
     let count_up = |count: u64| {
         let so_far = done.fetch_add(count, Ordering::Relaxed) + count;
         report(so_far as f64 / per_layer as f64);
@@ -466,8 +492,8 @@ fn gather(
                 while left > 0 && !cancelled() {
                     let count = left.min(CHUNK);
                     for _ in 0..count {
-                        let (x, y, color) = plan.point(&compiled, &mut chains, &mut tracer, &mut rng);
-                        plot(x, y, color);
+                        let ((x, y, color), times) = plan.point(&compiled, &mut chains, &mut tracer, &mut rng);
+                        plotter.plot(x, y, color, times);
                     }
                     left -= count;
                     count_up(count);
@@ -484,7 +510,13 @@ fn gather(
     if cancelled() {
         return Err(RenderError::Cancelled);
     }
-    Ok((histogram, normalize))
+    let (lift, tiles) = plan.map_or((1.0, None), |plan| (plan.lift, plan.tiles));
+    Ok(Gathered {
+        histogram,
+        normalize,
+        lift,
+        tiles,
+    })
 }
 
 struct Plotter<'a> {
@@ -518,14 +550,14 @@ impl<'a> Plotter<'a> {
     }
 
     #[inline]
-    fn plot(&self, x: f64, y: f64, color: f64) {
+    fn plot(&self, x: f64, y: f64, color: f64, times: u32) {
         let (dx, dy) = (x - self.center[0], y - self.center[1]);
         let px = self.wide * 0.5 + (dx * self.rot_cos + dy * self.rot_sin) * self.per_unit;
         let py = self.high * 0.5 - (dy * self.rot_cos - dx * self.rot_sin) * self.up;
         if px >= 0.0 && px < self.wide && py >= 0.0 && py < self.high {
             let shade = ((color * 255.0 + 0.5) as usize).min(255);
             self.histogram
-                .add(py as usize * self.histogram.width + px as usize, self.lut[shade]);
+                .add(py as usize * self.histogram.width + px as usize, self.lut[shade], times);
         }
     }
 }
@@ -538,7 +570,7 @@ fn gather_orbit(
     options: &RenderOptions,
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
-) -> Result<(Histogram, f64), RenderError> {
+) -> Result<Gathered, RenderError> {
     let (width, height) = (options.width as usize, options.height as usize);
     let supersample = options.supersample as usize;
     let per_layer = u64::from(options.samples_per_pixel) * width as u64 * height as u64;
@@ -554,7 +586,7 @@ fn gather_orbit(
         let mut left = per_layer / STREAMS + u64::from(stream < per_layer % STREAMS);
         while left > 0 && !cancelled() {
             let count = left.min(CHUNK);
-            walk.run(&mut rng, count, &mut |x, y, color| plotter.plot(x, y, color));
+            walk.run(&mut rng, count, &mut |x, y, color| plotter.plot(x, y, color, 1));
             left -= count;
             let so_far = done.fetch_add(count, Ordering::Relaxed) + count;
             report(so_far as f64 / per_layer as f64);
@@ -564,10 +596,12 @@ fn gather_orbit(
         return Err(RenderError::Cancelled);
     }
     let per_cell = f64::from(options.samples_per_pixel) / (supersample * supersample) as f64;
-    Ok((
+    Ok(Gathered {
         histogram,
-        fractal.camera.zoom * fractal.camera.zoom / per_cell * orbit.gain(),
-    ))
+        normalize: fractal.camera.zoom * fractal.camera.zoom / per_cell * orbit.gain(),
+        lift: 1.0,
+        tiles: None,
+    })
 }
 
 fn composed(scene: &Scene, layers: &[&Developed], options: &RenderOptions) -> Image {
@@ -650,7 +684,7 @@ mod tests {
                 samples_per_pixel: samples,
                 supersample: 1,
             };
-            let (histogram, _) = gather(&scene, 0, &options, None, &|_| {}, plain).unwrap();
+            let histogram = gather(&scene, 0, &options, None, &|_| {}, plain).unwrap().histogram;
             let block = 6;
             let mut sums = vec![0f64; (side as usize / block).pow(2)];
             for cell in 0..(side * side) as usize {
@@ -667,6 +701,35 @@ mod tests {
             landed < 0.125 * 60_000.0 * f64::from(side * side),
             "the view holds too much for a deep render"
         );
+        let off: f64 = plain.iter().zip(&deep).map(|(a, b)| (a - b).abs()).sum();
+        assert!(off < 0.05, "the deep view is {off} away from the plain one");
+    }
+
+    // A bright corner in a deep view takes few of the points and counts each many times: the picture is the same.
+    #[test]
+    fn a_deep_view_with_a_bright_corner_matches_the_plain_chaos_game() {
+        let mut scene = crate::presets::get("aurora-spiral").unwrap();
+        let camera = scene.layers[0].camera_mut();
+        (camera.center, camera.zoom) = ([10.95, -7.2], 0.384);
+        let (wide, high, block) = (64usize, 36usize, 4usize);
+        let counts = |samples: u32, plain: bool| {
+            let options = RenderOptions {
+                width: wide as u32,
+                height: high as u32,
+                samples_per_pixel: samples,
+                supersample: 1,
+            };
+            let gathered = gather(&scene, 0, &options, None, &|_| {}, plain).unwrap();
+            assert_eq!(gathered.tiles.is_some(), !plain, "the points are not spread");
+            let mut sums = vec![0f64; (wide / block) * (high / block)];
+            for cell in 0..wide * high {
+                let (x, y) = (cell % wide / block, cell / wide / block);
+                sums[y * (wide / block) + x] += f64::from(gathered.histogram.cell(cell).0);
+            }
+            let total: f64 = sums.iter().sum();
+            sums.into_iter().map(|sum| sum / total).collect::<Vec<_>>()
+        };
+        let (plain, deep) = (counts(60_000, true), counts(4_000, false));
         let off: f64 = plain.iter().zip(&deep).map(|(a, b)| (a - b).abs()).sum();
         assert!(off < 0.05, "the deep view is {off} away from the plain one");
     }

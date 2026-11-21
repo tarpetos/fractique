@@ -11,6 +11,25 @@
   the `.frcq` file, where the file had to be downloaded by hand. Now the picture is the download itself (the file's
   raw address, which a browser saves), and the name under it leads to the file in the repository.
 
+### Changed
+
+* **A magnified view shows its faint parts, and draws them clean (a breaking change for deep views):** a view that
+  holds less than an eighth of a flame (a deep zoom, or a view moved off the figure) kept the average brightness
+  it had where it began to hold that little, and the average is carried by whatever is brightest in the frame.
+  So a faint part beside a bright corner stayed dark until the corner left the view, and then lit up at once: a
+  flame of three layers, moved off the figure, was nearly black at 0.48× and 0.52× and showed its arcs at 0.57×.
+  And nearly all the points of such a view landed on the bright part, so what little showed of the faint one was
+  grain. Now the faint end of such a view is raised on top of the brightness it had: by nothing where the view
+  begins to hold less than an eighth, by more as less of the flame is in it, with full brightness left where it
+  was, so nothing burns and nothing that showed gets fainter. And the points are spread: a part of the view
+  that holds far more than the rest is visited less and each of its points counts more, which leaves the picture
+  what it was and gives the faint parts the points, at the same number of points and the same time. The arcs of
+  that flame show from about 0.42×, smooth at the standard quality. A view that holds an eighth of the flame or
+  more is drawn exactly as before, and so is every preset at its own framing. Deep views of flames are drawn
+  differently from this version on: the same scene and view give other pixels than before, the same on every
+  machine as ever. The golden hash of the one deep view in `tests/determinism.rs` is replaced for it; every
+  other golden hash is as it was.
+
 ### Added
 
 * **The AppImage runs the programs packed in it:** an AppImage starts one program, so the command line tool and

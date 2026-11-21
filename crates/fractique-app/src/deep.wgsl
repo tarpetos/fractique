@@ -9,7 +9,7 @@ struct Batch {
     far: u32,    // below this many are kept in a far move
     cap: u32,    // the steps a particle remembers
     plots: u32,
-    spare: u32,
+    tiles: u32,  // the tiles of the picture across, and down from bit 16; 0 where the points are not spread
     window: f32, // the picture's size in the window's
     next: f32,   // and in the window after it
     travel: f32, // what turns cells into the units a move is told in
@@ -29,9 +29,12 @@ const MEMORY: u32 = 128u;
 const STEP: u32 = 1u;
 const FINISH: u32 = 2u;
 const FAR_EVERY: u32 = 4u;
-// The notes: 0 the points plotted or found, 1 those of them in the view (of a pilot: in the next window), 2 the particles inside the next window, then for every number of
-// kept steps the moves tried, the moves accepted and how far they went, then a mark for every particle and
-// the particle each takes the place of.
+// The notes: 0 the points plotted or found, 1 those of them in the view (of a pilot: in the next window), 2 the
+// particles inside the next window, 3 how often note 1 passed 32 bits, then for every number of kept steps the
+// moves tried, the moves accepted and how far they went, then a mark for every particle (its place, where the
+// picture has tiles), the particle each takes the place of, and for every tile the power of two its points count.
+const CARRY: u32 = 3u;
+const PLACES: f32 = 16384.0;
 const TRIED: u32 = 4u;
 const ACCEPTED: u32 = 133u;
 const TRAVELLED: u32 = 262u;
@@ -74,6 +77,60 @@ fn inside(at: vec2<f32>, window: f32) -> bool {
     let half = flame.scale.zw * 0.5;
     let off = (at - half) * window;
     return abs(off.x) < half.x && abs(off.y) < half.y;
+}
+
+// A point's place in the picture, on a lattice of PLACES a side.
+fn place(at: vec2<f32>) -> vec2<u32> {
+    let part = max(at, vec2<f32>(0.0)) / vec2<f32>(flame.extent.xy);
+    return min(vec2<u32>(part * PLACES), vec2<u32>(u32(PLACES) - 1u));
+}
+
+fn tiled(column: f32, row: f32) -> f32 {
+    let grid = vec2<u32>(batch.tiles & 0xFFFFu, batch.tiles >> 16u);
+    let at = min(vec2<u32>(max(vec2<f32>(column, row), vec2<f32>(0.0))), grid - vec2<u32>(1u));
+    return f32(atomicLoad(&notes[HEAD + 2u * batch.walkers + at.y * grid.x + at.x]));
+}
+
+// fractique-core's shift_at: the tiles' shifts mixed between their middles, and place by place by a hash of the
+// place, so that no edge of a tile shows in the grain.
+fn shift(at: vec2<f32>) -> u32 {
+    if (batch.tiles == 0u) {
+        return 0u;
+    }
+    let grid = vec2<f32>(f32(batch.tiles & 0xFFFFu), f32(batch.tiles >> 16u));
+    let part = max(at, vec2<f32>(0.0)) / vec2<f32>(flame.extent.xy);
+    let among = part * grid - vec2<f32>(0.5);
+    let corner = floor(among);
+    let mix = among - corner;
+    let first = tiled(corner.x, corner.y);
+    let lower = first + (tiled(corner.x + 1.0, corner.y) - first) * mix.x;
+    let second = tiled(corner.x, corner.y + 1.0);
+    let upper = second + (tiled(corner.x + 1.0, corner.y + 1.0) - second) * mix.x;
+    let between = lower + (upper - lower) * mix.y;
+    let on = vec2<u32>(part * PLACES);
+    var hash = (on.x * 0x9E3779B1u) ^ (on.y * 0x85EBCA77u);
+    hash = (hash ^ (hash >> 15u)) * 0x2C1B3C6Du;
+    hash = (hash ^ (hash >> 12u)) * 0x297A2D39u;
+    hash = hash ^ (hash >> 15u);
+    // Added to the fraction alone: beside a whole shift of 8 or more a 32-bit sum would round up to the next.
+    let whole = floor(between);
+    return u32(whole) + u32(between - whole + f32(hash >> 8u) / 16777216.0);
+}
+
+// A move into a tile whose points count more is taken as many times less often.
+fn admitted(out: u32, to: u32) -> bool {
+    return to <= out || (mine() >> (32u - (to - out))) == 0u;
+}
+
+fn weighed(cell: u32, color: f32, times: u32) {
+    let shade = min(u32(color * 255.0 + 0.5), 255u);
+    let rgb = flame.palette[shade >> 2u][shade & 3u];
+    let before = atomicAdd(&cells[cell], times);
+    if (before < FULL) {
+        atomicAdd(&cells[cell + 1u], (rgb & 255u) * times);
+        atomicAdd(&cells[cell + 2u], ((rgb >> 8u) & 255u) * times);
+        atomicAdd(&cells[cell + 3u], ((rgb >> 16u) & 255u) * times);
+    }
 }
 
 // The point a particle would be at with the first `keep` of its seeds and the rest from its walker; w is 1 when
@@ -125,7 +182,7 @@ fn attempt(base: u32, keep: u32, told: bool) {
     if (told) {
         atomicAdd(&notes[TRIED + keep], 1u);
     }
-    if (to.w > 0.0) {
+    if (to.w > 0.0 && admitted(shift(point.xy), shift(to.xy))) {
         taken(base, keep, fresh);
         if (told) {
             let went = (abs(to.x - point.x) + abs(to.y - point.y)) * batch.travel;
@@ -239,20 +296,23 @@ fn sweep(@builtin(global_invocation_id) id: vec3<u32>) {
         if (batch.plots == 1u) {
             let x = min(u32(max(point.x, 0.0)), across - 1u);
             let y = min(u32(max(point.y, 0.0)), down - 1u);
-            plotted((y * flame.extent.x + x) * 4u, point.z);
+            let times = 1u << shift(point.xy);
+            weighed((y * flame.extent.x + x) * 4u, point.z, times);
             if (x >= rim.x && x < across - rim.x && y >= rim.y && y < down - rim.y) {
-                seen = seen + 1u;
+                seen = seen + times;
             }
         }
     }
     closed(base);
     if (batch.plots == 1u) {
         atomicAdd(&notes[0], batch.steps);
-        atomicAdd(&notes[1], seen);
+        if (atomicAdd(&notes[1], seen) > 0xFFFFFFFFu - seen) {
+            atomicAdd(&notes[CARRY], 1u);
+        }
     }
 }
 
-// Tells which particles are inside the next window.
+// Tells which particles are inside the next window, and in a picture with tiles the place of each.
 @compute @workgroup_size(64)
 fn mark(@builtin(global_invocation_id) id: vec3<u32>) {
     let index = id.x;
@@ -265,6 +325,10 @@ fn mark(@builtin(global_invocation_id) id: vec3<u32>) {
     if (inside(at, batch.next)) {
         stays = 1u;
     }
-    atomicStore(&notes[HEAD + index], stays);
     atomicAdd(&notes[2], stays);
+    if (batch.tiles != 0u) {
+        let on = place(at);
+        stays = on.x | (on.y << 14u);
+    }
+    atomicStore(&notes[HEAD + index], stays);
 }

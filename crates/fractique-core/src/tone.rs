@@ -3,7 +3,17 @@ use crate::render::Histogram;
 use crate::scene::Tone;
 
 // A cell with about 3000 times the average density reaches full brightness at brightness 1.
-const LOG_SCALE: f64 = 1.0 / 8.0;
+pub(crate) const LOG_SCALE: f64 = 1.0 / 8.0;
+// The density that reaches full brightness at brightness 1: e^8 - 1.
+const WHITE: f64 = 2979.957987041728;
+// A lift above 1 raises the faint end and leaves full brightness where it was.
+pub fn scale(lift: f64) -> f64 {
+    if lift > 1.0 {
+        1.0 / ln_1p(lift * WHITE)
+    } else {
+        LOG_SCALE
+    }
+}
 
 pub(crate) fn for_each_row(buffer: &mut [f32], row_len: usize, fill: impl Fn(usize, &mut [f32]) + Sync) {
     #[cfg(feature = "parallel")]
@@ -49,7 +59,12 @@ fn kernels(levels: usize) -> Vec<Kernel> {
         .collect()
 }
 
-pub(crate) fn estimate(histogram: &Histogram, smoothing: f64) -> Vec<f32> {
+// `weighed` tells how many times a cell's hits were counted each, as a power of two: its kernel goes by the hits.
+pub(crate) fn estimate(
+    histogram: &Histogram,
+    smoothing: f64,
+    weighed: Option<&(dyn Fn(usize, usize) -> u32 + Sync)>,
+) -> Vec<f32> {
     let (width, height) = (histogram.width, histogram.height);
     let spread = (SPREAD_SHARE * smoothing * width.min(height) as f64).min(MAX_SPREAD);
     let top = (spread * 2.0).round() as usize;
@@ -84,7 +99,11 @@ pub(crate) fn estimate(histogram: &Histogram, smoothing: f64) -> Vec<f32> {
     for_each_row(&mut levels, width, |y, row| {
         for (x, level) in row.iter_mut().enumerate() {
             let count = histogram.cell(y * width + x).0;
-            *level = if count == 0 { -1.0 } else { f32::from(level_of(count)) };
+            *level = match (count, weighed) {
+                (0, _) => -1.0,
+                (_, None) => f32::from(level_of(count)),
+                (_, Some(weighed)) => f32::from(level_of((count >> weighed(x, y)).max(1))),
+            };
         }
     });
 
@@ -125,7 +144,7 @@ fn offset(center: usize, at: usize, reach: usize) -> usize {
 }
 
 // The average color of every pixel and its brightness before `Tone` shapes it: what a preview starts from.
-pub(crate) fn levels(cells: &[f32], across: usize, supersample: usize, normalize: f64) -> Vec<f32> {
+pub(crate) fn levels(cells: &[f32], across: usize, supersample: usize, normalize: f64, scale: f64) -> Vec<f32> {
     let width = across / supersample;
     let height = cells.len() / 4 / across / supersample;
     let share = 1.0 / (supersample * supersample) as f64;
@@ -143,7 +162,7 @@ pub(crate) fn levels(cells: &[f32], across: usize, supersample: usize, normalize
                     for ch in 0..3 {
                         sum[ch] += f64::from(cells[cell + 1 + ch]);
                     }
-                    sum[3] += ln_1p(count * normalize) * LOG_SCALE;
+                    sum[3] += ln_1p(count * normalize) * scale;
                     sum[4] += count;
                 }
             }
@@ -158,7 +177,14 @@ pub(crate) fn levels(cells: &[f32], across: usize, supersample: usize, normalize
     out
 }
 
-pub(crate) fn develop(cells: &[f32], across: usize, tone: &Tone, supersample: usize, normalize: f64) -> Vec<f32> {
+pub(crate) fn develop(
+    cells: &[f32],
+    across: usize,
+    tone: &Tone,
+    supersample: usize,
+    normalize: f64,
+    scale: f64,
+) -> Vec<f32> {
     let width = across / supersample;
     let height = cells.len() / 4 / across / supersample;
     let inverse_gamma = 1.0 / tone.gamma;
@@ -175,7 +201,7 @@ pub(crate) fn develop(cells: &[f32], across: usize, tone: &Tone, supersample: us
                     if count <= 0.0 {
                         continue;
                     }
-                    let level = tone.brightness * ln_1p(count * normalize) * LOG_SCALE;
+                    let level = tone.brightness * ln_1p(count * normalize) * scale;
                     let capped = level.min(1.0);
                     let alpha = pow(capped, inverse_gamma);
                     let burn = ((level - 1.0).max(0.0) * tone.highlight).min(1.0);

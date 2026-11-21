@@ -128,6 +128,8 @@ struct Look {
     scale: [f32; 4],
     kernels: [[f32; 4]; KERNELS],
     widths: [[u32; 4]; 1024],
+    grid: [u32; 4],
+    shifts: [u32; deep::TILES],
 }
 
 fn xf(transform: &Transform, cumulative: f64, vars: &mut Vec<Var>) -> Option<Xf> {
@@ -261,6 +263,8 @@ fn look(tone: &Tone, [width, height]: [u32; 2], inner: [u32; 2], finer: u32) -> 
         scale: [0.0; 4],
         kernels,
         widths,
+        grid: [0; 4],
+        shifts: [0; deep::TILES],
     })
 }
 
@@ -470,7 +474,7 @@ struct Parts {
     #[cfg(not(target_arch = "wasm32"))]
     waiter: std::sync::mpsc::Sender<wgpu::SubmissionIndex>,
     #[cfg(test)]
-    plain: Option<f64>,
+    plain: Option<(f64, f64)>,
 }
 
 // What a layer is drawn from.
@@ -559,7 +563,7 @@ pub struct Chaos {
     // A test plays the plain chaos game for a view that holds little of the flame, to see what a deep view of it
     // should show, with the brightness of the deep view.
     #[cfg(test)]
-    plain: Option<f64>,
+    plain: Option<(f64, f64)>,
     recipes: Vec<(String, Option<Arc<Recipe>>)>,
     // The run is the frame's and the thread's that hears of a finished unit: what the frame reads of it without
     // asking is kept beside it.
@@ -1605,8 +1609,9 @@ impl Parts {
                         match plan.stage {
                             Stage::Pilot => plan.piloted(counts),
                             Stage::Window => plan.swept(counts),
+                            Stage::Spread => plan.spread(),
                             Stage::Plot => {
-                                layer.landed = u64::from(counts[1]);
+                                layer.landed = deep::Plan::landed(counts);
                             }
                         }
                     } else if layer.orbit {
@@ -1750,7 +1755,7 @@ impl Parts {
                     let slots = buffer("fractique particles", u64::from(count) * deep::SLOT * 4, storage);
                     let notes = buffer(
                         "fractique notes",
-                        (deep::HEAD as u64 + 2 * u64::from(count)) * 4,
+                        (deep::HEAD as u64 + 2 * u64::from(count) + deep::TILES as u64) * 4,
                         storage | moved,
                     );
                     work.batch = buffer(
@@ -1770,7 +1775,7 @@ impl Parts {
                         ],
                     });
                     work.landed = notes;
-                    layer.deep = Some(deep::Plan::new(layer.zoom, layer.plotted, count, wide));
+                    layer.deep = Some(deep::Plan::new(layer.zoom, layer.plotted, count, wide, run.size));
                     (layer.done, layer.resolved) = (0, 0);
                     layer.landed = 0;
                 }
@@ -1826,16 +1831,36 @@ impl Parts {
                         // A deep view is as bright as its exposure says over the points that landed in the view,
                         // which the card has told of by now.
                         let scale = match &layer.deep {
-                            Some(plan) if row.is_none() => plan.exposure * cells / layer.landed.max(1) as f64,
+                            Some(plan) if row.is_none() => {
+                                self.queue.write_buffer(
+                                    &work.look,
+                                    std::mem::offset_of!(Look, grid) as u64,
+                                    bytemuck::cast_slice(&[plan.grid(), [0; 2]]),
+                                );
+                                self.queue.write_buffer(
+                                    &work.look,
+                                    std::mem::offset_of!(Look, shifts) as u64,
+                                    bytemuck::cast_slice(&plan.table()),
+                                );
+                                plan.exposure * plan.lift * cells / layer.landed.max(1) as f64
+                            }
                             _ => scale,
                         };
+                        let lifted = layer.deep.as_ref().map_or(1.0, |plan| plan.lift);
+                        #[cfg(test)]
+                        let lifted = self.plain.map_or(lifted, |(_, lift)| lift);
                         let look = &layer.kernels;
                         let from_row = row.unwrap_or(0);
                         let tall = rows.min(look.size[1] - from_row).div_ceil(8);
                         self.queue.write_buffer(
                             &work.look,
                             16,
-                            bytemuck::bytes_of(&[scale as f32, from_row as f32, 0.0, 0.0]),
+                            bytemuck::bytes_of(&[
+                                scale as f32,
+                                from_row as f32,
+                                fractique_core::deep::scale(lifted) as f32,
+                                0.0,
+                            ]),
                         );
                         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                             label: Some("fractique levels"),
@@ -1865,7 +1890,9 @@ impl Parts {
                 let before = layer.done.max(1);
                 #[cfg(test)]
                 let plain = |points: u64| match self.plain {
-                    Some(exposure) => exposure * cells / (layer.landed.max(1) as f64 * points as f64 / before as f64),
+                    Some((exposure, lift)) => {
+                        exposure * lift * cells / (layer.landed.max(1) as f64 * points as f64 / before as f64)
+                    }
                     None => plain(points),
                 };
                 let left = goal.saturating_sub(layer.done);
@@ -1891,10 +1918,15 @@ impl Parts {
                     if plan.stage == Stage::Pilot {
                         encoder.clear_buffer(&work.histogram, 0, None);
                     }
-                    if plan.stage == Stage::Window {
+                    if matches!(plan.stage, Stage::Window | Stage::Spread) {
                         let after = 4 * (deep::HEAD as u64 + few);
                         self.queue
                             .write_buffer(&work.landed, after, bytemuck::cast_slice(&plan.sources()));
+                    }
+                    if plan.stage == Stage::Spread {
+                        let after = 4 * (deep::HEAD as u64 + 2 * few);
+                        self.queue
+                            .write_buffer(&work.landed, after, bytemuck::cast_slice(&plan.table()));
                     }
                     if plan.stage != Stage::Plot || steps > 0 {
                         let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -1909,14 +1941,14 @@ impl Parts {
                                 pass.dispatch_workgroups(groups, 1, 1);
                                 working += few * u64::from(deep::MEMORY + batch.steps) * layer.weight;
                             }
-                            Stage::Window => {
+                            Stage::Window | Stage::Spread => {
                                 pass.set_pipeline(&particles.refill);
                                 pass.dispatch_workgroups(groups, 1, 1);
                                 pass.set_pipeline(&particles.sweep);
                                 for _ in 0..deep::SWEEPS {
                                     pass.dispatch_workgroups(groups, 1, 1);
                                 }
-                                if plan.more() {
+                                if plan.stage == Stage::Window {
                                     pass.set_pipeline(&particles.mark);
                                     pass.dispatch_workgroups(groups, 1, 1);
                                 }
@@ -2637,17 +2669,36 @@ pub(crate) mod tests {
             return;
         };
         let options = options(320, 200);
-        for by in [4.0, 40.0] {
-            let scene = magnified("aurora-spiral", by);
-            let exact = fractique_core::render(&scene, &options, &Control::default()).expect("it renders");
+        // A view with a bright corner, where the points are spread over the tiles, and one beside the flame, whose
+        // faint end is raised.
+        let aside = |center: [f64; 2], zoom: f64| {
+            let mut scene = presets::get("aurora-spiral").expect("the preset exists");
+            let camera = scene.layers[0].camera_mut();
+            (camera.center, camera.zoom) = (center, zoom);
+            scene
+        };
+        let views = [
+            ("4 times", magnified("aurora-spiral", 4.0), false, false),
+            ("40 times", magnified("aurora-spiral", 40.0), false, false),
+            ("a bright corner", aside([10.95, -7.2], 0.384), true, false),
+            ("beside the flame", aside([10.95, -7.2], 0.6), false, true),
+        ];
+        for (name, scene, spread, lifted) in &views {
+            let exact = fractique_core::render(scene, &options, &Control::default()).expect("it renders");
             let (quick, _, _) = card
-                .drawn(&scene, &options)
-                .expect("the graphics card draws a deep view");
-            let deep = card.chaos.read(|run| run.layers[0].deep.is_some());
-            assert!(
-                deep.expect("the run is kept"),
-                "{by} times: the view is not drawn from particles"
-            );
+                .drawn(scene, &options)
+                .unwrap_or_else(|| panic!("{name}: the graphics card does not draw the view"));
+            let plan = |run: &Run| {
+                let plan = run.layers[0].deep.as_ref()?;
+                Some((plan.grid() != [0; 2], plan.lift))
+            };
+            let (tiles, lift) = card
+                .chaos
+                .read(plan)
+                .flatten()
+                .unwrap_or_else(|| panic!("{name}: the view is not drawn from particles"));
+            assert!(tiles || !spread, "{name}: the points are not spread");
+            assert!(lift > 1.5 || !lifted, "{name}: the faint end is raised {lift} times");
             // A deep view is as far from itself with other random numbers: the processor's tells how far.
             let mut other = scene.clone();
             other.seed += 1;
@@ -2656,7 +2707,7 @@ pub(crate) mod tests {
             let (mean, _) = apart(&quick, &exact.rgba, 320, 200);
             assert!(
                 mean < 2.0 * grain + 1.0,
-                "{by} times: {mean:.2} on average, the processor's own {grain:.2}"
+                "{name}: {mean:.2} on average, the processor's own {grain:.2}"
             );
         }
         let request = fractique_core::wallpaper::Request {
@@ -2774,10 +2825,10 @@ pub(crate) mod tests {
                 .expect("the graphics card draws a deep view");
             let plan = |run: &Run| {
                 let plan = run.layers[0].deep.as_ref()?;
-                Some((plan.exposure, plan.share()))
+                Some((plan.exposure, plan.lift, plan.share()))
             };
-            let (exposure, share) = card.chaos.read(plan).flatten().expect("the view is deep");
-            card.chaos.plain = Some(exposure);
+            let (exposure, lift, share) = card.chaos.read(plan).flatten().expect("the view is deep");
+            card.chaos.plain = Some((exposure, lift));
             let all = RenderOptions {
                 samples_per_pixel: (32.0 / share).min(3.0e5) as u32,
                 ..options

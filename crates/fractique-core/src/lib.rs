@@ -1,3 +1,4 @@
+pub mod deep;
 pub mod file;
 pub mod fractal;
 pub mod import;
@@ -12,7 +13,6 @@ pub mod variation;
 pub mod wallpaper;
 
 mod chaos;
-mod deep;
 mod sheets;
 mod tone;
 

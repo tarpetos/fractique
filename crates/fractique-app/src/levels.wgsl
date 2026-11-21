@@ -1,8 +1,10 @@
 struct Look {
     size: vec4<u32>,   // cells across, cells down, tiles across, tiles down
-    scale: vec4<f32>,  // what turns a count into a density, the first row of the strip that is drawn
+    scale: vec4<f32>,  // what turns a count into a density, the first row of the strip that is drawn, the logarithm's scale
     kernels: array<vec4<f32>, 20>, // reach, 1 / (2 sigma²), 1 / the sum of the weights
     widths: array<vec4<u32>, 1024>, // the kernel of a cell by its hits, up to 4095
+    grid: vec4<u32>,   // the tiles of a deep view across and down; 0 where every hit counts once
+    shifts: array<vec4<u32>, 144>, // the power of two a hit of a tile counts
 };
 
 @group(0) @binding(0) var<uniform> look: Look;
@@ -20,6 +22,28 @@ fn level_of(count: u32) -> u32 {
     return look.widths[count >> 2u][count & 3u];
 }
 
+fn tiled(column: f32, row: f32) -> f32 {
+    let at = min(vec2<u32>(max(vec2<f32>(column, row), vec2<f32>(0.0))), look.grid.xy - vec2<u32>(1u));
+    let tile = at.y * look.grid.x + at.x;
+    return f32(look.shifts[tile >> 2u][tile & 3u]);
+}
+
+// The kernel of a cell goes by its hits: its count over the shift mixed between the middles of the tiles around it.
+fn level_at(count: u32, x: u32, y: u32) -> u32 {
+    if (look.grid.x == 0u) {
+        return level_of(count);
+    }
+    let among = (vec2<f32>(f32(x), f32(y)) + vec2<f32>(0.5)) / vec2<f32>(look.size.xy) * vec2<f32>(look.grid.xy)
+        - vec2<f32>(0.5);
+    let corner = floor(among);
+    let mix = among - corner;
+    let first = tiled(corner.x, corner.y);
+    let lower = first + (tiled(corner.x + 1.0, corner.y) - first) * mix.x;
+    let second = tiled(corner.x, corner.y + 1.0);
+    let upper = second + (tiled(corner.x + 1.0, corner.y + 1.0) - second) * mix.x;
+    return level_of(max(count >> u32(lower + (upper - lower) * mix.y + 0.5), 1u));
+}
+
 @compute @workgroup_size(8, 8)
 fn survey(@builtin(global_invocation_id) id: vec3<u32>) {
     if (id.x >= look.size.z || id.y >= look.size.w) {
@@ -32,7 +56,7 @@ fn survey(@builtin(global_invocation_id) id: vec3<u32>) {
         for (var x = corner.x; x < limit.x; x = x + 1u) {
             let count = cells[(y * look.size.x + x) * 4u];
             if (count > 0u) {
-                most = max(most, u32(look.kernels[level_of(count)].x) + 1u);
+                most = max(most, u32(look.kernels[level_at(count, x, y)].x) + 1u);
             }
         }
     }
@@ -63,7 +87,7 @@ fn resolve(@builtin(global_invocation_id) id: vec3<u32>) {
                 let cell = (u32(y) * look.size.x + u32(x)) * 4u;
                 let count = cells[cell];
                 if (count > 0u) {
-                    let kernel = look.kernels[level_of(count)];
+                    let kernel = look.kernels[level_at(count, u32(x), u32(y))];
                     let d = abs(vec2<i32>(x, y) - at);
                     if (max(d.x, d.y) <= i32(kernel.x)) {
                         let weight = exp(-f32(d.x * d.x + d.y * d.y) * kernel.y) * kernel.z;
@@ -82,7 +106,7 @@ fn resolve(@builtin(global_invocation_id) id: vec3<u32>) {
         if (density < 0.001) {
             level = density - 0.5 * density * density;
         }
-        out = vec4<f32>(min(sum.xyz / (sum.w * 255.0), vec3<f32>(1.0)), level * 0.125);
+        out = vec4<f32>(min(sum.xyz / (sum.w * 255.0), vec3<f32>(1.0)), level * look.scale.z);
     }
     textureStore(levels, at, out);
 }
