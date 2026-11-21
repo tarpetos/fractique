@@ -590,6 +590,12 @@ picture's size set to 3840 × 2160, and run the script. A test (`crates/fractiqu
 file of the gallery, counts each folder and follows every link of the four pages, so a change that would stop a
 file from loading or leave a link without its file fails the build.
 
+On the pages a click on a picture downloads its `.frcq` file, and the name under the picture leads to the file in
+the repository. The download is the file's raw address, `<repository>/raw/master/docs/gallery/<folder>/<file>`:
+GitHub serves a `.frcq` there as `application/octet-stream`, which a browser saves instead of showing. The script
+takes the repository's address from `repository` in the workspace's `Cargo.toml` and the branch from its `BRANCH`,
+and the test maps every such link back to a file of the repository, so a link to a wrong folder or name fails it.
+
 A wallpaper's file is the document the app saves in the **Shapes** tab: `wall` holds the layout, the material and
 light or dark, `seed` the seed, and `shown` the shapes as they were laid out for 3840 × 2160. The commands draw
 `shown`. The app does not read it: it lays the wallpaper out again from the seed, the layout, the material and the

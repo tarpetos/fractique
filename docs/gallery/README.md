@@ -4,8 +4,8 @@
 rendered from. The file holds the whole scene, so it renders the same picture again at any size and quality, on any
 machine.
 
-To open one in the app, click its picture, download the `.frcq` file from the page that opens, and choose
-**Scene**, **Open** in the app or double-click the file. To render one from the command line at 4K:
+A click on a picture downloads its `.frcq` file; the name under it leads to the file in the repository. To open a
+file in the app, choose **Scene**, **Open** or double-click the file. To render one from the command line at 4K:
 
 ```sh
 fractique render docs/gallery/flames/001-phoenix-flare.frcq --size 3840x2160 --quality high -o 001-phoenix-flare.png
@@ -18,8 +18,8 @@ made from the `.frcq` files by `tools/gallery/make_gallery.py` ([usage.md](../us
 
 | | | | |
 | --- | --- | --- | --- |
-| [![Phoenix Flare](flames/001-phoenix-flare.webp)](flames/001-phoenix-flare.frcq) | [![Peacock Plume](flames/002-peacock-plume.webp)](flames/002-peacock-plume.frcq) | [![Rose Heart](flames/003-rose-heart.webp)](flames/003-rose-heart.frcq) | [![Nautilus Frost](flames/004-nautilus-frost.webp)](flames/004-nautilus-frost.frcq) |
-| Phoenix Flare | Peacock Plume | Rose Heart | Nautilus Frost |
+| [![Phoenix Flare](flames/001-phoenix-flare.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/001-phoenix-flare.frcq) | [![Peacock Plume](flames/002-peacock-plume.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/002-peacock-plume.frcq) | [![Rose Heart](flames/003-rose-heart.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/003-rose-heart.frcq) | [![Nautilus Frost](flames/004-nautilus-frost.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/004-nautilus-frost.frcq) |
+| [Phoenix Flare](flames/001-phoenix-flare.frcq) | [Peacock Plume](flames/002-peacock-plume.frcq) | [Rose Heart](flames/003-rose-heart.frcq) | [Nautilus Frost](flames/004-nautilus-frost.frcq) |
 
 [All 100 flames](flames/README.md)
 
@@ -27,8 +27,8 @@ made from the `.frcq` files by `tools/gallery/make_gallery.py` ([usage.md](../us
 
 | | | | |
 | --- | --- | --- | --- |
-| [![Ember Cathedral](fractals/F001-ember-cathedral.webp)](fractals/F001-ember-cathedral.frcq) | [![Teal Maelstrom](fractals/F002-teal-maelstrom.webp)](fractals/F002-teal-maelstrom.frcq) | [![Golden Galaxies](fractals/F003-golden-galaxies.webp)](fractals/F003-golden-galaxies.frcq) | [![Neon Garden](fractals/F004-neon-garden.webp)](fractals/F004-neon-garden.frcq) |
-| Ember Cathedral | Teal Maelstrom | Golden Galaxies | Neon Garden |
+| [![Ember Cathedral](fractals/F001-ember-cathedral.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F001-ember-cathedral.frcq) | [![Teal Maelstrom](fractals/F002-teal-maelstrom.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F002-teal-maelstrom.frcq) | [![Golden Galaxies](fractals/F003-golden-galaxies.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F003-golden-galaxies.frcq) | [![Neon Garden](fractals/F004-neon-garden.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F004-neon-garden.frcq) |
+| [Ember Cathedral](fractals/F001-ember-cathedral.frcq) | [Teal Maelstrom](fractals/F002-teal-maelstrom.frcq) | [Golden Galaxies](fractals/F003-golden-galaxies.frcq) | [Neon Garden](fractals/F004-neon-garden.frcq) |
 
 [All 100 fractals](fractals/README.md)
 
@@ -36,7 +36,7 @@ made from the `.frcq` files by `tools/gallery/make_gallery.py` ([usage.md](../us
 
 | | | | |
 | --- | --- | --- | --- |
-| [![Pink Lotus](wallpapers/W001-pink-lotus.webp)](wallpapers/W001-pink-lotus.frcq) | [![Teal Ribbons](wallpapers/W002-teal-ribbons.webp)](wallpapers/W002-teal-ribbons.frcq) | [![Aqua Fan](wallpapers/W003-aqua-fan.webp)](wallpapers/W003-aqua-fan.frcq) | [![Ember Discs](wallpapers/W004-ember-discs.webp)](wallpapers/W004-ember-discs.frcq) |
-| Pink Lotus | Teal Ribbons | Aqua Fan | Ember Discs |
+| [![Pink Lotus](wallpapers/W001-pink-lotus.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W001-pink-lotus.frcq) | [![Teal Ribbons](wallpapers/W002-teal-ribbons.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W002-teal-ribbons.frcq) | [![Aqua Fan](wallpapers/W003-aqua-fan.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W003-aqua-fan.frcq) | [![Ember Discs](wallpapers/W004-ember-discs.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W004-ember-discs.frcq) |
+| [Pink Lotus](wallpapers/W001-pink-lotus.frcq) | [Teal Ribbons](wallpapers/W002-teal-ribbons.frcq) | [Aqua Fan](wallpapers/W003-aqua-fan.frcq) | [Ember Discs](wallpapers/W004-ember-discs.frcq) |
 
 [All 100 wallpapers](wallpapers/README.md)
