@@ -1,5 +1,6 @@
 use crate::chaos::Compiled;
 use crate::math::{cos, ln, pow, sin};
+use crate::render::Exposure;
 use crate::rng::Rng;
 use crate::scene::Camera;
 
@@ -18,6 +19,7 @@ const RARE: f64 = 0.05;
 const FINE: f64 = 1.0 / 512.0;
 const AHEAD: usize = 8;
 const FAR_EVERY: u64 = 4;
+const BOUND: f64 = 8.0;
 
 // The particles are moved in groups, each with its own random numbers, so that the threads cannot change the result.
 const GROUP: usize = 128;
@@ -199,6 +201,7 @@ pub(crate) fn plan(
     camera: &Camera,
     wide: f64,
     high: f64,
+    held: Exposure,
     rng_of: &(dyn Fn(u64) -> Rng + Sync),
     cancelled: &dyn Fn() -> bool,
 ) -> Option<Plan> {
@@ -323,7 +326,14 @@ pub(crate) fn plan(
         seeds,
         points,
         range,
-        exposure: exposure(&seen, enough),
+        exposure: match held {
+            Exposure::View => exposure(&seen, enough),
+            Exposure::Scene => share * camera.zoom * camera.zoom,
+            Exposure::Bounded => {
+                let held = exposure(&seen, enough);
+                (share * camera.zoom * camera.zoom).clamp(held / BOUND, held * BOUND)
+            }
+        },
     })
 }
 

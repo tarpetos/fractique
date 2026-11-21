@@ -56,6 +56,26 @@ impl Quality {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Exposure {
+    #[default]
+    View,
+    Scene,
+    Bounded,
+}
+
+impl Exposure {
+    pub const ALL: [(&'static str, Exposure); 3] = [
+        ("view", Exposure::View),
+        ("scene", Exposure::Scene),
+        ("bounded", Exposure::Bounded),
+    ];
+
+    pub fn parse(name: &str) -> Option<Self> {
+        Self::ALL.iter().find(|(n, _)| *n == name).map(|(_, e)| *e)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RenderOptions {
     pub width: u32,
@@ -241,6 +261,15 @@ impl Density {
 }
 
 pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> Result<Image, RenderError> {
+    render_exposed(scene, options, Exposure::View, control)
+}
+
+pub fn render_exposed(
+    scene: &Scene,
+    options: &RenderOptions,
+    exposure: Exposure,
+    control: &Control<'_>,
+) -> Result<Image, RenderError> {
     scene.validate().map_err(RenderError::Scene)?;
     options.validate()?;
     let count = scene.layers.len() as f64;
@@ -251,7 +280,7 @@ pub fn render(scene: &Scene, options: &RenderOptions, control: &Control<'_>) -> 
                 progress((index as f64 + share) / count);
             }
         };
-        layers.push(develop_layer(scene, index, options, control.cancel, &report)?);
+        layers.push(develop_layer(scene, index, options, exposure, control.cancel, &report)?);
     }
     Ok(composed(scene, &layers.iter().collect::<Vec<_>>(), options))
 }
@@ -276,6 +305,7 @@ pub fn render_layer(
         scene,
         index.min(scene.layers.len() - 1),
         options,
+        Exposure::View,
         control.cancel,
         &report,
     )
@@ -301,6 +331,7 @@ pub fn render_density(
         scene,
         index.min(scene.layers.len() - 1),
         options,
+        Exposure::View,
         control.cancel,
         &report,
     )
@@ -349,6 +380,7 @@ fn develop_layer(
     scene: &Scene,
     index: usize,
     options: &RenderOptions,
+    exposure: Exposure,
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
 ) -> Result<Developed, RenderError> {
@@ -363,7 +395,7 @@ fn develop_layer(
             pixels,
         });
     }
-    let density = density(scene, index, options, cancel, report)?;
+    let density = density(scene, index, options, exposure, cancel, report)?;
     Ok(developed(&density, layer.tone()))
 }
 
@@ -371,11 +403,12 @@ fn density(
     scene: &Scene,
     index: usize,
     options: &RenderOptions,
+    exposure: Exposure,
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
 ) -> Result<Density, RenderError> {
     let (histogram, normalize) = match &scene.layers[index].content {
-        Content::Flame(_) => gather(scene, index, options, cancel, report, false)?,
+        Content::Flame(_) => gather(scene, index, options, exposure, cancel, report, false)?,
         Content::Fractal(fractal) => {
             let Some(orbit) = fractal::spec(&fractal.kind).and_then(|spec| spec.orbit(fractal)) else {
                 return Err(RenderError::Options(format!(
@@ -402,6 +435,7 @@ fn gather(
     scene: &Scene,
     index: usize,
     options: &RenderOptions,
+    exposure: Exposure,
     cancel: Option<&AtomicBool>,
     report: &(dyn Fn(f64) + Sync),
     plain: bool,
@@ -433,6 +467,7 @@ fn gather(
             &flame.camera,
             wide,
             high,
+            exposure,
             &|stream| Rng::derive(scene.seed, PLAN_DOMAIN + index as u64, stream),
             &cancelled,
         )
@@ -650,7 +685,7 @@ mod tests {
                 samples_per_pixel: samples,
                 supersample: 1,
             };
-            let (histogram, _) = gather(&scene, 0, &options, None, &|_| {}, plain).unwrap();
+            let (histogram, _) = gather(&scene, 0, &options, Exposure::View, None, &|_| {}, plain).unwrap();
             let block = 6;
             let mut sums = vec![0f64; (side as usize / block).pow(2)];
             for cell in 0..(side * side) as usize {
@@ -669,6 +704,29 @@ mod tests {
         );
         let off: f64 = plain.iter().zip(&deep).map(|(a, b)| (a - b).abs()).sum();
         assert!(off < 0.05, "the deep view is {off} away from the plain one");
+    }
+
+    // With the scene's exposure a deep view has the densities the plain chaos game gives the same place.
+    #[test]
+    fn a_deep_view_keeps_the_density_of_the_plain_chaos_game() {
+        let mut scene = crate::presets::get("aurora-spiral").unwrap();
+        let camera = scene.layers[0].camera_mut();
+        (camera.center, camera.zoom) = ([-0.9, 0.56], 24.0);
+        let density = |samples: u32, plain: bool| {
+            let options = RenderOptions {
+                width: 48,
+                height: 48,
+                samples_per_pixel: samples,
+                supersample: 1,
+            };
+            let (histogram, normalize) = gather(&scene, 0, &options, Exposure::Scene, None, &|_| {}, plain).unwrap();
+            histogram.total() as f64 * normalize
+        };
+        let (plain, deep) = (density(60_000, true), density(2_000, false));
+        assert!(
+            (deep / plain - 1.0).abs() < 0.1,
+            "the deep view holds {deep}, the plain one {plain}"
+        );
     }
 
     #[test]

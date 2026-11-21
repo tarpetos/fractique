@@ -11,7 +11,7 @@ use clap::{Parser, Subcommand};
 use fractique_core::import::import_flames;
 use fractique_core::random::mutate;
 use fractique_core::wallpaper::random_wallpaper;
-use fractique_core::{Control, Image, Kind, Quality, RenderOptions, Scene, file, presets, render};
+use fractique_core::{Control, Exposure, Image, Kind, Quality, RenderOptions, Scene, file, presets, render_exposed};
 use fractique_mcp::{
     encode_png, fit, fractal_list, load, preset as preset_of, random as random_of, scene_from_bytes, shown,
     wallpaper_request,
@@ -71,6 +71,9 @@ enum Command {
         /// Replace the scene's seed
         #[arg(long)]
         seed: Option<u64>,
+        /// What sets the brightness of a magnified view: view (as it is now), scene or bounded
+        #[arg(long, default_value = "view")]
+        exposure: String,
     },
     /// List the built-in presets
     Presets,
@@ -234,6 +237,7 @@ fn run(command: Command) -> Result<(), String> {
             samples,
             supersample,
             seed,
+            exposure,
         } => {
             let (width, height) = parse_size(&size)?;
             if generator.is_some() && random.is_none() {
@@ -255,6 +259,7 @@ fn run(command: Command) -> Result<(), String> {
                 scene.seed = seed;
             }
             let quality = Quality::parse(&quality).ok_or_else(|| format!("no quality is called '{quality}'"))?;
+            let exposure = Exposure::parse(&exposure).ok_or_else(|| format!("no exposure is called '{exposure}'"))?;
             let mut options = RenderOptions::new(width, height, quality);
             options.samples_per_pixel = samples.unwrap_or(options.samples_per_pixel);
             options.supersample = supersample.unwrap_or(options.supersample);
@@ -268,9 +273,10 @@ fn run(command: Command) -> Result<(), String> {
                 }
             };
             let started = Instant::now();
-            let image = render(
+            let image = render_exposed(
                 &scene,
                 &options,
+                exposure,
                 &Control {
                     cancel: None,
                     progress: Some(&progress),
