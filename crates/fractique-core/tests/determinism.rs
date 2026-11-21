@@ -96,7 +96,7 @@ fn a_deep_view_renders_to_its_golden_hash() {
         image.rgba.chunks_exact(4).any(|p| p[0] > 40 || p[1] > 40 || p[2] > 40),
         "the deep view is black"
     );
-    assert_eq!(image.hash(), 0xe1e5_15d7_64c2_6086, "got {:#018x}", image.hash());
+    assert_eq!(image.hash(), 0x64d7_a570_60c0_8a8e, "got {:#018x}", image.hash());
 }
 
 #[cfg(feature = "parallel")]

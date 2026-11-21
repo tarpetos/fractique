@@ -26,6 +26,7 @@ const FAR_EVERY: u64 = 4;
 const TILES: usize = 24;
 const SPREAD: f64 = 32.0;
 pub const HEAVIEST: u32 = 10;
+const FINE_PLACES: f64 = 16_384.0;
 
 // A view whose average is below `MEAN` has its faint end raised: more as less of the flame is in it, by `MOST` at
 // the most over what the flame has there. Tuned on a view moved off a flame of three layers, from 0.40 to 0.70.
@@ -78,12 +79,18 @@ impl Window {
     }
 
     #[inline]
-    fn tile(&self, (x, y, _): Point, tiles: &Tiles) -> usize {
+    fn place(&self, (x, y, _): Point) -> (f64, f64) {
         let (dx, dy) = (x - self.center[0], y - self.center[1]);
         let across = (dx * self.cos + dy * self.sin) * self.zoom / self.half[0];
         let up = (dy * self.cos - dx * self.sin) * self.zoom / self.half[1];
-        let column = (((across + 1.0) * 0.5 * tiles.across as f64).max(0.0) as usize).min(tiles.across - 1);
-        let row = (((up + 1.0) * 0.5 * tiles.up as f64).max(0.0) as usize).min(tiles.up - 1);
+        ((across + 1.0) * 0.5, (up + 1.0) * 0.5)
+    }
+
+    #[inline]
+    fn tile(&self, point: Point, tiles: &Tiles) -> usize {
+        let (across, up) = self.place(point);
+        let column = ((across * tiles.across as f64).max(0.0) as usize).min(tiles.across - 1);
+        let row = ((up * tiles.up as f64).max(0.0) as usize).min(tiles.up - 1);
         row * tiles.across + column
     }
 
@@ -120,15 +127,47 @@ impl Tiles {
     }
 
     #[inline]
+    fn at(&self, (across, up): (f64, f64)) -> u32 {
+        shift_at(&self.shifts, self.across, self.up, across, up)
+    }
+
+    #[inline]
     pub(crate) fn of_cell(&self, x: usize, y: usize, width: usize, height: usize, flipped: bool) -> u32 {
-        let column = (x * self.across / width).min(self.across - 1);
-        let down = (y * self.up / height).min(self.up - 1);
-        let row = if flipped { down } else { self.up - 1 - down };
-        u32::from(self.shifts[row * self.across + column])
+        let down = (y as f64 + 0.5) / height as f64;
+        let up = if flipped { down } else { 1.0 - down };
+        (between(&self.shifts, self.across, self.up, (x as f64 + 0.5) / width as f64, up) + 0.5) as u32
     }
 }
 
 // The tiles across and up a view of this shape.
+// The shift between the middles of the tiles around a place of the view, both of its sides from 0 to 1.
+#[inline]
+fn between(shifts: &[u8], across: usize, up: usize, x: f64, y: f64) -> f64 {
+    let (x, y) = (x * across as f64 - 0.5, y * up as f64 - 0.5);
+    let (left, low) = (x.floor(), y.floor());
+    let (right_part, high_part) = (x - left, y - low);
+    let tile = |column: f64, row: f64| {
+        let column = (column.max(0.0) as usize).min(across - 1);
+        let row = (row.max(0.0) as usize).min(up - 1);
+        f64::from(shifts[row * across + column])
+    };
+    let lower = tile(left, low) + (tile(left + 1.0, low) - tile(left, low)) * right_part;
+    let upper = tile(left, low + 1.0) + (tile(left + 1.0, low + 1.0) - tile(left, low + 1.0)) * right_part;
+    lower + (upper - lower) * high_part
+}
+
+// How many times a point at a place of the view counts, as a power of two. Between tiles the shift is mixed place
+// by place, by a hash of the place, so that no edge of a tile shows in the grain.
+#[inline]
+pub fn shift_at(shifts: &[u8], across: usize, up: usize, x: f64, y: f64) -> u32 {
+    let (column, row) = ((x.max(0.0) * FINE_PLACES) as u32, (y.max(0.0) * FINE_PLACES) as u32);
+    let mut hash = column.wrapping_mul(0x9E37_79B1) ^ row.wrapping_mul(0x85EB_CA77);
+    hash = (hash ^ (hash >> 15)).wrapping_mul(0x2C1B_3C6D);
+    hash = (hash ^ (hash >> 12)).wrapping_mul(0x297A_2D39);
+    hash ^= hash >> 15;
+    (between(shifts, across, up, x, y) + f64::from(hash >> 8) / 16_777_216.0) as u32
+}
+
 pub fn grid(wide: f64, high: f64) -> (usize, usize) {
     let longer = wide.max(high);
     let side = |length: f64| ((TILES as f64 * length / longer).ceil() as usize).max(1);
@@ -279,7 +318,7 @@ impl Plan {
     fn shift(&self, point: Point) -> u32 {
         self.tiles
             .as_ref()
-            .map_or(0, |tiles| u32::from(tiles.shifts[self.window.tile(point, tiles)]))
+            .map_or(0, |tiles| tiles.at(self.window.place(point)))
     }
 
     // A point of the view and how many times it counts.
@@ -437,7 +476,7 @@ pub(crate) fn plan(
     if let Some(tiles) = &tiles {
         let parts: Vec<u64> = points
             .iter()
-            .map(|point| 1 << (HEAVIEST - u32::from(tiles.shifts[window.tile(*point, tiles)])))
+            .map(|point| 1 << (HEAVIEST - tiles.at(window.place(*point))))
             .collect();
         let total: u64 = parts.iter().sum();
         let start = rng.below(total);
@@ -477,7 +516,7 @@ fn sweep(
     points: &mut [Point],
     groups: &mut [(Tracer, Rng)],
 ) -> Vec<Tally> {
-    let shift = |point: Point| tiles.map_or(0, |tiles| u32::from(tiles.shifts[window.tile(point, tiles)]));
+    let shift = |point: Point| tiles.map_or(0, |tiles| tiles.at(window.place(point)));
     let sweep = |((seeds, points), (tracer, rng)): (Group<'_>, &mut (Tracer, Rng))| {
         let mut tally = Tally::default();
         for _ in 0..SWEEPS {
