@@ -3173,6 +3173,7 @@ impl App {
         (self.draft_keys, self.draft_of, self.draft_view) = (Some(keys), eye, around);
         self.draft_landed = false;
         self.rendering = true;
+        self.carded = false;
         true
     }
 
