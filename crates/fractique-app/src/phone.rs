@@ -719,7 +719,7 @@ impl App {
             Kind::Flame(scene) => {
                 self.wall.on = false;
                 self.follow(scene);
-                self.palette = None;
+                self.choices = crate::colors::Choices::default();
                 self.pick((**scene).clone(), piece.title.clone(), false);
             }
         }
@@ -788,7 +788,8 @@ impl App {
     // The colors to choose from: a hue for the shapes, a palette for the flames, or the picture's own.
     pub(crate) fn colors(&mut self, ui: &mut egui::Ui, dot: f32) {
         let walls = self.wall.on;
-        let before = (self.wall.hue, self.palette);
+        let (at, worn) = (self.chosen_layer(), self.choice());
+        let before = (self.wall.hue, worn);
         // Nine in a row: on a narrow screen the dots shrink before the last one drops to a line of its own.
         let dot = dot.min((ui.available_width() - 8.0 * 3.0) / 9.0 - 8.0).max(10.0);
         ui.horizontal_wrapped(|ui| {
@@ -821,8 +822,8 @@ impl App {
                     }
                 }
             } else {
-                if cell(ui, self.palette.is_none(), &none) {
-                    self.palette = None;
+                if cell(ui, worn.is_none(), &none) {
+                    self.choices.choose(at, None);
                 }
                 for (index, name) in palette::NAMES.iter().enumerate() {
                     let Some(shades) = palette::named(name).map(|named| palette::lut(&named)) else {
@@ -834,13 +835,13 @@ impl App {
                             Color32::from_rgb(r, g, b)
                         });
                     };
-                    if cell(ui, self.palette == Some(index), &fill) {
-                        self.palette = Some(index);
+                    if cell(ui, worn == Some(index), &fill) {
+                        self.choices.choose(at, Some(index));
                     }
                 }
             }
         });
-        if before != (self.wall.hue, self.palette) {
+        if before != (self.wall.hue, self.choice()) {
             if walls && !self.wall.live {
                 self.new_wallpaper();
             } else {
@@ -1577,7 +1578,8 @@ impl App {
         let side = [wide, (wide * TILE_RATIO).round()];
         let pixels = [(side[0] * scale) as usize, (side[1] * scale) as usize];
         let mut budget = 2;
-        let colors = self.palette.and_then(|at| palette::named(palette::NAMES[at]));
+        let worn = self.choice();
+        let colors = worn.and_then(|at| palette::named(palette::NAMES[at]));
         let pictured = |name: &str| {
             let mut scene = fractal::preset(name)?;
             if let Some(colors) = &colors {
@@ -1598,7 +1600,7 @@ impl App {
                     .presets
                     .first()
                     .map(|preset| format!("{}-{}", spec.name, preset.name));
-                let key = format!("p {first:?} {:?}", self.palette);
+                let key = format!("p {first:?} {worn:?}");
                 let picture = self.thumb(&ctx, key, pixels, 10, &mut budget, || pictured(&first?));
                 if Self::tile(ui, side, picture, &self.kind_name(spec.name), self.kind == spec.name) {
                     kind = Some(spec.name);
@@ -1618,7 +1620,7 @@ impl App {
             ui.spacing_mut().item_spacing = vec2(gap, 10.0);
             random = Self::tile(ui, side, None, &random_label, self.is_random && !self.wall.live);
             for name in self.kind_presets() {
-                let key = format!("p {:?} {:?}", Some(&name), self.palette);
+                let key = format!("p {:?} {worn:?}", Some(&name));
                 let picture = self.thumb(&ctx, key, pixels, 10, &mut budget, || pictured(&name));
                 let current = !self.is_random && self.title == name;
                 let label = crate::preset_name(&self.texts, &self.kind, &name[prefix..]);
@@ -1655,8 +1657,9 @@ impl App {
             ui.spacing_mut().item_spacing = vec2(gap, 10.0);
             random = Self::tile(ui, side, None, &random_label, self.is_random && !self.wall.live);
             for name in presets::names() {
-                let colors = self.palette.and_then(|at| palette::named(palette::NAMES[at]));
-                let key = format!("p {name} {:?}", self.palette);
+                let worn = self.choice();
+                let colors = worn.and_then(|at| palette::named(palette::NAMES[at]));
+                let key = format!("p {name} {worn:?}");
                 let picture = self.thumb(&ctx, key, pixels, 10, &mut budget, || {
                     let mut scene = presets::get(name)?;
                     if let Some(colors) = colors {

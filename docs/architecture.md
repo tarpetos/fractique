@@ -794,12 +794,13 @@ is the size of the picture whatever the window's. `FRACTIQUE_THEN=14,1,14:0.01:0
 another before the screenshot is taken (the magnification, or the magnification and the place to the right and
 down), each when the picture of the one before is whole, or 1.5 s after it was asked for where the processor
 renders it. `FRACTIQUE_STEPS=randomize,mutate,mutate,back` presses these buttons one after another before the
-screenshot is taken, each when the picture of the one before is whole, and `FRACTIQUE_SHOW=recent` (also
+screenshot is taken, each when the picture of the one before is whole (`layer:1` chooses the second layer and
+`palette:ember` or `palette:none` its colors), and `FRACTIQUE_SHOW=recent` (also
 `fractals-recent`, `wall-recent`) opens the list of recent pictures, whose small pictures the screenshot waits for. `FRACTIQUE_DEBUG_TIMES=1` prints the graphics card, the trial,
 every render the processor starts, the seconds from the request to each picture and to a saved export, and for
 every batch of the card the milliseconds it took and the millions of steps its walkers were allowed. The tests of
 `chaos.rs` compare three flames and three attractors with the processor's render when the machine has a graphics
-card with compute shaders, and two deep views of a flame; seven more, run with `--ignored`, print the differences
+card with compute shaders, two flames in one scene, each in a palette of its own, and two deep views of a flame; seven more, run with `--ignored`, print the differences
 for every preset, for 20 seeds of each random generator, for every variation and for the presets and ten seeds of
 every orbit kind, how far 32-bit floats reach into a flame and into an attractor, the differences and the times
 of deep views magnified 3 to 1000 times, and how far a deep view is from the plain chaos game with as many

@@ -879,7 +879,8 @@ The document is the app's session, so a file opens as it was saved:
 | `view` | `[right, down, zoom]` | Where the picture was moved to, in shorter sides of the picture from its middle, and the magnification. The app opens a view beyond its limits at the limit. |
 | `picture` | `[width, height]` or `null` | The picture's size; `null` is the window's own. |
 | `layer` | integer | The chosen layer, from 0. |
-| `palette` | a name or `null` | The palette chosen in the app (`aurora`, `emerald`, `ember`, `violet`, `ice`, `sunset`, `orchid`, `gold`), or `null` for the scene's own colors. |
+| `colors` | a list of names and `null`s | The palette chosen in the app for each layer, in the layers' order (`aurora`, `emerald`, `ember`, `violet`, `ice`, `sunset`, `orchid`, `gold`), or `null` for the layer's own colors. |
+| `palette` | a name or `null` | Only in a file written before a choice belonged to a layer: the one palette every layer wore, or `null` for the scene's own colors. It is read where `colors` is missing, and opens as the same picture. |
 | `inspector` | `true`, `false`, `null` | Whether the controls were open. |
 | `optics` | `[refraction, depth, bezel]` | The fine tuning of the glass. |
 | `wall` | object | The wallpaper choices: `on` (wallpapers or flames), `live` (a wallpaper is shown), `layout` and `material` (a name, or `null` for any), `held` (the layout and material kept by Mutate), `dark`, `hue` (degrees, or `null`). |

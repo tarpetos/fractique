@@ -1520,6 +1520,37 @@ mod tests {
         assert!(card.drawn(&scene, &options).is_none());
     }
 
+    #[test]
+    fn every_layer_of_fractals_is_drawn_in_its_own_palette() {
+        let Some(mut card) = card() else {
+            eprintln!("no graphics card with compute shaders: not compared");
+            return;
+        };
+        let options = options(320, 180);
+        let mut scene = fractal::preset("julia-dragon").expect("a preset");
+        let mut over = fractal::preset("newton-cubic").expect("a preset").layers.remove(0);
+        over.blend = fractique_core::Blend::Screen;
+        over.opacity = 0.6;
+        scene.layers.push(over);
+        let mut choices = crate::colors::Choices::all(None, 2);
+        choices.choose(0, Some(2));
+        choices.choose(1, Some(4));
+        choices.dress(&mut scene);
+        let exact = fractique_core::render(&scene, &options, &Control::default()).expect("it renders");
+        let mut alike = scene.clone();
+        *alike.layers[1].palette_mut() = alike.layers[0].palette().clone();
+        // A card that is the processor is late with a batch now and then and gives the picture up.
+        let (Some((quick, _, _)), Some((alike, _, _))) = (card.drawn(&scene, &options), card.drawn(&alike, &options))
+        else {
+            eprintln!("the card gave a picture up: not compared");
+            return;
+        };
+        let (mean, largest) = apart(&quick, &exact.rgba, 320, 180);
+        assert!(mean < 1.0 && largest < 40.0, "{mean} {largest}");
+        let (mean, _) = apart(&alike, &exact.rgba, 320, 180);
+        assert!(mean > 3.0, "one palette for both layers: {mean}");
+    }
+
     fn compared(card: &mut crate::chaos::tests::Card, name: &str, scene: &Scene, folder: Option<&PathBuf>) {
         let [width, height] = size();
         let options = options(width, height);
