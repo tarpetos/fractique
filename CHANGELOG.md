@@ -46,9 +46,10 @@
 
 * **The switch of GPU acceleration is on every device whose card is able:** the **Graphics** section was there
   only where a trial at the first start showed the card clearly faster than the processor, so a phone whose
-  trial went wrong had no switch at all. It is now there wherever the card can do the work, with a line that a
-  weak chip can be slower with it than without. The trial only decides how the switch stands at first; a switch
-  you have set stays as you set it.
+  trial went wrong had no switch at all. It is now there wherever the card can do the work. A warning sign
+  stands beside the switch, and a press on it opens the line that a weak chip can be slower with it than
+  without. The trial only decides how the switch stands at first, and until it has told the processor renders;
+  a switch you have set stays as you set it.
 
 ### Fixed
 
@@ -56,11 +57,23 @@
   keeps its pace, a phone lost most of the card's speed: the way to the chip and back takes 1 to 5 ms there, a
   quarter of a millisecond on a computer's card, so the units were nearly all way. An Adreno 740 took 1.3 s for
   the trial's picture, which its processor renders in 0.5 s, and the app left the card out. Where that way is
-  long, a unit is now thirty times as long as it, two frames at the most, while the window is used; while it is
-  not, a hundred times, a tenth of a second at the most, and the units follow one another without a pause: a
-  phone's chip slows its clock in pauses. Measured on that phone: the trial's picture in 0.34 s in units with
-  pauses, 0.17 s without, against 0.52 s on its processor, so 3.1 times as fast instead of 1.5. A verdict against
-  a card kept by an earlier version is measured again.
+  long, a unit is now thirty times as long as it, two frames at the most, while a hand is on the window (a
+  finger or a button held, the wheel, a pinch, a key); while none is, a hundred times, a tenth of a second at
+  the most, and the units follow one another without a pause: a phone's chip slows its clock in pauses. A tap
+  that is over is no hand, so the picture it asked for is drawn at the full pace. Measured on that phone: the
+  trial's picture in 0.34 s in units with pauses, 0.17 s without, against 0.52 s on its processor, so 3.1 times
+  as fast instead of 1.5. A verdict against a card kept by an earlier version is measured again. A graphics
+  card of its own works as before.
+
+* **A card that won its trial keeps its pictures:** on a device whose card is tried against the processor (a
+  phone, a laptop without a graphics card of its own) every flame was still handed to the processor after the
+  card's second unit of work, so GPU acceleration was on and did nothing. The time the card would need was
+  reckoned from those first two units, which are the steps that plot nothing and the way to the card: 0.03 s
+  of work for 0.4 % of a picture reads as 8 s, against half of the processor's 6. Now it is reckoned from the
+  units that are mostly work, and against all of the processor's time where the card works without a pause. On
+  a laptop with a Radeon Vega 3 six presets at 1280 × 720 took 3.1 to 7.1 s with the switch on, as with it off,
+  and take 0.36 to 0.58 s. A card that is slower than the processor on a picture still gives it up, within a
+  few tenths of a second.
 
 * **A phone on OpenGL no longer closes ten seconds after a first start:** on a phone older than Android 11, and
   on any card reached through OpenGL, the app tried the chaos game on the graphics card when it first rested.
