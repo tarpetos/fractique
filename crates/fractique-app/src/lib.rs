@@ -710,8 +710,6 @@ const BRISK: f32 = 0.1;
 // A moved view the card draws in less than this many seconds, half a frame, is drawn whole for every frame: it
 // needs no draft.
 const INSTANT: f32 = 0.5 * pace::FRAME;
-// The share of a view that may lie beside the picture's framing when the view is smaller than the picture.
-const PAN_MARGIN: f64 = 0.1;
 // A picture that is only magnified is shown at most this many times larger.
 const IMAGE_CEILING: f64 = 8.0;
 // A flame is magnified as far as some view of it still holds this share of its light: a deep view is drawn from
@@ -797,30 +795,31 @@ impl View {
         self.down = (self.down - by[1] / self.zoom).clamp(-1e6, 1e6);
     }
 
-    // The limits of a view. It is never smaller than `least` times the whole picture. A picture that is only ever
-    // shown as it is, larger (a wallpaper), always covers the window: no edge of it comes inside. `covering` is
-    // the share of it the window shows across and down when the view is the whole picture: 1, or less on the
-    // side where it fills a window of another shape and is cut. A picture that is drawn anew for its view cannot
-    // be moved out of sight: smaller than the view, its framing stays inside the view; larger, the view stays
-    // inside its framing.
+    // The limits of a view. It is never smaller than `least` times the whole picture, and it lies inside the
+    // picture's territory, which is the same at every scale; a side of the view that is longer than the
+    // territory's has it in its middle. `covering` is for a picture that is only ever shown as it is, larger (a
+    // wallpaper): the share of it the window shows across and down when the view is the whole picture, 1, or less
+    // on the side where it fills a window of another shape and is cut.
     fn limited(&mut self, size: [u32; 2], least: f64, covering: Option<[f64; 2]>) {
         self.zoom = self.zoom.max(least);
+        let (territory, held) = (territory(size, least, covering), self.held(size, covering));
+        let free = [0, 1].map(|side| (territory[side] - held[side]).max(0.0));
+        self.right = self.right.clamp(-free[0], free[0]);
+        self.down = self.down.clamp(-free[1], free[1]);
+    }
+
+    // Half of what the view shows across and down, in shorter sides of the picture.
+    fn held(&self, size: [u32; 2], covering: Option<[f64; 2]>) -> [f64; 2] {
         let shorter = f64::from(size[0].min(size[1]).max(1));
-        let seen = 1.0 / self.zoom;
-        let free = match covering {
-            Some(shares) => shares.map(|share| 0.5 * (1.0 - share * seen).max(0.0)),
-            // The figure is smaller than the view: it stays inside it, whole.
-            None if self.zoom <= 1.0 => [0.5 * (seen - 1.0); 2],
-            // The view is smaller than the figure: it stays inside it, but for a tenth of a view, which it gains
-            // over the first quarter of magnification so that nothing jumps at the whole picture.
-            None => [0.5 * (1.0 - seen) + PAN_MARGIN * seen * ((self.zoom - 1.0) * 4.0).min(1.0); 2],
-        };
-        let (across, along) = (
-            f64::from(size[0]) / shorter * free[0],
-            f64::from(size[1]) / shorter * free[1],
-        );
-        self.right = self.right.clamp(-across, across);
-        self.down = self.down.clamp(-along, along);
+        let shares = covering.unwrap_or([1.0; 2]);
+        [0, 1].map(|side| 0.5 * shares[side] * f64::from(size[side]) / shorter / self.zoom)
+    }
+
+    // The wheel, a pinch, the slider or a test run's step: the view made larger or smaller around a point, which
+    // stays where it is unless the territory's edge is in the way of a view that grows.
+    fn zoomed(&mut self, factor: f64, around: [f64; 2], size: [u32; 2], reach: (f64, f64), covering: Option<[f64; 2]>) {
+        self.magnified(factor, around, reach.0, reach.1);
+        self.limited(size, reach.0, covering);
     }
 
     fn magnified(&mut self, factor: f64, around: [f64; 2], least: f64, most: f64) {
@@ -852,6 +851,15 @@ impl View {
             zoom: self.zoom * by,
         }
     }
+}
+
+// Half of the sides of a picture's territory, in shorter sides of the picture: all that a view of it may show,
+// whatever its scale. A wallpaper's is the wallpaper. Any other picture's is what its smallest view shows moved
+// as far as the picture's framing stays inside that view: nine framings across and nine down.
+fn territory(size: [u32; 2], least: f64, covering: Option<[f64; 2]>) -> [f64; 2] {
+    let shorter = f64::from(size[0].min(size[1]).max(1));
+    let half = if covering.is_some() { 0.5 } else { 1.0 / least - 0.5 };
+    size.map(|side| half * f64::from(side) / shorter)
 }
 
 // A part of the screen, from its middle, in shorter sides of the picture.
@@ -4644,12 +4652,9 @@ impl App {
         }
     }
 
-    // The wheel, a pinch, the slider or a test run's step: the view made larger or smaller around a point, within
-    // its limits.
     fn zoom_by(&mut self, factor: f64, around: [f64; 2], size: [u32; 2]) {
-        let (least, most) = self.reach(size);
-        self.view.magnified(factor, around, least, most);
-        self.view.limited(size, least, self.seen);
+        let reach = self.reach(size);
+        self.view.zoomed(factor, around, size, reach, self.seen);
     }
 
     fn reset_view(&mut self) {
@@ -7729,28 +7734,15 @@ mod tests {
         // Mandelbox Cube, wheeled out to 0.009 times: it stops at a fifth of its framing.
         let mut view = WHOLE;
         for _ in 0..40 {
-            view.magnified(0.8, [0.0; 2], FLOOR, 1e10);
-            view.limited(size, FLOOR, None);
+            view.zoomed(0.8, [0.0; 2], size, (FLOOR, 1e10), None);
         }
         assert_eq!(view.zoom, FLOOR);
         // With the scale of the controls at 0.5 the wheel has half as far to go.
         let mut scaled = View { zoom: 0.009, ..WHOLE };
         scaled.limited(size, FLOOR / 0.5, None);
         assert_eq!(scaled.zoom * 0.5, FLOOR);
-        // Larger than the view, dragged away: the view stays inside the figure but for a tenth of a view.
-        let mut view = View {
-            right: 40.0,
-            down: -40.0,
-            zoom: 4.0,
-        };
-        view.limited(size, FLOOR, None);
+        // At the floor the figure moves about and never leaves the view, on any side.
         let half = 3840.0 / 2160.0 / 2.0;
-        assert!((view.right - half * 2.0 * (0.375 + 0.025)).abs() < 1e-12);
-        assert!((view.down + 0.375 + 0.025).abs() < 1e-12);
-        let [across, along, larger] = view.within(&WHOLE, size);
-        let seen = 0.5 / larger;
-        assert!(across + seen <= 1.0 + 0.2 * seen + 1e-6 && along - seen >= -0.2 * seen - 1e-6);
-        // Smaller than the view, as at the floor: the figure moves about and never leaves, on any side.
         for (right, down) in [(40.0, 0.0), (-40.0, 0.0), (0.0, 40.0), (0.0, -40.0)] {
             let mut view = View {
                 right,
@@ -7764,21 +7756,6 @@ mod tests {
             assert!(along - seen <= 1e-6 && along + seen >= 1.0 - 1e-6);
             assert!(view.right.abs() <= half * 4.0 + 1e-9 && view.down.abs() <= 2.0 + 1e-9);
         }
-        // At the whole picture there is nothing to move, and nothing jumps on the way in.
-        let mut whole = View {
-            right: 0.3,
-            down: 0.3,
-            zoom: 1.0,
-        };
-        whole.limited(size, FLOOR, None);
-        assert_eq!(whole, WHOLE);
-        let mut near = View {
-            right: 9.0,
-            down: 0.0,
-            zoom: 1.001,
-        };
-        near.limited(size, FLOOR, None);
-        assert!(near.right < 0.002);
         // A view within its limits is not touched.
         let inside = View {
             right: -0.5,
@@ -7788,6 +7765,256 @@ mod tests {
         let mut view = inside;
         view.limited(size, FLOOR, None);
         assert_eq!(view, inside);
+    }
+
+    // The pictures a view is limited for: the smallest and the largest scale and what a wallpaper covers.
+    type Limits = (&'static str, (f64, f64), Option<[f64; 2]>);
+
+    fn kinds_of_picture() -> Vec<Limits> {
+        vec![
+            ("a flame", (FLOOR, FLAME_DEEPEST.1), None),
+            ("a shallow flame", (FLOOR, FLAME_DEEPEST.0), None),
+            ("an attractor", (FLOOR, orbit_deepest("lorenz").unwrap_or(1.0)), None),
+            ("a fractal drawn pixel by pixel", (FLOOR, MAX_MAGNIFICATION), None),
+            (
+                "a solid inside a magnified scene",
+                (FLOOR, MAX_MAGNIFICATION / 40.0),
+                None,
+            ),
+            (
+                "a flame under controls that halve it",
+                (FLOOR / 0.5, FLAME_DEEPEST.1 / 0.5),
+                None,
+            ),
+            ("a wallpaper", (1.0, IMAGE_CEILING), Some([1.0; 2])),
+            (
+                "a wallpaper cut above and below",
+                (1.0, IMAGE_CEILING),
+                Some(filled(0.9).1),
+            ),
+            (
+                "a wallpaper beside which the window shows more",
+                (1.0, IMAGE_CEILING),
+                Some(filled(0.25).1),
+            ),
+        ]
+    }
+
+    const SHAPES: [[u32; 2]; 4] = [[1920, 1080], [1080, 1920], [1000, 1000], [3440, 1440]];
+
+    fn scales((least, most): (f64, f64)) -> Vec<f64> {
+        let mut scales: Vec<f64> = (0..=24)
+            .map(|step| least * fractique_core::math::pow(most / least, f64::from(step) / 24.0))
+            .collect();
+        scales.extend(
+            [1.0, 1.001, 1.25, 2.0]
+                .into_iter()
+                .filter(|scale| (least..=most).contains(scale)),
+        );
+        scales.sort_by(f64::total_cmp);
+        scales
+    }
+
+    // Places all over a territory and past it, as shares of its half sides.
+    fn places() -> impl Iterator<Item = [f64; 2]> {
+        let shares = [-1.5, -1.0, -0.999, -0.6, -0.2, 0.0, 0.1, 0.5, 0.97, 1.0, 3.0];
+        shares
+            .into_iter()
+            .flat_map(move |across| shares.map(|down| [across, down]))
+    }
+
+    fn inside(view: &View, size: [u32; 2], least: f64, covering: Option<[f64; 2]>) -> bool {
+        let (territory, held) = (territory(size, least, covering), view.held(size, covering));
+        let lies = |at: f64, side: usize| {
+            let slack = 1e-9 * territory[side];
+            if held[side] > territory[side] {
+                at.abs() <= slack
+            } else {
+                at.abs() + held[side] <= territory[side] + slack
+            }
+        };
+        lies(view.right, 0) && lies(view.down, 1)
+    }
+
+    #[test]
+    fn the_camera_goes_at_every_scale_where_it_goes_at_the_whole_picture() {
+        for (name, (least, most), covering) in kinds_of_picture() {
+            for size in SHAPES {
+                let territory = territory(size, least, covering);
+                let unit = 1.0_f64.clamp(least, most);
+                for place in places() {
+                    let mut whole = View {
+                        right: place[0] * territory[0],
+                        down: place[1] * territory[1],
+                        zoom: unit,
+                    };
+                    whole.limited(size, least, covering);
+                    assert!(inside(&whole, size, least, covering), "{name} {size:?} {place:?}");
+                    for zoom in scales((least, most)).into_iter().filter(|zoom| *zoom >= unit) {
+                        let asked = View { zoom, ..whole };
+                        let mut view = asked;
+                        view.limited(size, least, covering);
+                        assert_eq!(view, asked, "{name} {size:?}: {zoom} times is not where 1 times is");
+                    }
+                }
+                // The edge a view reaches is the territory's, whatever the scale.
+                for zoom in scales((least, most)) {
+                    let mut view = View {
+                        right: 1e5,
+                        down: -1e5,
+                        zoom,
+                    };
+                    view.limited(size, least, covering);
+                    let held = view.held(size, covering);
+                    for (at, side) in [(view.right, 0), (-view.down, 1)] {
+                        if held[side] <= territory[side] {
+                            let edge = at + held[side];
+                            assert!(
+                                (edge - territory[side]).abs() <= 1e-9 * territory[side],
+                                "{name} {zoom}"
+                            );
+                        } else {
+                            assert_eq!(at, 0.0, "{name} {zoom}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_view_made_larger_keeps_the_point_it_is_made_larger_around() {
+        for (name, reach, covering) in kinds_of_picture() {
+            for size in SHAPES {
+                let territory = territory(size, reach.0, covering);
+                let fine = 1e-9 * territory[0].max(territory[1]);
+                for scale in scales(reach) {
+                    for place in places().step_by(3) {
+                        let mut view = View {
+                            right: place[0] * territory[0],
+                            down: place[1] * territory[1],
+                            zoom: scale,
+                        };
+                        view.limited(size, reach.0, covering);
+                        let (from, held) = (view, view.held(size, covering));
+                        for corner in [[0.0, 0.0], [0.9, -0.9], [-1.0, 1.0], [0.3, 1.0]] {
+                            let mut view = from;
+                            let around = [corner[0] * held[0] * view.zoom, corner[1] * held[1] * view.zoom];
+                            let point =
+                                |view: &View| [view.right + around[0] / view.zoom, view.down + around[1] / view.zoom];
+                            for _ in 0..6 {
+                                let (was, before) = (view, point(&view));
+                                view.zoomed(1.9, around, size, reach, covering);
+                                let now = point(&view);
+                                // A side of the view that was longer than the territory's had it in its middle.
+                                let fitted = was.held(size, covering);
+                                for side in [0, 1] {
+                                    assert!(
+                                        fitted[side] > territory[side] || (now[side] - before[side]).abs() <= fine,
+                                        "{name} {size:?}: the point {before:?} is at {now:?} at {} times",
+                                        view.zoom
+                                    );
+                                }
+                                assert!(inside(&view, size, reach.0, covering));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_view_made_smaller_moves_no_further_than_the_territory_asks() {
+        for (name, reach, covering) in kinds_of_picture() {
+            for size in SHAPES {
+                let territory = territory(size, reach.0, covering);
+                for from in scales(reach) {
+                    for place in places() {
+                        let mut view = View {
+                            right: place[0] * territory[0],
+                            down: place[1] * territory[1],
+                            zoom: from,
+                        };
+                        view.limited(size, reach.0, covering);
+                        for around in [[0.0, 0.0], [0.4, -0.3]] {
+                            let mut free = view;
+                            free.magnified(0.7, around, reach.0, reach.1);
+                            let mut after = view;
+                            after.zoomed(0.7, around, size, reach, covering);
+                            assert_eq!(after.zoom, free.zoom);
+                            assert!(inside(&after, size, reach.0, covering), "{name} {size:?} {after:?}");
+                            let held = after.held(size, covering);
+                            for (side, at, asked) in [(0, after.right, free.right), (1, after.down, free.down)] {
+                                let room = (territory[side] - held[side]).max(0.0);
+                                let over = (asked.abs() - room).max(0.0);
+                                assert!(
+                                    ((at - asked).abs() - over).abs() <= 1e-9 * territory[side],
+                                    "{name} {size:?}: moved from {asked} to {at}, {over} over"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_view_moved_aside_and_made_larger_stays_where_it_was_moved() {
+        let (size, reach) = ([1920, 1080], (FLOOR, FLAME_DEEPEST.1));
+        // Half the scale, dragged right as far as it went before the territory: 0.8889 shorter sides.
+        let mut view = View {
+            right: 0.5 * (1.0 / 0.5 - 1.0) * 1920.0 / 1080.0,
+            down: 0.0,
+            zoom: 0.5,
+        };
+        let aside = view.right;
+        while view.zoom < reach.1 {
+            view.zoomed(1.25, [0.0; 2], size, reach, None);
+            assert_eq!(view.right, aside, "at {} times", view.zoom);
+        }
+        // And back out: the camera moves only once the view would pass the territory's edge.
+        let edge = territory(size, FLOOR, None)[0];
+        while view.zoom > FLOOR {
+            view.zoomed(0.8, [0.0; 2], size, reach, None);
+            let held = view.held(size, None)[0];
+            assert!(
+                (view.right - aside.min(edge - held)).abs() < 1e-12,
+                "at {} times",
+                view.zoom
+            );
+        }
+        assert!((view.right - aside).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_kept_view_outside_the_territory_opens_at_its_edge() {
+        let size = [1920, 1080];
+        for (name, (least, most), covering) in kinds_of_picture() {
+            let territory = territory(size, least, covering);
+            for zoom in scales((least, most)) {
+                let (_, kept) = saved_look(None, Some(&[40.0, -0.01, zoom]));
+                let mut view = kept.expect("the view is kept");
+                view.limited(size, least, covering);
+                assert!(inside(&view, size, least, covering), "{name} {zoom}");
+                let held = view.held(size, covering);
+                assert!((view.right - (territory[0] - held[0]).max(0.0)).abs() <= 1e-9 * territory[0]);
+                if held[1] + 0.01 <= territory[1] {
+                    assert_eq!(view.down, -0.01, "{name} {zoom}");
+                }
+            }
+            // A window of another shape has another territory, and the view comes inside that one.
+            let mut view = View {
+                right: territory[0],
+                down: territory[1],
+                zoom: most,
+            };
+            view.limited(size, least, covering);
+            let upright = [1080, 1920];
+            view.limited(upright, least, covering);
+            assert!(inside(&view, upright, least, covering), "{name}");
+        }
     }
 
     #[test]

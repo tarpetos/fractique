@@ -20,6 +20,18 @@
 
 ### Fixed
 
+* **One territory for a picture, the same at every zoom:** how far a view of a flame or a fractal could be moved
+  depended on its scale. Below 1.0× the figure could be moved about the window, less and less on the way in and
+  not at all at 1.0×, so a view moved to the right at 0.5× was pulled back to the middle while it was made
+  larger; above 1.0× the room grew again, and the edge a view could reach shrank with the scale, which pushed
+  the point under the cursor aside. A picture now has one territory: everything its smallest view (0.2×) could
+  show, nine framings across and nine down with the figure in the middle. The view goes anywhere inside it at
+  every scale, so a place seen at 1.0× is seen at 100× too. Making a view larger never moves it; making it
+  smaller moves it only at the territory's edge, as far as it must. A figure can now be moved out of the
+  window; **Reset view** or a double click brings it back. The range of the zoom of each kind and the limits of
+  a wallpaper, whose territory is the wallpaper, are as they were. A file or a **Recent** picture with a view
+  outside the territory opens at its edge.
+
 * **A palette is the chosen layer's, not the whole scene's:** the app kept one chosen palette and dressed every
   layer in it, so a scene of several flames or fractals could only be of one color. The row of colors now acts on
   the layer chosen in **Layers**, shows that layer's choice and follows the selection; the crossed circle gives
