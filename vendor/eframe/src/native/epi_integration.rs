@@ -264,7 +264,11 @@ impl EpiIntegration {
             });
         }
 
-        let restored_window_settings = load_window_settings(frame.storage());
+        // Fractique patch: a window that is not kept is not restored either.
+        let restored_window_settings = native_options
+            .persist_window
+            .then(|| load_window_settings(frame.storage()))
+            .flatten();
         #[cfg(feature = "persistence")]
         let normal_geometry = restored_window_settings
             .map(|settings| settings.normal_geometry())

@@ -437,6 +437,23 @@ ahead of the window's own frame. `pace.rs` holds the numbers.
 | The processor | Renders run on a pool that leaves two cores to the window; a picture reaches the screen as one upload |
 | Outside the app's reach | Another program using the card, a driver that stalls inside one dispatch (a batch that takes over 0.5 s still ends the card's part in the picture), and the first compilation of a shader, which is done on a thread of its own at the start |
 
+### Tiling window managers
+
+A tiling window manager on Linux (i3, sway, Hyprland and the like) places and sizes the window itself: it has
+nothing to minimize a window into and does nothing with a request to maximize one. The app asks once, at its
+start, who manages the windows (`tiling.rs`): the name the X server gives for the window manager
+(`_NET_SUPPORTING_WM_CHECK`, `_NET_WM_NAME`), the session the environment names (`XDG_CURRENT_DESKTOP`,
+`XDG_SESSION_DESKTOP`, `DESKTOP_SESSION`) or the socket a compositor leaves there (`SWAYSOCK`, `I3SOCK`,
+`HYPRLAND_INSTANCE_SIGNATURE`, `NIRI_SOCKET`), against a list of names. What a window manager says it supports
+is no use here: i3 lists the maximized and the hidden state and does nothing with either. Under such a manager:
+
+- The top panel has no buttons to minimize and to maximize; full screen stays, since those managers do it.
+- The window's place and size are neither kept nor restored. The size of a tile, restored at the next start,
+  became the size the window asked for, and a window made to float then stood on its tile at the tile's size
+  instead of in the middle of the screen at its own.
+
+`FRACTIQUE_TILING=on` or `off` decides it for a window manager the list does not know, or knows wrongly.
+
 ### Motion
 
 Nothing on the screen appears, goes, moves or changes size at once. `motion.rs` holds the times and the easing

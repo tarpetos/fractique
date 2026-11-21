@@ -26,6 +26,8 @@ mod sheets;
 mod store;
 #[cfg(all(feature = "store", any(target_os = "ios", target_os = "macos")))]
 mod storekit;
+#[cfg(target_os = "linux")]
+mod tiling;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 mod update;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -564,6 +566,13 @@ pub use probe::started;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 pub fn open_at_start(path: PathBuf) {
     let _ = OPEN_FIRST.set(path);
+}
+
+pub fn tiled() -> bool {
+    #[cfg(target_os = "linux")]
+    return tiling::tiled();
+    #[cfg(not(target_os = "linux"))]
+    false
 }
 
 #[cfg(windows)]
@@ -5167,6 +5176,9 @@ impl App {
                     egui::Vec2::splat(30.0),
                 );
                 for button in ["close", "maximize", "minimize", "full", "hide"] {
+                    if tiled() && matches!(button, "maximize" | "minimize") {
+                        continue;
+                    }
                     let pressed = ui.interact(slot, egui::Id::unique(("title bar", button)), egui::Sense::click());
                     let lit = if button == "close" {
                         egui::Color32::from_rgb(214, 58, 44)

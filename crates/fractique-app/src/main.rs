@@ -68,6 +68,11 @@ fn main() -> eframe::Result {
         viewport,
         ..Default::default()
     };
+    // A tiling window manager places the window: a place and a size kept from the last run would stay with it
+    // when it is made to float.
+    if fractique_app::tiled() {
+        options.persist_window = false;
+    }
     if screenshot.is_some() || std::env::var_os("FRACTIQUE_DEBUG_FULL").is_some() {
         // A test run must not change the window and settings the owner's next launch restores.
         options.persist_window = false;
