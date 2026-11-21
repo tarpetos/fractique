@@ -32,6 +32,11 @@ built on it.
 | 25 | **A chosen size as a canvas:** 8K and 16K in the list; the screen draws a chosen size with the window's pixels, as that picture scaled down, and shows the scene beside it instead of bars; an Instant export smaller than the picture on the screen is that picture made smaller, a larger one of a fractal drawn pixel by pixel is drawn on the card in tiles | Done; measured on Windows with an NVIDIA RTX 4070 |
 | 26 | **Recent pictures and Back:** each tab keeps its last 20 pictures, with small pictures and every mutation as a picture of its own; **Back** steps through them; the phone's round buttons stand under the thumb | Done |
 | 27 | **Four programs:** the MCP server as a program of its own, `fractique-mcp`, beside the app, `fractique` and `fractique-server`; each of the three with an icon on Windows and an `update` command ([releasing.md](releasing.md#how-the-other-programs-update)) | Built; no version has been released |
+| 28 | **Colors of a layer:** a chosen palette belongs to the selected layer, each layer keeps its own through adding, removing and reordering, and a dot before a layer's name shows the colors it is drawn with | Done |
+| 29 | **One territory at every zoom:** a picture can be moved within the same nine framings at every zoom, so zooming in never moves the camera; the blurred picture follows a fast zoom to the kind's ceiling | Done |
+| 30 | **Faint parts of a deep view:** a view that holds less than an eighth of a flame raises its faint end and gives it a share of the points, so what a bright part in the frame kept dark is seen and smooth | Done |
+| 31 | **A gallery:** a hundred flames, a hundred fractals and a hundred wallpapers in `docs/gallery`, each with the `.frcq` file that renders it again; forty of them in two or three layers of different colors | Done |
+| 32 | **The tools from the AppImage:** its first word, `cli`, `mcp` or `server`, starts the program packed in it | Done |
 
 ## App, next
 
@@ -57,7 +62,13 @@ What the app does not do yet:
   card: the processor renders them.
 - A mark on the screen where the exported picture ends, for a picture of a chosen size in a window of another
   shape.
-- A run on Android of what rows 23 to 25 changed.
+- A run on Android of what rows 23 to 30 changed.
+- A view just above an eighth of a flame keeps its faint parts dark: the lift of row 30 starts at the eighth, so
+  they appear over a short stretch of zoom instead of being there from the start.
+- A deep view on the graphics card without the 0.1 to 0.5 s that giving the faint parts their points costs it.
+- A device with a measured limit of its graphics card hands nearly every picture to the processor at once: the
+  check judges a whole picture by its first small unit of work.
+- A live draft of a fractal drawn pixel by pixel again once a deep view the card gave up is left by zooming out.
 - Editing the colors of a fractal beyond the eight palettes, and typing a parameter in as a number.
 - A build for the Mac App Store: the purchase code is shared with iOS, and no script signs, sandboxes and packs
   the app for it ([ios.md](ios.md#a-mac-app-store-build)).
