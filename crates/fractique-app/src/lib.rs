@@ -656,15 +656,21 @@ fn laid(drawn: [u32; 2], window: [u32; 2], fixed: bool, screen: egui::Vec2) -> (
     (stretch, if stretch > 1.0 { 1.0 / across } else { 1.0 / along })
 }
 
-// How many times larger the picture on the screen is shown while it stands for a view that is still drawn. A
-// view wheeled far past the picture it waits for would show a few of its pixels, blurred: one flat colour.
-// It is shown at most as far in as a picture that is only magnified goes, around the same point.
-fn stand_in(larger: f32) -> f32 {
-    if larger.is_finite() {
-        larger.min(IMAGE_CEILING as f32)
+// How the picture the screen holds lies in the window for a view: the transform from its own view to that one,
+// whole, however far apart the two are.
+fn lain(eye: (View, f64), shown: &Picture, card: bool, window: [u32; 2], fixed: bool, screen: egui::Vec2) -> [f32; 4] {
+    let [across, along, larger] = stand_in(eye, shown, card);
+    let (stretch, closer) = laid(shown.size, window, fixed, screen);
+    spread([across, along, larger * closer, stretch], shown.wide)
+}
+
+fn stand_in((view, zoom): (View, f64), shown: &Picture, card: bool) -> [f32; 3] {
+    let [across, along, larger] = if zoom == shown.zoom || !card {
+        view.within(&shown.view, shown.size)
     } else {
-        1.0
-    }
+        view.scaled(zoom).within(&shown.view.scaled(shown.zoom), shown.size)
+    };
+    [across, along, if larger.is_finite() { larger } else { 1.0 }]
 }
 
 // A wallpaper of a chosen size fills a window of another shape: it is shown up to this many times larger than
@@ -1127,6 +1133,7 @@ struct App {
     pictures: u32,
     offers: motion::Offers<Offer>,
     shown_of: (u64, bool),
+    scene_from: u64,
     handing: bool,
     live_card: bool,
     veil_level: f32,
@@ -1811,6 +1818,7 @@ impl App {
             pictures: 0,
             offers: motion::Offers::new(),
             shown_of: (0, true),
+            scene_from: 0,
             handing: false,
             live_card: false,
             veil_level: 0.0,
@@ -2071,6 +2079,7 @@ impl App {
         self.cancel.store(true, Ordering::Relaxed);
         self.cancel = Arc::new(AtomicBool::new(false));
         self.generation += 1;
+        self.scene_from = self.generation;
         self.offers.begin(self.generation, true);
         match rest.picture {
             Some((mut picture, size)) if Some(size) == self.requested => {
@@ -2281,6 +2290,9 @@ impl App {
         self.cancel.store(true, Ordering::Relaxed);
         self.cancel = Arc::new(AtomicBool::new(false));
         self.generation += 1;
+        if !self.moved_only {
+            self.scene_from = self.generation;
+        }
         self.offers.begin(self.generation, !self.moved_only);
         self.requested = Some(size);
         self.drawn = Some((self.view, self.adjust.zoom));
@@ -4247,7 +4259,8 @@ impl App {
         self.last_size = size;
         let awaited = self.awaited(size);
         // The picture of another scene has no place in the new one's view: it stays where it was last seen.
-        if awaited && (self.requested.is_none() || !self.moved_only) && self.shown_eye.is_none() {
+        let another = self.requested.is_none() || self.shown_of.0 < self.scene_from;
+        if awaited && another && self.shown_eye.is_none() {
             self.shown_eye = Some(self.last_eye);
         }
         let offered = self.offers.waiting();
@@ -4343,15 +4356,11 @@ impl App {
         let stretch = (size[0] as f32 / size[1].max(1) as f32) / (screen.width() / screen.height()).max(0.001);
         let fills = if fixed && self.covering() { 1.0 } else { 0.0 };
         let fill = 1.0 + (filled(stretch).0 - 1.0) * self.stage.glide("fill", fills, motion::PANEL);
+        let card = self.gpu_on();
         let lay = |shown: &Picture, eye: Option<(View, f64)>| {
-            let (view, zoom) = eye.unwrap_or(now_eye);
-            let [across, along, larger] = if zoom == shown.zoom || !self.gpu_on() {
-                view.within(&shown.view, shown.size)
-            } else {
-                view.scaled(zoom).within(&shown.view.scaled(shown.zoom), shown.size)
-            };
-            let (stretch, closer) = laid(shown.size, size, fixed, screen.size());
-            spread([across, along, stand_in(larger) * closer * fill, stretch], shown.wide)
+            let [across, along, larger, stretch] =
+                lain(eye.unwrap_or(now_eye), shown, card, size, fixed, screen.size());
+            [across, along, larger * fill, stretch]
         };
         let shown = Picture {
             view: self.shown,
@@ -4376,7 +4385,7 @@ impl App {
             let four = |lay: [f32; 4]| format!("{:.4},{:.4},{:.4},{:.4}", lay[0], lay[1], lay[2], lay[3]);
             let _ = write!(
                 self.trace.note,
-                " lay {} past {} px {}x{} scale {:.2} window {} bare {} wide {:.3} strips {}x{} drawn {}x{}",
+                " lay {} past {} px {}x{} scale {:.2} window {} bare {} wide {:.3} strips {}x{} drawn {}x{} held {:.5} stand {:.4}",
                 four(laid.view),
                 four(laid.past),
                 size[0],
@@ -4389,6 +4398,8 @@ impl App {
                 self.strips_asked[1],
                 self.drawn_with[0],
                 self.drawn_with[1],
+                self.scale_of(shown.view.zoom, shown.zoom),
+                stand_in(self.shown_eye.unwrap_or(now_eye), &shown, card)[2],
             );
         }
         laid
@@ -8301,14 +8312,200 @@ mod tests {
         }
     }
 
+    // The point of a held picture that glass.wgsl samples at a point of the window, in the shader's own 32 bits.
+    fn sampled(lay: [f32; 4], at: [f32; 2]) -> [f32; 2] {
+        let mut from_middle = [at[0] - 0.5, at[1] - 0.5];
+        if lay[3] > 1.0 {
+            from_middle[1] *= lay[3];
+        } else {
+            from_middle[0] /= lay[3];
+        }
+        [from_middle[0] / lay[2] + lay[0], from_middle[1] / lay[2] + lay[1]]
+    }
+
+    // The same point as the view itself has it there, in 64 bits.
+    fn meant(eye: (View, f64), held: &Picture, at: [f32; 2]) -> [f64; 2] {
+        let (view, shown) = (eye.0.scaled(eye.1), held.view.scaled(held.zoom));
+        let shorter = f64::from(held.size[0].min(held.size[1]));
+        let middle = [view.right - shown.right, view.down - shown.down];
+        [0, 1].map(|side| {
+            let across = f64::from(held.size[side]) / shorter;
+            let scene = middle[side] + (f64::from(at[side]) - 0.5) * across / view.zoom;
+            0.5 + scene * shown.zoom / across / held.wide[side]
+        })
+    }
+
+    const CORNERS: [[f32; 2]; 5] = [[0.5, 0.5], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
+
+    // How far the held picture is from where the view has it: in the picture's own sides, and in pixels of the
+    // window.
+    fn astray(eye: (View, f64), held: &Picture) -> (f64, f64) {
+        let screen = egui::vec2(held.size[0] as f32, held.size[1] as f32);
+        let lay = lain(eye, held, true, held.size, false, screen);
+        let larger = eye.0.scaled(eye.1).zoom / held.view.scaled(held.zoom).zoom;
+        let mut worst = (0.0, 0.0);
+        for at in CORNERS {
+            let (drawn, exact) = (sampled(lay, at), meant(eye, held, at));
+            for side in 0..2 {
+                let off = (f64::from(drawn[side]) - exact[side]).abs();
+                let pixels = off * held.wide[side] * larger * f64::from(held.size[side]);
+                worst = (
+                    f64::max(worst.0, off / exact[side].abs().max(1.0)),
+                    f64::max(worst.1, pixels),
+                );
+            }
+        }
+        worst
+    }
+
+    // A wheel turned fast and a hand that drags meanwhile: every view from where it starts to the limit.
+    fn fast_zoom(from: View, by: f64, size: [u32; 2], reach: (f64, f64), covering: Option<[f64; 2]>) -> Vec<View> {
+        let (mut view, mut views) = (from, vec![from]);
+        let end = if by > 1.0 { reach.1 } else { reach.0 };
+        for step in 0..2000 {
+            if view.zoom == end {
+                break;
+            }
+            view.zoomed(by, [0.21 / view.zoom, -0.13 / view.zoom], size, reach, covering);
+            if step % 5 == 4 {
+                view.moved([0.04, -0.03]);
+                view.limited(size, reach.0, covering);
+            }
+            views.push(view);
+        }
+        assert_eq!(view.zoom, end);
+        views
+    }
+
+    // One bit of the shader's numbers at a point of the picture, with room for the few operations on the way.
+    const BITS: f64 = 8.0 * f32::EPSILON as f64;
+
     #[test]
-    fn a_picture_that_stands_for_a_deeper_view_is_never_a_few_of_its_pixels() {
-        assert_eq!(stand_in(0.3), 0.3);
-        assert_eq!(stand_in(7.5), 7.5);
-        assert_eq!(stand_in(57.0), IMAGE_CEILING as f32);
-        assert_eq!(stand_in(1e12), IMAGE_CEILING as f32);
-        assert_eq!(stand_in(f32::INFINITY), 1.0);
-        assert_eq!(stand_in(f32::NAN), 1.0);
+    fn a_held_picture_stands_for_every_view_of_a_fast_zoom() {
+        for (kind, reach, covering) in kinds_of_picture() {
+            for size in SHAPES {
+                for wide in [[1.0; 2], [1.5, 1.5], [1.25, 1.6]] {
+                    let whole = View {
+                        zoom: reach.0.max(1.0),
+                        ..WHOLE
+                    };
+                    let held = Picture {
+                        view: whole,
+                        zoom: 1.0,
+                        size,
+                        wide,
+                    };
+                    let inward = fast_zoom(whole, 1.19, size, reach, covering);
+                    let deepest = *inward.last().unwrap_or(&whole);
+                    let back = Picture { view: deepest, ..held };
+                    let outward = fast_zoom(deepest, 0.83, size, reach, covering);
+                    for (held, views) in [(held, &inward), (back, &outward)] {
+                        for view in views {
+                            let eye = (*view, 1.0);
+                            let larger = stand_in(eye, &held, true)[2];
+                            let exact = (view.zoom / held.view.zoom) as f32;
+                            assert_eq!(larger, exact, "{kind} at {}", view.zoom);
+                            let (off, pixels) = astray(eye, &held);
+                            if view.zoom >= held.view.zoom {
+                                assert!(off <= BITS, "{kind} at {}: {off} of the picture", view.zoom);
+                            }
+                            if view.zoom <= held.view.zoom || reach.1 <= FLAME_DEEPEST.1 / 0.5 {
+                                assert!(pixels < 1.0, "{kind} at {}: {pixels} pixels", view.zoom);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_stand_in_goes_as_far_in_as_the_view() {
+        let size = [3840, 2160];
+        let held = Picture {
+            view: View { zoom: 2.2, ..WHOLE },
+            zoom: 1.0,
+            size,
+            wide: [1.5; 2],
+        };
+        let view = View {
+            zoom: 300.0,
+            right: 0.01,
+            down: 0.02,
+        };
+        assert_eq!(stand_in((view, 1.0), &held, true)[2], (300.0 / 2.2) as f32);
+        // The scale of the controls is the picture's too.
+        let under = View { zoom: 150.0, ..view };
+        assert_eq!(stand_in((under, 2.0), &held, true)[2], (300.0 / 2.2) as f32);
+        // Past what 32 bits tell apart in the picture, the window is one point of it: the colour there.
+        let deep = View {
+            zoom: 1e10,
+            right: 0.3,
+            down: -0.2,
+        };
+        let whole = Picture {
+            view: WHOLE,
+            zoom: 1.0,
+            size,
+            wide: [1.0; 2],
+        };
+        let lay = lain((deep, 1.0), &whole, true, size, false, egui::vec2(3840.0, 2160.0));
+        assert_eq!(lay[2], 1e10);
+        assert_eq!(sampled(lay, [0.0, 0.0]), sampled(lay, [1.0, 1.0]));
+        assert!(astray((deep, 1.0), &whole).0 <= BITS);
+        let nowhere = Picture {
+            view: View { zoom: 0.0, ..WHOLE },
+            ..whole
+        };
+        assert_eq!(stand_in((deep, 1.0), &nowhere, false)[2], 1.0);
+    }
+
+    #[test]
+    fn a_picture_that_arrives_during_a_zoom_takes_the_screen_where_the_one_before_stood() {
+        for (kind, reach, covering) in kinds_of_picture() {
+            let size = [3840, 2160];
+            let whole = View {
+                zoom: reach.0.max(1.0),
+                ..WHOLE
+            };
+            let inward = fast_zoom(whole, 1.19, size, reach, covering);
+            let mut views = inward.clone();
+            views.extend(fast_zoom(*inward.last().unwrap_or(&whole), 0.83, size, reach, covering));
+            let mut held = Picture {
+                view: whole,
+                zoom: 1.0,
+                size,
+                wide: [1.5; 2],
+            };
+            for (step, view) in views.iter().enumerate() {
+                let eye = (*view, 1.0);
+                // The picture of a view a few steps back, as one that was drawn meanwhile is.
+                let arrived = Picture {
+                    view: views[step.saturating_sub(3)],
+                    zoom: 1.0,
+                    size,
+                    wide: [1.25; 2],
+                };
+                for at in CORNERS {
+                    let lays = [held, arrived].map(|picture| {
+                        let lay = lain(eye, &picture, true, size, false, egui::vec2(3840.0, 2160.0));
+                        (sampled(lay, at), meant(eye, &picture, at))
+                    });
+                    for (drawn, exact) in lays {
+                        for side in 0..2 {
+                            let off = (f64::from(drawn[side]) - exact[side]).abs() / exact[side].abs().max(1.0);
+                            assert!(off <= BITS, "{kind} at {}: {off}", view.zoom);
+                        }
+                    }
+                }
+                let (before, after) = (stand_in(eye, &held, true)[2], stand_in(eye, &arrived, true)[2]);
+                let same = f64::from(before) * held.view.zoom / (f64::from(after) * arrived.view.zoom);
+                assert!((same - 1.0).abs() < 1e-6, "{kind} at {}: {same}", view.zoom);
+                if step % 11 == 10 {
+                    held = arrived;
+                }
+            }
+        }
     }
 
     #[test]
