@@ -8,11 +8,11 @@
   </sub></p>
 </div>
 
-Fractique crée trois sortes d’images. Des flammes fractales : ces fractales lumineuses et vaporeuses faites de courbes fines et de lumière douce. Des fractales classiques de 22 sortes : de l’ensemble de Mandelbrot, des ensembles de Julia et des attracteurs étranges au Mandelbulb en trois dimensions. Et des fonds d’écran : des feuilles plates aux bords éclairés et aux ombres douces, chacun en version claire et en version sombre. Vous choisissez un préréglage, tirez une image au hasard ou superposez plusieurs flammes, puis vous exportez le résultat à n’importe quelle taille, de l’écran d’un téléphone à un moniteur 4K. Une scène est un seul petit fichier, et le même fichier donne toujours exactement les mêmes pixels, sous Windows, macOS, Linux, Android et iOS.
-
 <p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique : des fonds d'écran fractals pour tous les écrans" width="880"></a>
 </p>
+
+Fractique crée trois sortes d’images. Des flammes fractales : ces fractales lumineuses et vaporeuses faites de courbes fines et de lumière douce. Des fractales classiques de 22 sortes : de l’ensemble de Mandelbrot, des ensembles de Julia et des attracteurs étranges au Mandelbulb en trois dimensions. Et des fonds d’écran : des feuilles plates aux bords éclairés et aux ombres douces, chacun en version claire et en version sombre. Vous choisissez un préréglage, tirez une image au hasard ou superposez plusieurs flammes, puis vous exportez le résultat à n’importe quelle taille, de l’écran d’un téléphone à un moniteur 4K. Une scène est un seul petit fichier, et le même fichier donne toujours exactement les mêmes pixels, sous Windows, macOS, Linux, Android et iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Le préréglage Spirale aurorale : des volutes en spirale turquoise et vertes sur fond sombre" width="880">

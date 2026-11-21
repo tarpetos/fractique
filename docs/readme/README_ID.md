@@ -8,11 +8,11 @@
   </sub></p>
 </div>
 
-Fractique membuat tiga jenis gambar. Api fraktal: fraktal bercahaya dan halus yang terbentuk dari kurva tipis dan cahaya lembut. Fraktal klasik dari 22 jenis: dari himpunan Mandelbrot, himpunan Julia, dan penarik aneh hingga Mandelbulb tiga dimensi. Dan wallpaper: lembaran datar dengan tepi bercahaya dan bayangan lembut, masing-masing dalam versi terang dan gelap. Anda memilih preset, membuat gambar acak, atau menumpuk beberapa api, lalu mengekspornya dalam ukuran apa pun, dari layar ponsel hingga monitor 4K. Sebuah adegan adalah satu berkas kecil, dan berkas yang sama selalu menghasilkan piksel yang persis sama, di Windows, macOS, Linux, Android, dan iOS.
-
 <p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: wallpaper fraktal untuk setiap layar" width="880"></a>
 </p>
+
+Fractique membuat tiga jenis gambar. Api fraktal: fraktal bercahaya dan halus yang terbentuk dari kurva tipis dan cahaya lembut. Fraktal klasik dari 22 jenis: dari himpunan Mandelbrot, himpunan Julia, dan penarik aneh hingga Mandelbulb tiga dimensi. Dan wallpaper: lembaran datar dengan tepi bercahaya dan bayangan lembut, masing-masing dalam versi terang dan gelap. Anda memilih preset, membuat gambar acak, atau menumpuk beberapa api, lalu mengekspornya dalam ukuran apa pun, dari layar ponsel hingga monitor 4K. Sebuah adegan adalah satu berkas kecil, dan berkas yang sama selalu menghasilkan piksel yang persis sama, di Windows, macOS, Linux, Android, dan iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Preset Spiral Aurora: untaian spiral toska dan hijau di atas latar gelap" width="880">

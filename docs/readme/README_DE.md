@@ -8,11 +8,11 @@
   </sub></p>
 </div>
 
-Fractique erzeugt drei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fraktale aus feinen Kurven und weichem Licht. Klassische Fraktale in 22 Arten: von der Mandelbrot-Menge, Julia-Mengen und seltsamen Attraktoren bis zum Mandelbulb in drei Dimensionen. Und Hintergrundbilder: flache Blätter mit beleuchteten Kanten und weichen Schatten, jedes in einer hellen und einer dunklen Fassung. Du wählst eine Vorlage, würfelst ein zufälliges Bild oder legst mehrere Flammen übereinander und exportierst das Ergebnis in jeder Größe, vom Handybildschirm bis zum 4K-Monitor. Eine Szene ist eine kleine Datei, und dieselbe Datei ergibt immer exakt dieselben Pixel, unter Windows, macOS, Linux, Android und iOS.
-
 <p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: fraktale Hintergrundbilder für jeden Bildschirm" width="880"></a>
 </p>
+
+Fractique erzeugt drei Arten von Bildern. Fraktale Flammen: leuchtende, zarte Fraktale aus feinen Kurven und weichem Licht. Klassische Fraktale in 22 Arten: von der Mandelbrot-Menge, Julia-Mengen und seltsamen Attraktoren bis zum Mandelbulb in drei Dimensionen. Und Hintergrundbilder: flache Blätter mit beleuchteten Kanten und weichen Schatten, jedes in einer hellen und einer dunklen Fassung. Du wählst eine Vorlage, würfelst ein zufälliges Bild oder legst mehrere Flammen übereinander und exportierst das Ergebnis in jeder Größe, vom Handybildschirm bis zum 4K-Monitor. Eine Szene ist eine kleine Datei, und dieselbe Datei ergibt immer exakt dieselben Pixel, unter Windows, macOS, Linux, Android und iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="Die Vorlage Auroraspirale: türkise und grüne Spiralschleier auf dunklem Hintergrund" width="880">

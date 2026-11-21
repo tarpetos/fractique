@@ -8,11 +8,11 @@
   </sub></p>
 </div>
 
-O Fractique cria três tipos de imagem. Chamas fractais: fractais luminosos e etéreos feitos de curvas finas e luz suave. Fractais clássicos de 22 tipos: do conjunto de Mandelbrot, dos conjuntos de Julia e dos atratores estranhos ao Mandelbulb em três dimensões. E papéis de parede: folhas planas com bordas iluminadas e sombras suaves, cada um em versão clara e escura. Você escolhe uma predefinição, gera uma imagem aleatória ou sobrepõe várias chamas e exporta o resultado em qualquer tamanho, da tela de um celular a um monitor 4K. Uma cena é um único arquivo pequeno, e o mesmo arquivo sempre gera exatamente os mesmos pixels, no Windows, macOS, Linux, Android e iOS.
-
 <p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: papéis de parede fractais para qualquer tela" width="880"></a>
 </p>
+
+O Fractique cria três tipos de imagem. Chamas fractais: fractais luminosos e etéreos feitos de curvas finas e luz suave. Fractais clássicos de 22 tipos: do conjunto de Mandelbrot, dos conjuntos de Julia e dos atratores estranhos ao Mandelbulb em três dimensões. E papéis de parede: folhas planas com bordas iluminadas e sombras suaves, cada um em versão clara e escura. Você escolhe uma predefinição, gera uma imagem aleatória ou sobrepõe várias chamas e exporta o resultado em qualquer tamanho, da tela de um celular a um monitor 4K. Uma cena é um único arquivo pequeno, e o mesmo arquivo sempre gera exatamente os mesmos pixels, no Windows, macOS, Linux, Android e iOS.
 
 <p align="center">
   <img src="../samples/aurora-spiral.png" alt="A predefinição Espiral de aurora: fios em espiral turquesa e verdes sobre um fundo escuro" width="880">
