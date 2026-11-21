@@ -303,5 +303,61 @@
     "url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
     "sha256": "6d6ef7bede0416b6ebee2014be5852576dbce89235fe16ea5c44ed01bd522132"
   },
-  "hashtags": "#Fractique #fractal #fractalart #wallpaper #generativeart #fractalflame #mandelbrot #free #windows #linux #macos #android #ios #rustlang"
+  "hashtags": "#Fractique #fractal #fractalart #wallpaper #generativeart #fractalflame #mandelbrot #free #windows #linux #macos #android #ios #rustlang",
+  "short": {
+    "size": [
+      1920,
+      1080
+    ],
+    "small": {
+      "size": [
+        1280,
+        720
+      ],
+      "fps": 30,
+      "megabytes": 9.2
+    },
+    "parts": [
+      {
+        "name": "random",
+        "from": 1,
+        "to": 7
+      },
+      {
+        "name": "layers",
+        "from": 2.2,
+        "to": 8.4
+      },
+      {
+        "name": "layered",
+        "from": 1.4,
+        "to": 7.4
+      },
+      {
+        "name": "fractals",
+        "from": 2.6,
+        "to": 9.2
+      },
+      {
+        "name": "fractal-layers",
+        "from": 1.4,
+        "to": 7.6
+      },
+      {
+        "name": "shapes",
+        "from": 2.6,
+        "to": 8.2
+      },
+      {
+        "name": "phone",
+        "from": 1,
+        "to": 7
+      },
+      {
+        "name": "end",
+        "from": 0,
+        "to": 3.2
+      }
+    ]
+  }
 }
