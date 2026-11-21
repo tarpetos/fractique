@@ -68,8 +68,9 @@ const UNIT: f32 = 0.0015;
 // finished with those it has by then, so that it stays inside the ten seconds a picture may take.
 const LARGER_WITHIN: f32 = 8.0;
 const DEEP_UNIT: f32 = 0.003;
-// A unit is at least this many times the way to the card and back.
-const ROOMY: f32 = 4.0;
+// A way to the card and back longer than this is costly: units are then sized by it, `FAR` times as long.
+const COSTLY: f32 = 0.0006;
+const FAR: f32 = 30.0;
 // Milliseconds without a word of the card after which a picture on its way counts as stalled: ten times the
 // longest a batch of a bounded scene may take.
 const SILENT: u32 = 10 * LONGEST;
@@ -459,21 +460,21 @@ impl Layer {
 // twenty times a step of another. That first batch is mostly unplotted steps, so the next is sized by all of its
 // work. An unplotted step writes nothing and is taken for a third of a plotted one: taken for a whole one, the
 // second batch of a flame at 3840 × 2160 took 12 to 18 ms of a slice of 8.3.
-//
-// `back` is the quickest a unit of the run has come back. Where the way to the card and back is a large part of a
-// unit, as on a phone's chip (an Adreno 740: 1.2 to 5 ms for a unit of no steps), a unit sized to take the usual
-// time is one step a walker and nearly all of it is the way: the card then took 1.3 s for what the processor
-// renders in 0.5 s. Such a unit is `ROOMY` times its way back, half a frame at the most, and is sized by the
-// work in it.
-fn following(sent: u32, fused: u32, took: f32, slice: f32, back: f32) -> u32 {
+fn following(sent: u32, fused: u32, took: f32, slice: f32) -> u32 {
     let worked = f64::from(sent) + f64::from(fused) / 3.0;
-    let roomy = (ROOMY * back).min(pace::FRAME / 2.0);
-    let (took, slice) = if back.is_finite() && roomy > slice {
-        ((took - back).max(took / 8.0), roomy - back)
-    } else {
-        (took, slice)
-    };
     (pace::next(worked, took, slice).floor() as u32).max(1)
+}
+
+// The seconds a unit is sized for, on a card whose quickest unit of the run came back after `back` seconds. Where
+// the way to the card and back is short, the usual unit. On a phone's chip it is not (an Adreno 740: 1.1 ms for a
+// unit of no steps, 4 ms for one that plots), and units of the usual size were nearly all way: the card took
+// 1.3 s for what its processor renders in 0.5 s. There a unit is `FAR` times the way, two frames at the most.
+fn unit_for(unit: f32, back: f32) -> f32 {
+    if back.is_finite() && back > COSTLY {
+        (FAR * back).clamp(unit, 2.0 * pace::FRAME)
+    } else {
+        unit
+    }
 }
 
 // What a run needs of the card, for the frame and for the thread that hears of a finished unit alike.
@@ -1694,6 +1695,7 @@ impl Parts {
                 }
                 run.spent += took;
                 run.back = run.back.min(took);
+                let unit = unit_for(unit, run.back);
                 run.took.push((took, run.working));
                 let past = at.duration_since(run.opened).as_secs_f32() - run.allowed;
                 run.overrun = run.overrun.max(past);
@@ -1711,7 +1713,7 @@ impl Parts {
                     run.rows = rows.clamp(8, run.size[1].max(8));
                 }
                 if run.sent > 0 || run.fused > 0 {
-                    run.steps = following(run.sent, run.fused, took, unit, run.back);
+                    run.steps = following(run.sent, run.fused, took, unit);
                 }
                 if run.layers.iter().all(Layer::settled) {
                     run.full.get_or_insert(since);
@@ -2441,7 +2443,7 @@ pub(crate) mod tests {
             );
             let mut filled = 0;
             for batch in 1..8 {
-                let steps = following(sent, fused, took, slice, 0.25e-3);
+                let steps = following(sent, fused, took, slice);
                 // The second takes the other half of the unplotted steps with its first plotted ones.
                 (sent, fused) = if batch == 1 {
                     (steps.saturating_sub(FUSE / 2 / 3).max(1), FUSE - FUSE / 2)
@@ -2458,23 +2460,22 @@ pub(crate) mod tests {
             assert!(filled >= 4, "{each} {unplotted}: {filled}");
         }
         // A batch that overran is cut to the slice at once.
-        assert_eq!(following(100, 0, 2.0 * slice, slice, 0.25e-3), 50);
-        assert_eq!(following(1, 0, 9.0 * slice, slice, f32::INFINITY), 1);
-        // A phone's chip: 2.3 ms there and back, 13.5 ns a step of all its walkers. A unit of one step a walker
-        // took 3 ms and stayed one step; now the units grow until the work in them is three times the way.
-        let (back, each, unit) = (2.3e-3_f32, 1.35e-8_f32, 1.5e-3_f32);
-        let seconds = |steps: u32| back + steps as f32 * 57_600.0 * each;
+        assert_eq!(following(100, 0, 2.0 * slice, slice), 50);
+        assert_eq!(following(1, 0, 9.0 * slice, slice), 1);
+        // A card of its own: the usual unit. A phone's chip, 1.1 ms there and back for a unit of no steps, 4 ms
+        // for one that plots, 14 ns a step of all its walkers: the units grow until most of one is work.
+        assert_eq!(unit_for(UNIT, 0.25e-3), UNIT);
+        assert_eq!(unit_for(UNIT, f32::INFINITY), UNIT);
+        let unit = unit_for(UNIT, 1.1e-3);
+        assert!((0.03..=2.0 * pace::FRAME).contains(&unit), "{unit} s");
+        let seconds = |steps: u32| 4.0e-3 + steps as f32 * 57_600.0 * 1.4e-8;
         let mut steps = 1;
-        for _ in 0..6 {
-            steps = following(steps, 0, seconds(steps), unit, back);
+        for _ in 0..8 {
+            steps = following(steps, 0, seconds(steps), unit);
         }
         let took = seconds(steps);
-        assert!(steps >= 6, "{steps} steps a walker");
-        assert!(
-            (0.6 * ROOMY * back..=1.05 * (ROOMY * back).min(pace::FRAME / 2.0)).contains(&took),
-            "{took} s"
-        );
-        assert!((took - back) / took > 0.6, "the way is {} of a unit", back / took);
+        assert!((0.6 * unit..=1.05 * unit).contains(&took), "{took} s");
+        assert!(4.0e-3 / took < 0.2, "the way is {} of a unit", 4.0e-3 / took);
     }
 
     #[test]
