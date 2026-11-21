@@ -44,6 +44,12 @@
 
 ### Fixed
 
+* **A phone on OpenGL no longer closes ten seconds after a first start:** on a phone older than Android 11, and
+  on any card reached through OpenGL, the app tried the chaos game on the graphics card when it first rested.
+  The driver compiled the shaders on a thread of their own, the window waited for the one OpenGL context, and
+  after a second the app ended. Such a card is no longer tried: the processor renders, as it did there after a
+  trial that the card lost. A phone that had its verdict kept from an earlier version never showed it.
+
 * **The blurred picture follows a fast zoom all the way:** while a view is drawn, the picture on the screen
   stands for it under the blur, magnified as the view is, but never more than 8 times. A wheel turned on past
   that left it standing while the number went on: with a picture finished at 2.2× after the first turn, the

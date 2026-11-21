@@ -613,7 +613,11 @@ impl Chaos {
             .flags
             .contains(wgpu::DownlevelFlags::COMPUTE_SHADERS);
         let stored = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING;
+        // OpenGL has one context: while a driver compiles the shaders on their thread, the window's thread
+        // waits for it, and wgpu ends the app after a second of that. Seen on a PowerVR GE8320.
+        let shared = adapter.get_info().backend == wgpu::Backend::Gl;
         computes
+            && !shared
             && limits.max_compute_workgroup_size_x >= GROUP
             && limits.max_compute_invocations_per_workgroup >= GROUP
             && limits.max_compute_workgroups_per_dimension >= MOST_WALKERS / GROUP
