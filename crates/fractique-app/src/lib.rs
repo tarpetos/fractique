@@ -5164,7 +5164,8 @@ impl App {
                     egui::Color32::from_white_alpha(fill),
                 );
                 painter.galley(chip.center() - galley.size() * 0.5, galley, ink);
-                if version.clicked() {
+                // The App Store updates its own builds, and they may not point at a download outside it.
+                if version.clicked() && !cfg!(feature = "store") {
                     self.languages_open = false;
                     self.sizes_open = false;
                     self.presets_open = false;
