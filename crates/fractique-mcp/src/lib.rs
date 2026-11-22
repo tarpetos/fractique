@@ -779,6 +779,24 @@ mod tests {
     };
 
     #[test]
+    fn the_skill_names_every_tool() {
+        let skill = include_str!("../../../skills/fractique/SKILL.md");
+        let listed = tools(&Host::LOCAL);
+        let all = listed
+            .as_array()
+            .or_else(|| listed["tools"].as_array())
+            .expect("a list of tools");
+        assert!(!all.is_empty());
+        for tool in all {
+            let name = tool["name"].as_str().expect("a name");
+            assert!(
+                skill.contains(&format!("`{name}`")),
+                "skills/fractique/SKILL.md does not name {name}"
+            );
+        }
+    }
+
+    #[test]
     fn the_server_names_itself_with_icons_a_client_need_not_fetch() {
         let hello = handle("initialize", &json!({ "protocolVersion": "2025-06-18" }), &Host::LOCAL);
         let info = hello.ok().expect("an answer")["serverInfo"].clone();
