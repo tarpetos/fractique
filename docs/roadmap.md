@@ -63,8 +63,6 @@ What the app does not do yet:
 - A mark on the screen where the exported picture ends, for a picture of a chosen size in a window of another
   shape.
 - A run on Android of what rows 23 to 30 changed.
-- A view just above an eighth of a flame keeps its faint parts dark: the lift of row 30 starts at the eighth, so
-  they appear over a short stretch of zoom instead of being there from the start.
 - A deep view on the graphics card without the 0.1 to 0.5 s that giving the faint parts their points costs it.
 - A device with a measured limit of its graphics card hands nearly every picture to the processor at once: the
   check judges a whole picture by its first small unit of work.
@@ -92,6 +90,7 @@ What the app does not do yet:
 
 | Question | Decision |
 | --- | --- |
+| Faint parts of a view between half and an eighth of a flame | They stay as the plain chaos game draws them, dark beside the flame until the view holds less than an eighth. Starting the deep view at a quarter makes them smooth, but such a view takes the processor about twenty times as long: Emerald Star beside the flame at 2×, 1920 × 1080 Standard, 3.3 s plain and 72.9 s deep (measured 2026-11-22), and exports are the processor's. Raising the faint end of the plain chaos game instead shows its few points there as grain |
 | What the graphics card may draw | The screen's picture of a flame or of a fractal it has a shader for, and its Instant export, where the card is clearly faster than the processor and the switch is on: a render beside it kept every core busy for seconds. Exports at Standard, High and Ultra, the command line tool, the MCP tools and the server are the processor's, so a scene still gives the same pixels everywhere |
 | UI framework for the app | `egui` with `eframe` on `wgpu`: Rust, and it reaches the five platforms and WebAssembly. `vendor/` carries the two crates with a fix for the iOS drawing surface |
 | Installers | `cargo-packager` for Linux and macOS. Windows gets no installer: the app is one file that replaces itself |
