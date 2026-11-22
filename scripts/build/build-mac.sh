@@ -40,7 +40,10 @@ cargo packager -c crates/fractique-app/Packager.toml --formats "$formats"
 # cargo-packager names the disk image after the machine that builds it.
 for image in dist/*.dmg; do
     [ -e "$image" ] || continue
-    mv "$image" "dist/fractique-gui_${version}_universal.dmg"
+    mv "$image" "dist/Fractique_${version}_universal.dmg"
+    if [ -e "$image.sig" ]; then
+        mv "$image.sig" "dist/Fractique_${version}_universal.dmg.sig"
+    fi
 done
 
 # The command line tool and the two servers on their own, for a machine that wants no app.
