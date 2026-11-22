@@ -14,6 +14,13 @@ static LEFT: Mutex<Option<mpsc::Receiver<()>>> = Mutex::new(None);
 
 pub const AFTER_UPDATE: &str = "FRACTIQUE_AFTER_UPDATE";
 
+// A second start: the file it was given, and the token with which Wayland lets the running app's window come to the
+// front, which the system hands to the program it starts.
+pub struct Arrival {
+    pub path: Option<PathBuf>,
+    pub token: Option<String>,
+}
+
 fn label() -> String {
     // A test has a name of its own: the owner's app may be running beside it.
     if cfg!(test) {
@@ -43,6 +50,13 @@ fn hand_over(open: Option<&Path>) -> std::io::Result<()> {
     let line = open.map(|path| path.to_string_lossy().into_owned()).unwrap_or_default();
     stream.get_mut().write_all(format!("{line}\n").as_bytes())?;
     stream.read_line(&mut String::new())?;
+    // After the answer, so that an app before 1.0.2, which reads one line, is not kept waiting.
+    if let Some(token) = std::env::var("XDG_ACTIVATION_TOKEN")
+        .ok()
+        .filter(|token| !token.is_empty())
+    {
+        let _ = stream.get_mut().write_all(format!("{token}\n").as_bytes());
+    }
     Ok(())
 }
 
@@ -93,7 +107,7 @@ pub fn first(open: Option<&Path>) -> bool {
     true
 }
 
-pub fn watch(ctx: &egui::Context) -> Option<mpsc::Receiver<Option<PathBuf>>> {
+pub fn watch(ctx: &egui::Context) -> Option<mpsc::Receiver<Arrival>> {
     let listener = FIRST.lock().ok()?.take()?;
     let (arrived, arrivals) = mpsc::channel();
     let ctx = ctx.clone();
@@ -117,7 +131,12 @@ pub fn watch(ctx: &egui::Context) -> Option<mpsc::Receiver<Option<PathBuf>>> {
             let _ = stream.get_mut().write_all(b"\n");
             let path = line.trim_end_matches(['\r', '\n']);
             let path = (!path.is_empty()).then(|| PathBuf::from(path));
-            if arrived.send(path).is_err() {
+            // The token follows the answer; a start before 1.0.2 sends none and closes.
+            let mut token = String::new();
+            let _ = stream.read_line(&mut token);
+            let token = token.trim();
+            let token = (!token.is_empty()).then(|| token.to_owned());
+            if arrived.send(Arrival { path, token }).is_err() {
                 break;
             }
             ctx.request_repaint();
@@ -157,6 +176,10 @@ mod tests {
         // The name is taken while the app listens: a second start would be handed over.
         assert!(listen().is_err());
         assert!(hand_over(None).is_ok());
+        let arrival = arrivals
+            .as_ref()
+            .and_then(|arrivals| arrivals.recv_timeout(std::time::Duration::from_secs(2)).ok());
+        assert!(arrival.is_some_and(|arrival| arrival.path.is_none()));
         release();
         // Given up, it is free for the app started in this one's place, whatever its version.
         assert!(listen().is_ok());

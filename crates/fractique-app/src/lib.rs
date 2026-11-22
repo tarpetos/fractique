@@ -21,6 +21,8 @@ mod pace;
 mod phone;
 mod preview;
 mod probe;
+#[cfg(target_os = "linux")]
+mod raise;
 mod sheets;
 #[cfg(any(feature = "store", test))]
 mod store;
@@ -593,6 +595,22 @@ pub fn register_scene_files() {
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 pub fn first_instance(open: Option<&std::path::Path>) -> bool {
     instance::first(open)
+}
+
+// What a start from a terminal says when Fractique is already running, in the language the app was left in.
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+pub fn already_running(with_file: bool) -> String {
+    let left = || {
+        let settings = std::fs::read_to_string(eframe::storage_dir("Fractique")?.join("app.ron")).ok()?;
+        let after = settings.split("\"language\":").nth(1)?;
+        Some(Lang::from_locale(after.split('"').nth(1)?))
+    };
+    let lang = Lang::forced().or_else(left).unwrap_or_else(Lang::system);
+    Texts::new(lang).get(if with_file {
+        "already_running_file"
+    } else {
+        "already_running"
+    })
 }
 
 // The date and the time as the lock screen shows them; where the system is not asked, the time of Apple's pictures.
@@ -1273,7 +1291,7 @@ struct App {
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     updates: updates::Updates,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-    arrivals: Option<mpsc::Receiver<Option<PathBuf>>>,
+    arrivals: Option<mpsc::Receiver<instance::Arrival>>,
 }
 
 // Two cores stay free for the window: a render on every core makes it stutter.
@@ -5848,17 +5866,39 @@ impl App {
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-    fn arrive(&mut self, ctx: &egui::Context) {
+    fn arrive(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
         let Some(arrivals) = &self.arrivals else {
             return;
         };
-        let arrived: Vec<Option<PathBuf>> = arrivals.try_iter().collect();
-        for path in arrived {
-            if let Some(path) = path {
-                self.load_scene(&path);
+        let arrived: Vec<instance::Arrival> = arrivals.try_iter().collect();
+        for arrival in arrived {
+            if let Some(path) = &arrival.path {
+                self.load_scene(path);
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            // Focus does nothing on Wayland: the token of the second start raises the window, and without one, a
+            // start from a terminal, the system is asked to say that the app wants attention.
+            #[cfg(target_os = "linux")]
+            if raise::on_wayland(frame) {
+                let raised = arrival
+                    .token
+                    .as_ref()
+                    .is_some_and(|token| raise::activate(frame, token));
+                if timed() {
+                    eprintln!(
+                        "times: a second start, token {}, raised {raised}",
+                        arrival.token.is_some()
+                    );
+                }
+                if !raised {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
+                        egui::UserAttentionType::Informational,
+                    ));
+                }
+            }
+            #[cfg(not(target_os = "linux"))]
+            let _ = (frame, arrival.token);
         }
     }
 
@@ -6844,7 +6884,7 @@ impl App {
         }
         pace::hold(held || self.turned.is_some_and(|at| at.elapsed().as_secs_f32() < 0.3));
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        self.arrive(&ctx);
+        self.arrive(&ctx, frame);
         // Every mouse move asks for a redraw; at a 240 Hz screen's pace that makes a graphics card whine.
         #[cfg(not(target_arch = "wasm32"))]
         {

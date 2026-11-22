@@ -32,6 +32,7 @@ fn main() -> eframe::Result {
         let test = screenshot.is_some() || std::env::var_os("FRACTIQUE_DEBUG_FULL").is_some();
         let many = cfg!(debug_assertions) || std::env::var_os("FRACTIQUE_MANY").is_some();
         if !test && !many && !fractique_app::first_instance(open.as_deref()) {
+            eprintln!("{}", fractique_app::already_running(open.is_some()));
             return Ok(());
         }
         if let Some(path) = open {

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* **App, Linux:** a second start brings the open window to the front on Wayland too, and in a terminal says that Fractique is already running.
+
 ## 1.0.1
 
 * **App:** the nine fractals only the processor draws (Mandelbox, Mandelbulb, Buddhabrot and the like) show a picture of half the side first, four times sooner, then the whole one.

@@ -51,6 +51,8 @@
   "writing_file": "zapisywanie pliku",
   "export_too_large": "obraz jest za duży dla tej jakości",
   "export_no_room": "To urządzenie nie ma dość pamięci na obraz tej wielkości.",
+  "already_running": "Fractique już działa.",
+  "already_running_file": "Fractique już działa: plik otwiera się w jego oknie.",
   "export_scene": "tej sceny nie można wyrenderować",
   "export_file": "nie udało się zapisać pliku",
   "export_picture": "obraz nie jest jeszcze gotowy",

@@ -51,6 +51,8 @@
   "writing_file": "scrittura del file",
   "export_too_large": "l’immagine è troppo grande per questa qualità",
   "export_no_room": "Questo dispositivo non ha memoria sufficiente per un’immagine di questa dimensione.",
+  "already_running": "Fractique è già aperto.",
+  "already_running_file": "Fractique è già aperto: il file si apre nella sua finestra.",
   "export_scene": "questa scena non può essere renderizzata",
   "export_file": "impossibile scrivere il file",
   "export_picture": "l’immagine non è pronta",
