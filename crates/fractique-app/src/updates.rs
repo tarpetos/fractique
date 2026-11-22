@@ -30,6 +30,12 @@ enum List {
     Failed,
 }
 
+enum Checked {
+    Newest,
+    Available(String),
+    Failed,
+}
+
 pub struct Updates {
     pub open: bool,
     kind: Kind,
@@ -38,7 +44,7 @@ pub struct Updates {
     list: List,
     selected: Option<String>,
     checking: bool,
-    checked: Option<String>,
+    checked: Option<Checked>,
     phase: Phase,
     events: (mpsc::Sender<Event>, mpsc::Receiver<Event>),
 }
@@ -142,29 +148,27 @@ impl Updates {
         }
     }
 
-    fn check_now(&mut self, ctx: &egui::Context, texts: &Texts) {
+    fn check_now(&mut self, ctx: &egui::Context) {
         if self.checking {
             return;
         }
         self.checking = true;
         self.checked = None;
         let post = self.post(ctx);
-        let (newest, available, failed) = (texts.get("newest"), texts.get("available"), texts.get("check_failed"));
         std::thread::spawn(move || {
             let result = update::check();
             post(Box::new(move |updates| {
                 updates.checking = false;
                 updates.checked = Some(match result {
                     Ok(Some(found)) => {
-                        let text = available.replace("{v}", &found.version);
                         updates.selected = Some(found.version.clone());
-                        updates.newer = Some(found.version);
-                        text
+                        updates.newer = Some(found.version.clone());
+                        Checked::Available(found.version)
                     }
-                    Ok(None) => newest,
+                    Ok(None) => Checked::Newest,
                     Err(error) => {
                         log::warn!("the updates were not checked: {error}");
-                        failed
+                        Checked::Failed
                     }
                 });
             }));
@@ -247,10 +251,15 @@ impl Updates {
         ui.horizontal(|ui| {
             let label = texts.get(if self.checking { "checking" } else { "check" });
             if widgets::pill(ui, &label, false, 0.0) {
-                self.check_now(&ctx, texts);
+                self.check_now(&ctx);
             }
             if let Some(result) = &self.checked {
-                ui.label(egui::RichText::new(result).size(13.0).color(egui::Color32::WHITE));
+                let text = match result {
+                    Checked::Newest => texts.get("newest"),
+                    Checked::Available(version) => texts.get("available").replace("{v}", version),
+                    Checked::Failed => texts.get("check_failed"),
+                };
+                ui.label(egui::RichText::new(text).size(13.0).color(egui::Color32::WHITE));
             }
         });
         ui.add_space(12.0);
@@ -260,7 +269,7 @@ impl Updates {
         let mut pick = None;
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
-                ui.set_width(150.0);
+                ui.set_width(176.0);
                 egui::ScrollArea::vertical()
                     .id_salt("versions")
                     .max_height(height)
@@ -275,8 +284,8 @@ impl Updates {
                         }
                         List::Loaded(releases) => {
                             for release in releases {
-                                let label = format!("{}    {}", release.version, release.date);
-                                if widgets::row(ui, &label, chosen.as_deref() == Some(release.version.as_str())) {
+                                let selected = chosen.as_deref() == Some(release.version.as_str());
+                                if widgets::noted_row(ui, &release.version, &release.date, selected) {
                                     pick = Some(release.version.clone());
                                 }
                             }
