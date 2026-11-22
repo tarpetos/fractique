@@ -70,8 +70,9 @@ What the app does not do yet:
   check judges a whole picture by its first small unit of work.
 - A live draft of a fractal drawn pixel by pixel again once a deep view the card gave up is left by zooming out.
 - Editing the colors of a fractal beyond the eight palettes, and typing a parameter in as a number.
-- A build for the Mac App Store: the purchase code is shared with iOS, and no script signs, sandboxes and packs
-  the app for it ([ios.md](ios.md#a-mac-app-store-build)).
+- A purchase made on a Mac: `scripts/mac/appstore.sh` builds, sandboxes and uploads the Mac App Store's build
+  ([ios.md](ios.md#a-mac-app-store-build)), and nobody has bought Fractique Pro in it yet.
+- A purchase that unlocks the other devices by itself: today the buyer presses **Restore purchases** on each.
 - Opening a `.frcq` file by a double click on macOS: the files are shown as Fractique's, and no more.
 
 ## Renderer, next

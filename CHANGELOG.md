@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* **App Store builds:** every listed size is free; without Fractique Pro three pictures a day are saved or shared. Pro lifts the limit and keeps the **Custom** sizes.
 * **App:** the answer of "Check for updates" follows a change of language; a version's date is no longer cut off.
 
 ## 0.1.0
