@@ -5776,6 +5776,7 @@ impl App {
                 }
                 self.view = WHOLE;
                 self.requested = None;
+                self.given_up = false;
                 self.begin();
             }
             Some("mutate") => {
@@ -5790,6 +5791,7 @@ impl App {
                 }
                 self.view = WHOLE;
                 self.requested = None;
+                self.given_up = false;
             }
             #[cfg(not(target_arch = "wasm32"))]
             Some("export") => {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* **The graphics card gets a new try after Randomize and Mutate:** a picture the card gave up went to the
+  processor, and so did every picture after it until a preset was picked. A flame made anew in a layer, or mutated,
+  now starts on the card again.
+
 * **The window of updates:** the answer of "Check for updates" stayed in the language it was given in when the
   language was changed afterwards; it now follows the language. The list of versions is wider and
   shows each date whole, in a column of its own at the right.
