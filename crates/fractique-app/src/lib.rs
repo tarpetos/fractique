@@ -5210,7 +5210,9 @@ impl App {
                 let (rect, grip) = ui.allocate_exact_size(bar.size(), egui::Sense::click_and_drag());
                 if grip.double_clicked() {
                     self.toggle_maximized(ctx);
-                } else if grip.drag_started_by(egui::PointerButton::Primary) {
+                } else if grip.drag_started_by(egui::PointerButton::Primary) && !is_full {
+                    // A window in full screen is not moved: GNOME took the drag of one that had been maximized for a
+                    // way out of maximized, and the window stood in full screen at its maximized size, black around.
                     ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                     self.let_go = true;
                 }
