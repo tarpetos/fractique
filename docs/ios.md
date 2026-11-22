@@ -216,6 +216,9 @@ count; deleting the app clears them.
 ./scripts/mac/appstore.sh --run    # build, sign for this Mac and open the app in its sandbox
 ```
 
+The `Release` workflow runs the first as its **Mac App Store** job (`release-mac.yml`), with the App Store Connect
+key that uploads the iOS build: on a version tag, or started by hand with **all** or **mac**.
+
 `scripts/build/build-mac.sh` makes the app that is downloaded from the releases, which has no purchase and updates
 itself. The Mac App Store's build is another one:
 
