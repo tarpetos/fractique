@@ -25,7 +25,8 @@ pub fn integrate() {
         log::warn!("the AppImage was not added to the list of apps: {error}");
         return;
     }
-    std::thread::spawn(move || show_icon(&image, &data));
+    // Also before the window: Files shows the icon at once instead of a moment after the start.
+    show_icon(&image, &data);
 }
 
 fn data_home() -> Option<PathBuf> {
