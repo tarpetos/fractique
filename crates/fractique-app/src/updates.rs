@@ -6,7 +6,7 @@ use eframe::egui;
 
 use crate::i18n::Texts;
 use crate::update::{self, Block, Kind, Release};
-use crate::widgets::{self, MEDIUM, SEMIBOLD, font};
+use crate::widgets::{self, SEMIBOLD, font};
 
 type Event = Box<dyn FnOnce(&mut Updates) + Send>;
 
@@ -269,14 +269,7 @@ impl Updates {
             if widgets::pill(ui, &label, false, 0.0) {
                 self.check_now(&ctx);
             }
-            if let Phase::Downloading { version, got, .. } = &self.phase {
-                let text = format!(
-                    "{} · {:.1} MB",
-                    texts.get("downloading").replace("{v}", version),
-                    *got as f64 / 1e6
-                );
-                ui.label(egui::RichText::new(text).size(13.0).color(dim));
-            } else if let Some(result) = &self.checked {
+            if let Some(result) = &self.checked {
                 let text = match result {
                     Checked::Newest => texts.get("newest"),
                     Checked::Available(version) => texts.get("available").replace("{v}", version),
@@ -308,8 +301,9 @@ impl Updates {
                 }
             });
         });
-        // The progress of a download takes the gap above the list, so the window keeps its height.
-        ui.add_space(3.0);
+        // The gap above the list holds the progress of a download and what the window has to say, at a height that
+        // stays, so the window keeps its size.
+        ui.add_space(8.0);
         let (bar, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 6.0), egui::Sense::hover());
         if let Phase::Downloading { got, total, .. } = &self.phase {
             let share = total.map_or(0.0, |total| *got as f32 / total.max(1) as f32);
@@ -319,7 +313,23 @@ impl Updates {
             ui.painter()
                 .rect_filled(done, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(225));
         }
-        ui.add_space(3.0);
+        ui.add_space(4.0);
+        let said = match (&self.phase, chosen.as_deref()) {
+            (Phase::Downloading { version, got, .. }, _) => format!(
+                "{} · {:.1} MB",
+                texts.get("downloading").replace("{v}", version),
+                *got as f64 / 1e6
+            ),
+            (Phase::Ready(version), _) => texts.get("ready").replace("{v}", version),
+            (Phase::Failed { version }, _) => format!("Fractique {version} {}", texts.get("download_failed")),
+            (_, Some(version)) if update::compare(version) == Ordering::Equal => texts.get("this_version"),
+            _ => String::new(),
+        };
+        let line = egui::vec2(ui.available_width(), 18.0);
+        ui.allocate_ui_with_layout(line, egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.add(egui::Label::new(egui::RichText::new(said).size(13.0).color(dim)).truncate());
+        });
+        ui.add_space(8.0);
 
         let height = 250.0;
         let mut pick = None;
@@ -404,27 +414,6 @@ impl Updates {
         if let Some(version) = pick {
             self.selected = Some(version);
         }
-
-        ui.add_space(14.0);
-        ui.horizontal(|ui| match (&self.phase, chosen.as_deref()) {
-            (Phase::Downloading { .. }, _) => {}
-            (Phase::Ready(version), _) => {
-                let text = texts.get("ready").replace("{v}", version);
-                ui.add(egui::Label::new(egui::RichText::new(text).size(13.0).color(dim)).wrap());
-            }
-            (_, Some(version)) if update::compare(version) == Ordering::Equal => {
-                ui.label(
-                    egui::RichText::new(texts.get("this_version"))
-                        .font(font(13.5, MEDIUM))
-                        .color(dim),
-                );
-            }
-            (Phase::Failed { version: failed }, _) => {
-                let text = format!("Fractique {failed} {}", texts.get("download_failed"));
-                ui.add(egui::Label::new(egui::RichText::new(text).size(13.0).color(dim)).wrap());
-            }
-            _ => {}
-        });
 
         if let Some(version) = install {
             self.start_install(&ctx, version);
