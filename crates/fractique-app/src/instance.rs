@@ -1,5 +1,6 @@
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, mpsc};
 
 use eframe::egui;
@@ -8,10 +9,16 @@ use interprocess::local_socket::{
 };
 
 static FIRST: Mutex<Option<Listener>> = Mutex::new(None);
+static LEAVING: AtomicBool = AtomicBool::new(false);
+static LEFT: Mutex<Option<mpsc::Receiver<()>>> = Mutex::new(None);
 
 pub const AFTER_UPDATE: &str = "FRACTIQUE_AFTER_UPDATE";
 
 fn label() -> String {
+    // A test has a name of its own: the owner's app may be running beside it.
+    if cfg!(test) {
+        return format!("fractique-test-{}", std::process::id());
+    }
     let user = std::env::var("USERNAME")
         .or_else(|_| std::env::var("USER"))
         .unwrap_or_default();
@@ -78,8 +85,18 @@ pub fn watch(ctx: &egui::Context) -> Option<mpsc::Receiver<Option<PathBuf>>> {
     let listener = FIRST.lock().ok()?.take()?;
     let (arrived, arrivals) = mpsc::channel();
     let ctx = ctx.clone();
+    let (leave, left) = mpsc::channel();
+    if let Ok(mut kept) = LEFT.lock() {
+        *kept = Some(left);
+    }
     std::thread::spawn(move || {
-        for stream in listener.incoming().flatten() {
+        for stream in listener.incoming() {
+            if LEAVING.load(Ordering::Relaxed) {
+                break;
+            }
+            let Ok(stream) = stream else {
+                continue;
+            };
             let mut stream = BufReader::new(stream);
             let mut line = String::new();
             if stream.read_line(&mut line).is_err() {
@@ -93,6 +110,46 @@ pub fn watch(ctx: &egui::Context) -> Option<mpsc::Receiver<Option<PathBuf>>> {
             }
             ctx.request_repaint();
         }
+        drop(listener);
+        let _ = leave.send(());
     });
     Some(arrivals)
+}
+
+// Gives the name up before this app starts another in its own place: that one is then the first whatever its
+// version, also one that does not know to wait for the name.
+pub fn release() {
+    if let Ok(mut first) = FIRST.lock() {
+        *first = None;
+    }
+    LEAVING.store(true, Ordering::Relaxed);
+    let Some(left) = LEFT.lock().ok().and_then(|mut left| left.take()) else {
+        return;
+    };
+    // The thread that listens waits for a caller: this one wakes it.
+    if let Ok(name) = name() {
+        let _ = Stream::connect(name);
+    }
+    let _ = left.recv_timeout(std::time::Duration::from_secs(2));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_name_is_free_once_the_app_gives_it_up() {
+        assert!(listen().is_ok());
+        let arrivals = watch(&egui::Context::default());
+        assert!(arrivals.is_some());
+        // The name is taken while the app listens: a second start would be handed over.
+        assert!(listen().is_err());
+        assert!(hand_over(None).is_ok());
+        release();
+        // Given up, it is free for the app started in this one's place, whatever its version.
+        assert!(listen().is_ok());
+        if let Ok(mut first) = FIRST.lock() {
+            *first = None;
+        }
+    }
 }

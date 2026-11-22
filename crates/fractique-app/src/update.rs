@@ -274,6 +274,7 @@ pub fn install_pending(relaunch: bool) {
     {
         match replace_self(&bytes, &update.version) {
             Ok(exe) if relaunch => {
+                crate::instance::release();
                 let started = std::process::Command::new(exe)
                     .env(crate::instance::AFTER_UPDATE, "1")
                     .spawn();
@@ -306,6 +307,7 @@ fn install_bundle(update: &Update, bytes: Vec<u8>, relaunch: bool) {
     if !relaunch {
         return;
     }
+    crate::instance::release();
     let after = crate::instance::AFTER_UPDATE;
     let started = if cfg!(target_os = "macos") {
         app_bundle().map(|app| {
