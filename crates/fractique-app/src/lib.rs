@@ -23,8 +23,6 @@ mod pace;
 mod phone;
 mod preview;
 mod probe;
-#[cfg(target_os = "linux")]
-mod raise;
 mod sheets;
 #[cfg(any(feature = "store", test))]
 mod store;
@@ -600,23 +598,6 @@ pub fn register_scene_files() {
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 pub fn first_instance(open: Option<&std::path::Path>) -> bool {
     instance::first(open)
-}
-
-// Focus does nothing on Wayland: there the window's surface is activated with the token of the second start.
-#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-fn raiser(cc: &eframe::CreationContext<'_>) -> instance::Raise {
-    #[cfg(target_os = "linux")]
-    if let Some(surface) = raise::Surface::of(cc) {
-        return Box::new(move |token| {
-            let raised = surface.activate(token);
-            if timed() {
-                eprintln!("times: a second start, token {}, raised {raised}", token.is_some());
-            }
-        });
-    }
-    #[cfg(not(target_os = "linux"))]
-    let _ = cc;
-    Box::new(|_| {})
 }
 
 // What a start from a terminal says when Fractique is already running, in the language the app was left in.
@@ -1313,7 +1294,7 @@ struct App {
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     updates: updates::Updates,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-    arrivals: Option<mpsc::Receiver<instance::Arrival>>,
+    arrivals: Option<mpsc::Receiver<Option<PathBuf>>>,
 }
 
 // Two cores stay free for the window: a render on every core makes it stutter.
@@ -2031,7 +2012,7 @@ impl App {
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             updates: updates::Updates::new(),
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-            arrivals: instance::watch(&cc.egui_ctx, raiser(cc)),
+            arrivals: instance::watch(&cc.egui_ctx),
         };
         app.trace.stage("made");
         if let Some(session) = session {
@@ -5892,10 +5873,10 @@ impl App {
         let Some(arrivals) = &self.arrivals else {
             return;
         };
-        let arrived: Vec<instance::Arrival> = arrivals.try_iter().collect();
-        for arrival in arrived {
-            if let Some(path) = &arrival.path {
-                self.load_scene(path);
+        let arrived: Vec<Option<PathBuf>> = arrivals.try_iter().collect();
+        for path in arrived {
+            if let Some(path) = path {
+                self.load_scene(&path);
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -6857,8 +6838,6 @@ impl eframe::App for App {
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn on_exit(&mut self) {
-        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        instance::leaving();
         self.updates.on_exit();
     }
 

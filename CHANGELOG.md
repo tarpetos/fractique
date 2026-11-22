@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-* **App, Linux:** a second start brings the open window to the front on Wayland too, and in a terminal says that Fractique is already running.
-* **App, Linux:** an AppImage adds itself to the list of apps and shows its icon on the file; the window names its app, so the dock shows its icon.
+* **App:** a second start from a terminal says that Fractique is already running.
+* **App, Linux:** an AppImage adds itself to the list of apps and shows its icon on the file; the window names its app, so the dock shows its icon; the `.deb` files Fractique under Graphics.
 
 ## 1.0.1
 
