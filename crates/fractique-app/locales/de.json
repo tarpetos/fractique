@@ -132,7 +132,7 @@
   "gpu_weak": "Auf einem schwachen Grafikchip kann das langsamer sein als ohne.",
   "gpu": "GPU-Beschleunigung",
   "pro_title": "Fractique Pro",
-  "pro_about": "Speichere so viele Bilder am Tag, wie du willst, und exportiere in jeder eigenen Größe. Du zahlst einmal, und es gehört dir für immer. Alles andere bleibt kostenlos.",
+  "pro_about": "Speichere so viele Bilder am Tag, wie du willst, exportiere in jeder eigenen Größe und blende die Bedienelemente aus, um nur das Bild zu sehen. Du zahlst einmal, und es gehört dir für immer. Alles andere bleibt kostenlos.",
   "saves_left": "Freie Speicherungen heute: {left}",
   "saves_none": "Heute keine freien Speicherungen mehr. Fractique Pro speichert ohne Grenze.",
   "pro_buy": "Für {price} kaufen",

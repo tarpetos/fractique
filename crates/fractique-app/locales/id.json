@@ -132,7 +132,7 @@
   "gpu_weak": "Pada chip grafis yang lemah, ini bisa lebih lambat daripada tanpa akselerasi.",
   "gpu": "Akselerasi GPU",
   "pro_title": "Fractique Pro",
-  "pro_about": "Simpan gambar sebanyak yang kamu mau setiap hari, dan ekspor dalam ukuran khusus apa pun. Bayar sekali dan menjadi milikmu selamanya. Yang lain tetap gratis.",
+  "pro_about": "Simpan gambar sebanyak yang kamu mau setiap hari, ekspor dalam ukuran khusus apa pun, dan sembunyikan panel untuk melihat gambarnya saja. Bayar sekali dan menjadi milikmu selamanya. Yang lain tetap gratis.",
   "saves_left": "Sisa simpan gratis hari ini: {left}",
   "saves_none": "Simpan gratis hari ini sudah habis. Fractique Pro menyimpan tanpa batas.",
   "pro_buy": "Beli seharga {price}",

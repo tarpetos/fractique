@@ -132,7 +132,7 @@
   "gpu_weak": "Sur une puce graphique faible, cela peut être plus lent que sans.",
   "gpu": "Accélération GPU",
   "pro_title": "Fractique Pro",
-  "pro_about": "Enregistrez autant d’images par jour que vous voulez et exportez à toute taille personnalisée. Vous payez une fois, et c’est à vous pour toujours. Tout le reste reste gratuit.",
+  "pro_about": "Enregistrez autant d’images par jour que vous voulez, exportez à toute taille personnalisée et masquez les panneaux pour ne voir que l’image. Vous payez une fois, et c’est à vous pour toujours. Tout le reste reste gratuit.",
   "saves_left": "Enregistrements gratuits restants aujourd’hui : {left}",
   "saves_none": "Plus d’enregistrement gratuit aujourd’hui. Fractique Pro enregistre sans limite.",
   "pro_buy": "Acheter pour {price}",

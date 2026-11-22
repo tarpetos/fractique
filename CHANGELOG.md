@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* **App Store builds:** hiding the panels to see the picture alone needs Fractique Pro; the eye opens its sheet.
 * **App:** after the graphics card gives up a deep view of a fractal drawn pixel by pixel, zooming back out draws the view on the card again, with its drafts while it moves.
 * **App, Linux:** the window has round corners, as on Windows and macOS.
 * **App, Linux:** `--x11` opens the app through XWayland, where its window keeps its place, has round corners and comes forward on a second start.

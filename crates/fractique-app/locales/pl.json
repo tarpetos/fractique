@@ -132,7 +132,7 @@
   "gpu_weak": "Na słabym układzie graficznym może to działać wolniej niż bez niego.",
   "gpu": "Akceleracja GPU",
   "pro_title": "Fractique Pro",
-  "pro_about": "Zapisuj tyle obrazów dziennie, ile chcesz, i eksportuj w dowolnym własnym rozmiarze. Płacisz raz i masz to na zawsze. Wszystko inne pozostaje darmowe.",
+  "pro_about": "Zapisuj tyle obrazów dziennie, ile chcesz, eksportuj w dowolnym własnym rozmiarze i ukrywaj panele, by widzieć sam obraz. Płacisz raz i masz to na zawsze. Wszystko inne pozostaje darmowe.",
   "saves_left": "Darmowe zapisy pozostałe dziś: {left}",
   "saves_none": "Na dziś nie ma już darmowych zapisów. Fractique Pro zapisuje bez limitu.",
   "pro_buy": "Kup za {price}",
