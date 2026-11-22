@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.0.0
+
+* **Fractique Pro unlocks by itself:** bought on an iPhone, an iPad or a Mac, it is there on the buyer's other
+  devices when the app is opened, with no press on **Restore purchases**, which stays for the case the App Store
+  is slow to tell.
 
 * **Fractique Pro, simpler:** in the App Store builds every size of the lists is free, 3840 × 2160 and the largest
   iPhone too; before, a size of 2560 × 1440 pixels or more needed the purchase, so 1320 × 2868 did and

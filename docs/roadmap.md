@@ -72,7 +72,8 @@ What the app does not do yet:
 - Editing the colors of a fractal beyond the eight palettes, and typing a parameter in as a number.
 - A purchase made on a Mac: `scripts/mac/appstore.sh` builds, sandboxes and uploads the Mac App Store's build
   ([ios.md](ios.md#a-mac-app-store-build)), and nobody has bought Fractique Pro in it yet.
-- A purchase that unlocks the other devices by itself: today the buyer presses **Restore purchases** on each.
+- A purchase seen on a second device: the app asks StoreKit 2 at its start what the Apple Account owns
+  (`ios/ProWatch.swift`), and nobody has yet bought on one device and opened the other.
 - Opening a `.frcq` file by a double click on macOS: the files are shown as Fractique's, and no more.
 
 ## Renderer, next

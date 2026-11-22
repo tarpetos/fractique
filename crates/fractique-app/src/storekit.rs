@@ -1,4 +1,4 @@
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{OnceLock, mpsc};
@@ -109,6 +109,42 @@ unsafe fn remembered() -> bool {
     unsafe {
         let defaults: *mut AnyObject = msg_send![class!(NSUserDefaults), standardUserDefaults];
         !defaults.is_null() && msg_send![defaults, boolForKey: string(PRODUCT)]
+    }
+}
+
+unsafe extern "C" {
+    fn dlopen(path: *const c_char, mode: i32) -> *mut c_void;
+    fn dlsym(handle: *mut c_void, name: *const c_char) -> *mut c_void;
+}
+
+const RTLD_NOW: i32 = 2;
+#[cfg(target_os = "ios")]
+const WATCHER: &CStr = c"@executable_path/Frameworks/FractiquePro.framework/FractiquePro";
+#[cfg(target_os = "macos")]
+const WATCHER: &CStr = c"@executable_path/../Frameworks/FractiquePro.framework/FractiquePro";
+
+extern "C" fn told(owned: bool) {
+    if owned {
+        unsafe { remember() };
+        post(Event::Owned);
+    }
+}
+
+// A purchase made on another device of the Apple Account: only StoreKit 2 tells it without asking the person,
+// and only Swift reaches StoreKit 2, so the Xcode projects put a small framework beside the binary.
+fn watch() {
+    unsafe {
+        let handle = dlopen(WATCHER.as_ptr(), RTLD_NOW);
+        if handle.is_null() {
+            return;
+        }
+        let found = dlsym(handle, c"fractique_pro_watch".as_ptr());
+        if found.is_null() {
+            return;
+        }
+        let watch: extern "C" fn(*const c_char, extern "C" fn(bool)) = std::mem::transmute(found);
+        let product = CString::new(PRODUCT).unwrap_or_default();
+        watch(product.as_ptr(), told);
     }
 }
 
@@ -322,5 +358,9 @@ pub fn open(ctx: &egui::Context) -> Store {
             }
         }
     }
-    Store::new(unsafe { remembered() }, events, Box::new(backend))
+    let owned = unsafe { remembered() };
+    if first && !owned {
+        watch();
+    }
+    Store::new(owned, events, Box::new(backend))
 }

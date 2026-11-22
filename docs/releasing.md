@@ -31,10 +31,10 @@ app: it goes to the GitHub Container Registry as `ghcr.io/tarpetos/fractique-ser
 
 ## How to release
 
-1. Set the new version in three places: `version` under `[workspace.package]` in `Cargo.toml`, `version` in
-   `crates/fractique-app/Packager.toml` and `MARKETING_VERSION` in `ios/project.yml`. A build script refuses to
-   build when its own differs from `Cargo.toml` (the desktop scripts read `Packager.toml`, `testflight.sh` reads
-   `project.yml`), and the `Release` workflow when any of the three does, before anything is built. Every program takes the
+1. Set the new version in four places: `version` under `[workspace.package]` in `Cargo.toml`, `version` in
+   `crates/fractique-app/Packager.toml` and `MARKETING_VERSION` in `ios/project.yml` and in `mac/project.yml`. A
+   build script refuses to build when its own differs from `Cargo.toml` (the desktop scripts read
+   `Packager.toml`, `testflight.sh` and `appstore.sh` their `project.yml`), and the `Release` workflow when any of the three does, before anything is built. Every program takes the
    one in `Cargo.toml`.
 2. Add a section `## <version>` at the top of `CHANGELOG.md`. It becomes the release's notes and what the app
    shows under "Updates and what's new". On the release's page a table of the downloads by system stands above
