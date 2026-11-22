@@ -1,7 +1,8 @@
 use eframe::egui;
 use eframe::egui_wgpu::{self, wgpu};
 
-const SLOTS: usize = 8;
+// The background and the panes of one frame. The buttons of a phone are seven: a sheet over them needs room too.
+const SLOTS: usize = 16;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
