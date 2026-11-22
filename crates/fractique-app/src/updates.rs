@@ -269,7 +269,7 @@ impl Updates {
         let mut pick = None;
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
-                ui.set_width(200.0);
+                ui.set_width(176.0);
                 egui::ScrollArea::vertical()
                     .id_salt("versions")
                     .max_height(height)
@@ -284,8 +284,8 @@ impl Updates {
                         }
                         List::Loaded(releases) => {
                             for release in releases {
-                                let label = format!("{}    {}", release.version, release.date);
-                                if widgets::row(ui, &label, chosen.as_deref() == Some(release.version.as_str())) {
+                                let selected = chosen.as_deref() == Some(release.version.as_str());
+                                if widgets::noted_row(ui, &release.version, &release.date, selected) {
                                     pick = Some(release.version.clone());
                                 }
                             }

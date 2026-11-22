@@ -150,6 +150,20 @@ pub fn marked_row(ui: &mut Ui, text: &str, selected: bool, mark: Option<&str>) -
     }
 }
 
+// A row with a dim note at its right edge.
+pub fn noted_row(ui: &mut Ui, text: &str, note: &str, selected: bool) -> bool {
+    let (rect, response) = plain_row(ui, text, selected);
+    let at = rect.right_center() - vec2(12.0, 0.0);
+    ui.painter().text(
+        at,
+        egui::Align2::RIGHT_CENTER,
+        note,
+        FontId::proportional(13.0),
+        white(if selected { 220 } else { 150 }),
+    );
+    response.clicked()
+}
+
 fn plain_row(ui: &mut Ui, text: &str, selected: bool) -> (egui::Rect, egui::Response) {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
     row_text(ui, rect, &response, text, selected, 12.0, rect.width() - 40.0);
