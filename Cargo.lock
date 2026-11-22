@@ -1085,7 +1085,7 @@ dependencies = [
 
 [[package]]
 name = "fractique-app"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "bytemuck",
  "cargo-packager-updater",
@@ -1117,7 +1117,7 @@ dependencies = [
 
 [[package]]
 name = "fractique-cli"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "clap",
  "fractique-core",
@@ -1129,7 +1129,7 @@ dependencies = [
 
 [[package]]
 name = "fractique-core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "libm",
  "miniz_oxide 0.8.9",
@@ -1141,7 +1141,7 @@ dependencies = [
 
 [[package]]
 name = "fractique-mcp"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "fractique-core",
  "png",
@@ -1150,7 +1150,7 @@ dependencies = [
 
 [[package]]
 name = "fractique-server"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "axum",
  "clap",
@@ -1170,7 +1170,7 @@ dependencies = [
 
 [[package]]
 name = "fractique-update"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "base64 0.23.1",
  "clap",

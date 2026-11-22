@@ -1,12 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.0.1
 
 * **App:** the nine fractals only the processor draws (Mandelbox, Mandelbulb, Buddhabrot and the like) show a picture of half the side first, four times sooner, then the whole one.
 * **App:** on a computer too, an export that the machine's memory cannot hold is refused instead of ending the app.
 * **MCP:** a skill for agents, `skills/fractique/SKILL.md`: when to use the tools and in what order.
 * **App:** after an update "Restart now" starts the new version; before, the app only closed.
-* **App:** an updated file named after its version takes the new version's name (`Fractique_1.0.0_x86_64.AppImage`).
+* **App:** an updated file named after its version takes the new version's name (`Fractique_1.0.1_x86_64.AppImage`).
 * **App:** in the updates window the install button stands at the top right; the progress of a download and the messages stand above the list of versions.
 
 ## 1.0.0
