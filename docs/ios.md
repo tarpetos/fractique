@@ -204,19 +204,29 @@ the app again.
 
 ### A Mac App Store build
 
-No script builds one yet: `scripts/build/build-mac.sh` makes the app that is downloaded from the releases, which
-has no purchase. A build for the Mac App Store has to:
+```sh
+./scripts/mac/appstore.sh          # build, sign for the App Store, upload
+./scripts/mac/appstore.sh --run    # build, sign for this Mac and open the app in its sandbox
+```
 
-- compile with `cargo build --release -p fractique-app --features store` and without `FRACTIQUE_RELEASE`, so
-  that the app does not install updates by itself;
-- have its own app record in App Store Connect (or the iOS one made universal), where `app.fractique.pro` is
-  offered too;
-- be signed with an Apple Distribution certificate, the App Sandbox entitlement
-  (`com.apple.security.app-sandbox`, and `com.apple.security.files.user-selected.read-write` for Open, Save and
-  Export, `com.apple.security.network.client` for the App Store) and a provisioning profile, and be packed as a
-  `.pkg`.
+`scripts/build/build-mac.sh` makes the app that is downloaded from the releases, which has no purchase and updates
+itself. The Mac App Store's build is another one:
 
-The purchase code is the same as on iOS (StoreKit's `SKPaymentQueue`), and no step of it has been run on a Mac.
+- it is compiled with the `store` feature and without `FRACTIQUE_RELEASE`: it has the purchase, it does not
+  install updates by itself, and the version in its title bar opens nothing, since an App Store build may not
+  point at a download outside the store;
+- it is one program for Apple Silicon and for Intel, for macOS 12 and later;
+- it runs in the App Sandbox (`mac/Fractique.entitlements`): files the user picks for Open, Save and Export, and
+  the network for the App Store, nothing else;
+- it has the bundle identifier of the iOS app, `app.fractique`, and is uploaded to the same app record, with the
+  macOS platform added to it. That makes the purchase one for iPhone, iPad and Mac: `app.fractique.pro` bought
+  on one is restored on the others with **Restore purchases**.
+
+`mac/` holds the Xcode project that wraps the Rust binary, as `ios/` does. cargo started by Xcode cannot compile
+the C code of a dependency, so the script builds the binary first and Xcode's build step only copies it in.
+
+Once per Mac: `brew install xcodegen`, and Xcode signed in to the team's Apple account. The upload has been run;
+the purchase itself has not been made on a Mac.
 
 ## What the app needs from iOS
 
