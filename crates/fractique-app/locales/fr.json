@@ -50,6 +50,7 @@
   "failed": "échec de l'enregistrement",
   "writing_file": "écriture du fichier",
   "export_too_large": "l'image est trop grande pour cette qualité",
+  "export_no_room": "Cet appareil n’a pas assez de mémoire pour une image de cette taille.",
   "export_scene": "cette scène ne peut pas être rendue",
   "export_file": "le fichier n'a pas pu être écrit",
   "export_picture": "l'image n'est pas prête",

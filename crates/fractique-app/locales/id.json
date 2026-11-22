@@ -50,6 +50,7 @@
   "failed": "gagal menyimpan",
   "writing_file": "menulis berkas",
   "export_too_large": "gambar terlalu besar untuk kualitas ini",
+  "export_no_room": "Perangkat ini tidak memiliki cukup memori untuk gambar sebesar ini.",
   "export_scene": "adegan ini tidak dapat dirender",
   "export_file": "berkas tidak dapat ditulis",
   "export_picture": "gambar belum siap",

@@ -50,6 +50,7 @@
   "failed": "could not save",
   "writing_file": "writing the file",
   "export_too_large": "the picture is too large for this quality",
+  "export_no_room": "This device does not have the memory for a picture of this size.",
   "export_scene": "this scene cannot be rendered",
   "export_file": "the file could not be written",
   "export_picture": "the picture is not ready",

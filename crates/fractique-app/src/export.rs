@@ -61,10 +61,49 @@ pub enum Outcome {
     Failed(Failure),
 }
 
-// Whether the renderer takes a picture of this size at this supersample: its own limits, asked before the press.
-pub fn fits([width, height]: [u32; 2], supersample: u32) -> bool {
+// Measured with `fractique render` at 1920 x 1080 and 3840 x 2160, Standard and High: the peak is about 44 bytes
+// for each pixel and 35 for each cell of the histogram.
+const BYTES_A_PIXEL: u64 = 48;
+const BYTES_A_CELL: u64 = 38;
+
+// The memory a phone still gives the app before it is closed; `None` where the system swaps instead.
+fn room() -> Option<u64> {
+    #[cfg(target_os = "ios")]
+    {
+        unsafe extern "C" {
+            fn os_proc_available_memory() -> usize;
+        }
+        let left = unsafe { os_proc_available_memory() } as u64;
+        (left > 0).then_some(left)
+    }
+    #[cfg(target_os = "android")]
+    {
+        let text = std::fs::read_to_string("/proc/meminfo").ok()?;
+        let line = text.lines().find(|line| line.starts_with("MemAvailable:"))?;
+        let kilobytes: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+        Some(kilobytes * 1024)
+    }
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    None
+}
+
+fn needs([width, height]: [u32; 2], supersample: u32) -> u64 {
+    let pixels = u64::from(width) * u64::from(height);
+    let cells = pixels * u64::from(supersample) * u64::from(supersample);
+    pixels * BYTES_A_PIXEL + cells * BYTES_A_CELL
+}
+
+fn fits_in([width, height]: [u32; 2], supersample: u32, room: Option<u64>) -> bool {
     let cells = u64::from(width) * u64::from(height) * u64::from(supersample) * u64::from(supersample);
-    width.max(height) <= MAX_SIDE && cells <= MAX_CELLS
+    // A fifth is left to the app itself and to the file being written.
+    let held = room.is_none_or(|room| needs([width, height], supersample) <= room / 5 * 4);
+    width.max(height) <= MAX_SIDE && cells <= MAX_CELLS && held
+}
+
+// Whether a picture of this size at this supersample can be made here: the renderer's own limits and, on a
+// phone, the memory that is left. Asked before the press.
+pub fn fits(size: [u32; 2], supersample: u32) -> bool {
+    fits_in(size, supersample, room())
 }
 
 // How an Instant export of a size comes from the picture on the screen: saved as it is, made smaller, or drawn
@@ -630,6 +669,20 @@ mod tests {
                 }
             })
             .collect()
+    }
+
+    #[test]
+    fn a_phone_exports_what_its_memory_holds() {
+        const GIGABYTE: u64 = 1 << 30;
+        // 3840 x 2160 at Standard took 654 MB and at High 1536 MB when measured.
+        assert!(needs([3840, 2160], 1) > 654 << 20);
+        assert!(needs([3840, 2160], 2) > 1536 << 20);
+        assert!(fits_in([15360, 8640], 1, None));
+        assert!(!fits_in([15360, 8640], 1, Some(6 * GIGABYTE)));
+        assert!(fits_in([7680, 4320], 1, Some(6 * GIGABYTE)));
+        assert!(fits_in([3840, 2160], 1, Some(2 * GIGABYTE)));
+        assert!(!fits_in([7680, 4320], 1, Some(2 * GIGABYTE)));
+        assert!(!fits_in([16385, 100], 1, None));
     }
 
     #[test]

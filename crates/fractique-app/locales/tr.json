@@ -50,6 +50,7 @@
   "failed": "kaydedilemedi",
   "writing_file": "dosya yazılıyor",
   "export_too_large": "görüntü bu kalite için çok büyük",
+  "export_no_room": "Bu cihazda bu boyutta bir resim için yeterli bellek yok.",
   "export_scene": "bu sahne işlenemiyor",
   "export_file": "dosya yazılamadı",
   "export_picture": "görüntü henüz hazır değil",

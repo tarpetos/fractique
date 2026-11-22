@@ -2,6 +2,11 @@
 
 ## 1.0.0
 
+* **A phone no longer starts an export it has no memory for:** a picture takes about 80 bytes of memory for each
+  pixel while it is made, so 15360 × 8640 needs some 11 GB and the app was closed by the system halfway. On a phone
+  the export sheet now asks how much memory is left: a quality that would not fit is dim, and where none fits the
+  sheet says so and offers no button.
+
 * **Small sheets on a phone keep their glass:** when the sheet of Fractique Pro changed height, or the export sheet
   shrank to its progress bar, the buttons came back around it and its dark glass went, leaving the texts on the
   bare picture. The buttons now stay away under every sheet, and the glass has room for twice as many panes.
