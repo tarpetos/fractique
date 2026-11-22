@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.1.0
+
+The first release: the app for Windows, Linux, macOS, Android, iOS and the web, the command line tool, the MCP
+server and the HTTP server.
+
+* **A Docker image with every release:** `docker run -p 8080:8080 ghcr.io/tarpetos/fractique-server` runs the HTTP
+  server with the web app, on x86-64 and on ARM64. The `Release` workflow builds it, asks the server in it for an
+  answer and pushes it under the version and under `latest`.
+
+* **One download for every Mac:** the macOS app and the three other programs are universal, with the code for
+  Apple Silicon and for Intel in one file.
 
 * **A video of the app, made by a script:** `tools/video/make_video.py` films the app at 3840 × 2160 and 60 frames a
   second on a display nobody sees, and writes the video, its subtitles in the 15 languages, the thumbnail and the
@@ -900,10 +910,6 @@
 * **App:** a double click on a `.frcq` file opens it in Fractique. The Windows program registers the file type for
   the current user when it starts; the `.deb` and the AppImage carry the type and the association. On macOS the type
   is declared, but a double click does not open the file yet.
-
-## 0.1.0
-
-First version: the renderer and the command line tool.
 
 * **Renderer:** fractal flames with 28 variations, layers (add, screen, over), rotational and mirror symmetry,
   density estimation, glow, ordered dithering, any resolution up to 16384 pixels a side.

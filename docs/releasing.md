@@ -14,18 +14,20 @@ line tool and the two servers take it when they are told to.
 | `fractique-server_<version>_x64.exe` | Windows: the HTTP server | on command |
 | `Fractique_<version>_x86_64.AppImage` | Linux, any distribution | yes |
 | `Fractique_<version>_amd64.deb` | Debian, Ubuntu | no: it points at the download page |
-| `Fractique_<version>_aarch64.dmg` | macOS, Apple Silicon | yes (the app inside) |
-| `Fractique_<version>_aarch64.app.tar.gz` | what the macOS update downloads | |
+| `Fractique_<version>_universal.dmg` | macOS, every Mac: one app with the code for Apple Silicon and for Intel | yes (the app inside) |
+| `Fractique_<version>_universal.app.tar.gz` | what the macOS update downloads | |
 | `Fractique_<version>_android.apk` | Android | no: Android installs an APK only by hand |
 | `fractique-cli_<version>_x86_64-linux.tar.gz`, `fractique-mcp_…`, `fractique-server_…` | Linux: the command line tool, the MCP server and the HTTP server on their own, for a machine that wants no app | on command |
-| `fractique-cli_<version>_aarch64-macos.tar.gz`, `fractique-mcp_…`, `fractique-server_…` | macOS: the same three | on command |
+| `fractique-cli_<version>_universal-macos.tar.gz`, `fractique-mcp_…`, `fractique-server_…` | macOS: the same three, universal too | on command |
 | `latest.json` | the update manifest the app reads | |
 | `tools.json` | the update manifest the three other programs read ([its shape](#toolsjson)) | |
 | `SHA256SUMS.txt` | checksums | |
 
 The Linux and macOS packages carry the app (`fractique-gui`), the command line tool (`fractique`), the MCP server
 (`fractique-mcp`) and the HTTP server (`fractique-server`); where they are after installing is in [mcp.md](mcp.md#where-the-program-is). The iOS
-build goes to TestFlight and is not among the files.
+build goes to TestFlight and is not among the files. Neither is the Docker image of the HTTP server with the web
+app: it goes to the GitHub Container Registry as `ghcr.io/tarpetos/fractique-server`, under the version and under
+`latest`, for x86-64 and for ARM64 ([server.md](server.md#docker)).
 
 ## How to release
 
@@ -44,17 +46,18 @@ build goes to TestFlight and is not among the files.
    ```
 
 The `Release` workflow does the rest. It refuses a tag that does not match the version in `Cargo.toml`, before
-anything is built. The desktop installers, the APK and the iOS build for TestFlight are then made side by side;
-the release is published when the installers and the APK are there, whatever Apple says to the upload. Started by
-hand without a tag, it builds the installers and keeps them as artifacts without publishing, and uploads the iOS
-build to TestFlight; with **ios** chosen it does only that.
+anything is built. The desktop installers, the APK, the iOS build for TestFlight and the Docker image are then made
+side by side; the release is published when the installers and the APK are there, whatever Apple says to the upload
+and whatever becomes of the image. Started by hand without a tag, it builds the installers and keeps them as
+artifacts without publishing, uploads the iOS build to TestFlight, and builds the image and asks the server in it
+for an answer without pushing it; with **ios** or **docker** chosen it does only that one.
 
 The workflows are two, each one entry file that calls the others, so GitHub shows one run for each:
 
 | Run | When | Entry | Calls |
 | --- | --- | --- | --- |
 | `CI` | Every pull request | `ci.yml` (the title, what changed) | `lint.yml`, `test.yml` |
-| `Release` | A version tag, or by hand | `release.yml` (the version, the publishing) | `release-desktop.yml`, `release-android.yml`, `release-ios.yml` |
+| `Release` | A version tag, or by hand | `release.yml` (the version, the publishing) | `release-desktop.yml`, `release-android.yml`, `release-ios.yml`, `release-docker.yml` |
 
 A third file, `ios-sim.yml`, is started by hand only: it runs the app in the iOS Simulator
 ([ios.md](ios.md#in-the-simulator)).
@@ -66,9 +69,10 @@ write to `dist/`.
 | --- | --- | --- |
 | Windows | `scripts/build/build-win.ps1` | The four programs copied as they are; no installer |
 | Linux | `scripts/build/build-linux.sh [--formats appimage,deb]` | `cargo-packager` |
-| macOS | `scripts/build/build-mac.sh [--formats app,dmg]` | `cargo-packager`. The app is not signed by Apple: copied from the `.dmg` it needs `xattr -dr com.apple.quarantine /Applications/Fractique.app` |
+| macOS | `scripts/build/build-mac.sh [--formats app,dmg]` | `cargo-packager`, after both kinds of Mac are built and joined with `lipo` into universal programs. The app is not signed by Apple: copied from the `.dmg` it needs `xattr -dr com.apple.quarantine /Applications/Fractique.app` |
 | Android | `cargo apk build --release --lib` in `crates/fractique-app`, as the workflow does | `cargo-apk`, the Android NDK, Java 17, the keystore |
 | iOS | `scripts/ios/testflight.sh` ([ios.md](ios.md#testflight)), as the workflow does; it goes to TestFlight, not into the release's files | Xcode, xcodegen, the App Store Connect key |
+| Docker | `docker build -t fractique-server .` ([server.md](server.md#docker)), as the workflow does on a runner of each processor | Docker |
 | Web | `crates/fractique-app/index.html` is a [Trunk](https://trunkrs.dev) page; not part of a release | Trunk |
 
 ## How the app updates
@@ -171,7 +175,7 @@ Which copy does what:
 | From the `.deb`: a file a package owns (`/var/lib/dpkg/info`), or one in `/usr` outside `/usr/local`, `/bin`, `/sbin`, `/nix`, `/snap`, `/gnu` | Refuses: update the package |
 | Inside the AppImage or inside the macOS app | Refuses: the app updates the whole package, these programs with it |
 | Built from a checkout (`cargo build`, `setup.sh`, the `Dockerfile`) | Refuses: build the new version; an image is built again |
-| A system the release holds no file for (Linux on ARM, a Mac with an Intel processor) | Refuses, with the address of the downloads |
+| A system the release holds no file for (Linux on ARM) | Refuses, with the address of the downloads |
 
 Every refusal says why, what to do instead and where the downloads are. When a rule is in doubt the program is
 left alone. `update --check` works for every copy and adds the reason when that copy would not be replaced.
@@ -203,7 +207,8 @@ server while it runs. There is no check at start, none in the background and non
     "fractique-cli": {
       "windows-x86_64": { "url": "https://github.com/tarpetos/fractique/releases/download/v0.3.0/fractique-cli_0.3.0_x64.exe", "signature": "…" },
       "linux-x86_64": { "url": "…/fractique-cli_0.3.0_x86_64-linux.tar.gz", "signature": "…" },
-      "macos-aarch64": { "url": "…/fractique-cli_0.3.0_aarch64-macos.tar.gz", "signature": "…" }
+      "macos-aarch64": { "url": "…/fractique-cli_0.3.0_universal-macos.tar.gz", "signature": "…" },
+      "macos-x86_64": { "url": "…/fractique-cli_0.3.0_universal-macos.tar.gz", "signature": "…" }
     },
     "fractique-mcp": { "windows-x86_64": { "url": "…", "signature": "…" }, "linux-x86_64": { "…": "…" }, "macos-aarch64": { "…": "…" } },
     "fractique-server": { "windows-x86_64": { "url": "…", "signature": "…" }, "linux-x86_64": { "…": "…" }, "macos-aarch64": { "…": "…" } }

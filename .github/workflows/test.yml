@@ -16,7 +16,9 @@ env:
 
 jobs:
   # The golden hashes in crates/fractique-core/tests/determinism.rs must match on every system: this matrix is
-  # what proves that a scene renders to the same pixels everywhere.
+  # what proves that a scene renders to the same pixels everywhere. Only the renderer is tested on every system;
+  # the whole workspace is built and tested on Linux, and checked without a build where `check` is set, since
+  # building it all in release took a Windows or an Intel runner over twenty minutes.
   rust:
     name: Rust (${{ matrix.name }})
     if: inputs.rust
@@ -28,12 +30,17 @@ jobs:
         include:
           - name: Linux x64
             os: ubuntu-latest
+            all: true
           - name: Linux ARM64
             os: ubuntu-24.04-arm
           - name: Windows x64
             os: windows-latest
+            check: true
           - name: macOS Apple Silicon
             os: macos-latest
+            check: true
+          - name: macOS Intel
+            os: macos-15-intel
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Rust (the version in rust-toolchain.toml)
@@ -41,6 +48,14 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.os }}
-      - run: cargo test --locked --release
+      - name: The whole workspace
+        if: matrix.all
+        run: cargo test --locked --release
+      - name: The renderer
+        if: ${{ !matrix.all }}
+        run: cargo test --locked --release -p fractique-core
       - name: Without threads
         run: cargo test --locked --release -p fractique-core --no-default-features
+      - name: Everything compiles
+        if: matrix.check
+        run: cargo check --locked --workspace --all-targets

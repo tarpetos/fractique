@@ -1,9 +1,12 @@
 name: CI
 
 # Entry point for every pull request check: lint.yml and test.yml run from here. A title edit re-runs only the title check.
+# A push to master runs them too: a pull request may read the caches of master, not those of another pull request.
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
+  push:
+    branches: [master]
 
 permissions:
   contents: read
@@ -16,6 +19,7 @@ jobs:
   # Pull requests are squash-merged, so the title becomes the commit on master.
   title:
     name: Conventional title
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Check the title

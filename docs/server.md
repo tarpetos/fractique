@@ -236,8 +236,15 @@ that accept it. The app in the browser renders on the visitor's own machine; it 
 
 ## Docker
 
-The `Dockerfile` at the root builds the server and the web app and puts both into a small image that runs as a
-user without rights:
+Every release has an image of the server with the web app, for x86-64 and for ARM64, small and run as a user
+without rights:
+
+```sh
+docker run --rm -p 8080:8080 ghcr.io/tarpetos/fractique-server
+```
+
+`ghcr.io/tarpetos/fractique-server:0.1.0` is the image of one version. The `Dockerfile` at the root builds the
+same from a checkout:
 
 ```sh
 docker build -t fractique-server .

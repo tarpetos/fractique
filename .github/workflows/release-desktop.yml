@@ -31,7 +31,8 @@ jobs:
           - name: Linux x64
             os: ubuntu-22.04
             kind: linux
-          - name: macOS Apple Silicon
+          # One universal build, for Apple Silicon and Intel.
+          - name: macOS
             os: macos-latest
             kind: macos
     steps:
