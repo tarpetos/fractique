@@ -928,6 +928,19 @@ impl Chaos {
         }
     }
 
+    // A test run's card gives the picture up as a card too slow for it does (FRACTIQUE_REFUSE in lib.rs).
+    pub fn give_up(&mut self) {
+        let keys = self
+            .pixels
+            .as_ref()
+            .map(|pixels| pixels.keys.clone())
+            .or_else(|| self.run_keys.clone());
+        self.end();
+        if let Some(keys) = keys {
+            self.refuse(keys);
+        }
+    }
+
     // Of a picture drawn pixel by pixel: the seconds its longest batch took, and how many batches there were.
     pub fn slowest(&self) -> Option<(f32, u32)> {
         let report = self.pixels.as_ref()?.report;

@@ -1061,6 +1061,12 @@ fn timed() -> bool {
     std::env::var_os("FRACTIQUE_DEBUG_TIMES").is_some()
 }
 
+// FRACTIQUE_REFUSE=1000: a test run's card gives up every picture magnified that many times or more.
+fn refused_from() -> Option<f64> {
+    static FROM: std::sync::OnceLock<Option<f64>> = std::sync::OnceLock::new();
+    *FROM.get_or_init(|| std::env::var("FRACTIQUE_REFUSE").ok()?.parse().ok())
+}
+
 impl Adjust {
     // A test run's tone: FRACTIQUE_ADJUST=brightness,gamma,glow,zoom. With FRACTIQUE_SHOW=preview it is set once
     // the picture is rendered and stays the graphics card's.
@@ -1152,6 +1158,8 @@ struct App {
     aimed: (View, f64),
     magnified: bool,
     given_up: bool,
+    // The least magnification of a picture the card gave up: a view at most half as deep is tried on it again.
+    refused_from: Option<f64>,
     // The picture awaited is the card's alone: the processor renders its small draft at the most.
     carded: bool,
     speeds: pace::Speeds,
@@ -1848,6 +1856,7 @@ impl App {
             aimed: (WHOLE, 1.0),
             magnified: false,
             given_up: false,
+            refused_from: None,
             carded: false,
             late: Arc::default(),
             too_long: None,
@@ -2373,7 +2382,7 @@ impl App {
         let full = self.full(size);
         let scene = self.scene_in(view, zoom);
         let deep = view.zoom * zoom >= pace::DEEP_FROM;
-        let card = self.gpu_on() && !self.given_up && on_card(&scene);
+        let card = self.gpu_on() && !self.gave_up(view.zoom * zoom) && on_card(&scene);
         if card
             && self
                 .chaos
@@ -3140,7 +3149,8 @@ impl App {
             }
         };
         let apron = export::APRON + scene.layers.iter().map(reach).fold(0.0, f64::max).ceil() as u32;
-        (tiled && self.gpu_on() && !self.given_up && !self.wall.live && apron <= export::TILE / 4).then_some(apron)
+        let gave_up = self.gave_up(self.view.zoom * self.adjust.zoom);
+        (tiled && self.gpu_on() && !gave_up && !self.wall.live && apron <= export::TILE / 4).then_some(apron)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -3248,7 +3258,23 @@ impl App {
     // The card draws a moved view of the scene small while it moves: the whole scene is drawn pixel by pixel, and
     // the picture itself takes the card longer than a moment.
     fn drafts(&self) -> bool {
-        self.swift && !self.at_once && !self.draft_off && !self.covering() && !self.given_up && self.gpu_on()
+        (self.swift || self.left_refused())
+            && !self.at_once
+            && !self.draft_off
+            && !self.covering()
+            && !self.gave_up(self.view.zoom * self.adjust.zoom)
+            && self.gpu_on()
+    }
+
+    // A view drawn pixel by pixel that is shallow enough again, after the card gave a deeper one up: the
+    // processor drew that one, so nothing says yet that the card draws the scene.
+    fn left_refused(&self) -> bool {
+        let pixelwise = self.base.sheets.is_none() && self.base.layers.iter().all(field::drawn);
+        pixelwise && self.refused_from.is_some() && !self.gave_up(self.view.zoom * self.adjust.zoom)
+    }
+
+    fn gave_up(&self, magnified: f64) -> bool {
+        self.given_up || self.refused_from.is_some_and(|least| magnified * 2.0 > least)
     }
 
     fn drafting(&self) -> bool {
@@ -3314,6 +3340,9 @@ impl App {
             return;
         };
         self.draft_note = (pixels, spent * 1000.0);
+        if timed() {
+            eprintln!("times: a draft of {} × {} from the graphics card", pixels[0], pixels[1]);
+        }
         if !preview.draw_draft(&scene, pixels, &levels, ctx) {
             return;
         }
@@ -3344,11 +3373,16 @@ impl App {
 
     fn chaos_step(&mut self, chaos: &mut Chaos, ctx: &egui::Context, frame: &eframe::Frame) {
         let step = chaos.advance(ctx);
-        if step == Step::Refused {
+        let magnified = self.aimed.0.zoom * self.aimed.1;
+        if step == Step::Refused || refused_from().is_some_and(|least| magnified >= least) {
+            chaos.give_up();
             if timed() {
-                eprintln!("times: the graphics card gave the scene up {}", chaos.why());
+                eprintln!(
+                    "times: the graphics card gave the scene up at {magnified:.3}× {}",
+                    chaos.why()
+                );
             }
-            self.given_up = true;
+            self.refused_from = Some(self.refused_from.map_or(magnified, |least| least.min(magnified)));
             self.requested = None;
             return;
         }
@@ -5427,6 +5461,7 @@ impl App {
         self.wall.live = false;
         self.requested = None;
         self.given_up = false;
+        self.refused_from = None;
         self.view = WHOLE;
         self.layer = 0;
     }
@@ -7107,7 +7142,7 @@ impl App {
                 }
             } else if self.drawn != Some((self.view, self.adjust.zoom)) && !self.frozen {
                 let still = self.touched.elapsed().as_secs_f32();
-                if still >= SETTLE || self.swift {
+                if still >= SETTLE || self.swift || self.left_refused() {
                     self.moved_only = true;
                     self.show_view(&ctx, size, self.drawn.is_none());
                 } else {

@@ -68,7 +68,6 @@ What the app does not do yet:
 - A deep view on the graphics card without the 0.1 to 0.5 s that giving the faint parts their points costs it.
 - A device with a measured limit of its graphics card hands nearly every picture to the processor at once: the
   check judges a whole picture by its first small unit of work.
-- A live draft of a fractal drawn pixel by pixel again once a deep view the card gave up is left by zooming out.
 - Editing the colors of a fractal beyond the eight palettes, and typing a parameter in as a number.
 - A purchase made on a Mac: `scripts/mac/appstore.sh` builds, sandboxes and uploads the Mac App Store's build
   ([ios.md](ios.md#a-mac-app-store-build)), and nobody has bought Fractique Pro in it yet.
