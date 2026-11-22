@@ -1720,9 +1720,16 @@ impl App {
         widgets::install_fonts(&cc.egui_ctx, texts.lang);
         probe.stage("fonts");
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
-        // The window comes back where and as large as it was, on the same screen, but never in full screen.
+        // The window comes back where and as large as it was, on the same screen, but never in full screen: one
+        // closed in full screen comes back maximized instead of at its smaller size.
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+        {
+            cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+            // Linux only: there the window stood at its smaller size; elsewhere it already comes back as it was.
+            if cfg!(target_os = "linux") && stored("window").is_some_and(|window| window.contains("fullscreen:true")) {
+                cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+            }
+        }
         if let Some(state) = &cc.wgpu_render_state {
             note(&format!("graphics: {:?}", state.adapter.get_info()));
             if timed() {

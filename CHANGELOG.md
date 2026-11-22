@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* **App, Linux:** a window closed in full screen opens maximized next time, not at its smaller size.
 * **App:** a drag of the top panel no longer moves a window in full screen; on GNOME it left the picture smaller, with black around.
 * **App:** a second start from a terminal says that Fractique is already running.
 * **App, Linux:** an AppImage adds itself to the list of apps and shows its icon on the file; the window names its app, so the dock shows its icon; the `.deb` files Fractique under Graphics.

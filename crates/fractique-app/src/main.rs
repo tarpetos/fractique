@@ -81,6 +81,12 @@ fn main() -> eframe::Result {
     if fractique_app::tiled() {
         options.persist_window = false;
     }
+    // The settings stay in the folder of the app's name: eframe would take the window's app id for it, and that
+    // differs between the .deb and an AppImage.
+    #[cfg(target_os = "linux")]
+    if options.persistence_path.is_none() {
+        options.persistence_path = eframe::storage_dir("Fractique").map(|folder| folder.join("app.ron"));
+    }
     if screenshot.is_some() || std::env::var_os("FRACTIQUE_DEBUG_FULL").is_some() {
         // A test run must not change the window and settings the owner's next launch restores.
         options.persist_window = false;
