@@ -103,12 +103,32 @@ jobs:
         run: |
           awk -v v="## $VERSION" '$0 == v {on = 1; next} on && /^## / {exit} on {print}' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then echo "See CHANGELOG.md." > notes.md; fi
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          # GitHub lists the files by name in one long list: the notes open with the same files by system.
+          link() { echo "[$1]($base/$2)"; }
+          v="$VERSION"
+          {
+            echo "## Downloads"
+            echo
+            echo "| System | The app | Command line tool | MCP server | HTTP server |"
+            echo "| --- | --- | --- | --- | --- |"
+            echo "| Windows | $(link .exe "Fractique_${v}_x64.exe") | $(link .exe "fractique-cli_${v}_x64.exe") | $(link .exe "fractique-mcp_${v}_x64.exe") | $(link .exe "fractique-server_${v}_x64.exe") |"
+            echo "| Linux | $(link AppImage "Fractique_${v}_x86_64.AppImage"), $(link .deb "Fractique_${v}_amd64.deb") | $(link .tar.gz "fractique-cli_${v}_x86_64-linux.tar.gz") | $(link .tar.gz "fractique-mcp_${v}_x86_64-linux.tar.gz") | $(link .tar.gz "fractique-server_${v}_x86_64-linux.tar.gz") |"
+            echo "| macOS, every Mac | $(link .dmg "Fractique_${v}_universal.dmg") | $(link .tar.gz "fractique-cli_${v}_universal-macos.tar.gz") | $(link .tar.gz "fractique-mcp_${v}_universal-macos.tar.gz") | $(link .tar.gz "fractique-server_${v}_universal-macos.tar.gz") |"
+            echo "| Android | $(link .apk "Fractique_${v}_android.apk") | | | |"
+            echo "| Docker | | | | \`docker run -p 8080:8080 ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/fractique-server:${v}\` |"
+            echo
+            echo "The Linux and macOS packages of the app hold the three other programs too. The other files of the list below are what the updates read."
+            echo
+            echo "## What's new"
+            echo
+            cat notes.md
+          } > body.md
           cd out
           # cargo-packager names the installers after the main binary.
           for f in fractique-gui_*; do
             [ -e "$f" ] && mv "$f" "Fractique_${f#fractique-gui_}"
           done
-          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
           # One manifest entry: <os>-<arch>, a file pattern and the updater's format for it.
           entry() {
             f="$(ls $2 2>/dev/null | head -n1)"
@@ -161,5 +181,5 @@ jobs:
             gh release upload "$GITHUB_REF_NAME" out/* --clobber
           else
             # A full release, not a pre-release: the updater reads releases/latest, which skips pre-releases.
-            gh release create "$GITHUB_REF_NAME" out/* --latest --title "$GITHUB_REF_NAME" --notes-file notes.md
+            gh release create "$GITHUB_REF_NAME" out/* --latest --title "$GITHUB_REF_NAME" --notes-file body.md
           fi
