@@ -27,14 +27,15 @@ that what it saw is what you get. It holds for wallpapers and for fractals of ot
 
 ## How it is checked
 
-`crates/fractique-core/tests/determinism.rs` holds golden hashes, each of a scene rendered at a small size: eleven
-presets (one of them at two supersamples), one deep view, seven wallpapers, three random scenes of each of the two
-random generators and a scene for each of the 21 variations added to the first 28. Every kind of fractal has the
-golden hash of one of its presets in its own file under `src/fractal/`; those were produced on Linux x64. CI runs
-all of them on Linux x64, Linux ARM64, Windows x64 and macOS on Apple Silicon and on Intel: the renderer's tests
-on every one of those, the rest of the workspace on Linux x64 alone. The same file checks that the number of threads does not change the image, for a flame (1, 3 and all
-threads), a deep view, a wallpaper, the 21 added variations and a random scene of every kind of fractal, and the
-test suite also runs with threads compiled out (`--no-default-features`).
+`crates/fractique-core/tests/determinism.rs` holds golden hashes, each of a scene rendered at a small size:
+eleven presets (one of them at two supersamples), one deep view, seven wallpapers, three random scenes of each of
+the two random generators and a scene for each of the 21 variations added to the first 28. Every kind of fractal
+has the golden hash of one of its presets in its own file under `src/fractal/`; those were produced on Linux x64.
+CI runs all of them on Linux x64, Linux ARM64, Windows x64 and macOS on Apple Silicon and on Intel: the
+renderer's tests on every one of those, the rest of the workspace on Linux x64 alone. The same file checks that
+the number of threads does not change the image, for a flame (1, 3 and all threads), a deep view, a wallpaper,
+the 21 added variations and a random scene of every kind of fractal, and the test suite also runs with threads
+compiled out (`--no-default-features`).
 
 The command line tool prints the hash of every image it renders, so you can compare two machines yourself:
 
