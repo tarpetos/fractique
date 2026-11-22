@@ -52,7 +52,7 @@ side by side; the release is published when the installers and the APK are there
 uploads nothing to Apple: the builds for TestFlight and for the Mac App Store are uploaded by hand, before the tag,
 so that what is sent for review is the build that was tested. Started by hand without a tag, it builds the installers and keeps them as
 artifacts without publishing, uploads the iOS build to TestFlight and the Mac one to App Store Connect, and builds the image and asks the server
-in it for an answer without pushing it; with **ios**, **mac** or **docker** chosen it does only that one.
+in it for an answer without pushing it; with **ios**, **mac** or **docker** chosen it does only that one, and with **appstore** the two uploads to Apple, side by side in one run.
 
 The workflows are three. `CI` and `Release` are each one entry file that calls the others, so GitHub shows one run
 for each:
