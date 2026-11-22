@@ -17,6 +17,8 @@ mod i18n;
 mod instance;
 #[cfg(target_os = "ios")]
 mod ios;
+#[cfg(target_os = "linux")]
+mod mask;
 mod motion;
 mod orbit;
 mod pace;
@@ -37,6 +39,8 @@ mod update;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 mod updates;
 mod widgets;
+#[cfg(target_os = "linux")]
+mod xwindow;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -69,6 +73,9 @@ const DRAFT_SAMPLES: u32 = 12;
 const MIDDLE_SIDE: f32 = 1280.0;
 // The least a picture of half the side is worth showing before the whole one: clearly more than a draft.
 const SOONER_SIDE: f32 = 640.0;
+// The radius of the corners of GNOME's own windows.
+#[cfg(target_os = "linux")]
+const WINDOW_RADIUS: f32 = 12.0;
 const MIDDLE_SAMPLES: u32 = 16;
 const FULL_SIDE: f32 = if cfg!(target_arch = "wasm32") {
     900.0
@@ -605,6 +612,15 @@ pub fn first_instance(open: Option<&std::path::Path>) -> bool {
 // Focus does nothing on Wayland: there the window's surface is activated with the token of the second start.
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 fn raiser(cc: &eframe::CreationContext<'_>) -> instance::Raise {
+    #[cfg(target_os = "linux")]
+    if let Some(window) = xwindow::Raise::of(cc) {
+        return Box::new(move |_| {
+            let raised = window.activate();
+            if timed() {
+                eprintln!("times: a second start, raised {raised}");
+            }
+        });
+    }
     #[cfg(target_os = "linux")]
     if let Some(surface) = raise::Surface::of(cc) {
         return Box::new(move |token| {
@@ -1262,6 +1278,10 @@ struct App {
     layer: usize,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     maximize_again: bool,
+    #[cfg(target_os = "linux")]
+    corners: Option<xwindow::Corners>,
+    #[cfg(target_os = "linux")]
+    corner_mask: bool,
     // The window's size, its place on the screen and the frame its panes stood in, a frame ago.
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     window_was: Option<(egui::Rect, egui::Pos2, egui::Rect)>,
@@ -1978,6 +1998,10 @@ impl App {
             layer: 0,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             maximize_again: false,
+            #[cfg(target_os = "linux")]
+            corners: xwindow::Corners::of(cc).filter(|_| !tiled()),
+            #[cfg(target_os = "linux")]
+            corner_mask: !tiled() && mask::install(cc),
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             window_was: None,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -5053,6 +5077,35 @@ impl App {
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    #[cfg(target_os = "linux")]
+    fn round_corners(&mut self, ctx: &egui::Context) {
+        let (maximized, full) = self.window_state(ctx);
+        if self.corner_mask && !maximized && !full {
+            ctx.layer_painter(egui::LayerId::new(egui::Order::Debug, egui::Id::unique("corners")))
+                .add(egui_wgpu::Callback::new_paint_callback(
+                    ctx.viewport_rect(),
+                    mask::Mask { radius: WINDOW_RADIUS },
+                ));
+        }
+        let Some(corners) = &mut self.corners else {
+            return;
+        };
+        let (size, scale) = ctx.input(|input| {
+            (
+                input.viewport().inner_rect.map(|rect| rect.size()),
+                input.pixels_per_point(),
+            )
+        });
+        if let Some(size) = size {
+            let radius = if maximized || full { 0.0 } else { WINDOW_RADIUS * scale };
+            corners.set(
+                (size.x * scale).round() as u32,
+                (size.y * scale).round() as u32,
+                radius.round() as u32,
+            );
+        }
+    }
+
     fn window_state(&self, ctx: &egui::Context) -> (bool, bool) {
         if let Some(sham) = &self.trace.sham {
             return (sham.maximized, sham.full);
@@ -6821,6 +6874,8 @@ impl eframe::App for App {
         let began = Instant::now();
         self.trace.slept = 0.0;
         self.draw(ui, frame);
+        #[cfg(target_os = "linux")]
+        self.round_corners(ui.ctx());
         if let Some(pointer) = &mut self.trace.pointer {
             pointer.draw(ui.ctx());
         }
