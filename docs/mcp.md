@@ -170,6 +170,13 @@ asks. A request that is still waiting for its turn is dropped the same way. A ca
 finished request is ignored. The flames of a scene stop at once; its sheets (a wallpaper) are drawn in one go, in
 about a second at 4K, report no progress and are not interrupted, but a cancelled wallpaper is not answered either.
 
+## A skill for agents
+
+`skills/fractique/SKILL.md` tells an agent when to use these tools and in what order: a small render to look at
+first, then the final size with `save_to`. It is instructions only, with no scripts. For Claude Code, copy the
+folder `skills/fractique` into `~/.claude/skills/`, or into `.claude/skills/` of a project. A test fails when the
+skill does not name a tool the server has.
+
 ## Over HTTP
 
 `fractique-server` ([server.md](server.md)) speaks MCP at `POST /mcp` with the

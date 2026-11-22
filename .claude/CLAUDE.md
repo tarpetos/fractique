@@ -83,6 +83,7 @@ is stable, not that it is good.
 | `.github/workflows/ci.yml` (calls `lint.yml`, `test.yml`), `title.yml` | The checks of every pull request; the title's check apart |
 | `vendor/` | `eframe` and `egui-wgpu` with the iOS surface fix |
 | `crates/fractique-mcp/src/lib.rs` | The MCP tools, shared by both MCP servers; listed in `docs/mcp.md` |
+| `skills/fractique/SKILL.md` | The skill that tells an agent how to use the MCP tools; a test fails when it lacks a tool's name |
 | `crates/fractique-cli/src/mcp.rs` | The MCP server over stdio (`fractique mcp`) |
 | `crates/fractique-server/` | The HTTP server (`fractique-server`): `lib.rs` API, queue and limits; `mcp.rs` MCP over HTTP at `/mcp`; `tests/api.rs`, `tests/mcp.rs`; described in `docs/server.md`. `Dockerfile`, `docker-compose.yml` at the root |
 | `docs/gallery/` (`flames/`, `fractals/`, `wallpapers/`, a `README.md` in each and one in front), `tools/gallery/make_gallery.py` | A hundred flames, a hundred fractals (`F...`) and a hundred wallpapers (`W...`) as `.frcq` files beside their pictures; the script makes the pictures and the four pages from the files ("The gallery" in `docs/usage.md`) |
