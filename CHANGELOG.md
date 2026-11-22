@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.0.0
+
+* **Fractique Pro unlocks by itself:** bought on an iPhone, an iPad or a Mac, it is there on the buyer's other
+  devices when the app is opened, with no press on **Restore purchases**, which stays for the case the App Store
+  is slow to tell.
 
 * **App Store builds:** every listed size is free; without Fractique Pro three pictures a day are saved or shared. Pro lifts the limit and keeps the **Custom** sizes.
 * **App:** the answer of "Check for updates" follows a change of language; a version's date is no longer cut off.

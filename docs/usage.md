@@ -163,8 +163,8 @@ and what does not. In a browser the app has no export, no scene files and no upd
 ### Free and Fractique Pro
 
 Every feature of Fractique is free on every platform. The builds from the App Store (iPhone, iPad, Mac) have one
-purchase, **Fractique Pro**: paid once, kept for good, restored on another device of the same Apple Account with
-**Restore purchases**.
+purchase, **Fractique Pro**: paid once, kept for good. Bought on one device, it is there on the others of the same Apple
+Account when the app is opened on them; **Restore purchases** asks the App Store again where that did not happen.
 
 | Where | Free | Needs Fractique Pro |
 | --- | --- | --- |

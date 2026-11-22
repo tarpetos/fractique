@@ -191,7 +191,9 @@ Sandbox Apple Account**.
 | The round button with a cross, top right | Back in the export sheet, nothing saved |
 | **Save to Photos** with no free save left, **Buy**, confirm | The system's purchase dialog; then the sheet closes, the export starts by itself and the picture is in Photos; the lock and the line about free saves are gone |
 | Close the app, turn on Airplane Mode, open it | Still no lock |
-| Delete the app, install it again, open **Export**, **Apply** under **Custom**, **Restore purchases** | The lock goes without paying again |
+| Delete the app, install it again, open **Export** | No lock and no line about free saves, with nothing pressed: the app asked StoreKit what the Apple Account owns |
+| The same build on a second device of the sandbox tester (an iPad, a Mac) | Unlocked when it is opened; if it was open during the purchase, within moments |
+| Where that did not happen: **Apply** under **Custom**, **Restore purchases** | The lock goes without paying again |
 | The same with a sandbox tester who never bought | "No earlier purchase was found for this Apple Account." |
 | Start a purchase and cancel the system's dialog | The sheet is back at **Buy**, no message |
 | Airplane Mode on a device that never bought, open the sheet | The App Store's own words or "The App Store did not answer", and **Try again** |
@@ -201,7 +203,9 @@ Sandbox Apple Account**.
 
 A sandbox purchase is cleared under **Settings, Developer, Sandbox Apple Account, Manage, Reset Eligibility** or
 by a new sandbox tester. The purchase is kept on the device in the app's preferences (`NSUserDefaults`, the key
-`app.fractique.pro`); deleting the app removes it, **Restore purchases** brings it back. A refund does not lock
+`app.fractique.pro`); deleting the app removes it, and the next start or **Restore purchases** brings it back. The start asks through
+`ios/ProWatch.swift`, a framework of one function beside the binary: StoreKit 2 tells what the Apple Account owns
+without a question to the person, and has no interface but Swift. The builds of `bundle.sh` do not carry it. A refund does not lock
 the app again. The free saves of the day are kept in the app's own settings under `saves`, as the date and a
 count; deleting the app clears them.
 
@@ -223,7 +227,7 @@ itself. The Mac App Store's build is another one:
   the network for the App Store, nothing else;
 - it has the bundle identifier of the iOS app, `app.fractique`, and is uploaded to the same app record, with the
   macOS platform added to it. That makes the purchase one for iPhone, iPad and Mac: `app.fractique.pro` bought
-  on one is restored on the others with **Restore purchases**.
+  on one is there on the others when the app is opened.
 
 `mac/` holds the Xcode project that wraps the Rust binary, as `ios/` does. cargo started by Xcode cannot compile
 the C code of a dependency, so the script builds the binary first and Xcode's build step only copies it in.
