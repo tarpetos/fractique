@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* **The window of updates:** the answer of "Check for updates" stayed in the language it was given in when the
+  language was changed afterwards; it now follows the language. The list of versions is wider, so a version's
+  date is no longer cut off.
+
 ## 0.1.0
 
 The first release: the app for Windows, Linux, macOS, Android, iOS and the web, the command line tool, the MCP
