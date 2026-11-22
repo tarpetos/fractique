@@ -5,6 +5,10 @@
 The first release: the app for Windows, Linux, macOS, Android, iOS and the web, the command line tool, the MCP
 server and the HTTP server.
 
+* **A Docker image with every release:** `docker run -p 8080:8080 ghcr.io/tarpetos/fractique-server` runs the HTTP
+  server with the web app, on x86-64 and on ARM64. The `Release` workflow builds it, asks the server in it for an
+  answer and pushes it under the version and under `latest`.
+
 * **One download for every Mac:** the macOS app and the three other programs are universal, with the code for
   Apple Silicon and for Intel in one file.
 
