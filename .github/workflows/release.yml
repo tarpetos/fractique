@@ -119,6 +119,38 @@ jobs:
           awk -v v="## $VERSION" '$0 == v {on = 1; next} on && /^## / {exit} on {print}' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then echo "See CHANGELOG.md." > notes.md; fi
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          # GitHub lists the files by name in one long list. The notes open with the app for each system; the
+          # other programs are folded away under it. The app's own window leaves this section out (update.rs).
+          link() { echo "[$1]($base/$2)"; }
+          v="$VERSION"
+          {
+            echo "## Downloads"
+            echo
+            echo "| Windows | Linux | macOS | Android |"
+            echo "| :---: | :---: | :---: | :---: |"
+            echo "| **$(link "Fractique.exe" "Fractique_${v}_x64.exe")** | **$(link "AppImage" "Fractique_${v}_x86_64.AppImage")** · $(link ".deb" "Fractique_${v}_amd64.deb") | **$(link "Fractique.dmg" "Fractique_${v}_universal.dmg")** | **$(link "Fractique.apk" "Fractique_${v}_android.apk")** |"
+            echo "| 64-bit, no installer | any distribution · Debian, Ubuntu | Apple Silicon and Intel | Android 8 and newer |"
+            echo
+            echo "<details>"
+            echo "<summary>Command line tool, MCP server, HTTP server, Docker</summary>"
+            echo
+            echo "| | Windows | Linux | macOS |"
+            echo "| --- | :---: | :---: | :---: |"
+            for tool in "Command line tool:fractique-cli" "MCP server:fractique-mcp" "HTTP server:fractique-server"; do
+              name="${tool%%:*}"; file="${tool##*:}"
+              echo "| ${name} | $(link .exe "${file}_${v}_x64.exe") | $(link .tar.gz "${file}_${v}_x86_64-linux.tar.gz") | $(link .tar.gz "${file}_${v}_universal-macos.tar.gz") |"
+            done
+            echo
+            echo "Docker, the HTTP server with the web app: \`docker run -p 8080:8080 ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/fractique-server:${v}\`"
+            echo
+            echo "The Linux and macOS packages of the app hold these three programs too. \`latest.json\`, \`tools.json\` and the \`.app.tar.gz\` are what the updates read."
+            echo
+            echo "</details>"
+            echo
+            echo "## What's new"
+            echo
+            cat notes.md
+          } > body.md
           cd out
           # cargo-packager names the installers after the main binary.
           for f in fractique-gui_*; do
@@ -176,5 +208,5 @@ jobs:
             gh release upload "$GITHUB_REF_NAME" out/* --clobber
           else
             # A full release, not a pre-release: the updater reads releases/latest, which skips pre-releases.
-            gh release create "$GITHUB_REF_NAME" out/* --latest --title "$GITHUB_REF_NAME" --notes-file notes.md
+            gh release create "$GITHUB_REF_NAME" out/* --latest --title "$GITHUB_REF_NAME" --notes-file body.md
           fi

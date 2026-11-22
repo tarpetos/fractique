@@ -37,8 +37,9 @@ app: it goes to the GitHub Container Registry as `ghcr.io/tarpetos/fractique-ser
    `Packager.toml`, `testflight.sh` and `appstore.sh` their `project.yml`), and the `Release` workflow when any of the three does, before anything is built. Every program takes the
    one in `Cargo.toml`.
 2. Add a section `## <version>` at the top of `CHANGELOG.md`. It becomes the release's notes and what the app
-   shows under "Updates and what's new". The app reads it from the release's page
-   itself, so that page holds nothing else: no tables, no links.
+   shows under "Updates and what's new". On the release's page a section
+   "Downloads" stands above it: the app for each system, and the other programs folded away under them. The app
+   reads the notes from that page and leaves the section out.
 3. Commit, then tag and push the tag:
 
    ```sh
