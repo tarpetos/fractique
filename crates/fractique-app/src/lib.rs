@@ -6,6 +6,8 @@ mod blur;
 mod chaos;
 mod colors;
 mod deep;
+#[cfg(target_os = "linux")]
+mod desktop;
 #[cfg(not(target_arch = "wasm32"))]
 mod export;
 mod field;
@@ -579,6 +581,9 @@ pub use probe::started;
 pub fn open_at_start(path: PathBuf) {
     let _ = OPEN_FIRST.set(path);
 }
+
+#[cfg(target_os = "linux")]
+pub use desktop::{app_id, integrate};
 
 pub fn tiled() -> bool {
     #[cfg(target_os = "linux")]

@@ -51,6 +51,13 @@ fn main() -> eframe::Result {
         .with_min_inner_size([640.0, 480.0])
         .with_decorations(false)
         .with_icon(fractique_app::window_icon());
+    #[cfg(target_os = "linux")]
+    {
+        viewport = viewport.with_app_id(fractique_app::app_id());
+        if screenshot.is_none() {
+            fractique_app::integrate();
+        }
+    }
     // FRACTIQUE_VISIBLE: a test run in a window on the screen, for what only a real window shows; maximised with
     // FRACTIQUE_VISIBLE=max, as the owner's window is.
     if std::env::var("FRACTIQUE_VISIBLE").is_ok_and(|how| how == "max") {
