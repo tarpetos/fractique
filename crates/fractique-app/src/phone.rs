@@ -875,11 +875,14 @@ impl App {
             self.phone_sheet(ctx, content, size, panes, shown, sheet && !self.bare);
         }
         // The buttons come back when the styles or the controls over them have mostly gone.
-        let over = ["phone_sheet", "phone_tune"]
+        let over = ["phone_sheet", "phone_tune", "pro"]
             .into_iter()
             .filter_map(|key| self.stage.peek(key))
             .fold(0.0, f32::max);
+        // The sheet of the purchase is small and reaches no button: they go all the same, or the glass under
+        // them takes the place its own needs.
         let live = !covered[2]
+            && !self.pro_open()
             && !self.phone.tune
             && !self.phone.sheet
             && (over < 0.5 || self.stage.aim_of("phone_home") == Some(1.0));
