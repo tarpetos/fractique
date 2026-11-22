@@ -11,7 +11,7 @@ on:
       platforms:
         description: What to build
         type: choice
-        options: [all, appstore, ios, mac, docker]
+        options: [all, desktop, appstore, ios, mac, docker]
         default: all
 
 permissions:
@@ -46,8 +46,8 @@ jobs:
   desktop:
     name: Desktop
     needs: version
-    # A tag has no input: everything is built.
-    if: inputs.platforms == '' || inputs.platforms == 'all'
+    # A tag has no input: everything is built. `desktop` builds the installers alone, to try them before a tag.
+    if: inputs.platforms == '' || inputs.platforms == 'all' || inputs.platforms == 'desktop'
     uses: ./.github/workflows/release-desktop.yml
     secrets:
       CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY }}
