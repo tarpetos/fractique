@@ -66,7 +66,8 @@ pub enum Outcome {
 const BYTES_A_PIXEL: u64 = 48;
 const BYTES_A_CELL: u64 = 38;
 
-// The memory a phone still gives the app before it is closed; `None` where the system swaps instead.
+// The memory a picture may take here: what a phone still gives the app before it closes it, what Linux and
+// Windows have free, and all that a Mac has, which says no more simply. `None` where nothing tells.
 fn room() -> Option<u64> {
     #[cfg(target_os = "ios")]
     {
@@ -76,15 +77,56 @@ fn room() -> Option<u64> {
         let left = unsafe { os_proc_available_memory() } as u64;
         (left > 0).then_some(left)
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "linux"))]
     {
-        let text = std::fs::read_to_string("/proc/meminfo").ok()?;
-        let line = text.lines().find(|line| line.starts_with("MemAvailable:"))?;
-        let kilobytes: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
-        Some(kilobytes * 1024)
+        available(&std::fs::read_to_string("/proc/meminfo").ok()?)
     }
-    #[cfg(not(any(target_os = "ios", target_os = "android")))]
+    #[cfg(target_os = "macos")]
+    {
+        unsafe extern "C" {
+            fn sysctlbyname(
+                name: *const std::ffi::c_char,
+                old: *mut std::ffi::c_void,
+                old_size: *mut usize,
+                new: *mut std::ffi::c_void,
+                new_size: usize,
+            ) -> std::ffi::c_int;
+        }
+        let mut bytes: u64 = 0;
+        let mut size = std::mem::size_of::<u64>();
+        let failed = unsafe {
+            sysctlbyname(
+                c"hw.memsize".as_ptr(),
+                (&raw mut bytes).cast(),
+                &raw mut size,
+                std::ptr::null_mut(),
+                0,
+            )
+        };
+        (failed == 0 && bytes > 0).then_some(bytes)
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+        let mut status: MEMORYSTATUSEX = unsafe { std::mem::zeroed() };
+        status.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
+        (unsafe { GlobalMemoryStatusEx(&raw mut status) } != 0).then_some(status.ullAvailPhys)
+    }
+    #[cfg(not(any(
+        target_os = "ios",
+        target_os = "android",
+        target_os = "linux",
+        target_os = "macos",
+        windows
+    )))]
     None
+}
+
+#[cfg_attr(not(any(target_os = "android", target_os = "linux")), allow(dead_code))]
+fn available(meminfo: &str) -> Option<u64> {
+    let line = meminfo.lines().find(|line| line.starts_with("MemAvailable:"))?;
+    let kilobytes: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kilobytes * 1024)
 }
 
 fn needs([width, height]: [u32; 2], supersample: u32) -> u64 {
@@ -100,8 +142,8 @@ fn fits_in([width, height]: [u32; 2], supersample: u32, room: Option<u64>) -> bo
     width.max(height) <= MAX_SIDE && cells <= MAX_CELLS && held
 }
 
-// Whether a picture of this size at this supersample can be made here: the renderer's own limits and, on a
-// phone, the memory that is left. Asked before the press.
+// Whether a picture of this size at this supersample can be made here: the renderer's own limits and the memory
+// of the machine. Asked before the press.
 pub fn fits(size: [u32; 2], supersample: u32) -> bool {
     fits_in(size, supersample, room())
 }
@@ -837,13 +879,25 @@ mod tests {
     }
 
     #[test]
+    fn the_memory_of_a_computer_is_asked_too() {
+        let meminfo = "MemTotal:       32000000 kB\nMemFree:         1000000 kB\nMemAvailable:    8388608 kB\n";
+        assert_eq!(available(meminfo), Some(8 * 1024 * 1024 * 1024));
+        assert_eq!(available("MemTotal: 1 kB\n"), None);
+        #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+        assert!(room().is_some_and(|room| room > 64 * 1024 * 1024));
+        // What no machine holds is refused on every one of them.
+        assert!(!fits_in([16384, 16384], 1, Some(16 * 1024 * 1024 * 1024)));
+        assert!(fits_in([16384, 16384], 1, Some(64 * 1024 * 1024 * 1024)));
+    }
+
+    #[test]
     fn a_quality_is_offered_where_the_renderer_takes_the_size() {
-        let fitting = |size| QUALITIES.map(|(_, _, supersample)| fits(size, supersample));
+        let fitting = |size| QUALITIES.map(|(_, _, supersample)| fits_in(size, supersample, None));
         assert_eq!(fitting([3840, 2160]), [true; 4]);
         assert_eq!(fitting([7680, 4320]), [true; 4]);
         assert_eq!(fitting([15360, 8640]), [true, true, false, false]);
         assert_eq!(fitting([16384, 16384]), [true, true, false, false]);
-        assert!(!fits([16385, 10], 1));
+        assert!(!fits_in([16385, 10], 1, None));
         // The renderer itself says the same.
         for (size, supersample) in [
             ([64, 36], 2),
@@ -864,7 +918,7 @@ mod tests {
                 progress: None,
             };
             let refused = matches!(render(&scene, &options, &control), Err(RenderError::Options(_)));
-            assert_eq!(!refused, fits(size, supersample), "{size:?} {supersample}");
+            assert_eq!(!refused, fits_in(size, supersample, None), "{size:?} {supersample}");
         }
     }
 
