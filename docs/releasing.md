@@ -47,11 +47,11 @@ app: it goes to the GitHub Container Registry as `ghcr.io/tarpetos/fractique-ser
    ```
 
 The `Release` workflow does the rest. It refuses a tag that does not match the version in `Cargo.toml`, before
-anything is built. The desktop installers, the APK, the iOS build for TestFlight and the Docker image are then made
+anything is built. The desktop installers, the APK, the iOS build for TestFlight, the build for the Mac App Store and the Docker image are then made
 side by side; the release is published when the installers and the APK are there, whatever Apple says to the upload
 and whatever becomes of the image. Started by hand without a tag, it builds the installers and keeps them as
-artifacts without publishing, uploads the iOS build to TestFlight, and builds the image and asks the server in it
-for an answer without pushing it; with **ios** or **docker** chosen it does only that one.
+artifacts without publishing, uploads the iOS build to TestFlight and the Mac one to App Store Connect, and builds the image and asks the server
+in it for an answer without pushing it; with **ios**, **mac** or **docker** chosen it does only that one.
 
 The workflows are three. `CI` and `Release` are each one entry file that calls the others, so GitHub shows one run
 for each:
@@ -60,7 +60,7 @@ for each:
 | --- | --- | --- | --- |
 | `CI` | Every pull request and every push to `master` | `ci.yml` (what changed) | `lint.yml`, `test.yml` |
 | `Title` | Every pull request, and again when its title is edited | `title.yml` | |
-| `Release` | A version tag, or by hand | `release.yml` (the version, the publishing) | `release-desktop.yml`, `release-android.yml`, `release-ios.yml`, `release-docker.yml` |
+| `Release` | A version tag, or by hand | `release.yml` (the version, the publishing) | `release-desktop.yml`, `release-android.yml`, `release-ios.yml`, `release-mac.yml`, `release-docker.yml` |
 
 The title has a workflow of its own so that an edited title checks the title alone and leaves the checks of the
 code as they were. One more file, `ios-sim.yml`, is started by hand only: it runs the app in the iOS Simulator
@@ -76,6 +76,7 @@ write to `dist/`.
 | macOS | `scripts/build/build-mac.sh [--formats app,dmg]` | `cargo-packager`, after both kinds of Mac are built and joined with `lipo` into universal programs. The app is not signed by Apple: copied from the `.dmg` it needs `xattr -dr com.apple.quarantine /Applications/Fractique.app` |
 | Android | `cargo apk build --release --lib` in `crates/fractique-app`, as the workflow does | `cargo-apk`, the Android NDK, Java 17, the keystore |
 | iOS | `scripts/ios/testflight.sh` ([ios.md](ios.md#testflight)), as the workflow does; it goes to TestFlight, not into the release's files | Xcode, xcodegen, the App Store Connect key |
+| The Mac App Store | `scripts/mac/appstore.sh` ([ios.md](ios.md#a-mac-app-store-build)), as the workflow does; it goes to App Store Connect, not into the release's files | Xcode, xcodegen, the App Store Connect key |
 | Docker | `docker build -t fractique-server .` ([server.md](server.md#docker)), as the workflow does on a runner of each processor | Docker |
 | Web | `crates/fractique-app/index.html` is a [Trunk](https://trunkrs.dev) page; not part of a release | Trunk |
 
@@ -262,7 +263,7 @@ Three keys sign a release. None is in the repository; the workflow reads them fr
 | --- | --- | --- |
 | `CARGO_PACKAGER_SIGN_PRIVATE_KEY`, `CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD` | The desktop installers, for the app's updater, and the command line tool, the MCP server and the HTTP server, for their `update` command | Installed copies refuse every later update, the app and the three programs alike: people must install by hand once |
 | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` | The APK | Android refuses to install a later APK over the app: it must be removed first |
-| `ASC_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID` | The iOS build, for TestFlight ([ios.md](ios.md#from-github)) | Nothing is lost: the key is revoked in App Store Connect and a new one made |
+| `ASC_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID` | The iOS build, for TestFlight, and the build for the Mac App Store ([ios.md](ios.md#from-github)) | Nothing is lost: the key is revoked in App Store Connect and a new one made |
 
 Keep copies of the first two outside GitHub: a secret cannot be read back from there.
 
