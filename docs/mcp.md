@@ -177,6 +177,10 @@ first, then the final size with `save_to`. It is instructions only, with no scri
 folder `skills/fractique` into `~/.claude/skills/`, or into `.claude/skills/` of a project. A test fails when the
 skill does not name a tool the server has.
 
+The same skill is listed on Agensi, a catalogue of skills for agents, free of charge:
+<https://www.agensi.io/skills/fractique-fractal-flames-classic-fractals-and-wallpapers>. The listing holds a copy:
+after a change to the file here, the zip is uploaded there again.
+
 ## Over HTTP
 
 `fractique-server` ([server.md](server.md)) speaks MCP at `POST /mcp` with the
