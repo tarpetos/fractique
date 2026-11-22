@@ -50,6 +50,7 @@
   "failed": "nie udało się zapisać",
   "writing_file": "zapisywanie pliku",
   "export_too_large": "obraz jest za duży dla tej jakości",
+  "export_no_room": "To urządzenie nie ma dość pamięci na obraz tej wielkości.",
   "export_scene": "tej sceny nie można wyrenderować",
   "export_file": "nie udało się zapisać pliku",
   "export_picture": "obraz nie jest jeszcze gotowy",

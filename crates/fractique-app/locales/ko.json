@@ -50,6 +50,7 @@
   "failed": "저장하지 못했습니다",
   "writing_file": "파일 쓰는 중",
   "export_too_large": "이 품질에는 이미지가 너무 큽니다",
+  "export_no_room": "이 기기에는 이 크기의 이미지를 만들 메모리가 부족합니다.",
   "export_scene": "이 장면은 렌더링할 수 없습니다",
   "export_file": "파일을 쓰지 못했습니다",
   "export_picture": "이미지가 아직 준비되지 않았습니다",

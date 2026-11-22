@@ -50,6 +50,7 @@
   "failed": "no se pudo guardar",
   "writing_file": "escribiendo el archivo",
   "export_too_large": "la imagen es demasiado grande para esta calidad",
+  "export_no_room": "Este dispositivo no tiene memoria suficiente para una imagen de este tamaño.",
   "export_scene": "esta escena no se puede renderizar",
   "export_file": "no se pudo escribir el archivo",
   "export_picture": "la imagen no está lista",

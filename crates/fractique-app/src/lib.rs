@@ -6230,6 +6230,15 @@ impl App {
                     .color(egui::Color32::from_white_alpha(190)),
             );
         }
+        if !off.contains(&false) {
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new(self.t("export_no_room"))
+                    .size(12.5)
+                    .color(egui::Color32::from_white_alpha(190)),
+            );
+            return false;
+        }
         if off.contains(&true) {
             let fitting: Vec<&str> = qualities
                 .iter()

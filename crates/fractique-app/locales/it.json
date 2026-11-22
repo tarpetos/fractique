@@ -50,6 +50,7 @@
   "failed": "salvataggio non riuscito",
   "writing_file": "scrittura del file",
   "export_too_large": "l’immagine è troppo grande per questa qualità",
+  "export_no_room": "Questo dispositivo non ha memoria sufficiente per un’immagine di questa dimensione.",
   "export_scene": "questa scena non può essere renderizzata",
   "export_file": "impossibile scrivere il file",
   "export_picture": "l’immagine non è pronta",

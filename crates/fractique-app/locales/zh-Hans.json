@@ -50,6 +50,7 @@
   "failed": "保存失败",
   "writing_file": "正在写入文件",
   "export_too_large": "图像对此质量来说太大",
+  "export_no_room": "此设备的内存不足以生成这个尺寸的图片。",
   "export_scene": "无法渲染此场景",
   "export_file": "无法写入文件",
   "export_picture": "图像尚未就绪",
