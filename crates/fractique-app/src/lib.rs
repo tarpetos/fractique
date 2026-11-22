@@ -63,6 +63,8 @@ use widgets::{MEDIUM, SEMIBOLD, font};
 const DRAFT_SIDE: f32 = 480.0;
 const DRAFT_SAMPLES: u32 = 12;
 const MIDDLE_SIDE: f32 = 1280.0;
+// The least a picture of half the side is worth showing before the whole one: clearly more than a draft.
+const SOONER_SIDE: f32 = 640.0;
 const MIDDLE_SAMPLES: u32 = 16;
 const FULL_SIDE: f32 = if cfg!(target_arch = "wasm32") {
     900.0
@@ -2394,7 +2396,7 @@ impl App {
             ..full
         };
         if slow
-            && sooner.width.max(sooner.height) as f32 >= MIDDLE_SIDE
+            && sooner.width.max(sooner.height) as f32 >= SOONER_SIDE
             && passes.last().is_some_and(|(draft, _)| !draft)
         {
             passes.insert(passes.len() - 1, (false, sooner));
