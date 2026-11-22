@@ -10,7 +10,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --locked -p fractique-server ${JOBS:+--jobs "$JOBS"} \
     && cp target/release/fractique-server /fractique-server
 
-FROM rust:${RUST_VERSION}-slim-bookworm AS web
+# Trixie here: the wasm-bindgen that Trunk downloads for ARM64 wants a newer glibc than Bookworm's.
+FROM rust:${RUST_VERSION}-slim-trixie AS web
 ARG TRUNK_VERSION=0.22.1
 ARG JOBS
 RUN apt-get update \
