@@ -2,6 +2,9 @@
 
 ## 1.0.0
 
+* **The Fractique Pro sheet on a phone kept its glass:** when the sheet changed height, after **Try again**, the
+  buttons came back around it and its dark glass went, leaving the texts on the bare picture.
+
 * **Fractique Pro unlocks by itself:** bought on an iPhone, an iPad or a Mac, it is there on the buyer's other
   devices when the app is opened, with no press on **Restore purchases**, which stays for the case the App Store
   is slow to tell.
