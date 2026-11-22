@@ -804,7 +804,7 @@ For a test, `FRACTIQUE_GPU` sets the device: `none` is one that is not able, `sl
 thousand times as long in the trial, `measure` runs the trial whatever is remembered, `fast` skips it and uses
 the card, `off` starts with the switch off. `FRACTIQUE_WAY=4` has the card tell of every unit 4 ms late, as a
 phone's chip does, and `FRACTIQUE_WAY=4:3` has it take three times as long for the unit as well; a card of its own
-is then taken for one that shares the chip. A `--screenshot` waits for the verdict. `FRACTIQUE_SCROLL=points`
+is then taken for one that shares the chip. `FRACTIQUE_REFUSE=50` has the card give up every picture magnified 50 times or more, as a card too slow for it does: a view at most half as deep is the card's again, with its drafts. A `--screenshot` waits for the verdict. `FRACTIQUE_SCROLL=points`
 scrolls the controls down, to where the switch is. `FRACTIQUE_SHOW=gpu` hides the panels over the card's
 picture; `FRACTIQUE_SHOW=gpu-first` stops it after the first batch; `FRACTIQUE_SHOW=picture` hides the panels
 over whatever picture the device makes. `FRACTIQUE_EXPORT=file` starts an Instant export to that file as soon as
