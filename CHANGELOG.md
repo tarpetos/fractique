@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+* **Fractique Pro, simpler:** in the App Store builds every size of the lists is free, 3840 × 2160 and the largest
+  iPhone too; before, a size of 2560 × 1440 pixels or more needed the purchase, so 1320 × 2868 did and
+  1206 × 2622 did not. Without the purchase three pictures a day are saved or shared, counted on the device with
+  no server, and the export sheet says how many are left. Fractique Pro lifts the limit and still gives the sizes
+  typed into **Custom**.
+
 * **The window of updates:** the answer of "Check for updates" stayed in the language it was given in when the
   language was changed afterwards; it now follows the language. The list of versions is wider and
   shows each date whole, in a column of its own at the right.

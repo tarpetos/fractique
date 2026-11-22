@@ -6,14 +6,49 @@
 use std::sync::mpsc;
 
 pub const PRODUCT: &str = "app.fractique.pro";
-const FREE_BELOW: u64 = 2560 * 1440;
+pub const FREE_A_DAY: u32 = 3;
 
-pub fn is_large([width, height]: [u32; 2]) -> bool {
-    u64::from(width) * u64::from(height) >= FREE_BELOW
+// The pictures saved or shared without the purchase, counted by the day on the device itself.
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct Saves {
+    day: String,
+    made: u32,
 }
 
-pub fn needs_pro(size: [u32; 2], listed: bool) -> bool {
-    !listed || is_large(size)
+impl Saves {
+    pub fn parse(text: &str) -> Self {
+        let Some((day, made)) = text.split_once(' ') else {
+            return Self::default();
+        };
+        Self {
+            day: day.to_owned(),
+            made: made.parse().unwrap_or(0),
+        }
+    }
+
+    pub fn text(&self) -> String {
+        format!("{} {}", self.day, self.made)
+    }
+
+    pub fn left(&self, today: &str) -> u32 {
+        if self.day == today {
+            FREE_A_DAY.saturating_sub(self.made)
+        } else {
+            FREE_A_DAY
+        }
+    }
+
+    pub fn count(&mut self, today: &str) {
+        if self.day != today {
+            self.day = today.to_owned();
+            self.made = 0;
+        }
+        self.made += 1;
+    }
+}
+
+pub fn today() -> String {
+    chrono::Local::now().format("%Y-%m-%d").to_string()
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -259,42 +294,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_limit_is_a_number_of_pixels() {
-        for free in [
-            [1920, 1080],
-            [1290, 2796],
-            [1179, 2556],
-            [2560, 1439],
-            [1439, 2560],
-            [1600, 2303],
-            [16, 16],
-            [16384, 224],
-        ] {
-            assert!(!is_large(free), "{free:?}");
+    fn three_saves_a_day_are_free() {
+        let mut saves = Saves::default();
+        assert_eq!(saves.left("2026-11-22"), FREE_A_DAY);
+        for left in (0..FREE_A_DAY).rev() {
+            saves.count("2026-11-22");
+            assert_eq!(saves.left("2026-11-22"), left);
         }
-        for large in [
-            [2560, 1440],
-            [1440, 2560],
-            [3840, 2160],
-            [2048, 2732],
-            [1600, 2560],
-            [1920, 1920],
-            [1600, 2304],
-            [16384, 225],
-            [16384, 16384],
-        ] {
-            assert!(is_large(large), "{large:?}");
-        }
-    }
-
-    #[test]
-    fn a_size_typed_in_needs_the_purchase() {
-        assert!(needs_pro([2559, 1439], false));
-        assert!(needs_pro([640, 480], false));
-        assert!(!needs_pro([1920, 1080], true));
-        assert!(!needs_pro([1290, 2796], true));
-        assert!(needs_pro([2560, 1440], true));
-        assert!(needs_pro([3840, 2160], true));
+        saves.count("2026-11-22");
+        assert_eq!(saves.left("2026-11-22"), 0);
+        assert_eq!(Saves::parse(&saves.text()), saves);
+        assert_eq!(saves.left("2026-11-23"), FREE_A_DAY);
+        saves.count("2026-11-23");
+        assert_eq!(saves.left("2026-11-23"), FREE_A_DAY - 1);
+        assert_eq!(Saves::parse("nonsense").left("2026-11-23"), FREE_A_DAY);
     }
 
     fn with(kind: Fake, owned: bool) -> (Store, mpsc::Sender<Event>) {
