@@ -2,8 +2,9 @@
 
 ## 1.0.0
 
-* **The Fractique Pro sheet on a phone kept its glass:** when the sheet changed height, after **Try again**, the
-  buttons came back around it and its dark glass went, leaving the texts on the bare picture.
+* **Small sheets on a phone keep their glass:** when the sheet of Fractique Pro changed height, or the export sheet
+  shrank to its progress bar, the buttons came back around it and its dark glass went, leaving the texts on the
+  bare picture. The buttons now stay away under every sheet, and the glass has room for twice as many panes.
 
 * **Fractique Pro unlocks by itself:** bought on an iPhone, an iPad or a Mac, it is there on the buyer's other
   devices when the app is opened, with no press on **Restore purchases**, which stays for the case the App Store
