@@ -169,17 +169,19 @@ purchase, **Fractique Pro**: paid once, kept for good, restored on another devic
 | Where | Free | Needs Fractique Pro |
 | --- | --- | --- |
 | Windows, Linux, Android, the web, and every build made without the `store` feature | Everything | Nothing: these builds hold no purchase |
-| The App Store builds | Everything on the screen at any size; **Auto**; a listed size of fewer than 3 686 400 pixels (2560 × 1440), such as 1920 × 1080 or 1290 × 2796, as the picture's size and as an export | An export (**Save**, **Share**, at every quality, **Instant** too) of 3 686 400 pixels or more, whatever its shape; choosing such a size for the picture; a size typed into **Custom** |
+| The App Store builds | Everything on the screen at any size; **Auto**; every size of the lists, 3840 × 2160 too, as the picture's size and as an export; three exports a day (**Save** or **Share**) | More than three exports a day; a size typed into **Custom**, as the picture's size and as an export |
 
-The limit counts pixels, width times height: 1440 × 2560 and 1920 × 1920 are at it, 2560 × 1439 is under it. The
-window's own size (**Auto**) is never refused on the screen; exporting it follows the same count, so a window of
-2560 × 1600 pixels exports with Fractique Pro.
+Without the purchase three pictures a day are saved or shared, at any size of the lists and at any quality. The
+export sheet says how many are left: "Free saves left today: 2". A picture counts once it is made for **Save** or
+**Share**, not when an export is cancelled or fails. The count is kept on the device and starts again at midnight
+by the device's clock; nothing is sent anywhere, so it does not follow the person to another device, and deleting
+the app clears it. With Fractique Pro nothing is counted.
 
-A size that needs the purchase has a small lock in the list. Choosing it, pressing **Save** or **Share** with it,
-or pressing **Apply** under **Custom** opens the **Fractique Pro** sheet: the price as the App Store gives it,
-**Buy**, **Restore purchases** and the round button with a cross that closes it. After the purchase the locks are gone and what was asked for goes
-on: the export starts, or the size is set. The purchase is remembered on the device, so the app is unlocked
-without a network.
+**Custom** has a small lock. Pressing **Apply** under it, pressing **Save** or **Share** with a typed size, or
+pressing **Save** or **Share** when no free save is left opens the **Fractique Pro** sheet: the price as the App
+Store gives it, **Buy**, **Restore purchases** and the round button with a cross that closes it. After the
+purchase the lock and the line about free saves are gone and what was asked for goes on: the export starts, or the
+size is set. The purchase is remembered on the device, so the app is unlocked without a network.
 
 The Apple sizes of the list, in every build. They are the native pixels of
 the screens, read from Apple's Tech Specs pages (`support.apple.com/en-us/<number>`) in November 2026; iPhones

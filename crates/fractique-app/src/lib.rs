@@ -356,6 +356,12 @@ fn is_listed(size: [u32; 2]) -> bool {
     sizes().any(|(_, listed)| listed == size)
 }
 
+// Every size of the lists is free; one typed in needs the purchase. `None` is the size of the screen itself.
+#[cfg(feature = "store")]
+fn typed(chosen: Option<[u32; 2]>) -> bool {
+    chosen.is_some_and(|size| !is_listed(size))
+}
+
 #[derive(Clone, Copy)]
 struct List<'a> {
     height: f32,
@@ -1260,6 +1266,8 @@ struct App {
     store: Option<store::Store>,
     #[cfg(feature = "store")]
     pro: Option<Wanted>,
+    #[cfg(feature = "store")]
+    saves: store::Saves,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     updates: updates::Updates,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -1972,6 +1980,8 @@ impl App {
             },
             #[cfg(feature = "store")]
             store: store::open(&cc.egui_ctx),
+            #[cfg(feature = "store")]
+            saves: stored("saves").map_or_else(store::Saves::default, |text| store::Saves::parse(&text)),
             #[cfg(feature = "store")]
             pro: std::env::var("FRACTIQUE_SHOW")
                 .is_ok_and(|what| what.starts_with("pro"))
@@ -3900,7 +3910,7 @@ impl App {
         #[cfg(feature = "store")]
         let before = self.picture;
         let custom = self.pro_missing();
-        let locks = |size: Option<[u32; 2]>| size.is_some_and(&locked);
+        let locks = |size: Option<[u32; 2]>| size.is_some_and(|size| locked(Some(size), size));
         let list = |height: f32| List {
             height,
             locked: &locks,
@@ -3920,7 +3930,7 @@ impl App {
             #[cfg(feature = "store")]
             if let Some(size) = self.picture
                 && Some(size) != before
-                && locked(size)
+                && locked(Some(size), size)
             {
                 self.picture = before;
                 self.want(Wanted::Picture(size));
@@ -3939,13 +3949,20 @@ impl App {
         false
     }
 
-    fn lock(&self) -> impl Fn([u32; 2]) -> bool + use<> {
+    // Whether the size chosen in a list needs the purchase; `None` is the list's first row.
+    fn lock(&self) -> impl Fn(Option<[u32; 2]>, [u32; 2]) -> bool + use<> {
         #[cfg(feature = "store")]
         let locks = self.pro_missing();
         #[cfg(feature = "store")]
-        return move |size| locks && store::is_large(size);
+        return move |chosen, _| locks && typed(chosen);
         #[cfg(not(feature = "store"))]
-        |_| false
+        |_, _| false
+    }
+
+    // The free saves left for today, for whoever has not bought.
+    #[cfg(feature = "store")]
+    fn saves_left(&self) -> Option<u32> {
+        self.pro_missing().then(|| self.saves.left(&store::today()))
     }
 
     fn pro_open(&self) -> bool {
@@ -5985,7 +6002,9 @@ impl App {
         let size = self.t("size");
         let locked = self.lock();
         let custom = self.pro_missing();
-        let locks = |size: Option<[u32; 2]>| locked(size.unwrap_or(shown));
+        // The first row is the picture's size: a size chosen for the picture is asked for as that size is.
+        let picture = self.picture;
+        let locks = |size: Option<[u32; 2]>| locked(size.or(picture), shown);
         let list = |height: f32| List {
             height,
             locked: &locks,
@@ -6040,18 +6059,18 @@ impl App {
         if picked == Pick::Chosen
             && self.export.size != size_before
             && self.pro_missing()
-            && store::needs_pro([width, height], self.export.size.is_none_or(is_listed))
+            && typed(self.export.size.or(self.picture))
         {
-            let asked = self.export.size;
+            let wanted = self.export.size;
             self.export.size = size_before;
-            self.want(Wanted::ExportSize(asked));
+            self.want(Wanted::ExportSize(wanted));
             return;
         }
         #[cfg(not(feature = "store"))]
         let _ = picked;
         if clicked {
             #[cfg(feature = "store")]
-            if self.pro_missing() && store::needs_pro([width, height], self.export.size.is_none_or(is_listed)) {
+            if self.pro_missing() && (typed(self.export.size.or(self.picture)) || self.saves_left() == Some(0)) {
                 self.want(Wanted::Export {
                     size: [width, height],
                     share: self.export.share,
@@ -6196,6 +6215,20 @@ impl App {
         if let Some(index) = widgets::segments_of(ui, &qualities, self.export.quality, &off) {
             self.export.quality = index;
         }
+        #[cfg(feature = "store")]
+        if let Some(left) = self.saves_left() {
+            let line = if left == 0 {
+                self.t("saves_none")
+            } else {
+                self.t("saves_left").replace("{left}", &left.to_string())
+            };
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new(line)
+                    .size(12.5)
+                    .color(egui::Color32::from_white_alpha(190)),
+            );
+        }
         if off.contains(&true) {
             let fitting: Vec<&str> = qualities
                 .iter()
@@ -6326,6 +6359,10 @@ impl App {
                     .map(|name| name.to_string_lossy().into_owned())
                     .unwrap_or_default();
                 self.export.note = format!("{}: {name}", self.t("saved"));
+                #[cfg(feature = "store")]
+                if self.pro_missing() {
+                    self.saves.count(&store::today());
+                }
                 if timed() {
                     let seconds = self.export_asked.elapsed().as_secs_f32();
                     eprintln!("times: the export is saved after {seconds:.3} s");
@@ -6740,6 +6777,8 @@ impl eframe::App for App {
         storage.set_string("session", self.session());
         storage.set_string("kept", self.phone.kept_text());
         storage.set_string("recent", self.phone.recent_text());
+        #[cfg(feature = "store")]
+        storage.set_string("saves", self.saves.text());
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         if let Some(path) = std::env::var_os("FRACTIQUE_DOCUMENT") {
             let _ = std::fs::write(path, self.document());
@@ -8326,8 +8365,6 @@ mod tests {
     fn the_store_builds_offer_screens_and_apple_devices() {
         let of = |store: bool| SIZES.iter().filter(move |(_, _, family)| offered(*family, store));
         assert!(of(true).all(|(_, _, family)| *family != Family::Android));
-        assert!(of(true).any(|(_, size, _)| store::is_large(*size)));
-        assert!(of(true).any(|(_, size, _)| !store::is_large(*size)));
         assert!(of(false).any(|(_, _, family)| *family == Family::Android));
         for group in Family::ALL {
             let listed: Vec<[u32; 2]> = SIZES

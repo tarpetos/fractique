@@ -141,8 +141,7 @@ in front of `scripts/ios/testflight.sh`.
 ## Fractique Pro, the purchase
 
 The build that goes to the App Store (`ios/build-rust.sh`, so `scripts/ios/testflight.sh`) is compiled with the
-`store` feature: an export of 3 686 400 pixels (2560 × 1440) or more and a size typed in need the purchase
-**Fractique Pro** ([usage.md](usage.md#free-and-fractique-pro)). The scripts for the Simulator and for a
+`store` feature: more than three exports a day and a size typed in need the purchase **Fractique Pro** ([usage.md](usage.md#free-and-fractique-pro)). The scripts for the Simulator and for a
 connected iPhone build without it, so there everything is free; `FRACTIQUE_FEATURES=store` in front of them
 builds the App Store's variant.
 
@@ -162,10 +161,10 @@ The app asks the App Store for one product and sells nothing else:
 2. **Apps, Fractique, Monetization, In-App Purchases, +:** type **Non-Consumable**, reference name
    `Fractique Pro`, product ID `app.fractique.pro` exactly. A product ID cannot be changed or used again later.
 3. In the product: **Availability** (all countries), **Price** (4.99 USD), and under **App Store Localization** a
-   display name and a description for each language of the listing, for example "Fractique Pro" and "Export
-   pictures at 2560 × 1440 and larger, and at any custom size."
-4. **Review Information:** a screenshot of the Fractique Pro sheet and a note where to find it ("Export, choose
-   3840 × 2160, Save"). The state must read **Ready to Submit**.
+   display name and a description for each language of the listing, for example "Fractique Pro" and "Save as
+   many pictures a day as you like, and export at any custom size."
+4. **Review Information:** a screenshot of the Fractique Pro sheet and a note where to find it ("Export, type a size
+   under Custom, Apply"). The state must read **Ready to Submit**.
 5. The first purchase of an app is reviewed together with a version of the app: on the version's page, under
    **In-App Purchases and Subscriptions**, add Fractique Pro before **Add for Review**.
 6. **Users and Access, Sandbox, Test Accounts:** create a sandbox tester (an email address that is not an Apple
@@ -183,24 +182,28 @@ Sandbox Apple Account**.
 
 | Step | Expected |
 | --- | --- |
-| Open **Export** | 2560 × 1440, 3840 × 2160 and the other large sizes have a lock, 1920 × 1080 and 1290 × 2796 have none; **Custom** has a lock; no Android size is listed |
-| Choose 1920 × 1080, **Save to Photos** | The picture is saved, no sheet |
-| Choose 3840 × 2160, **Save to Photos** | The Fractique Pro sheet with the price in the tester's currency |
+| Open **Export** | "Free saves left today: 3"; no size of the lists has a lock, 3840 × 2160 neither; **Custom** has a lock; no Android size is listed |
+| Choose 1920 × 1080, **Save to Photos** | The picture is saved, no sheet; the export sheet then says 2 |
+| Save twice more, open **Export** | "No free saves left today. Fractique Pro saves without a limit." |
+| **Save to Photos** a fourth time | The Fractique Pro sheet; nothing is saved |
+| The next day (or the device's date set a day ahead) | Three free saves again |
+| Type 1000 × 1000 under **Custom**, **Apply** | The Fractique Pro sheet with the price in the tester's currency |
 | The round button with a cross, top right | Back in the export sheet, nothing saved |
-| **Save** again, **Buy**, confirm | The system's purchase dialog; then the sheet closes, the export starts by itself and the picture is in Photos; the locks are gone |
-| Close the app, turn on Airplane Mode, open it | Still no locks |
-| Delete the app, install it again, open **Export**, press a locked size, **Restore purchases** | The locks go without paying again |
+| **Save to Photos** with no free save left, **Buy**, confirm | The system's purchase dialog; then the sheet closes, the export starts by itself and the picture is in Photos; the lock and the line about free saves are gone |
+| Close the app, turn on Airplane Mode, open it | Still no lock |
+| Delete the app, install it again, open **Export**, **Apply** under **Custom**, **Restore purchases** | The lock goes without paying again |
 | The same with a sandbox tester who never bought | "No earlier purchase was found for this Apple Account." |
 | Start a purchase and cancel the system's dialog | The sheet is back at **Buy**, no message |
 | Airplane Mode on a device that never bought, open the sheet | The App Store's own words or "The App Store did not answer", and **Try again** |
-| **Fine-tune, Size**: press a locked size or **Apply** under **Custom** | The sheet; after a purchase the size is set |
-| **Share** with a locked size on an iPad | The sheet, and after the purchase the share popover |
-| Ask to Buy (a child's sandbox account), if available | "The purchase is waiting for approval."; the locks go when it is approved |
+| **Fine-tune, Size**: **Apply** under **Custom** | The sheet; after a purchase the size is set |
+| **Share** with no free save left on an iPad | The sheet, and after the purchase the share popover |
+| Ask to Buy (a child's sandbox account), if available | "The purchase is waiting for approval."; the lock goes when it is approved |
 
 A sandbox purchase is cleared under **Settings, Developer, Sandbox Apple Account, Manage, Reset Eligibility** or
 by a new sandbox tester. The purchase is kept on the device in the app's preferences (`NSUserDefaults`, the key
 `app.fractique.pro`); deleting the app removes it, **Restore purchases** brings it back. A refund does not lock
-the app again.
+the app again. The free saves of the day are kept in the app's own settings under `saves`, as the date and a
+count; deleting the app clears them.
 
 ### A Mac App Store build
 

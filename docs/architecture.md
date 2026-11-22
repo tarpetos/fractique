@@ -516,9 +516,9 @@ hidden (`bare`). `FRACTIQUE_SYSTEM_MOTION=1` leaves the system's animation of a 
 
 The `store` feature of `fractique-app` is off by default and on in `ios/build-rust.sh`, the build that goes to
 the App Store. Without it `store.rs` and `storekit.rs` are not compiled, the lists hold no lock and no size is
-refused: the Windows, Linux, Android and web builds carry nothing of it. With it, an export of 3 686 400 pixels
-(2560 × 1440) or more, choosing such a size for the picture and a size typed in need the non-consumable product
-`app.fractique.pro`; the picture on the screen is never limited ([usage.md](usage.md#free-and-fractique-pro)).
+refused: the Windows, Linux, Android and web builds carry nothing of it. With it, more than three exports a day and a size typed in need the
+non-consumable product `app.fractique.pro`; every size of the lists is free, and the day's exports are counted on
+the device, in the app's settings; the picture on the screen is never limited ([usage.md](usage.md#free-and-fractique-pro)).
 
 | Part | What it does |
 | --- | --- |
@@ -527,7 +527,7 @@ refused: the Windows, Linux, Android and web builds carry nothing of it. With it
 | StoreKit (`storekit.rs`, iOS and macOS) | Xcode compiles only `ios/stub.c`, so there is no Swift target: the backend talks to the original StoreKit API through `objc2`. A class made at run time is the delegate of the `SKProductsRequest` and the observer of the `SKPaymentQueue`; it is added when the app starts, so a purchase paid for while the app was closed arrives too. Every transaction is finished. The price is formatted with the product's own locale; when the app's fonts lack a character of it, the amount with the currency code is shown |
 | Events | A StoreKit callback sends an event over the channel and asks for a repaint; the next frame takes it in. Nothing polls |
 | Remembered | A purchase or a restore sets a flag in `NSUserDefaults`; with it the app starts owned and asks the App Store nothing |
-| The sheet (`lib.rs`) | A locked size, **Save** or **Share** with one, or **Apply** under **Custom** opens the Fractique Pro sheet and remembers what was asked for; when the purchase arrives, the export starts or the size is set |
+| The sheet (`lib.rs`) | **Apply** under **Custom**, **Save** or **Share** with a typed size, or either of them when the day's three free saves are used opens the Fractique Pro sheet and remembers what was asked for; when the purchase arrives, the export starts or the size is set |
 
 For a test, `FRACTIQUE_STORE=locked|owned|failed|loading|buying` puts a fake backend in place of StoreKit on a
 build with the feature: `locked` offers the product at $4.99 and `buy` succeeds at once. `FRACTIQUE_SHOW=pro`
