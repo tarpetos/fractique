@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+* **App, Linux:** the window has round corners, as on Windows and macOS.
+* **App, Linux:** `--x11` opens the app through XWayland, where its window keeps its place, has round corners and comes forward on a second start.
+* **App, Linux:** a window closed in full screen opens maximized next time, not at its smaller size.
+* **App:** a drag of the top panel no longer moves a window in full screen; on GNOME it left the picture smaller, with black around.
+* **App:** a second start from a terminal says that Fractique is already running.
+* **App, Linux:** an AppImage adds itself to the list of apps and shows its icon on the file; the window names its app, so the dock shows its icon; the `.deb` files Fractique under Graphics.
+
 ## 1.0.1
 
 * **App:** the nine fractals only the processor draws (Mandelbox, Mandelbulb, Buddhabrot and the like) show a picture of half the side first, four times sooner, then the whole one.

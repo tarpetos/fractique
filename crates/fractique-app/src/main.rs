@@ -15,8 +15,11 @@ fn main() -> eframe::Result {
     let mut screenshot = None;
     let mut size = [1280.0, 800.0];
     let mut open = None;
+    let mut x11 = false;
     while let Some(arg) = args.next() {
-        if arg == "--screenshot" {
+        if arg == "--x11" {
+            x11 = true;
+        } else if arg == "--screenshot" {
             screenshot = args.next().map(PathBuf::from);
         } else if arg == "--size"
             && let Some((width, height)) = args.next().as_deref().and_then(|text| text.split_once('x'))
@@ -32,6 +35,7 @@ fn main() -> eframe::Result {
         let test = screenshot.is_some() || std::env::var_os("FRACTIQUE_DEBUG_FULL").is_some();
         let many = cfg!(debug_assertions) || std::env::var_os("FRACTIQUE_MANY").is_some();
         if !test && !many && !fractique_app::first_instance(open.as_deref()) {
+            eprintln!("{}", fractique_app::already_running(open.is_some()));
             return Ok(());
         }
         if let Some(path) = open {
@@ -50,6 +54,17 @@ fn main() -> eframe::Result {
         .with_min_inner_size([640.0, 480.0])
         .with_decorations(false)
         .with_icon(fractique_app::window_icon());
+    #[cfg(target_os = "linux")]
+    {
+        viewport = viewport.with_app_id(fractique_app::app_id());
+        // On Wayland the app rounds the corners of its window itself, and they must let through what is behind.
+        if !x11 && screenshot.is_none() && std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            viewport = viewport.with_transparent(true);
+        }
+        if screenshot.is_none() {
+            fractique_app::integrate();
+        }
+    }
     // FRACTIQUE_VISIBLE: a test run in a window on the screen, for what only a real window shows; maximised with
     // FRACTIQUE_VISIBLE=max, as the owner's window is.
     if std::env::var("FRACTIQUE_VISIBLE").is_ok_and(|how| how == "max") {
@@ -72,6 +87,20 @@ fn main() -> eframe::Result {
     // when it is made to float.
     if fractique_app::tiled() {
         options.persist_window = false;
+    }
+    // The settings stay in the folder of the app's name: eframe would take the window's app id for it, and that
+    // differs between the .deb and an AppImage.
+    #[cfg(target_os = "linux")]
+    if options.persistence_path.is_none() {
+        options.persistence_path = eframe::storage_dir("Fractique").map(|folder| folder.join("app.ron"));
+    }
+    // Wayland lets no window place itself: through XWayland the window keeps its place and has round corners.
+    #[cfg(target_os = "linux")]
+    if x11 && std::env::var_os("DISPLAY").is_some() {
+        options.event_loop_builder = Some(Box::new(|builder| {
+            use winit::platform::x11::EventLoopBuilderExtX11 as _;
+            builder.with_x11();
+        }));
     }
     if screenshot.is_some() || std::env::var_os("FRACTIQUE_DEBUG_FULL").is_some() {
         // A test run must not change the window and settings the owner's next launch restores.

@@ -51,6 +51,8 @@
   "writing_file": "ファイルを書き込み中",
   "export_too_large": "この品質には画像が大きすぎます",
   "export_no_room": "このデバイスには、このサイズの画像を作るためのメモリが足りません。",
+  "already_running": "Fractique はすでに起動しています。",
+  "already_running_file": "Fractique はすでに起動しています。ファイルはそのウィンドウで開きます。",
   "export_scene": "このシーンはレンダリングできません",
   "export_file": "ファイルを書き込めませんでした",
   "export_picture": "画像の準備ができていません",

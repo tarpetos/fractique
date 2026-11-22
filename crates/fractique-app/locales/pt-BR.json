@@ -51,6 +51,8 @@
   "writing_file": "gravando o arquivo",
   "export_too_large": "a imagem é grande demais para esta qualidade",
   "export_no_room": "Este dispositivo não tem memória suficiente para uma imagem deste tamanho.",
+  "already_running": "O Fractique já está aberto.",
+  "already_running_file": "O Fractique já está aberto: o arquivo abre na janela dele.",
   "export_scene": "esta cena não pode ser renderizada",
   "export_file": "não foi possível gravar o arquivo",
   "export_picture": "a imagem ainda não está pronta",

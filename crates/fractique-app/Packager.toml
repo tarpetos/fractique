@@ -6,6 +6,7 @@ product-name = "Fractique"
 version = "1.0.1" # keep equal to the workspace version in the root Cargo.toml (the build scripts check it)
 identifier = "app.fractique"
 description = "Fractal flames, classic fractals and wallpapers"
+category = "GraphicsAndDesign"
 long-description = """\
 Pick a preset, roll a random scene or change one yourself, and export a fractal flame at any size. \
 The same scene gives the same picture on every platform."""

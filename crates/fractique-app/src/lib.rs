@@ -6,6 +6,8 @@ mod blur;
 mod chaos;
 mod colors;
 mod deep;
+#[cfg(target_os = "linux")]
+mod desktop;
 #[cfg(not(target_arch = "wasm32"))]
 mod export;
 mod field;
@@ -15,12 +17,16 @@ mod i18n;
 mod instance;
 #[cfg(target_os = "ios")]
 mod ios;
+#[cfg(target_os = "linux")]
+mod mask;
 mod motion;
 mod orbit;
 mod pace;
 mod phone;
 mod preview;
 mod probe;
+#[cfg(target_os = "linux")]
+mod raise;
 mod sheets;
 #[cfg(any(feature = "store", test))]
 mod store;
@@ -33,6 +39,8 @@ mod update;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 mod updates;
 mod widgets;
+#[cfg(target_os = "linux")]
+mod xwindow;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -65,6 +73,9 @@ const DRAFT_SAMPLES: u32 = 12;
 const MIDDLE_SIDE: f32 = 1280.0;
 // The least a picture of half the side is worth showing before the whole one: clearly more than a draft.
 const SOONER_SIDE: f32 = 640.0;
+// The radius of the corners of GNOME's own windows.
+#[cfg(target_os = "linux")]
+const WINDOW_RADIUS: f32 = 12.0;
 const MIDDLE_SAMPLES: u32 = 16;
 const FULL_SIDE: f32 = if cfg!(target_arch = "wasm32") {
     900.0
@@ -578,6 +589,9 @@ pub fn open_at_start(path: PathBuf) {
     let _ = OPEN_FIRST.set(path);
 }
 
+#[cfg(target_os = "linux")]
+pub use desktop::{app_id, integrate};
+
 pub fn tiled() -> bool {
     #[cfg(target_os = "linux")]
     return tiling::tiled();
@@ -593,6 +607,48 @@ pub fn register_scene_files() {
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 pub fn first_instance(open: Option<&std::path::Path>) -> bool {
     instance::first(open)
+}
+
+// Focus does nothing on Wayland: there the window's surface is activated with the token of the second start.
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+fn raiser(cc: &eframe::CreationContext<'_>) -> instance::Raise {
+    #[cfg(target_os = "linux")]
+    if let Some(window) = xwindow::Raise::of(cc) {
+        return Box::new(move |_| {
+            let raised = window.activate();
+            if timed() {
+                eprintln!("times: a second start, raised {raised}");
+            }
+        });
+    }
+    #[cfg(target_os = "linux")]
+    if let Some(surface) = raise::Surface::of(cc) {
+        return Box::new(move |token| {
+            let raised = surface.activate(token);
+            if timed() {
+                eprintln!("times: a second start, token {}, raised {raised}", token.is_some());
+            }
+        });
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = cc;
+    Box::new(|_| {})
+}
+
+// What a start from a terminal says when Fractique is already running, in the language the app was left in.
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+pub fn already_running(with_file: bool) -> String {
+    let left = || {
+        let settings = std::fs::read_to_string(eframe::storage_dir("Fractique")?.join("app.ron")).ok()?;
+        let after = settings.split("\"language\":").nth(1)?;
+        Some(Lang::from_locale(after.split('"').nth(1)?))
+    };
+    let lang = Lang::forced().or_else(left).unwrap_or_else(Lang::system);
+    Texts::new(lang).get(if with_file {
+        "already_running_file"
+    } else {
+        "already_running"
+    })
 }
 
 // The date and the time as the lock screen shows them; where the system is not asked, the time of Apple's pictures.
@@ -1222,6 +1278,10 @@ struct App {
     layer: usize,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     maximize_again: bool,
+    #[cfg(target_os = "linux")]
+    corners: Option<xwindow::Corners>,
+    #[cfg(target_os = "linux")]
+    corner_mask: bool,
     // The window's size, its place on the screen and the frame its panes stood in, a frame ago.
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     window_was: Option<(egui::Rect, egui::Pos2, egui::Rect)>,
@@ -1273,7 +1333,7 @@ struct App {
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     updates: updates::Updates,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-    arrivals: Option<mpsc::Receiver<Option<PathBuf>>>,
+    arrivals: Option<mpsc::Receiver<instance::Arrival>>,
 }
 
 // Two cores stay free for the window: a render on every core makes it stutter.
@@ -1680,9 +1740,16 @@ impl App {
         widgets::install_fonts(&cc.egui_ctx, texts.lang);
         probe.stage("fonts");
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
-        // The window comes back where and as large as it was, on the same screen, but never in full screen.
+        // The window comes back where and as large as it was, on the same screen, but never in full screen: one
+        // closed in full screen comes back maximized instead of at its smaller size.
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+        {
+            cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+            // Linux only: there the window stood at its smaller size; elsewhere it already comes back as it was.
+            if cfg!(target_os = "linux") && stored("window").is_some_and(|window| window.contains("fullscreen:true")) {
+                cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+            }
+        }
         if let Some(state) = &cc.wgpu_render_state {
             note(&format!("graphics: {:?}", state.adapter.get_info()));
             if timed() {
@@ -1931,6 +1998,10 @@ impl App {
             layer: 0,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             maximize_again: false,
+            #[cfg(target_os = "linux")]
+            corners: xwindow::Corners::of(cc).filter(|_| !tiled()),
+            #[cfg(target_os = "linux")]
+            corner_mask: !tiled() && mask::install(cc),
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             window_was: None,
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -1991,7 +2062,7 @@ impl App {
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             updates: updates::Updates::new(),
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-            arrivals: instance::watch(&cc.egui_ctx),
+            arrivals: instance::watch(&cc.egui_ctx, raiser(cc)),
         };
         app.trace.stage("made");
         if let Some(session) = session {
@@ -5006,6 +5077,35 @@ impl App {
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+    #[cfg(target_os = "linux")]
+    fn round_corners(&mut self, ctx: &egui::Context) {
+        let (maximized, full) = self.window_state(ctx);
+        if self.corner_mask && !maximized && !full {
+            ctx.layer_painter(egui::LayerId::new(egui::Order::Debug, egui::Id::unique("corners")))
+                .add(egui_wgpu::Callback::new_paint_callback(
+                    ctx.viewport_rect(),
+                    mask::Mask { radius: WINDOW_RADIUS },
+                ));
+        }
+        let Some(corners) = &mut self.corners else {
+            return;
+        };
+        let (size, scale) = ctx.input(|input| {
+            (
+                input.viewport().inner_rect.map(|rect| rect.size()),
+                input.pixels_per_point(),
+            )
+        });
+        if let Some(size) = size {
+            let radius = if maximized || full { 0.0 } else { WINDOW_RADIUS * scale };
+            corners.set(
+                (size.x * scale).round() as u32,
+                (size.y * scale).round() as u32,
+                radius.round() as u32,
+            );
+        }
+    }
+
     fn window_state(&self, ctx: &egui::Context) -> (bool, bool) {
         if let Some(sham) = &self.trace.sham {
             return (sham.maximized, sham.full);
@@ -5170,7 +5270,9 @@ impl App {
                 let (rect, grip) = ui.allocate_exact_size(bar.size(), egui::Sense::click_and_drag());
                 if grip.double_clicked() {
                     self.toggle_maximized(ctx);
-                } else if grip.drag_started_by(egui::PointerButton::Primary) {
+                } else if grip.drag_started_by(egui::PointerButton::Primary) && !is_full {
+                    // A window in full screen is not moved: GNOME took the drag of one that had been maximized for a
+                    // way out of maximized, and the window stood in full screen at its maximized size, black around.
                     ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
                     self.let_go = true;
                 }
@@ -5852,10 +5954,10 @@ impl App {
         let Some(arrivals) = &self.arrivals else {
             return;
         };
-        let arrived: Vec<Option<PathBuf>> = arrivals.try_iter().collect();
-        for path in arrived {
-            if let Some(path) = path {
-                self.load_scene(&path);
+        let arrived: Vec<instance::Arrival> = arrivals.try_iter().collect();
+        for arrival in arrived {
+            if let Some(path) = &arrival.path {
+                self.load_scene(path);
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -6772,6 +6874,8 @@ impl eframe::App for App {
         let began = Instant::now();
         self.trace.slept = 0.0;
         self.draw(ui, frame);
+        #[cfg(target_os = "linux")]
+        self.round_corners(ui.ctx());
         if let Some(pointer) = &mut self.trace.pointer {
             pointer.draw(ui.ctx());
         }
@@ -6817,6 +6921,8 @@ impl eframe::App for App {
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn on_exit(&mut self) {
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        instance::leaving();
         self.updates.on_exit();
     }
 
