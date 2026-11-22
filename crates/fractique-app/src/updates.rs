@@ -301,19 +301,7 @@ impl Updates {
                 }
             });
         });
-        // The gap above the list holds the progress of a download and what the window has to say, at a height that
-        // stays, so the window keeps its size.
-        ui.add_space(8.0);
-        let (bar, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 6.0), egui::Sense::hover());
-        if let Phase::Downloading { got, total, .. } = &self.phase {
-            let share = total.map_or(0.0, |total| *got as f32 / total.max(1) as f32);
-            let done = egui::Rect::from_min_size(bar.min, egui::vec2(bar.width() * share, bar.height()));
-            ui.painter()
-                .rect_filled(bar, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(45));
-            ui.painter()
-                .rect_filled(done, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(225));
-        }
-        ui.add_space(4.0);
+        // The gap above the list opens for the progress of a download and for what the window has to say.
         let said = match (&self.phase, chosen.as_deref()) {
             (Phase::Downloading { version, got, .. }, _) => format!(
                 "{} · {:.1} MB",
@@ -325,11 +313,28 @@ impl Updates {
             (_, Some(version)) if update::compare(version) == Ordering::Equal => texts.get("this_version"),
             _ => String::new(),
         };
-        let line = egui::vec2(ui.available_width(), 18.0);
-        ui.allocate_ui_with_layout(line, egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            ui.add(egui::Label::new(egui::RichText::new(said).size(13.0).color(dim)).truncate());
-        });
-        ui.add_space(8.0);
+        let downloading = matches!(self.phase, Phase::Downloading { .. });
+        let open = ctx.animate_bool_with_time(egui::Id::unique("updates-said"), !said.is_empty(), 0.15);
+        let bar_open = ctx.animate_bool_with_time(egui::Id::unique("updates-bar"), downloading, 0.15);
+        let tall = 12.0 + open * (22.0 + bar_open * 12.0);
+        let (gap, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), tall), egui::Sense::hover());
+        let painter = ui.painter().with_clip_rect(gap.intersect(ui.clip_rect()));
+        if let Phase::Downloading { got, total, .. } = &self.phase {
+            let share = total.map_or(0.0, |total| *got as f32 / total.max(1) as f32);
+            let bar = egui::Rect::from_min_size(gap.min + egui::vec2(0.0, 8.0), egui::vec2(gap.width(), 6.0));
+            let done = egui::Rect::from_min_size(bar.min, egui::vec2(bar.width() * share, bar.height()));
+            painter.rect_filled(bar, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(45));
+            painter.rect_filled(done, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(225));
+        }
+        if !said.is_empty() {
+            painter.text(
+                egui::pos2(gap.left(), gap.bottom() - 17.0),
+                egui::Align2::LEFT_CENTER,
+                said,
+                egui::FontId::proportional(13.0),
+                dim.gamma_multiply(open),
+            );
+        }
 
         let height = 250.0;
         let mut pick = None;
