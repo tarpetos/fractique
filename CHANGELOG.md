@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+* **App:** after an update "Restart now" starts the new version; before, the app only closed.
+* **App:** an updated file named after its version takes the new version's name (`Fractique_1.0.0_x86_64.AppImage`).
+* **App:** in the updates window the install button stands at the top right and the progress bar runs the whole width.
+
 ## 1.0.0
 
 * **A phone no longer starts an export it has no memory for:** a picture takes about 80 bytes of memory for each
