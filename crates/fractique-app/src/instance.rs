@@ -54,6 +54,16 @@ fn listen() -> std::io::Result<()> {
     Ok(())
 }
 
+fn freed() -> bool {
+    for _ in 0..30 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if listen().is_ok() {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn first(open: Option<&Path>) -> bool {
     // The app an update started in its own place: the one that started it is still closing and would be handed
     // the start, so this one waits for its name instead.
@@ -71,7 +81,9 @@ pub fn first(open: Option<&Path>) -> bool {
         }
         match listen() {
             Ok(()) => return true,
-            Err(_) if hand_over(open).is_ok() => return false,
+            // An app before 1.0.1 that updated itself starts the new one while it still listens, and closes: its
+            // name is free moments later, and this start, which has no file to hand over, is then the app.
+            Err(_) if hand_over(open).is_ok() => return open.is_none() && freed(),
             // A socket file whose owner is gone: nobody answers, and the name stays taken until the file is removed.
             Err(_) => {
                 let _ = std::fs::remove_file(socket_file());
