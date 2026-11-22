@@ -57,7 +57,7 @@ is merged by squashing, so its title becomes the one commit: write it as a commi
 ## Commit messages
 
 Pull requests are squash-merged: the pull request's title becomes the one commit on `master` (the pull request
-number is added to it), and its description becomes the commit body. A check (`Conventional title`, in the `CI`
+number is added to it), and its description becomes the commit body. A check (`Conventional title`, in the `Title`
 workflow) refuses a title that does not follow this convention
 ([Conventional Commits](https://www.conventionalcommits.org/)):
 
