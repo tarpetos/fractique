@@ -41,10 +41,26 @@ fn icon_path(data: &Path) -> PathBuf {
         .join(format!("{APPIMAGE_ID}.png"))
 }
 
+// The entry starts a link that each start points at the AppImage, wherever it is now: an update renames the file,
+// and the system keeps an entry it has read, so an entry that named the file would start one that is gone.
+fn link_path(data: &Path) -> PathBuf {
+    data.join("fractique").join(APPIMAGE_ID)
+}
+
 fn add_entry(image: &Path, data: &Path) -> std::io::Result<()> {
     write_if_changed(&icon_path(data), ICON)?;
+    let link = link_path(data);
+    if std::fs::read_link(&link).ok().as_deref() != Some(image) {
+        if let Some(folder) = link.parent() {
+            std::fs::create_dir_all(folder)?;
+        }
+        let fresh = link.with_extension("new");
+        let _ = std::fs::remove_file(&fresh);
+        std::os::unix::fs::symlink(image, &fresh)?;
+        std::fs::rename(&fresh, &link)?;
+    }
     let entry = data.join("applications").join(format!("{APPIMAGE_ID}.desktop"));
-    write_if_changed(&entry, desktop_entry(image).as_bytes())
+    write_if_changed(&entry, desktop_entry(&link).as_bytes())
 }
 
 // The file manager shows a file's own icon from GIO's metadata; where gio is missing the file keeps its icon.
@@ -63,6 +79,7 @@ fn show_icon(image: &Path, data: &Path) {
     }
 }
 
+// Written beside and renamed into place, so that what reads the folder never sees half a file.
 fn write_if_changed(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     if std::fs::read(path).is_ok_and(|old| old == bytes) {
         return Ok(());
@@ -70,7 +87,9 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     if let Some(folder) = path.parent() {
         std::fs::create_dir_all(folder)?;
     }
-    std::fs::write(path, bytes)
+    let fresh = path.with_extension("new");
+    std::fs::write(&fresh, bytes)?;
+    std::fs::rename(&fresh, path)
 }
 
 fn desktop_entry(image: &Path) -> String {
@@ -103,7 +122,19 @@ mod tests {
         add_entry(&image, &data).unwrap();
         show_icon(&image, &data);
         let entry = std::fs::read_to_string(data.join("applications/fractique-appimage.desktop")).unwrap();
-        assert!(entry.contains(&format!("Exec=\"{}\" %F", image.display())));
+        let link = data.join("fractique/fractique-appimage");
+        assert!(entry.contains(&format!("Exec=\"{}\" %F", link.display())));
+        assert_eq!(std::fs::read_link(&link).unwrap(), image);
+        // Moved, as an update renames it: the link follows, the entry stays as it was.
+        let moved = image.with_file_name("Fractique_1.0.2_x86_64.AppImage");
+        std::fs::rename(&image, &moved).unwrap();
+        add_entry(&moved, &data).unwrap();
+        assert_eq!(std::fs::read_link(&link).unwrap(), moved);
+        assert_eq!(
+            std::fs::read_to_string(data.join("applications/fractique-appimage.desktop")).unwrap(),
+            entry
+        );
+        let image = moved;
         assert!(entry.contains("StartupWMClass=fractique-appimage"));
         assert_eq!(
             std::fs::read(data.join("icons/hicolor/256x256/apps/fractique-appimage.png")).unwrap(),
@@ -114,8 +145,9 @@ mod tests {
             .args(["info", "-a", "metadata::custom-icon"])
             .arg(&image)
             .output()
-            && shown.status.success()
+            && String::from_utf8_lossy(&shown.stdout).contains("metadata::custom-icon")
         {
+            // Without a metadata daemon, as on a build machine, GIO keeps nothing and the file has no icon to read.
             assert!(String::from_utf8_lossy(&shown.stdout).contains("fractique-appimage.png"));
         }
         // Run again: nothing to change.
