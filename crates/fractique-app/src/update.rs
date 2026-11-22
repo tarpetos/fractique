@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
@@ -64,19 +64,30 @@ pub fn tidy() {
     }
 }
 
+// A file named after the version it held is named after the one it holds now: Fractique_0.1.0_x64.exe.
+fn renamed(path: &Path, from: &str, to: &str) -> PathBuf {
+    let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+    if from == to || !name.contains(from) {
+        return path.to_owned();
+    }
+    let target = path.with_file_name(name.replacen(from, to, 1));
+    if target.exists() { path.to_owned() } else { target }
+}
+
 #[cfg(windows)]
-fn replace_self(bytes: &[u8]) -> Result<PathBuf, String> {
+fn replace_self(bytes: &[u8], version: &str) -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let (new, old) = (exe.with_extension("new"), exe.with_extension("old"));
+    let target = renamed(&exe, current(), version);
+    let (new, old) = (target.with_extension("new"), target.with_extension("old"));
     std::fs::write(&new, bytes).map_err(|e| e.to_string())?;
     let _ = std::fs::remove_file(&old);
     // Windows refuses to overwrite a running program but lets it be renamed.
     std::fs::rename(&exe, &old).map_err(|e| e.to_string())?;
-    if let Err(error) = std::fs::rename(&new, &exe) {
+    if let Err(error) = std::fs::rename(&new, &target) {
         let _ = std::fs::rename(&old, &exe);
         return Err(error.to_string());
     }
-    Ok(exe)
+    Ok(target)
 }
 
 fn app_bundle() -> Option<PathBuf> {
@@ -261,10 +272,12 @@ pub fn install_pending(relaunch: bool) {
     };
     #[cfg(windows)]
     {
-        let _ = update;
-        match replace_self(&bytes) {
+        match replace_self(&bytes, &update.version) {
             Ok(exe) if relaunch => {
-                if let Err(error) = std::process::Command::new(exe).spawn() {
+                let started = std::process::Command::new(exe)
+                    .env(crate::instance::AFTER_UPDATE, "1")
+                    .spawn();
+                if let Err(error) = started {
                     log::error!("the updated app could not be started: {error}");
                 }
             }
@@ -282,13 +295,28 @@ fn install_bundle(update: &Update, bytes: Vec<u8>, relaunch: bool) {
         log::error!("the update could not be installed: {error}");
         return;
     }
+    let image = std::env::var_os("APPIMAGE").map(PathBuf::from).map(|image| {
+        let target = renamed(&image, current(), &update.version);
+        if target != image && std::fs::rename(&image, &target).is_ok() {
+            target
+        } else {
+            image
+        }
+    });
     if !relaunch {
         return;
     }
+    let after = crate::instance::AFTER_UPDATE;
     let started = if cfg!(target_os = "macos") {
-        app_bundle().map(|app| std::process::Command::new("open").arg("-n").arg(app).spawn())
+        app_bundle().map(|app| {
+            let set = format!("{after}=1");
+            std::process::Command::new("open")
+                .args(["-n", "--env", &set])
+                .arg(app)
+                .spawn()
+        })
     } else {
-        std::env::var_os("APPIMAGE").map(|image| std::process::Command::new(image).spawn())
+        image.map(|image| std::process::Command::new(image).env(after, "1").spawn())
     };
     if let Some(Err(error)) = started {
         log::error!("the updated app could not be started: {error}");
@@ -305,8 +333,21 @@ pub enum Block {
 pub fn blocks(notes: &str) -> Vec<Block> {
     let plain = |text: &str| text.replace("**", "").replace('`', "");
     let mut out: Vec<Block> = Vec::new();
+    // The release's page opens with a table of its files, under "Downloads", and names the notes "What's new":
+    // the window shows the notes alone.
+    let mut skipped = false;
     for line in notes.lines() {
         let trimmed = line.trim();
+        if let Some(heading) = trimmed.strip_prefix('#') {
+            let heading = heading.trim_start_matches('#').trim();
+            skipped = heading == "Downloads";
+            if skipped || heading == "What's new" {
+                continue;
+            }
+        }
+        if skipped || trimmed.starts_with('|') {
+            continue;
+        }
         if trimmed.is_empty() {
             out.push(Block::Text(String::new()));
         } else if let Some(heading) = trimmed.strip_prefix('#') {
@@ -339,6 +380,36 @@ mod tests {
             draft: false,
             prerelease,
         }
+    }
+
+    #[test]
+    fn the_table_of_downloads_is_not_among_the_notes() {
+        let body = "## Downloads\n\n| System | The app |\n| --- | --- |\n| Windows | [.exe](https://x/y.exe) |\n\nThe other files are what the updates read.\n\n## What's new\n\nThe first release.\n\n* **One:** two.";
+        assert_eq!(
+            blocks(body),
+            vec![
+                Block::Text("The first release.".into()),
+                Block::Item("One: two.".into())
+            ]
+        );
+        assert_eq!(blocks("* **One:** two."), vec![Block::Item("One: two.".into())]);
+    }
+
+    #[test]
+    fn a_file_named_after_its_version_takes_the_new_one() {
+        let folder = std::env::temp_dir().join(format!("fractique-renamed-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        let named = folder.join("Fractique_0.1.0_x86_64.AppImage");
+        assert_eq!(
+            renamed(&named, "0.1.0", "1.0.0"),
+            folder.join("Fractique_1.0.0_x86_64.AppImage")
+        );
+        assert_eq!(renamed(&named, "0.1.0", "0.1.0"), named);
+        let plain = folder.join("Fractique.AppImage");
+        assert_eq!(renamed(&plain, "0.1.0", "1.0.0"), plain);
+        std::fs::write(folder.join("Fractique_1.0.0_x86_64.AppImage"), b"").unwrap();
+        assert_eq!(renamed(&named, "0.1.0", "1.0.0"), named);
+        std::fs::remove_dir_all(&folder).unwrap();
     }
 
     #[test]

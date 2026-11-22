@@ -6,7 +6,7 @@ use eframe::egui;
 
 use crate::i18n::Texts;
 use crate::update::{self, Block, Kind, Release};
-use crate::widgets::{self, MEDIUM, SEMIBOLD, font};
+use crate::widgets::{self, SEMIBOLD, font};
 
 type Event = Box<dyn FnOnce(&mut Updates) + Send>;
 
@@ -80,11 +80,23 @@ impl Updates {
         self.asked = true;
         self.kind = Kind::Auto;
         self.newer = Some("0.3.0".into());
+        self.phase = match std::env::var("FRACTIQUE_UPDATE_PHASE").as_deref() {
+            Ok("downloading") => Phase::Downloading {
+                version: "0.3.0".into(),
+                got: 9_000_000,
+                total: Some(20_000_000),
+            },
+            Ok("ready") => Phase::Ready("0.3.0".into()),
+            Ok("failed") => Phase::Failed {
+                version: "0.3.0".into(),
+            },
+            _ => Phase::Idle,
+        };
         self.list = List::Loaded(vec![
             release(
                 "0.3.0",
                 "2026-12-20",
-                "* **Layers:** add, reorder and blend flames in the app.\n* **Export:** up to 8K, with a progress bar.\n* **Fixes:**\n  * The toolbar no longer runs off a narrow screen.",
+                "## Downloads\n\n| System | The app |\n| --- | --- |\n| Windows | [.exe](https://example.com/Fractique_0.3.0_x64.exe) |\n\nThe other files are what the updates read.\n\n## What's new\n\n* **Layers:** add, reorder and blend flames in the app.\n* **Export:** up to 8K, with a progress bar.\n* **Fixes:**\n  * The toolbar no longer runs off a narrow screen.",
             ),
             release("0.2.0", "2026-12-02", "* **App:** glass panels, 15 languages."),
             release(
@@ -248,6 +260,10 @@ impl Updates {
         };
         ui.label(egui::RichText::new(about).size(13.0).color(dim));
         ui.add_space(10.0);
+        let chosen = self.chosen();
+        let mut install = None;
+        let mut page = None;
+        let mut restart = false;
         ui.horizontal(|ui| {
             let label = texts.get(if self.checking { "checking" } else { "check" });
             if widgets::pill(ui, &label, false, 0.0) {
@@ -261,10 +277,65 @@ impl Updates {
                 };
                 ui.label(egui::RichText::new(text).size(13.0).color(egui::Color32::WHITE));
             }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                match (&self.phase, chosen.as_deref()) {
+                    (Phase::Downloading { .. }, _) => {}
+                    (Phase::Ready(_), _) => restart = widgets::pill(ui, &texts.get("restart_now"), true, 0.0),
+                    (_, Some(version)) if update::compare(version) == Ordering::Equal => {}
+                    (_, Some(version)) if self.kind == Kind::Auto => {
+                        let key = if update::compare(version) == Ordering::Greater {
+                            "update_to"
+                        } else {
+                            "install_v"
+                        };
+                        if widgets::pill(ui, &texts.get(key).replace("{v}", version), true, 0.0) {
+                            install = Some(version.to_owned());
+                        }
+                    }
+                    (_, Some(version)) => {
+                        if widgets::pill(ui, &texts.get("download_page"), true, 0.0) {
+                            page = Some(update::release_page(version));
+                        }
+                    }
+                    (_, None) => {}
+                }
+            });
         });
-        ui.add_space(12.0);
+        // The gap above the list opens for the progress of a download and for what the window has to say.
+        let said = match (&self.phase, chosen.as_deref()) {
+            (Phase::Downloading { version, got, .. }, _) => format!(
+                "{} · {:.1} MB",
+                texts.get("downloading").replace("{v}", version),
+                *got as f64 / 1e6
+            ),
+            (Phase::Ready(version), _) => texts.get("ready").replace("{v}", version),
+            (Phase::Failed { version }, _) => format!("Fractique {version} {}", texts.get("download_failed")),
+            (_, Some(version)) if update::compare(version) == Ordering::Equal => texts.get("this_version"),
+            _ => String::new(),
+        };
+        let downloading = matches!(self.phase, Phase::Downloading { .. });
+        let open = ctx.animate_bool_with_time(egui::Id::unique("updates-said"), !said.is_empty(), 0.15);
+        let bar_open = ctx.animate_bool_with_time(egui::Id::unique("updates-bar"), downloading, 0.15);
+        let tall = 12.0 + open * (22.0 + bar_open * 12.0);
+        let (gap, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), tall), egui::Sense::hover());
+        let painter = ui.painter().with_clip_rect(gap.intersect(ui.clip_rect()));
+        if let Phase::Downloading { got, total, .. } = &self.phase {
+            let share = total.map_or(0.0, |total| *got as f32 / total.max(1) as f32);
+            let bar = egui::Rect::from_min_size(gap.min + egui::vec2(0.0, 8.0), egui::vec2(gap.width(), 6.0));
+            let done = egui::Rect::from_min_size(bar.min, egui::vec2(bar.width() * share, bar.height()));
+            painter.rect_filled(bar, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(45));
+            painter.rect_filled(done, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(225));
+        }
+        if !said.is_empty() {
+            painter.text(
+                egui::pos2(gap.left(), gap.bottom() - 17.0),
+                egui::Align2::LEFT_CENTER,
+                said,
+                egui::FontId::proportional(13.0),
+                dim.gamma_multiply(open),
+            );
+        }
 
-        let chosen = self.chosen();
         let height = 250.0;
         let mut pick = None;
         ui.horizontal_top(|ui| {
@@ -348,63 +419,6 @@ impl Updates {
         if let Some(version) = pick {
             self.selected = Some(version);
         }
-
-        ui.add_space(14.0);
-        let mut install = None;
-        let mut page = None;
-        let mut restart = false;
-        ui.horizontal(|ui| match (&self.phase, chosen.as_deref()) {
-            (Phase::Downloading { version, got, total }, _) => {
-                let share = total.map_or(0.0, |total| *got as f32 / total.max(1) as f32);
-                let text = format!(
-                    "{} · {:.1} MB",
-                    texts.get("downloading").replace("{v}", version),
-                    *got as f64 / 1e6
-                );
-                ui.vertical(|ui| {
-                    ui.set_width(width - 130.0);
-                    let (bar, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 6.0), egui::Sense::hover());
-                    let done = egui::Rect::from_min_size(bar.min, egui::vec2(bar.width() * share, bar.height()));
-                    ui.painter()
-                        .rect_filled(bar, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(45));
-                    ui.painter()
-                        .rect_filled(done, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(225));
-                    ui.add_space(6.0);
-                    ui.label(egui::RichText::new(text).size(13.0).color(dim));
-                });
-            }
-            (Phase::Ready(version), _) => {
-                restart = widgets::pill(ui, &texts.get("restart_now"), true, 0.0);
-                let text = texts.get("ready").replace("{v}", version);
-                ui.add(egui::Label::new(egui::RichText::new(text).size(13.0).color(dim)).wrap());
-            }
-            (_, Some(version)) if update::compare(version) == Ordering::Equal => {
-                ui.label(
-                    egui::RichText::new(texts.get("this_version"))
-                        .font(font(13.5, MEDIUM))
-                        .color(dim),
-                );
-            }
-            (phase, Some(version)) => {
-                if self.kind == Kind::Auto {
-                    let key = if update::compare(version) == Ordering::Greater {
-                        "update_to"
-                    } else {
-                        "install_v"
-                    };
-                    if widgets::pill(ui, &texts.get(key).replace("{v}", version), true, 0.0) {
-                        install = Some(version.to_owned());
-                    }
-                } else if widgets::pill(ui, &texts.get("download_page"), true, 0.0) {
-                    page = Some(update::release_page(version));
-                }
-                if let Phase::Failed { version: failed } = phase {
-                    let text = format!("Fractique {failed} {}", texts.get("download_failed"));
-                    ui.add(egui::Label::new(egui::RichText::new(text).size(13.0).color(dim)).wrap());
-                }
-            }
-            (_, None) => {}
-        });
 
         if let Some(version) = install {
             self.start_install(&ctx, version);
