@@ -14,11 +14,9 @@ static LEFT: Mutex<Option<mpsc::Receiver<()>>> = Mutex::new(None);
 
 pub const AFTER_UPDATE: &str = "FRACTIQUE_AFTER_UPDATE";
 
-// A second start: the file it was given, and the token with which Wayland lets the running app's window come to the
-// front, which the system hands to the program it starts.
+// A second start: the file it was given.
 pub struct Arrival {
     pub path: Option<PathBuf>,
-    pub token: Option<String>,
 }
 
 fn label() -> String {
@@ -107,7 +105,10 @@ pub fn first(open: Option<&Path>) -> bool {
     true
 }
 
-pub fn watch(ctx: &egui::Context) -> Option<mpsc::Receiver<Arrival>> {
+// What brings the window forward when a second start arrives, given its token: called on the thread that hears it.
+pub type Raise = Box<dyn Fn(Option<&str>) + Send>;
+
+pub fn watch(ctx: &egui::Context, raise: Raise) -> Option<mpsc::Receiver<Arrival>> {
     let listener = FIRST.lock().ok()?.take()?;
     let (arrived, arrivals) = mpsc::channel();
     let ctx = ctx.clone();
@@ -136,7 +137,10 @@ pub fn watch(ctx: &egui::Context) -> Option<mpsc::Receiver<Arrival>> {
             let _ = stream.read_line(&mut token);
             let token = token.trim();
             let token = (!token.is_empty()).then(|| token.to_owned());
-            if arrived.send(Arrival { path, token }).is_err() {
+            if !LEAVING.load(Ordering::Relaxed) {
+                raise(token.as_deref());
+            }
+            if arrived.send(Arrival { path }).is_err() {
                 break;
             }
             ctx.request_repaint();
@@ -145,6 +149,11 @@ pub fn watch(ctx: &egui::Context) -> Option<mpsc::Receiver<Arrival>> {
         let _ = leave.send(());
     });
     Some(arrivals)
+}
+
+// The window is about to go: a second start no longer raises it.
+pub fn leaving() {
+    LEAVING.store(true, Ordering::Relaxed);
 }
 
 // Gives the name up before this app starts another in its own place: that one is then the first whatever its
@@ -171,7 +180,7 @@ mod tests {
     #[test]
     fn the_name_is_free_once_the_app_gives_it_up() {
         assert!(listen().is_ok());
-        let arrivals = watch(&egui::Context::default());
+        let arrivals = watch(&egui::Context::default(), Box::new(|_| {}));
         assert!(arrivals.is_some());
         // The name is taken while the app listens: a second start would be handed over.
         assert!(listen().is_err());

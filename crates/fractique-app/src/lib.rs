@@ -597,6 +597,23 @@ pub fn first_instance(open: Option<&std::path::Path>) -> bool {
     instance::first(open)
 }
 
+// Focus does nothing on Wayland: there the window's surface is activated with the token of the second start.
+#[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+fn raiser(cc: &eframe::CreationContext<'_>) -> instance::Raise {
+    #[cfg(target_os = "linux")]
+    if let Some(surface) = raise::Surface::of(cc) {
+        return Box::new(move |token| {
+            let raised = surface.activate(token);
+            if timed() {
+                eprintln!("times: a second start, token {}, raised {raised}", token.is_some());
+            }
+        });
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = cc;
+    Box::new(|_| {})
+}
+
 // What a start from a terminal says when Fractique is already running, in the language the app was left in.
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 pub fn already_running(with_file: bool) -> String {
@@ -2009,7 +2026,7 @@ impl App {
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             updates: updates::Updates::new(),
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-            arrivals: instance::watch(&cc.egui_ctx),
+            arrivals: instance::watch(&cc.egui_ctx, raiser(cc)),
         };
         app.trace.stage("made");
         if let Some(session) = session {
@@ -5866,7 +5883,7 @@ impl App {
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-    fn arrive(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
+    fn arrive(&mut self, ctx: &egui::Context) {
         let Some(arrivals) = &self.arrivals else {
             return;
         };
@@ -5877,28 +5894,6 @@ impl App {
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-            // Focus does nothing on Wayland: the token of the second start raises the window, and without one, a
-            // start from a terminal, the system is asked to say that the app wants attention.
-            #[cfg(target_os = "linux")]
-            if raise::on_wayland(frame) {
-                let raised = arrival
-                    .token
-                    .as_ref()
-                    .is_some_and(|token| raise::activate(frame, token));
-                if timed() {
-                    eprintln!(
-                        "times: a second start, token {}, raised {raised}",
-                        arrival.token.is_some()
-                    );
-                }
-                if !raised {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(
-                        egui::UserAttentionType::Informational,
-                    ));
-                }
-            }
-            #[cfg(not(target_os = "linux"))]
-            let _ = (frame, arrival.token);
         }
     }
 
@@ -6857,6 +6852,8 @@ impl eframe::App for App {
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn on_exit(&mut self) {
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+        instance::leaving();
         self.updates.on_exit();
     }
 
@@ -6884,7 +6881,7 @@ impl App {
         }
         pace::hold(held || self.turned.is_some_and(|at| at.elapsed().as_secs_f32() < 0.3));
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        self.arrive(&ctx, frame);
+        self.arrive(&ctx);
         // Every mouse move asks for a redraw; at a 240 Hz screen's pace that makes a graphics card whine.
         #[cfg(not(target_arch = "wasm32"))]
         {
