@@ -269,7 +269,14 @@ impl Updates {
             if widgets::pill(ui, &label, false, 0.0) {
                 self.check_now(&ctx);
             }
-            if let Some(result) = &self.checked {
+            if let Phase::Downloading { version, got, .. } = &self.phase {
+                let text = format!(
+                    "{} · {:.1} MB",
+                    texts.get("downloading").replace("{v}", version),
+                    *got as f64 / 1e6
+                );
+                ui.label(egui::RichText::new(text).size(13.0).color(dim));
+            } else if let Some(result) = &self.checked {
                 let text = match result {
                     Checked::Newest => texts.get("newest"),
                     Checked::Available(version) => texts.get("available").replace("{v}", version),
@@ -301,7 +308,18 @@ impl Updates {
                 }
             });
         });
-        ui.add_space(12.0);
+        // The progress of a download takes the gap above the list, so the window keeps its height.
+        ui.add_space(3.0);
+        let (bar, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 6.0), egui::Sense::hover());
+        if let Phase::Downloading { got, total, .. } = &self.phase {
+            let share = total.map_or(0.0, |total| *got as f32 / total.max(1) as f32);
+            let done = egui::Rect::from_min_size(bar.min, egui::vec2(bar.width() * share, bar.height()));
+            ui.painter()
+                .rect_filled(bar, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(45));
+            ui.painter()
+                .rect_filled(done, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(225));
+        }
+        ui.add_space(3.0);
 
         let height = 250.0;
         let mut pick = None;
@@ -389,25 +407,7 @@ impl Updates {
 
         ui.add_space(14.0);
         ui.horizontal(|ui| match (&self.phase, chosen.as_deref()) {
-            (Phase::Downloading { version, got, total }, _) => {
-                let share = total.map_or(0.0, |total| *got as f32 / total.max(1) as f32);
-                let text = format!(
-                    "{} · {:.1} MB",
-                    texts.get("downloading").replace("{v}", version),
-                    *got as f64 / 1e6
-                );
-                ui.vertical(|ui| {
-                    ui.set_width(ui.available_width());
-                    let (bar, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 6.0), egui::Sense::hover());
-                    let done = egui::Rect::from_min_size(bar.min, egui::vec2(bar.width() * share, bar.height()));
-                    ui.painter()
-                        .rect_filled(bar, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(45));
-                    ui.painter()
-                        .rect_filled(done, egui::CornerRadius::same(3), egui::Color32::from_white_alpha(225));
-                    ui.add_space(6.0);
-                    ui.label(egui::RichText::new(text).size(13.0).color(dim));
-                });
-            }
+            (Phase::Downloading { .. }, _) => {}
             (Phase::Ready(version), _) => {
                 let text = texts.get("ready").replace("{v}", version);
                 ui.add(egui::Label::new(egui::RichText::new(text).size(13.0).color(dim)).wrap());

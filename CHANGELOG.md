@@ -4,7 +4,7 @@
 
 * **App:** after an update "Restart now" starts the new version; before, the app only closed.
 * **App:** an updated file named after its version takes the new version's name (`Fractique_1.0.0_x86_64.AppImage`).
-* **App:** in the updates window the install button stands at the top right and the progress bar runs the whole width.
+* **App:** in the updates window the install button stands at the top right and the progress of a download above the list of versions.
 
 ## 1.0.0
 
