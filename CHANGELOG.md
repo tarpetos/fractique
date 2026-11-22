@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* **App:** on a computer too, an export that the machine's memory cannot hold is refused instead of ending the app.
 * **MCP:** a skill for agents, `skills/fractique/SKILL.md`: when to use the tools and in what order.
 * **App:** after an update "Restart now" starts the new version; before, the app only closed.
 * **App:** an updated file named after its version takes the new version's name (`Fractique_1.0.0_x86_64.AppImage`).
