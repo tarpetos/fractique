@@ -132,7 +132,7 @@
   "gpu_weak": "En un chip gráfico débil esto puede ir más lento que sin ella.",
   "gpu": "Aceleración por GPU",
   "pro_title": "Fractique Pro",
-  "pro_about": "Guarda tantas imágenes al día como quieras y exporta en cualquier tamaño propio. Pagas una vez y es tuyo para siempre. Todo lo demás sigue siendo gratis.",
+  "pro_about": "Guarda tantas imágenes al día como quieras, exporta en cualquier tamaño propio y oculta los paneles para ver solo la imagen. Pagas una vez y es tuyo para siempre. Todo lo demás sigue siendo gratis.",
   "saves_left": "Guardados gratis que quedan hoy: {left}",
   "saves_none": "Hoy no quedan guardados gratis. Fractique Pro guarda sin límite.",
   "pro_buy": "Comprar por {price}",

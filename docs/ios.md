@@ -141,7 +141,7 @@ in front of `scripts/ios/testflight.sh`.
 ## Fractique Pro, the purchase
 
 The build that goes to the App Store (`ios/build-rust.sh`, so `scripts/ios/testflight.sh`) is compiled with the
-`store` feature: more than three exports a day and a size typed in need the purchase **Fractique Pro** ([usage.md](usage.md#free-and-fractique-pro)). The scripts for the Simulator and for a
+`store` feature: more than three exports a day, a size typed in and hiding the panels need the purchase **Fractique Pro** ([usage.md](usage.md#free-and-fractique-pro)). The scripts for the Simulator and for a
 connected iPhone build without it, so there everything is free; `FRACTIQUE_FEATURES=store` in front of them
 builds the App Store's variant.
 
@@ -162,7 +162,7 @@ The app asks the App Store for one product and sells nothing else:
    `Fractique Pro`, product ID `app.fractique.pro` exactly. A product ID cannot be changed or used again later.
 3. In the product: **Availability** (all countries), **Price** (4.99 USD), and under **App Store Localization** a
    display name and a description for each language of the listing, for example "Fractique Pro" and "Save as
-   many pictures a day as you like, and export at any custom size."
+   many pictures a day as you like, export at any custom size, and hide the panels to see the picture alone."
 4. **Review Information:** a screenshot of the Fractique Pro sheet and a note where to find it ("Export, type a size
    under Custom, Apply"). The state must read **Ready to Submit**.
 5. The first purchase of an app is reviewed together with a version of the app: on the version's page, under
@@ -189,6 +189,8 @@ Sandbox Apple Account**.
 | The next day (or the device's date set a day ahead) | Three free saves again |
 | Type 1000 × 1000 under **Custom**, **Apply** | The Fractique Pro sheet with the price in the tester's currency |
 | The round button with a cross, top right | Back in the export sheet, nothing saved |
+| On a Mac, the eye in the title bar | The Fractique Pro sheet; the panels stay. After the purchase they hide |
+| On an iPhone, a tap on the picture | Nothing: the panels stay |
 | **Save to Photos** with no free save left, **Buy**, confirm | The system's purchase dialog; then the sheet closes, the export starts by itself and the picture is in Photos; the lock and the line about free saves are gone |
 | Close the app, turn on Airplane Mode, open it | Still no lock |
 | Delete the app, install it again, open **Export** | No lock and no line about free saves, with nothing pressed: the app asked StoreKit what the Apple Account owns |

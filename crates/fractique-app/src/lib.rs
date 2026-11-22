@@ -400,6 +400,7 @@ enum Sheet {
 #[derive(Clone, Copy, PartialEq)]
 enum Wanted {
     Nothing,
+    Bare,
     Export { size: [u32; 2], share: bool },
     ExportSize(Option<[u32; 2]>),
     Picture([u32; 2]),
@@ -4067,6 +4068,19 @@ impl App {
         }
     }
 
+    // An App Store build shows the picture alone with Fractique Pro: without it the eye offers the purchase, and a
+    // tap on a phone's picture keeps the panels.
+    fn hide_panels(&mut self, on: bool) {
+        #[cfg(feature = "store")]
+        if on && self.pro_missing() {
+            if !self.phone.on {
+                self.want(Wanted::Bare);
+            }
+            return;
+        }
+        self.bare = on;
+    }
+
     fn pro_missing(&self) -> bool {
         #[cfg(feature = "store")]
         return self.store.as_ref().is_some_and(|store| !store.owned());
@@ -4130,6 +4144,7 @@ impl App {
                 }
             }
             Some(Wanted::Picture(size)) => self.picture = Some(size),
+            Some(Wanted::Bare) => self.bare = true,
             Some(Wanted::Nothing) => self.pro = Some(Wanted::Nothing),
             None => {}
         }
@@ -4970,7 +4985,7 @@ impl App {
         } else if picture.double_clicked() {
             self.view = WHOLE;
         } else if picture.clicked() && (self.bare || self.phone.on) {
-            self.bare = !self.bare;
+            self.hide_panels(!self.bare);
         }
         if picture.contains_pointer() && !blocked {
             let (wheel, pinch, pointer) = ui.input(|input| {
@@ -5017,7 +5032,7 @@ impl App {
             self.travel(back);
         }
         if hide {
-            self.bare = !self.bare;
+            self.hide_panels(!self.bare);
         }
         if full {
             self.full_screen(ctx, !is_full);
@@ -5283,7 +5298,7 @@ impl App {
             && eye.is_pointer_button_down_on()
             && eye.rect.contains(at)
         {
-            self.bare = true;
+            self.hide_panels(true);
         }
     }
 
@@ -5404,7 +5419,7 @@ impl App {
                             "maximize" => self.toggle_maximized(ctx),
                             "minimize" => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
                             "full" => self.full_screen(ctx, !is_full),
-                            _ => self.bare = true,
+                            _ => self.hide_panels(true),
                         }
                     }
                     slot = slot.translate(egui::vec2(-36.0, 0.0));
@@ -6795,7 +6810,7 @@ impl App {
             return;
         }
         if matches!(step, "hide" | "show") {
-            self.bare = step == "hide";
+            self.hide_panels(step == "hide");
             self.shown_frames = 1;
             return;
         }

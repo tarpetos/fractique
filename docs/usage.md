@@ -169,7 +169,7 @@ Account when the app is opened on them; **Restore purchases** asks the App Store
 | Where | Free | Needs Fractique Pro |
 | --- | --- | --- |
 | Windows, Linux, Android, the web, and every build made without the `store` feature | Everything | Nothing: these builds hold no purchase |
-| The App Store builds | Everything on the screen at any size; **Auto**; every size of the lists, 3840 × 2160 too, as the picture's size and as an export; three exports a day (**Save** or **Share**) | More than three exports a day; a size typed into **Custom**, as the picture's size and as an export |
+| The App Store builds | Everything on the screen at any size; **Auto**; every size of the lists, 3840 × 2160 too, as the picture's size and as an export; three exports a day (**Save** or **Share**) | More than three exports a day; a size typed into **Custom**, as the picture's size and as an export; hiding the panels to see the picture alone (the eye, **H**, a tap on a phone's picture) |
 
 Without the purchase three pictures a day are saved or shared, at any size of the lists and at any quality. The
 export sheet says how many are left: "Free saves left today: 2". A picture counts once it is made for **Save** or
@@ -181,7 +181,9 @@ the app clears it. With Fractique Pro nothing is counted.
 pressing **Save** or **Share** when no free save is left opens the **Fractique Pro** sheet: the price as the App
 Store gives it, **Buy**, **Restore purchases** and the round button with a cross that closes it. After the
 purchase the lock and the line about free saves are gone and what was asked for goes on: the export starts, or the
-size is set. The purchase is remembered on the device, so the app is unlocked without a network.
+size is set. The eye in the title bar and **H** open the same sheet, and the panels hide once the purchase is
+there; on a phone a tap on the picture keeps the panels. The purchase is remembered on the device, so the app is
+unlocked without a network.
 
 The Apple sizes of the list, in every build. They are the native pixels of
 the screens, read from Apple's Tech Specs pages (`support.apple.com/en-us/<number>`) in November 2026; iPhones

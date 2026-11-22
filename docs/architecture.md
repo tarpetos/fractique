@@ -527,7 +527,7 @@ the device, in the app's settings; the picture on the screen is never limited ([
 | StoreKit (`storekit.rs`, iOS and macOS) | Xcode compiles only `ios/stub.c`, so there is no Swift target: the backend talks to the original StoreKit API through `objc2`. A class made at run time is the delegate of the `SKProductsRequest` and the observer of the `SKPaymentQueue`; it is added when the app starts, so a purchase paid for while the app was closed arrives too. Every transaction is finished. The price is formatted with the product's own locale; when the app's fonts lack a character of it, the amount with the currency code is shown |
 | Events | A StoreKit callback sends an event over the channel and asks for a repaint; the next frame takes it in. Nothing polls |
 | Remembered | A purchase or a restore sets a flag in `NSUserDefaults`; with it the app starts owned and asks the App Store nothing |
-| The sheet (`lib.rs`) | **Apply** under **Custom**, **Save** or **Share** with a typed size, or either of them when the day's three free saves are used opens the Fractique Pro sheet and remembers what was asked for; when the purchase arrives, the export starts or the size is set |
+| The sheet (`lib.rs`) | **Apply** under **Custom**, **Save** or **Share** with a typed size, the eye or **H** (`hide_panels`), or either of them when the day's three free saves are used opens the Fractique Pro sheet and remembers what was asked for; when the purchase arrives, the export starts or the size is set |
 
 For a test, `FRACTIQUE_STORE=locked|owned|failed|loading|buying` puts a fake backend in place of StoreKit on a
 build with the feature: `locked` offers the product at $4.99 and `buy` succeeds at once. `FRACTIQUE_SHOW=pro`
