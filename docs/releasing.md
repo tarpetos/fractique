@@ -47,9 +47,10 @@ app: it goes to the GitHub Container Registry as `ghcr.io/tarpetos/fractique-ser
    ```
 
 The `Release` workflow does the rest. It refuses a tag that does not match the version in `Cargo.toml`, before
-anything is built. The desktop installers, the APK, the iOS build for TestFlight, the build for the Mac App Store and the Docker image are then made
-side by side; the release is published when the installers and the APK are there, whatever Apple says to the upload
-and whatever becomes of the image. Started by hand without a tag, it builds the installers and keeps them as
+anything is built. The desktop installers, the APK and the Docker image are then made
+side by side; the release is published when the installers and the APK are there, whatever becomes of the image. A tag
+uploads nothing to Apple: the builds for TestFlight and for the Mac App Store are uploaded by hand, before the tag,
+so that what is sent for review is the build that was tested. Started by hand without a tag, it builds the installers and keeps them as
 artifacts without publishing, uploads the iOS build to TestFlight and the Mac one to App Store Connect, and builds the image and asks the server
 in it for an answer without pushing it; with **ios**, **mac** or **docker** chosen it does only that one.
 

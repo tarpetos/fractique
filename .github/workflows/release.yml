@@ -66,7 +66,8 @@ jobs:
   ios:
     name: iOS
     needs: version
-    if: inputs.platforms == '' || inputs.platforms == 'all' || inputs.platforms == 'ios'
+    # Started by hand only: a tag publishes the downloads, and the stores get the build that was tested.
+    if: inputs.platforms == 'all' || inputs.platforms == 'ios'
     uses: ./.github/workflows/release-ios.yml
     secrets:
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
@@ -77,7 +78,7 @@ jobs:
   mac:
     name: Mac App Store
     needs: version
-    if: inputs.platforms == '' || inputs.platforms == 'all' || inputs.platforms == 'mac'
+    if: inputs.platforms == 'all' || inputs.platforms == 'mac'
     uses: ./.github/workflows/release-mac.yml
     secrets:
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
