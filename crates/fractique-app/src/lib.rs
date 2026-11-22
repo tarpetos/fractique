@@ -2382,6 +2382,23 @@ impl App {
             passes.retain(|(draft, options)| !draft || options.width >= held.options.width);
         }
         let (scene, cancel, generation) = (self.scene_at(size), self.cancel.clone(), self.generation);
+        // A kind the processor alone draws takes seconds at the window's size: a picture of half the side ends the
+        // wait four times sooner, and the whole one takes its place when it is there.
+        let slow = scene
+            .layers
+            .iter()
+            .any(|layer| layer.fractal().is_some_and(|shown| heavy(&shown.kind)));
+        let sooner = RenderOptions {
+            width: full.width / 2,
+            height: full.height / 2,
+            ..full
+        };
+        if slow
+            && sooner.width.max(sooner.height) as f32 >= MIDDLE_SIDE
+            && passes.last().is_some_and(|(draft, _)| !draft)
+        {
+            passes.insert(passes.len() - 1, (false, sooner));
+        }
         let mut aside = false;
         self.carded = self.begin_chaos(ctx, &scene, &finest);
         // The graphics card's picture is the screen's: the processor renders only what the card does not draw.
@@ -2425,6 +2442,7 @@ impl App {
         let (late, layers) = (self.late.clone(), scene.layers.len().max(1) as f64);
         let work = move || {
             for (draft, options) in passes {
+                let whole = options.width >= full.width;
                 let started = Instant::now();
                 // A layer that will clearly take too long is given up: the picture the app has is magnified instead.
                 let begun = Mutex::new((Instant::now(), 0.0));
@@ -2461,7 +2479,7 @@ impl App {
                 let spent = started.elapsed().as_secs_f64().max(1e-6);
                 let speed = measured
                     .as_ref()
-                    .filter(|_| fresh && !draft)
+                    .filter(|_| fresh && !draft && whole)
                     .map(|(kind, work)| (kind.clone(), deep, work / spent));
                 let held = held.map(|(keys, sources)| Held {
                     size,
