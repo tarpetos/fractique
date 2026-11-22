@@ -53,14 +53,17 @@ and whatever becomes of the image. Started by hand without a tag, it builds the 
 artifacts without publishing, uploads the iOS build to TestFlight, and builds the image and asks the server in it
 for an answer without pushing it; with **ios** or **docker** chosen it does only that one.
 
-The workflows are two, each one entry file that calls the others, so GitHub shows one run for each:
+The workflows are three. `CI` and `Release` are each one entry file that calls the others, so GitHub shows one run
+for each:
 
 | Run | When | Entry | Calls |
 | --- | --- | --- | --- |
-| `CI` | Every pull request | `ci.yml` (the title, what changed) | `lint.yml`, `test.yml` |
+| `CI` | Every pull request and every push to `master` | `ci.yml` (what changed) | `lint.yml`, `test.yml` |
+| `Title` | Every pull request, and again when its title is edited | `title.yml` | |
 | `Release` | A version tag, or by hand | `release.yml` (the version, the publishing) | `release-desktop.yml`, `release-android.yml`, `release-ios.yml`, `release-docker.yml` |
 
-A third file, `ios-sim.yml`, is started by hand only: it runs the app in the iOS Simulator
+The title has a workflow of its own so that an edited title checks the title alone and leaves the checks of the
+code as they were. One more file, `ios-sim.yml`, is started by hand only: it runs the app in the iOS Simulator
 ([ios.md](ios.md#in-the-simulator)).
 
 To build installers on your own machine: `scripts/build/build-linux.sh`, `build-mac.sh`, `build-win.ps1`. They
