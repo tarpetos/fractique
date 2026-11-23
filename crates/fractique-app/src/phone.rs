@@ -1628,7 +1628,7 @@ impl App {
             }
         });
         if let Some(kind) = kind {
-            self.show_kind(kind);
+            self.choose_kind(kind);
         }
 
         widgets::section(ui, &self.t("presets"));
@@ -1642,7 +1642,7 @@ impl App {
             for name in self.kind_presets() {
                 let key = format!("p {:?} {worn:?}", Some(&name));
                 let picture = self.thumb(&ctx, key, pixels, 10, &mut budget, || pictured(&name));
-                let current = !self.is_random && self.title == name;
+                let current = self.shows_preset(&name);
                 let label = crate::preset_name(&self.texts, &self.kind, &name[prefix..]);
                 if Self::tile(ui, side, picture, &label, current) {
                     picked = Some(name);
@@ -1654,7 +1654,7 @@ impl App {
             return true;
         }
         if let Some(name) = picked {
-            self.show_preset(&name);
+            self.choose_preset(&name);
             return true;
         }
         false
@@ -1689,7 +1689,7 @@ impl App {
                     }
                     Some(scene)
                 });
-                let current = !self.is_random && self.title == name;
+                let current = self.shows_preset(name);
                 if Self::tile(ui, side, picture, &self.display(name), current) {
                     picked = Some(name);
                 }
@@ -1702,7 +1702,7 @@ impl App {
         if let Some(name) = picked
             && let Some(scene) = presets::get(name)
         {
-            self.pick(named(scene, &self.display(name)), name.to_owned(), false);
+            self.choose(named(scene, &self.display(name)), name.to_owned());
             return true;
         }
         false
