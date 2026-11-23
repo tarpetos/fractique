@@ -5760,15 +5760,49 @@ impl App {
             }
         }
 
-        // The App Store updates its own builds, and they may not point at a download outside it.
+        widgets::section(ui, &self.t("about"));
+        ui.add_space(4.0);
+        let (card, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 52.0), egui::Sense::hover());
+        let painter = ui.painter();
+        painter.rect_filled(card, egui::CornerRadius::same(12), egui::Color32::from_white_alpha(14));
+        let left = card.left() + 14.0;
+        painter.text(
+            egui::pos2(left, card.center().y - 9.0),
+            egui::Align2::LEFT_CENTER,
+            "Fractique",
+            font(15.0, SEMIBOLD),
+            egui::Color32::WHITE,
+        );
+        painter.text(
+            egui::pos2(left, card.center().y + 10.0),
+            egui::Align2::LEFT_CENTER,
+            format!("v{}", env!("CARGO_PKG_VERSION")),
+            egui::FontId::monospace(12.0),
+            egui::Color32::from_white_alpha(140),
+        );
+        // The App Store and the phones' stores update their own builds, which may not point at a download outside them.
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32", feature = "store")))]
-        {
-            widgets::section(ui, &self.t("app_version"));
-            let label = match self.updates.newer() {
-                Some(newer) => format!("v{} → v{newer}", update::current()),
-                None => format!("v{}", update::current()),
+        if !self.phone.on {
+            let newer = self.updates.newer().map(str::to_owned);
+            let (label, ink) = match &newer {
+                Some(version) => (format!("v{version} ↑"), egui::Color32::from_rgb(14, 18, 34)),
+                None => (self.t("updates"), egui::Color32::from_white_alpha(235)),
             };
-            if widgets::row(ui, &label, false) {
+            let galley = ui.painter().layout_no_wrap(label, font(13.0, MEDIUM), ink);
+            let pill = egui::Rect::from_min_max(
+                egui::pos2(card.right() - 12.0 - galley.size().x - 28.0, card.center().y - 15.0),
+                egui::pos2(card.right() - 12.0, card.center().y + 15.0),
+            );
+            let response = ui.interact(pill, ui.scope_id().with("settings updates"), egui::Sense::click());
+            let lift = (22.0 * widgets::lit(ui, &response)) as u8;
+            let fill = if newer.is_some() { 225 } else { 30 + lift };
+            ui.painter().rect_filled(
+                pill,
+                egui::CornerRadius::same(15),
+                egui::Color32::from_white_alpha(fill),
+            );
+            ui.painter().galley(pill.center() - galley.size() * 0.5, galley, ink);
+            if response.clicked() {
                 self.settings_open = false;
                 self.updates.show(ui.ctx());
             }
