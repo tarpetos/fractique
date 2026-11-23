@@ -278,6 +278,7 @@ enum Icon {
     Mutate,
     Style,
     Save,
+    Settings,
 }
 
 fn icon(painter: &egui::Painter, at: Pos2, which: Icon, ink: Color32, scale: f32) {
@@ -379,6 +380,7 @@ fn icon(painter: &egui::Painter, at: Pos2, which: Icon, ink: Color32, scale: f32
                 painter.circle_filled(at + v(knob, y), 2.8 * scale, ink);
             }
         }
+        Icon::Settings => crate::widgets::cog(painter, at, scale, ink),
         Icon::Save => {
             painter.line_segment([at + v(0.0, -9.0), at + v(0.0, 3.0)], stroke);
             painter.line_segment([at + v(-5.0, -2.0), at + v(0.0, 3.0)], stroke);
@@ -407,7 +409,7 @@ struct Rail {
     large: f32,
     small: f32,
     fan: [Pos2; 3],
-    column: [Pos2; 2],
+    column: [Pos2; 3],
     scale: f32,
 }
 
@@ -442,7 +444,7 @@ fn reach(scale: f32) -> [f32; 2] {
 
 fn rail(content: Rect, top: f32) -> Rail {
     let tall = |scale: f32, gap: f32, foot: f32| {
-        foot + LARGE * scale * 0.5 + reach(scale)[1] + SMALL * scale * 2.5 + 2.0 * gap
+        foot + LARGE * scale * 0.5 + reach(scale)[1] + SMALL * scale * 3.5 + 3.0 * gap
     };
     let room = content.bottom() - top;
     let (full, tight) = (tall(1.0, 10.0, 20.0), tall(1.0, 4.0, 8.0));
@@ -474,7 +476,7 @@ fn rail(content: Rect, top: f32) -> Rail {
         large,
         small,
         fan,
-        column: [style, style - small - gap].map(|y| egui::pos2(fan[0].x, y)),
+        column: [style, style - small - gap, style - 2.0 * (small + gap)].map(|y| egui::pos2(fan[0].x, y)),
         scale,
     }
 }
@@ -965,7 +967,11 @@ impl App {
         let similar = if self.wall.live { "similar" } else { "mutate" };
         let piece = self.piece(size);
         let is_kept = self.phone.kept.iter().any(|kept| kept.kind == piece.kind);
-        let column = [(Icon::Style, "style"), (Icon::Save, "export")];
+        let column = [
+            (Icon::Style, "style"),
+            (Icon::Save, "export"),
+            (Icon::Settings, "settings"),
+        ];
         let fan = [
             (Icon::Mutate, similar),
             (Icon::Keep(is_kept), "keep"),
@@ -1755,7 +1761,7 @@ mod tests {
                 lowest = at.y - half;
             }
             assert!(lowest >= content.top() - 0.01, "{height}: {lowest}");
-            let tight = 8.0 + 34.0 + reach(1.0)[1] + 115.0 + 8.0;
+            let tight = 8.0 + 34.0 + reach(1.0)[1] + 161.0 + 12.0;
             assert_eq!(place.scale == 1.0, content.height() - 6.0 >= tight, "{height}");
         }
     }
@@ -1773,15 +1779,16 @@ mod tests {
         assert!((place.fan[2].y - 757.0).abs() < 0.001);
         assert!((place.fan[0].y - place.column[0].y - 56.0).abs() < 0.001);
         assert!((place.column[0].y - place.column[1].y - 56.0).abs() < 0.001);
+        assert!((place.column[1].y - place.column[2].y - 56.0).abs() < 0.001);
     }
 
     #[test]
     fn a_low_screen_closes_the_gaps_before_the_buttons_shrink() {
-        let place = rail(Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(700.0, 240.0)), 0.0);
+        let place = rail(Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(700.0, 286.0)), 0.0);
         assert_eq!(place.scale, 1.0);
         let gap = place.column[0].y - place.column[1].y - 46.0;
         assert!((4.0..10.0).contains(&gap), "{gap}");
-        assert!(place.column[1].y - 23.0 >= -0.01);
+        assert!(place.column[2].y - 23.0 >= -0.01);
     }
 
     fn wall(seed: u64) -> Piece {

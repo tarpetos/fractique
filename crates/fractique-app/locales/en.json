@@ -14,6 +14,8 @@
   "randomize": "Randomize",
   "mutate": "Mutate",
   "controls": "Controls",
+  "settings": "Settings",
+  "app_version": "VERSION",
   "reset": "Reset",
   "rendering": "rendering",
   "random": "random",
