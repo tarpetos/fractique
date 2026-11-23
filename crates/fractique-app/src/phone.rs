@@ -12,6 +12,7 @@ use crate::{App, WHOLE, motion, named, shown};
 
 pub const SWIPE: f32 = 56.0;
 const TILE_RATIO: f32 = 1.6;
+const TUNE_WIDTH: f32 = 400.0;
 const MOST_KEPT: usize = 48;
 // The recent pictures a tab keeps: each of the three has a list of its own.
 const MOST_RECENT: usize = 20;
@@ -1224,8 +1225,12 @@ impl App {
 
     fn phone_tune(&mut self, ctx: &egui::Context, content: Rect, panes: &mut Panes, shown: f32, live: bool) {
         let panel = content.shrink(widgets::OUTER);
-        // On its side a phone is wide and low: the controls go in two columns.
-        let lying = content.width() > content.height();
+        // On its side a phone keeps the one narrow column it has upright, in the middle.
+        let panel = if content.width() > content.height() {
+            Rect::from_center_size(panel.center(), vec2(panel.width().min(TUNE_WIDTH), panel.height()))
+        } else {
+            panel
+        };
         let mut done = false;
         // Laid out from the top, where it has the whole height, as tall as what it holds; then moved to the foot of
         // the screen, so the picture stays in sight above it.
@@ -1251,9 +1256,6 @@ impl App {
                     let spot = widgets::close_spot(top, widgets::CLOSE, panel.right() - widgets::PAD);
                     done = widgets::close_at(ui, spot, &self.t("close"));
                     let room = panel.height() - 2.0 * widgets::PAD - (ui.cursor().top() - top);
-                    // Upright, long controls scroll in the lower part of the screen: the picture they change stays
-                    // in sight above them.
-                    let room = if lying { room } else { room.min(content.height() * 0.6) };
                     let mut bar = egui::style::ScrollStyle::floating();
                     bar.bar_width = 5.0;
                     bar.floating_allocated_width = 0.0;
@@ -1269,31 +1271,10 @@ impl App {
                             };
                             egui::Frame::NONE.inner_margin(gutter).show(ui, |ui| {
                                 let before = self.adjust;
-                                // On its side the sections are shared out so the two columns are about as tall:
-                                // the parameters beside the tone and the view, or the view beside the tone. Reset
-                                // takes back the tone and the view together, so it spans both columns below.
-                                if lying {
-                                    let parameters = self.has_parameters();
-                                    ui.spacing_mut().item_spacing.x = 26.0;
-                                    ui.columns(2, |columns| {
-                                        columns[0].spacing_mut().item_spacing = vec2(8.0, 2.0);
-                                        columns[1].spacing_mut().item_spacing = vec2(8.0, 2.0);
-                                        self.tune_size(&mut columns[0]);
-                                        if parameters {
-                                            self.tune_parameters(&mut columns[0]);
-                                            self.tune_tone(&mut columns[1]);
-                                            self.tune_view(&mut columns[1]);
-                                        } else {
-                                            self.tune_view(&mut columns[0]);
-                                            self.tune_tone(&mut columns[1]);
-                                        }
-                                    });
-                                } else {
-                                    self.tune_size(ui);
-                                    self.tune_parameters(ui);
-                                    self.tune_tone(ui);
-                                    self.tune_view(ui);
-                                }
+                                self.tune_size(ui);
+                                self.tune_parameters(ui);
+                                self.tune_tone(ui);
+                                self.tune_view(ui);
                                 self.tune_reset(ui);
                                 self.adjusted(before);
                             });

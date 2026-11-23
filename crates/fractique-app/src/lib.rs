@@ -5910,12 +5910,6 @@ impl App {
         !self.wall.live && !self.base.layers.is_empty()
     }
 
-    // Whether the chosen layer is a fractal with parameters of its own.
-    pub(crate) fn has_parameters(&self) -> bool {
-        let at = self.layer.min(self.base.layers.len().saturating_sub(1));
-        self.tuned() && self.base.layers.get(at).and_then(|layer| layer.fractal()).is_some()
-    }
-
     pub(crate) fn tune_parameters(&mut self, ui: &mut egui::Ui) {
         if self.tuned() {
             self.fractal_controls(ui);
