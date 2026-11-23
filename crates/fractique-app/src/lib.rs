@@ -5879,38 +5879,14 @@ impl App {
     }
 
     fn inspector_look(&mut self, ui: &mut egui::Ui) {
-        let flames = !self.wall.live && !self.base.layers.is_empty();
         let before = self.adjust;
-        if flames {
-            self.fractal_controls(ui);
-            widgets::section(ui, &self.t("tone"));
-            widgets::slider(ui, &self.t("brightness"), &mut self.adjust.brightness, (0.3, 2.5), true);
-            widgets::slider(ui, &self.t("gamma"), &mut self.adjust.gamma, (0.5, 1.8), false);
-            widgets::slider(ui, &self.t("glow"), &mut self.adjust.glow, (0.0, 3.0), false);
-            widgets::section(ui, &self.t("view"));
-            self.scale_slider(ui);
-
-            ui.add_space(8.0);
-            if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
-                self.adjust = NEUTRAL;
-                self.reset_view();
-            }
-        }
-
-        if self.adjust != before {
-            let zoomed = Adjust {
-                zoom: self.adjust.zoom,
-                ..before
-            };
-            if self.adjust == zoomed && self.gpu_on() {
-                self.touched = Instant::now();
-            } else {
-                self.requested = None;
-            }
-        }
+        self.tune_parameters(ui);
+        self.tune_tone(ui);
+        self.tune_view(ui);
+        self.adjusted(before);
 
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        {
+        if !self.phone.on {
             widgets::section(ui, &self.t("scene"));
             ui.add_space(4.0);
             let (open, save) = (self.t("open"), self.t("save"));
@@ -5925,6 +5901,58 @@ impl App {
             }
             if clicked.1 {
                 self.save_scene();
+            }
+        }
+    }
+
+    fn tuned(&self) -> bool {
+        !self.wall.live && !self.base.layers.is_empty()
+    }
+
+    // Whether the chosen layer is a fractal with parameters of its own.
+    pub(crate) fn has_parameters(&self) -> bool {
+        let at = self.layer.min(self.base.layers.len().saturating_sub(1));
+        self.tuned() && self.base.layers.get(at).and_then(|layer| layer.fractal()).is_some()
+    }
+
+    pub(crate) fn tune_parameters(&mut self, ui: &mut egui::Ui) {
+        if self.tuned() {
+            self.fractal_controls(ui);
+        }
+    }
+
+    pub(crate) fn tune_tone(&mut self, ui: &mut egui::Ui) {
+        if self.tuned() {
+            widgets::section(ui, &self.t("tone"));
+            widgets::slider(ui, &self.t("brightness"), &mut self.adjust.brightness, (0.3, 2.5), true);
+            widgets::slider(ui, &self.t("gamma"), &mut self.adjust.gamma, (0.5, 1.8), false);
+            widgets::slider(ui, &self.t("glow"), &mut self.adjust.glow, (0.0, 3.0), false);
+        }
+    }
+
+    pub(crate) fn tune_view(&mut self, ui: &mut egui::Ui) {
+        if self.tuned() {
+            widgets::section(ui, &self.t("view"));
+            self.scale_slider(ui);
+            ui.add_space(8.0);
+            if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
+                self.adjust = NEUTRAL;
+                self.reset_view();
+            }
+        }
+    }
+
+    // A change of the sliders asks for a picture; the zoom alone, which the graphics card shows at once, waits.
+    pub(crate) fn adjusted(&mut self, before: Adjust) {
+        if self.adjust != before {
+            let zoomed = Adjust {
+                zoom: self.adjust.zoom,
+                ..before
+            };
+            if self.adjust == zoomed && self.gpu_on() {
+                self.touched = Instant::now();
+            } else {
+                self.requested = None;
             }
         }
     }

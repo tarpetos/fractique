@@ -1251,6 +1251,9 @@ impl App {
                     let spot = widgets::close_spot(top, widgets::CLOSE, panel.right() - widgets::PAD);
                     done = widgets::close_at(ui, spot, &self.t("close"));
                     let room = panel.height() - 2.0 * widgets::PAD - (ui.cursor().top() - top);
+                    // Upright, long controls scroll in the lower part of the screen: the picture they change stays
+                    // in sight above them.
+                    let room = if lying { room } else { room.min(content.height() * 0.6) };
                     let mut bar = egui::style::ScrollStyle::floating();
                     bar.bar_width = 5.0;
                     bar.floating_allocated_width = 0.0;
@@ -1265,18 +1268,32 @@ impl App {
                                 ..Default::default()
                             };
                             egui::Frame::NONE.inner_margin(gutter).show(ui, |ui| {
+                                let before = self.adjust;
+                                // On its side the sections are shared out so the two columns are about as tall:
+                                // the parameters beside the tone and the view, or the view beside the tone.
                                 if lying {
+                                    let parameters = self.has_parameters();
                                     ui.spacing_mut().item_spacing.x = 26.0;
                                     ui.columns(2, |columns| {
                                         columns[0].spacing_mut().item_spacing = vec2(8.0, 2.0);
-                                        self.tune_size(&mut columns[0]);
                                         columns[1].spacing_mut().item_spacing = vec2(8.0, 2.0);
-                                        self.inspector_look(&mut columns[1]);
+                                        self.tune_size(&mut columns[0]);
+                                        if parameters {
+                                            self.tune_parameters(&mut columns[0]);
+                                            self.tune_tone(&mut columns[1]);
+                                            self.tune_view(&mut columns[1]);
+                                        } else {
+                                            self.tune_view(&mut columns[0]);
+                                            self.tune_tone(&mut columns[1]);
+                                        }
                                     });
                                 } else {
                                     self.tune_size(ui);
-                                    self.inspector_look(ui);
+                                    self.tune_parameters(ui);
+                                    self.tune_tone(ui);
+                                    self.tune_view(ui);
                                 }
+                                self.adjusted(before);
                             });
                         });
                     if output.content_size.y > 0.0 {
