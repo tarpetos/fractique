@@ -2188,6 +2188,59 @@ impl App {
         }
     }
 
+    // A kind or a preset chosen from a list: in a picture of several layers it takes the place of the chosen
+    // layer, which keeps its blend, its opacity and its colors, as Randomize does.
+    fn choose_kind(&mut self, kind: &str) {
+        let Some(preset) = fractal::spec(kind).and_then(|spec| spec.presets.first()) else {
+            return;
+        };
+        self.kind = kind.to_owned();
+        self.choose_preset(&format!("{kind}-{}", preset.name));
+    }
+
+    fn choose_preset(&mut self, name: &str) {
+        if let Some(scene) = presets::get(name).or_else(|| fractal::preset(name)) {
+            self.choose(named(scene, &self.display(name)), name.to_owned());
+        }
+    }
+
+    fn choose(&mut self, scene: Scene, title: String) {
+        if self.wall.live || self.base.layers.len() < 2 {
+            self.pick(scene, title, false);
+            return;
+        }
+        let Some(fresh) = scene.layers.into_iter().next() else {
+            return;
+        };
+        let at = self.layer.min(self.base.layers.len() - 1);
+        if let fractique_core::scene::Content::Fractal(fractal) = &fresh.content {
+            self.kind = fractal.kind.clone();
+        }
+        self.base.layers[at].content = fresh.content;
+        self.base.layers[at].name = self.display(&title);
+        self.view = WHOLE;
+        self.requested = None;
+        self.begin();
+    }
+
+    // The preset the chosen layer shows: the picture's in a picture of one layer.
+    fn shows_preset(&self, name: &str) -> bool {
+        if self.base.layers.len() > 1 && !self.wall.live {
+            let at = self.layer.min(self.base.layers.len() - 1);
+            return self.base.layers[at].name == self.display(name);
+        }
+        !self.is_random && self.title == name
+    }
+
+    fn presets_label(&self) -> String {
+        if self.base.layers.len() > 1 && !self.wall.live {
+            return self.base.layers[self.layer.min(self.base.layers.len() - 1)]
+                .name
+                .clone();
+        }
+        self.display(&self.title)
+    }
+
     // The tab a scene belongs to, and the kind of its first fractal.
     fn follow(&mut self, scene: &Scene) {
         let kind = scene
@@ -3967,7 +4020,15 @@ impl App {
             return;
         }
         let adding = self.adding_layer;
-        widgets::heading(ui, &self.t(if adding { "layers" } else { "presets" }));
+        let heading = if adding {
+            self.t("layers")
+        } else if self.base.layers.len() > 1 && !self.wall.live {
+            let at = self.layer.min(self.base.layers.len() - 1) + 1;
+            format!("{} · {} {at}", self.t("presets"), self.t("layer").to_uppercase())
+        } else {
+            self.t("presets")
+        };
+        widgets::heading(ui, &heading);
         let mut bar = egui::style::ScrollStyle::floating();
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
@@ -3986,7 +4047,7 @@ impl App {
                     chosen = Some(self.fresh());
                 }
                 for name in &names {
-                    let current = !adding && !self.is_random && self.title == *name;
+                    let current = !adding && self.shows_preset(name);
                     if widgets::row(ui, &self.display(name), current)
                         && let Some(scene) = presets::get(name).or_else(|| fractal::preset(name))
                     {
@@ -4009,7 +4070,7 @@ impl App {
                 self.requested = None;
             }
         } else {
-            self.pick(scene, title, false);
+            self.choose(scene, title);
         }
     }
 
@@ -4066,7 +4127,7 @@ impl App {
         if let Some(kind) = chosen {
             self.presets_open = false;
             if kind != self.kind {
-                self.show_kind(kind);
+                self.choose_kind(kind);
             }
         }
     }
@@ -5767,7 +5828,7 @@ impl App {
                 }
             }
             widgets::section(ui, &self.t("presets"));
-            if widgets::dropdown(ui, &self.display(&self.title)) {
+            if widgets::dropdown(ui, &self.presets_label()) {
                 self.open_sheet(Sheet::Presets);
             }
         }
@@ -6227,11 +6288,17 @@ impl App {
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn open_scene(&mut self) {
-        let picked = rfd::FileDialog::new()
-            .add_filter("Fractique, flam3", &[SCENE_FILE, "json", "flame"])
-            .add_filter("Fractique", &[SCENE_FILE, "json"])
-            .add_filter("flam3", &["flame"])
-            .pick_file();
+        // A flam3 file holds flames only: the other tabs offer the app's own files.
+        let dialog = rfd::FileDialog::new();
+        let dialog = if self.wall.on || self.fractals {
+            dialog.add_filter("Fractique", &[SCENE_FILE, "json"])
+        } else {
+            dialog
+                .add_filter("Fractique, flam3", &[SCENE_FILE, "json", "flame"])
+                .add_filter("Fractique", &[SCENE_FILE, "json"])
+                .add_filter("flam3", &["flame"])
+        };
+        let picked = dialog.pick_file();
         if let Some(path) = picked {
             self.load_scene(&path);
         }
@@ -6324,7 +6391,22 @@ impl App {
 
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     fn save_scene(&mut self) {
-        let name = format!("{}.{SCENE_FILE}", file_name(&self.title));
+        // A wallpaper is named after its layout and material, in English as every file name is.
+        let title = if self.wall.live {
+            let (layout, material) = wallpaper_choice(self.seed, &self.wall.request(self.requested.unwrap_or([1, 2])));
+            let layout = Layout::ALL
+                .iter()
+                .find(|(_, each)| *each == layout)
+                .map(|(name, _)| *name);
+            let material = Material::ALL
+                .iter()
+                .find(|(_, each)| *each == material)
+                .map(|(name, _)| *name);
+            format!("{} {}", layout.unwrap_or("wallpaper"), material.unwrap_or_default())
+        } else {
+            self.title.clone()
+        };
+        let name = format!("{}.{SCENE_FILE}", file_name(&title));
         let Some(path) = rfd::FileDialog::new()
             .set_file_name(name)
             .add_filter("Fractique", &[SCENE_FILE])
@@ -7010,7 +7092,7 @@ impl App {
             return;
         }
         if let Some(name) = step.strip_prefix("preset:") {
-            self.show_preset(name);
+            self.choose_preset(name);
             self.asked = Instant::now();
             self.shown_frames = 0;
             return;
