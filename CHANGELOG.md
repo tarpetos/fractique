@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+* **App:** in a picture of several layers a preset or a fractal type replaces only the chosen layer, as Randomize does.
+* **App:** Open offers `.flame` files only in Flames; a wallpaper is saved under its layout and material.
 * **App:** an export of several layers at Ultra and 3840 × 2160 stays on the graphics card instead of going to the processor.
 * **App:** a gear at the right of the toolbar, and on a phone above the export button, opens the settings: language, glass, GPU acceleration, version.
 * **App:** with GPU acceleration on, exports at Standard, High and Ultra are drawn by the graphics card, Ultra at 3840 × 2160 in 12 s on an RTX 4070 instead of 109 s; **Exact pictures** keeps them on the processor.
