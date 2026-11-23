@@ -966,12 +966,12 @@ impl App {
         let mut below = strip.response.rect.bottom() + 12.0;
 
         // A picture of several layers shows them in a row under the colors, which paint the chosen one: a tap
-        // chooses a layer, a second its card, and the cross at the end adds one.
+        // chooses a layer, the sliders after them open its card (so does a second tap on it), the cross adds one.
         let count = self.base.layers.len();
         if count > 1 && !self.wall.live {
             let shades = self.layer_shades();
             let chosen = self.layer.min(count - 1);
-            let (mut tapped, mut add) = (None, false);
+            let (mut tapped, mut add, mut card) = (None, false, false);
             let row = egui::Area::new(egui::Id::unique("phone_layers"))
                 .fixed_pos(egui::pos2(content.center().x, below - 4.0))
                 .pivot(Align2::CENTER_TOP)
@@ -994,6 +994,11 @@ impl App {
                                         tapped = Some(index);
                                     }
                                 }
+                                let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+                                ui.painter()
+                                    .circle_filled(rect.center(), 14.0, ink.gamma_multiply(0.14));
+                                icon(ui.painter(), rect.center(), Icon::Style, ink, 0.7);
+                                card = response.on_hover_text(self.texts.get("layer")).clicked();
                                 if count < fractique_core::scene::MAX_LAYERS {
                                     let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
                                     let stroke = Stroke::new(1.6, ink);
@@ -1022,6 +1027,9 @@ impl App {
                 Some(index) if index == chosen => self.layer_card = true,
                 Some(index) => self.layer = index,
                 None => {}
+            }
+            if card {
+                self.layer_card = true;
             }
             if add {
                 self.add_layer();
@@ -1654,9 +1662,10 @@ impl App {
         }
     }
 
-    // A picture of one layer has no row of layers on it: the styles end with the way to add one.
+    // The styles end with the way to add a layer, the only one while a picture has one layer and no row of them.
     fn add_tile(&self, ui: &mut egui::Ui, side: [f32; 2]) -> bool {
-        if self.base.layers.len() != 1 || self.wall.live {
+        if self.base.layers.len() >= fractique_core::scene::MAX_LAYERS || self.base.layers.is_empty() || self.wall.live
+        {
             return false;
         }
         let at = ui.cursor().min;
