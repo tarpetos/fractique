@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.3
 
 * **App, phones:** a row of layers under the colors chooses the layer the colors, presets and buttons change; its sliders open the layer's blend, opacity and order.
 * **App, phones:** Fine-tune holds only what the screen and the styles do not: size, a fractal's parameters, tone, zoom.
