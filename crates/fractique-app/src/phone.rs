@@ -12,6 +12,7 @@ use crate::{App, WHOLE, motion, named, shown};
 
 pub const SWIPE: f32 = 56.0;
 const TILE_RATIO: f32 = 1.6;
+const TUNE_WIDTH: f32 = 400.0;
 const MOST_KEPT: usize = 48;
 // The recent pictures a tab keeps: each of the three has a list of its own.
 const MOST_RECENT: usize = 20;
@@ -169,6 +170,8 @@ pub struct Phone {
     pub pressing: bool,
     pub share_from: Rect,
     pub shown: f32,
+    // How tall the controls were the frame before: their scroll area is as tall, up to the screen.
+    pub tune_tall: f32,
 }
 
 type Thumb = (String, [usize; 2], Vec<u8>);
@@ -220,6 +223,7 @@ impl Phone {
             pressing: false,
             share_from: Rect::ZERO,
             shown: 1.0,
+            tune_tall: 0.0,
         }
     }
 }
@@ -881,6 +885,7 @@ impl App {
             "phone_sheet",
             "phone_tune",
             "pro",
+            "layer_card",
             "export",
             "sizes",
             "presets",
@@ -962,7 +967,79 @@ impl App {
             });
         panes.push((strip.response.rect, strip.response.rect.height() * 0.5, false));
         self.phone.clear.push(strip.response.rect);
-        let below = strip.response.rect.bottom() + 12.0;
+        let mut below = strip.response.rect.bottom() + 12.0;
+
+        // A picture of several layers shows them in a row under the colors, which paint the chosen one: a tap
+        // chooses a layer, the cross after them adds one, the sliders at the end open its card (so does a second
+        // tap on it).
+        let count = self.base.layers.len();
+        if count > 1 && !self.wall.live {
+            let shades = self.layer_shades();
+            let chosen = self.layer.min(count - 1);
+            let (mut tapped, mut add, mut card) = (None, false, false);
+            let row = egui::Area::new(egui::Id::unique("phone_layers"))
+                .fixed_pos(egui::pos2(content.center().x, below - 4.0))
+                .pivot(Align2::CENTER_TOP)
+                .interactable(live)
+                .fade_in(false)
+                .show(ctx, |ui| {
+                    ui.set_opacity(shown);
+                    egui::Frame::NONE
+                        .inner_margin(egui::Margin::symmetric(8, 4))
+                        .show(ui, |ui| {
+                            ui.spacing_mut().item_spacing = vec2(6.0, 0.0);
+                            ui.horizontal(|ui| {
+                                for (index, shade) in shades.iter().enumerate() {
+                                    let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+                                    palette_disc(ui.painter(), rect.center(), 10.0, shade);
+                                    if index == chosen {
+                                        ui.painter().circle_stroke(rect.center(), 14.0, Stroke::new(2.0, ink));
+                                    }
+                                    if response.clicked() {
+                                        tapped = Some(index);
+                                    }
+                                }
+                                if count < fractique_core::scene::MAX_LAYERS {
+                                    let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+                                    let stroke = Stroke::new(1.6, ink);
+                                    ui.painter().circle_stroke(
+                                        rect.center(),
+                                        11.0,
+                                        Stroke::new(1.2, ink.gamma_multiply(0.6)),
+                                    );
+                                    ui.painter().line_segment(
+                                        [rect.center() - vec2(5.0, 0.0), rect.center() + vec2(5.0, 0.0)],
+                                        stroke,
+                                    );
+                                    ui.painter().line_segment(
+                                        [rect.center() - vec2(0.0, 5.0), rect.center() + vec2(0.0, 5.0)],
+                                        stroke,
+                                    );
+                                    add = response.clicked();
+                                }
+                                let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+                                ui.painter()
+                                    .circle_filled(rect.center(), 14.0, ink.gamma_multiply(0.14));
+                                icon(ui.painter(), rect.center(), Icon::Style, ink, 0.7);
+                                card = response.on_hover_text(self.texts.get("layer")).clicked();
+                            });
+                        });
+                });
+            panes.push((row.response.rect, row.response.rect.height() * 0.5, false));
+            self.phone.clear.push(row.response.rect);
+            below = row.response.rect.bottom() + 12.0;
+            match tapped {
+                Some(index) if index == chosen => self.layer_card = true,
+                Some(index) => self.layer = index,
+                None => {}
+            }
+            if card {
+                self.layer_card = true;
+            }
+            if add {
+                self.add_layer();
+            }
+        }
 
         let similar = if self.wall.live { "similar" } else { "mutate" };
         let piece = self.piece(size);
@@ -1148,9 +1225,15 @@ impl App {
 
     fn phone_tune(&mut self, ctx: &egui::Context, content: Rect, panes: &mut Panes, shown: f32, live: bool) {
         let panel = content.shrink(widgets::OUTER);
-        // On its side a phone is wide and low: the controls go in two columns.
-        let lying = content.width() > content.height();
+        // On its side a phone keeps the one narrow column it has upright, in the middle.
+        let panel = if content.width() > content.height() {
+            Rect::from_center_size(panel.center(), vec2(panel.width().min(TUNE_WIDTH), panel.height()))
+        } else {
+            panel
+        };
         let mut done = false;
+        // Laid out from the top, where it has the whole height, as tall as what it holds; then moved to the foot of
+        // the screen, so the picture stays in sight above it.
         let area = egui::Area::new(egui::Id::unique("phone_tune"))
             .fixed_pos(panel.min)
             .interactable(live)
@@ -1169,44 +1252,45 @@ impl App {
                     ui.set_width(inner);
                     ui.spacing_mut().item_spacing = vec2(8.0, 2.0);
                     let top = ui.cursor().top();
-                    self.inspector_head(ui);
-                    let spot = widgets::close_spot(top, widgets::line(ui, 30.0), panel.right() - widgets::PAD);
+                    widgets::title(ui, &self.t("fine_tune"), 17.0);
+                    let spot = widgets::close_spot(top, widgets::CLOSE, panel.right() - widgets::PAD);
                     done = widgets::close_at(ui, spot, &self.t("close"));
-                    ui.add_space(4.0);
                     let room = panel.height() - 2.0 * widgets::PAD - (ui.cursor().top() - top);
                     let mut bar = egui::style::ScrollStyle::floating();
                     bar.bar_width = 5.0;
                     bar.floating_allocated_width = 0.0;
                     ui.spacing_mut().scroll = bar;
-                    crate::scrolled(egui::ScrollArea::vertical())
+                    let tall = self.phone.tune_tall.min(room);
+                    let output = crate::scrolled(egui::ScrollArea::vertical())
                         .max_height(room)
-                        .min_scrolled_height(room)
+                        .min_scrolled_height(tall)
                         .show(ui, |ui| {
                             let gutter = egui::Margin {
                                 right: 14,
                                 ..Default::default()
                             };
                             egui::Frame::NONE.inner_margin(gutter).show(ui, |ui| {
-                                if lying {
-                                    ui.spacing_mut().item_spacing.x = 26.0;
-                                    ui.columns(2, |columns| {
-                                        columns[0].spacing_mut().item_spacing = vec2(8.0, 2.0);
-                                        self.inspector_scene(&mut columns[0]);
-                                        columns[1].spacing_mut().item_spacing = vec2(8.0, 2.0);
-                                        self.inspector_look(&mut columns[1]);
-                                    });
-                                } else {
-                                    self.inspector_scene(ui);
-                                    self.inspector_look(ui);
-                                }
+                                let before = self.adjust;
+                                self.tune_size(ui);
+                                self.tune_parameters(ui);
+                                self.tune_tone(ui);
+                                self.tune_view(ui);
+                                self.tune_reset(ui);
+                                self.adjusted(before);
                             });
                         });
+                    if output.content_size.y > 0.0 {
+                        self.phone.tune_tall = output.content_size.y;
+                    }
                 });
             });
-        let by = vec2(0.0, (1.0 - shown) * motion::SHIFT);
+        let by = vec2(
+            0.0,
+            (1.0 - shown) * motion::SHIFT + (panel.bottom() - area.response.rect.bottom()).max(0.0),
+        );
         ctx.set_transform_layer(area.response.layer_id, egui::emath::TSTransform::from_translation(by));
         let from = panes.len();
-        panes.push((panel.translate(by), self.optics.radius, false));
+        panes.push((area.response.rect.translate(by), self.optics.radius, false));
         self.faded(panes, from, shown);
         if done {
             self.phone.tune = false;
@@ -1590,6 +1674,27 @@ impl App {
         }
     }
 
+    // The styles end with the way to add a layer, the only one while a picture has one layer and no row of them.
+    fn add_tile(&self, ui: &mut egui::Ui, side: [f32; 2]) -> bool {
+        if self.base.layers.len() >= fractique_core::scene::MAX_LAYERS || self.base.layers.is_empty() || self.wall.live
+        {
+            return false;
+        }
+        let at = ui.cursor().min;
+        let pressed = Self::tile(ui, side, None, &self.t("add_layer"), false);
+        let center = at + vec2(side[0] * 0.5, side[1] * 0.42);
+        let ink = Color32::from_white_alpha(220);
+        ui.painter().line_segment(
+            [center - vec2(9.0, 0.0), center + vec2(9.0, 0.0)],
+            Stroke::new(2.0, ink),
+        );
+        ui.painter().line_segment(
+            [center - vec2(0.0, 9.0), center + vec2(0.0, 9.0)],
+            Stroke::new(2.0, ink),
+        );
+        pressed
+    }
+
     // The kinds of fractal, each with a small picture of its first preset, and the presets of the chosen one.
     fn sheet_fractals(&mut self, ui: &mut egui::Ui, scale: f32) -> bool {
         let ctx = ui.ctx().clone();
@@ -1634,7 +1739,7 @@ impl App {
         widgets::section(ui, &self.t("presets"));
         ui.add_space(4.0);
         let random_label = shown(&self.t("random"));
-        let (mut random, mut picked) = (false, None);
+        let (mut random, mut picked, mut adding) = (false, None, false);
         let prefix = self.kind.len() + 1;
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(gap, 10.0);
@@ -1648,9 +1753,14 @@ impl App {
                     picked = Some(name);
                 }
             }
+            adding = self.add_tile(ui, side);
         });
         if random {
             self.act("randomize");
+            return true;
+        }
+        if adding {
+            self.add_layer();
             return true;
         }
         if let Some(name) = picked {
@@ -1669,6 +1779,7 @@ impl App {
         let mut budget = 1;
         let mut picked = None;
         let mut random = false;
+        let mut adding = false;
 
         widgets::section(ui, &self.t("presets"));
         ui.add_space(4.0);
@@ -1694,9 +1805,14 @@ impl App {
                     picked = Some(name);
                 }
             }
+            adding = self.add_tile(ui, side);
         });
         if random {
             self.act("randomize");
+            return true;
+        }
+        if adding {
+            self.add_layer();
             return true;
         }
         if let Some(name) = picked

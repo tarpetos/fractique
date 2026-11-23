@@ -38,6 +38,7 @@
   "reset_view": "Сбросить вид",
   "layers": "СЛОИ",
   "layer": "Слой",
+  "add_layer": "Добавить слой",
   "blend_add": "Сумма",
   "blend_screen": "Экран",
   "blend_over": "Поверх",

@@ -38,6 +38,7 @@
   "reset_view": "重置视图",
   "layers": "图层",
   "layer": "图层",
+  "add_layer": "添加图层",
   "blend_add": "相加",
   "blend_screen": "滤色",
   "blend_over": "覆盖",

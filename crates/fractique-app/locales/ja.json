@@ -38,6 +38,7 @@
   "reset_view": "表示をリセット",
   "layers": "レイヤー",
   "layer": "レイヤー",
+  "add_layer": "レイヤーを追加",
   "blend_add": "加算",
   "blend_screen": "スクリーン",
   "blend_over": "重ねる",

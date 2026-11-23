@@ -1293,6 +1293,8 @@ struct App {
     toolbar_size: egui::Vec2,
     languages_open: bool,
     settings_open: bool,
+    // A phone's card of the chosen layer, opened from the row of layers on the picture.
+    pub(crate) layer_card: bool,
     // The language list was opened from the settings, which come back when it closes.
     from_settings: bool,
     picture: Option<[u32; 2]>,
@@ -2002,6 +2004,7 @@ impl App {
             toolbar_size: egui::Vec2::ZERO,
             languages_open: opens("languages"),
             settings_open: opens("settings") && !opens("languages"),
+            layer_card: opens("card"),
             from_settings: opens("settings") && opens("languages"),
             picture: std::env::var("FRACTIQUE_PICTURE")
                 .ok()
@@ -3990,6 +3993,7 @@ impl App {
         self.languages_open = false;
         self.settings_open = false;
         self.from_settings = false;
+        self.layer_card = false;
         #[cfg(feature = "store")]
         {
             self.pro = None;
@@ -4507,6 +4511,10 @@ impl App {
         }
         if self.settings_open {
             self.settings_open = false;
+            return;
+        }
+        if self.layer_card {
+            self.layer_card = false;
             return;
         }
         self.phone.sheet = false;
@@ -5120,8 +5128,12 @@ impl App {
     }
 
     fn sheet_open(&self) -> bool {
-        let lists =
-            self.sizes_open || self.presets_open || self.languages_open || self.settings_open || self.pro_open();
+        let lists = self.sizes_open
+            || self.presets_open
+            || self.languages_open
+            || self.settings_open
+            || self.layer_card
+            || self.pro_open();
         #[cfg(not(target_arch = "wasm32"))]
         let lists = lists || self.export.open;
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -5881,6 +5893,15 @@ impl App {
         ui.add_space(6.0);
         self.colors(ui, 16.0);
 
+        self.tune_size(ui);
+
+        if !self.wall.live && !self.base.layers.is_empty() {
+            self.layers(ui);
+        }
+    }
+
+    // The size of the picture: on a phone the controls hold it and what else the screen and the styles do not.
+    pub(crate) fn tune_size(&mut self, ui: &mut egui::Ui) {
         widgets::section(ui, &self.t("size"));
         let label = match self.picture {
             Some([width, height]) => format!("{width} × {height}"),
@@ -5889,45 +5910,18 @@ impl App {
         if widgets::dropdown(ui, &label) {
             self.open_sheet(Sheet::Sizes);
         }
-
-        if !self.wall.live && !self.base.layers.is_empty() {
-            self.layers(ui);
-        }
     }
 
     fn inspector_look(&mut self, ui: &mut egui::Ui) {
-        let flames = !self.wall.live && !self.base.layers.is_empty();
         let before = self.adjust;
-        if flames {
-            self.fractal_controls(ui);
-            widgets::section(ui, &self.t("tone"));
-            widgets::slider(ui, &self.t("brightness"), &mut self.adjust.brightness, (0.3, 2.5), true);
-            widgets::slider(ui, &self.t("gamma"), &mut self.adjust.gamma, (0.5, 1.8), false);
-            widgets::slider(ui, &self.t("glow"), &mut self.adjust.glow, (0.0, 3.0), false);
-            widgets::section(ui, &self.t("view"));
-            self.scale_slider(ui);
-
-            ui.add_space(8.0);
-            if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
-                self.adjust = NEUTRAL;
-                self.reset_view();
-            }
-        }
-
-        if self.adjust != before {
-            let zoomed = Adjust {
-                zoom: self.adjust.zoom,
-                ..before
-            };
-            if self.adjust == zoomed && self.gpu_on() {
-                self.touched = Instant::now();
-            } else {
-                self.requested = None;
-            }
-        }
+        self.tune_parameters(ui);
+        self.tune_tone(ui);
+        self.tune_view(ui);
+        self.tune_reset(ui);
+        self.adjusted(before);
 
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
-        {
+        if !self.phone.on {
             widgets::section(ui, &self.t("scene"));
             ui.add_space(4.0);
             let (open, save) = (self.t("open"), self.t("save"));
@@ -5946,6 +5940,77 @@ impl App {
         }
     }
 
+    fn tuned(&self) -> bool {
+        !self.wall.live && !self.base.layers.is_empty()
+    }
+
+    pub(crate) fn tune_parameters(&mut self, ui: &mut egui::Ui) {
+        if self.tuned() {
+            self.fractal_controls(ui);
+        }
+    }
+
+    pub(crate) fn tune_tone(&mut self, ui: &mut egui::Ui) {
+        if self.tuned() {
+            widgets::section(ui, &self.t("tone"));
+            widgets::slider(ui, &self.t("brightness"), &mut self.adjust.brightness, (0.3, 2.5), true);
+            widgets::slider(ui, &self.t("gamma"), &mut self.adjust.gamma, (0.5, 1.8), false);
+            widgets::slider(ui, &self.t("glow"), &mut self.adjust.glow, (0.0, 3.0), false);
+        }
+    }
+
+    pub(crate) fn tune_view(&mut self, ui: &mut egui::Ui) {
+        if self.tuned() {
+            widgets::section(ui, &self.t("view"));
+            self.scale_slider(ui);
+        }
+    }
+
+    pub(crate) fn tune_reset(&mut self, ui: &mut egui::Ui) {
+        if self.tuned() {
+            ui.add_space(8.0);
+            if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
+                self.adjust = NEUTRAL;
+                self.reset_view();
+            }
+        }
+    }
+
+    // A change of the sliders asks for a picture; the zoom alone, which the graphics card shows at once, waits.
+    pub(crate) fn adjusted(&mut self, before: Adjust) {
+        if self.adjust != before {
+            let zoomed = Adjust {
+                zoom: self.adjust.zoom,
+                ..before
+            };
+            if self.adjust == zoomed && self.gpu_on() {
+                self.touched = Instant::now();
+            } else {
+                self.requested = None;
+            }
+        }
+    }
+
+    // The colors each layer is drawn with: the palette chosen for it, or its own.
+    pub(crate) fn layer_shades(&self) -> Vec<palette::Lut> {
+        self.base
+            .layers
+            .iter()
+            .enumerate()
+            .map(|(index, layer)| {
+                let chosen = self.choices.of(index).and_then(|at| palette::NAMES.get(at));
+                let worn = chosen.and_then(|name| palette::named(name));
+                palette::lut(worn.as_ref().unwrap_or(layer.palette()))
+            })
+            .collect()
+    }
+
+    pub(crate) fn add_layer(&mut self) {
+        self.open_sheet(Sheet::Presets);
+        self.presets_open = true;
+        self.adding_layer = true;
+    }
+
     fn layers(&mut self, ui: &mut egui::Ui) {
         widgets::section(ui, &self.t("layers"));
         ui.add_space(2.0);
@@ -5956,17 +6021,7 @@ impl App {
         let (opacity, word) = (self.t("opacity"), self.t("layer"));
         let (chosen, mut pick, mut act) = (self.layer, None, None);
         let title = self.display(&self.title);
-        let shades: Vec<palette::Lut> = self
-            .base
-            .layers
-            .iter()
-            .enumerate()
-            .map(|(index, layer)| {
-                let chosen = self.choices.of(index).and_then(|at| palette::NAMES.get(at));
-                let worn = chosen.and_then(|name| palette::named(name));
-                palette::lut(worn.as_ref().unwrap_or(layer.palette()))
-            })
-            .collect();
+        let shades = self.layer_shades();
         let layers = &mut self.base.layers;
 
         egui::Frame::NONE
@@ -6034,11 +6089,7 @@ impl App {
         }
         let at = self.layer;
         match act {
-            Some("add") => {
-                self.open_sheet(Sheet::Presets);
-                self.presets_open = true;
-                self.adding_layer = true;
-            }
+            Some("add") => self.add_layer(),
             Some("remove") => {
                 self.base.layers.remove(at);
                 self.choices.remove(at);
@@ -6286,6 +6337,7 @@ impl App {
                 self.languages_open = false;
                 self.phone.sheet = false;
                 self.phone.tune = false;
+                self.layer_card = false;
                 #[cfg(feature = "store")]
                 {
                     self.pro = None;
@@ -7815,6 +7867,31 @@ impl App {
                     self.export_sheet(ui, window, content.height(), (width, low));
                     if widgets::close(ui, &self.t("close")) {
                         self.export.open = false;
+                    }
+                });
+            });
+            self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
+        }
+
+        let card = self.layer_card && self.base.layers.len() > 1 && !self.wall.live;
+        if let Some(shown) = self.stage.shown("layer_card", card, motion::PANEL) {
+            // It stands at the foot of the screen, so the picture it changes stays in sight above it.
+            let at = egui::pos2(content.center().x, content.bottom() - 16.0);
+            let leaf = Leaf {
+                live: card,
+                height: "layer_card_tall",
+                at,
+                pivot: egui::Align2::CENTER_BOTTOM,
+                shown,
+            };
+            let sheet = Self::sheet("layer_card", at, egui::Align2::CENTER_BOTTOM, card && live).show(&ctx, |ui| {
+                self.unfold(ui, &leaf);
+                widgets::pane().show(ui, |ui| {
+                    ui.set_width(sheet_width(content.width(), 300.0, self.phone.on));
+                    ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+                    self.layers(ui);
+                    if widgets::close(ui, &self.t("close")) {
+                        self.layer_card = false;
                     }
                 });
             });

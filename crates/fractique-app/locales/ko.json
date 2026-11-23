@@ -38,6 +38,7 @@
   "reset_view": "보기 초기화",
   "layers": "레이어",
   "layer": "레이어",
+  "add_layer": "레이어 추가",
   "blend_add": "더하기",
   "blend_screen": "스크린",
   "blend_over": "덮기",

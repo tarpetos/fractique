@@ -38,6 +38,7 @@
   "reset_view": "Resetuj widok",
   "layers": "WARSTWY",
   "layer": "Warstwa",
+  "add_layer": "Dodaj warstwę",
   "blend_add": "Suma",
   "blend_screen": "Ekran",
   "blend_over": "Nad",

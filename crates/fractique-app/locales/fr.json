@@ -38,6 +38,7 @@
   "reset_view": "Réinitialiser la vue",
   "layers": "CALQUES",
   "layer": "Calque",
+  "add_layer": "Ajouter un calque",
   "blend_add": "Somme",
   "blend_screen": "Écran",
   "blend_over": "Dessus",

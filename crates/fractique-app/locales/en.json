@@ -38,6 +38,7 @@
   "reset_view": "Reset view",
   "layers": "LAYERS",
   "layer": "Layer",
+  "add_layer": "Add layer",
   "blend_add": "Add",
   "blend_screen": "Screen",
   "blend_over": "Over",

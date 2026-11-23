@@ -38,6 +38,7 @@
   "reset_view": "Ansicht zurücksetzen",
   "layers": "EBENEN",
   "layer": "Ebene",
+  "add_layer": "Ebene hinzufügen",
   "blend_add": "Summe",
   "blend_screen": "Screen",
   "blend_over": "Darüber",
