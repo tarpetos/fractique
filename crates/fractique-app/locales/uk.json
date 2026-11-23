@@ -38,6 +38,7 @@
   "reset_view": "Скинути вигляд",
   "layers": "ШАРИ",
   "layer": "Шар",
+  "add_layer": "Додати шар",
   "blend_add": "Сума",
   "blend_screen": "Екран",
   "blend_over": "Поверх",

@@ -1293,6 +1293,8 @@ struct App {
     toolbar_size: egui::Vec2,
     languages_open: bool,
     settings_open: bool,
+    // A phone's card of the chosen layer, opened from the row of layers on the picture.
+    pub(crate) layer_card: bool,
     // The language list was opened from the settings, which come back when it closes.
     from_settings: bool,
     picture: Option<[u32; 2]>,
@@ -2002,6 +2004,7 @@ impl App {
             toolbar_size: egui::Vec2::ZERO,
             languages_open: opens("languages"),
             settings_open: opens("settings") && !opens("languages"),
+            layer_card: opens("card"),
             from_settings: opens("settings") && opens("languages"),
             picture: std::env::var("FRACTIQUE_PICTURE")
                 .ok()
@@ -3990,6 +3993,7 @@ impl App {
         self.languages_open = false;
         self.settings_open = false;
         self.from_settings = false;
+        self.layer_card = false;
         #[cfg(feature = "store")]
         {
             self.pro = None;
@@ -4507,6 +4511,10 @@ impl App {
         }
         if self.settings_open {
             self.settings_open = false;
+            return;
+        }
+        if self.layer_card {
+            self.layer_card = false;
             return;
         }
         self.phone.sheet = false;
@@ -5120,8 +5128,12 @@ impl App {
     }
 
     fn sheet_open(&self) -> bool {
-        let lists =
-            self.sizes_open || self.presets_open || self.languages_open || self.settings_open || self.pro_open();
+        let lists = self.sizes_open
+            || self.presets_open
+            || self.languages_open
+            || self.settings_open
+            || self.layer_card
+            || self.pro_open();
         #[cfg(not(target_arch = "wasm32"))]
         let lists = lists || self.export.open;
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -5912,6 +5924,26 @@ impl App {
         }
     }
 
+    // The colors each layer is drawn with: the palette chosen for it, or its own.
+    pub(crate) fn layer_shades(&self) -> Vec<palette::Lut> {
+        self.base
+            .layers
+            .iter()
+            .enumerate()
+            .map(|(index, layer)| {
+                let chosen = self.choices.of(index).and_then(|at| palette::NAMES.get(at));
+                let worn = chosen.and_then(|name| palette::named(name));
+                palette::lut(worn.as_ref().unwrap_or(layer.palette()))
+            })
+            .collect()
+    }
+
+    pub(crate) fn add_layer(&mut self) {
+        self.open_sheet(Sheet::Presets);
+        self.presets_open = true;
+        self.adding_layer = true;
+    }
+
     fn layers(&mut self, ui: &mut egui::Ui) {
         widgets::section(ui, &self.t("layers"));
         ui.add_space(2.0);
@@ -5922,17 +5954,7 @@ impl App {
         let (opacity, word) = (self.t("opacity"), self.t("layer"));
         let (chosen, mut pick, mut act) = (self.layer, None, None);
         let title = self.display(&self.title);
-        let shades: Vec<palette::Lut> = self
-            .base
-            .layers
-            .iter()
-            .enumerate()
-            .map(|(index, layer)| {
-                let chosen = self.choices.of(index).and_then(|at| palette::NAMES.get(at));
-                let worn = chosen.and_then(|name| palette::named(name));
-                palette::lut(worn.as_ref().unwrap_or(layer.palette()))
-            })
-            .collect();
+        let shades = self.layer_shades();
         let layers = &mut self.base.layers;
 
         egui::Frame::NONE
@@ -6000,11 +6022,7 @@ impl App {
         }
         let at = self.layer;
         match act {
-            Some("add") => {
-                self.open_sheet(Sheet::Presets);
-                self.presets_open = true;
-                self.adding_layer = true;
-            }
+            Some("add") => self.add_layer(),
             Some("remove") => {
                 self.base.layers.remove(at);
                 self.choices.remove(at);
@@ -6252,6 +6270,7 @@ impl App {
                 self.languages_open = false;
                 self.phone.sheet = false;
                 self.phone.tune = false;
+                self.layer_card = false;
                 #[cfg(feature = "store")]
                 {
                     self.pro = None;
@@ -7781,6 +7800,31 @@ impl App {
                     self.export_sheet(ui, window, content.height(), (width, low));
                     if widgets::close(ui, &self.t("close")) {
                         self.export.open = false;
+                    }
+                });
+            });
+            self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
+        }
+
+        let card = self.layer_card && self.base.layers.len() > 1 && !self.wall.live;
+        if let Some(shown) = self.stage.shown("layer_card", card, motion::PANEL) {
+            // It stands at the foot of the screen, so the picture it changes stays in sight above it.
+            let at = egui::pos2(content.center().x, content.bottom() - 16.0);
+            let leaf = Leaf {
+                live: card,
+                height: "layer_card_tall",
+                at,
+                pivot: egui::Align2::CENTER_BOTTOM,
+                shown,
+            };
+            let sheet = Self::sheet("layer_card", at, egui::Align2::CENTER_BOTTOM, card && live).show(&ctx, |ui| {
+                self.unfold(ui, &leaf);
+                widgets::pane().show(ui, |ui| {
+                    ui.set_width(sheet_width(content.width(), 300.0, self.phone.on));
+                    ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+                    self.layers(ui);
+                    if widgets::close(ui, &self.t("close")) {
+                        self.layer_card = false;
                     }
                 });
             });

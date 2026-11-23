@@ -38,6 +38,7 @@
   "reset_view": "Restablecer vista",
   "layers": "CAPAS",
   "layer": "Capa",
+  "add_layer": "Añadir capa",
   "blend_add": "Suma",
   "blend_screen": "Trama",
   "blend_over": "Encima",

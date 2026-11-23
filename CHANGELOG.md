@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* **App, phones:** a row of layers under the colors chooses the layer the colors, presets and buttons change; a second tap opens its blend, opacity and order.
 * **App:** in a picture of several layers a preset or a fractal type replaces only the chosen layer, as Randomize does.
 * **App:** Open offers `.flame` files only in Flames; a wallpaper is saved under its layout and material.
 * **App:** an export of several layers at Ultra and 3840 × 2160 stays on the graphics card instead of going to the processor.

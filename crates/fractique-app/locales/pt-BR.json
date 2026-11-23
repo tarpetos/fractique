@@ -38,6 +38,7 @@
   "reset_view": "Redefinir vista",
   "layers": "CAMADAS",
   "layer": "Camada",
+  "add_layer": "Adicionar camada",
   "blend_add": "Soma",
   "blend_screen": "Tela",
   "blend_over": "Sobre",

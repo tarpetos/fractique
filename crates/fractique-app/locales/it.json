@@ -38,6 +38,7 @@
   "reset_view": "Ripristina vista",
   "layers": "LIVELLI",
   "layer": "Livello",
+  "add_layer": "Aggiungi livello",
   "blend_add": "Somma",
   "blend_screen": "Scolora",
   "blend_over": "Sopra",
