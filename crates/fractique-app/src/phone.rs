@@ -966,7 +966,8 @@ impl App {
         let mut below = strip.response.rect.bottom() + 12.0;
 
         // A picture of several layers shows them in a row under the colors, which paint the chosen one: a tap
-        // chooses a layer, the sliders after them open its card (so does a second tap on it), the cross adds one.
+        // chooses a layer, the cross after them adds one, the sliders at the end open its card (so does a second
+        // tap on it).
         let count = self.base.layers.len();
         if count > 1 && !self.wall.live {
             let shades = self.layer_shades();
@@ -994,11 +995,6 @@ impl App {
                                         tapped = Some(index);
                                     }
                                 }
-                                let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
-                                ui.painter()
-                                    .circle_filled(rect.center(), 14.0, ink.gamma_multiply(0.14));
-                                icon(ui.painter(), rect.center(), Icon::Style, ink, 0.7);
-                                card = response.on_hover_text(self.texts.get("layer")).clicked();
                                 if count < fractique_core::scene::MAX_LAYERS {
                                     let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
                                     let stroke = Stroke::new(1.6, ink);
@@ -1017,6 +1013,11 @@ impl App {
                                     );
                                     add = response.clicked();
                                 }
+                                let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+                                ui.painter()
+                                    .circle_filled(rect.center(), 14.0, ink.gamma_multiply(0.14));
+                                icon(ui.painter(), rect.center(), Icon::Style, ink, 0.7);
+                                card = response.on_hover_text(self.texts.get("layer")).clicked();
                             });
                         });
                 });
