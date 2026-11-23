@@ -36,6 +36,9 @@ const REFUSED: usize = 8;
 // Histograms and levels of one run, in bytes; half of it for a picture that is drawn with a margin, whose
 // histogram is a quarter of the card's largest buffer at the most: a margin is given up before memory is short.
 const ROOM: u64 = 1 << 30;
+// An export has the card to itself: three layers of 3840 × 2160 at Ultra, drawn at twice the size a side, take
+// 2.4 GB. A card that does not hold it gives the export to the processor.
+const EXPORT_ROOM: u64 = 1 << 32;
 // Cells a unit, times the distance of the view from the origin: above it 32-bit coordinates show as a grid.
 const FINEST: f64 = 4.0e5;
 // A walker of an orbit takes steps that plot nothing before its first point: the walkers of a layer together
@@ -1554,7 +1557,14 @@ impl Chaos {
                 } else {
                     self.largest_buffer / 4
                 }
-            || cells * 24 * layers > if margin == [0; 2] { ROOM } else { ROOM / 2 }
+            || cells * 24 * layers
+                > if self.reserved.is_some() {
+                    EXPORT_ROOM
+                } else if margin == [0; 2] {
+                    ROOM
+                } else {
+                    ROOM / 2
+                }
             || bounded
                 && scene
                     .layers
