@@ -5883,6 +5883,7 @@ impl App {
         self.tune_parameters(ui);
         self.tune_tone(ui);
         self.tune_view(ui);
+        self.tune_reset(ui);
         self.adjusted(before);
 
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -5934,6 +5935,11 @@ impl App {
         if self.tuned() {
             widgets::section(ui, &self.t("view"));
             self.scale_slider(ui);
+        }
+    }
+
+    pub(crate) fn tune_reset(&mut self, ui: &mut egui::Ui) {
+        if self.tuned() {
             ui.add_space(8.0);
             if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
                 self.adjust = NEUTRAL;

@@ -1270,7 +1270,8 @@ impl App {
                             egui::Frame::NONE.inner_margin(gutter).show(ui, |ui| {
                                 let before = self.adjust;
                                 // On its side the sections are shared out so the two columns are about as tall:
-                                // the parameters beside the tone and the view, or the view beside the tone.
+                                // the parameters beside the tone and the view, or the view beside the tone. Reset
+                                // takes back the tone and the view together, so it spans both columns below.
                                 if lying {
                                     let parameters = self.has_parameters();
                                     ui.spacing_mut().item_spacing.x = 26.0;
@@ -1293,6 +1294,7 @@ impl App {
                                     self.tune_tone(ui);
                                     self.tune_view(ui);
                                 }
+                                self.tune_reset(ui);
                                 self.adjusted(before);
                             });
                         });
