@@ -283,10 +283,6 @@ pub fn cog(painter: &egui::Painter, at: egui::Pos2, scale: f32, ink: egui::Color
 
 pub const CLOSE: f32 = 28.0;
 
-pub fn line(ui: &Ui, size: f32) -> f32 {
-    ui.fonts_mut(|fonts| fonts.row_height(&font(size, SEMIBOLD)))
-}
-
 pub fn close_spot(top: f32, line: f32, right: f32) -> egui::Pos2 {
     egui::pos2(right - CLOSE * 0.5, top + line * 0.5)
 }

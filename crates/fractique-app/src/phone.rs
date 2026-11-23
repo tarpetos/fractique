@@ -169,6 +169,8 @@ pub struct Phone {
     pub pressing: bool,
     pub share_from: Rect,
     pub shown: f32,
+    // How tall the controls were the frame before: their scroll area is as tall, up to the screen.
+    pub tune_tall: f32,
 }
 
 type Thumb = (String, [usize; 2], Vec<u8>);
@@ -220,6 +222,7 @@ impl Phone {
             pressing: false,
             share_from: Rect::ZERO,
             shown: 1.0,
+            tune_tall: 0.0,
         }
     }
 }
@@ -1224,6 +1227,8 @@ impl App {
         // On its side a phone is wide and low: the controls go in two columns.
         let lying = content.width() > content.height();
         let mut done = false;
+        // Laid out from the top, where it has the whole height, as tall as what it holds; then moved to the foot of
+        // the screen, so the picture stays in sight above it.
         let area = egui::Area::new(egui::Id::unique("phone_tune"))
             .fixed_pos(panel.min)
             .interactable(live)
@@ -1242,18 +1247,18 @@ impl App {
                     ui.set_width(inner);
                     ui.spacing_mut().item_spacing = vec2(8.0, 2.0);
                     let top = ui.cursor().top();
-                    self.inspector_head(ui);
-                    let spot = widgets::close_spot(top, widgets::line(ui, 30.0), panel.right() - widgets::PAD);
+                    widgets::title(ui, &self.t("fine_tune"), 17.0);
+                    let spot = widgets::close_spot(top, widgets::CLOSE, panel.right() - widgets::PAD);
                     done = widgets::close_at(ui, spot, &self.t("close"));
-                    ui.add_space(4.0);
                     let room = panel.height() - 2.0 * widgets::PAD - (ui.cursor().top() - top);
                     let mut bar = egui::style::ScrollStyle::floating();
                     bar.bar_width = 5.0;
                     bar.floating_allocated_width = 0.0;
                     ui.spacing_mut().scroll = bar;
-                    crate::scrolled(egui::ScrollArea::vertical())
+                    let tall = self.phone.tune_tall.min(room);
+                    let output = crate::scrolled(egui::ScrollArea::vertical())
                         .max_height(room)
-                        .min_scrolled_height(room)
+                        .min_scrolled_height(tall)
                         .show(ui, |ui| {
                             let gutter = egui::Margin {
                                 right: 14,
@@ -1274,12 +1279,18 @@ impl App {
                                 }
                             });
                         });
+                    if output.content_size.y > 0.0 {
+                        self.phone.tune_tall = output.content_size.y;
+                    }
                 });
             });
-        let by = vec2(0.0, (1.0 - shown) * motion::SHIFT);
+        let by = vec2(
+            0.0,
+            (1.0 - shown) * motion::SHIFT + (panel.bottom() - area.response.rect.bottom()).max(0.0),
+        );
         ctx.set_transform_layer(area.response.layer_id, egui::emath::TSTransform::from_translation(by));
         let from = panes.len();
-        panes.push((panel.translate(by), self.optics.radius, false));
+        panes.push((area.response.rect.translate(by), self.optics.radius, false));
         self.faded(panes, from, shown);
         if done {
             self.phone.tune = false;
