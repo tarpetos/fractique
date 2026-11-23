@@ -1292,6 +1292,9 @@ struct App {
     leaf_top: f32,
     toolbar_size: egui::Vec2,
     languages_open: bool,
+    settings_open: bool,
+    // The language list was opened from the settings, which come back when it closes.
+    from_settings: bool,
     picture: Option<[u32; 2]>,
     then: Vec<View>,
     steps: Vec<String>,
@@ -1327,7 +1330,6 @@ struct App {
     reset_home: Option<egui::Pos2>,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     probe: u32,
-    language_anchor: egui::Pos2,
     results: (mpsc::Sender<Rendered>, mpsc::Receiver<Rendered>),
     kept: Layers,
     cancel: Arc<AtomicBool>,
@@ -1999,7 +2001,8 @@ impl App {
             leaf_top: 0.0,
             toolbar_size: egui::Vec2::ZERO,
             languages_open: opens("languages"),
-            language_anchor: egui::Pos2::ZERO,
+            settings_open: opens("settings") && !opens("languages"),
+            from_settings: opens("settings") && opens("languages"),
             picture: std::env::var("FRACTIQUE_PICTURE")
                 .ok()
                 .or_else(|| stored("picture"))
@@ -3932,6 +3935,8 @@ impl App {
         self.adding_layer = false;
         self.sizes_open = which == Sheet::Sizes && !sizes;
         self.languages_open = false;
+        self.settings_open = false;
+        self.from_settings = false;
         #[cfg(feature = "store")]
         {
             self.pro = None;
@@ -4437,6 +4442,10 @@ impl App {
         #[cfg(not(target_arch = "wasm32"))]
         if self.export.open && self.export.job.is_none() {
             self.export.open = false;
+            return;
+        }
+        if self.settings_open {
+            self.settings_open = false;
             return;
         }
         self.phone.sheet = false;
@@ -5050,7 +5059,8 @@ impl App {
     }
 
     fn sheet_open(&self) -> bool {
-        let lists = self.sizes_open || self.presets_open || self.languages_open || self.pro_open();
+        let lists =
+            self.sizes_open || self.presets_open || self.languages_open || self.settings_open || self.pro_open();
         #[cfg(not(target_arch = "wasm32"))]
         let lists = lists || self.export.open;
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -5510,6 +5520,7 @@ impl App {
                 // The App Store updates its own builds, and they may not point at a download outside it.
                 if version.clicked() && !cfg!(feature = "store") {
                     self.languages_open = false;
+                    self.settings_open = false;
                     self.sizes_open = false;
                     self.presets_open = false;
                     self.export.open = false;
@@ -5578,39 +5589,6 @@ impl App {
                     }
                     slot = slot.translate(egui::vec2(-36.0, 0.0));
                 }
-
-                let ink = egui::Color32::from_white_alpha(235);
-                let galley = painter.layout_no_wrap(self.texts.lang.name().to_owned(), font(12.5, MEDIUM), ink);
-                let chip = egui::Rect::from_min_max(
-                    egui::pos2(slot.right() - galley.size().x - 40.0, rect.center().y - 15.0),
-                    egui::pos2(slot.right(), rect.center().y + 15.0),
-                );
-                let language = ui.interact(chip, egui::Id::unique("title bar language"), egui::Sense::click());
-                let lit = language.hovered() || self.languages_open;
-                let lift = (26.0 * widgets::glided(ui, language.id.with("lit"), lit)) as u8;
-                painter.rect_filled(
-                    chip,
-                    egui::CornerRadius::same(15),
-                    egui::Color32::from_white_alpha(30 + lift),
-                );
-                painter.galley(
-                    egui::pos2(chip.left() + 14.0, chip.center().y - galley.size().y * 0.5),
-                    galley,
-                    ink,
-                );
-                let mark = egui::pos2(chip.right() - 15.0, chip.center().y);
-                let tip = if self.languages_open { -2.0 } else { 2.0 };
-                let stroke = egui::Stroke::new(1.4, ink);
-                painter.line_segment([mark + egui::vec2(-4.0, -tip), mark + egui::vec2(0.0, tip)], stroke);
-                painter.line_segment([mark + egui::vec2(4.0, -tip), mark + egui::vec2(0.0, tip)], stroke);
-                self.language_anchor = chip.right_bottom();
-                if language.clicked() {
-                    self.languages_open = !self.languages_open;
-                    self.sizes_open = false;
-                    self.presets_open = false;
-                    self.export.open = false;
-                    self.updates.open = false;
-                }
             });
         bar
     }
@@ -5637,6 +5615,103 @@ impl App {
 
     fn t(&self, key: &str) -> String {
         self.texts.get(key)
+    }
+
+    fn settings_sheet(&mut self, ui: &mut egui::Ui, width: f32, room: f32) {
+        ui.set_width(width);
+        ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+        widgets::title(ui, &self.t("settings"), 17.0);
+        // A low screen, as a phone on its side, scrolls the rows; anywhere else they all stand in the sheet.
+        if room >= 640.0 {
+            self.settings_rows(ui);
+            return;
+        }
+        let tall = (room - 150.0).max(160.0);
+        let mut bar = egui::style::ScrollStyle::floating();
+        bar.bar_width = 5.0;
+        bar.floating_allocated_width = 0.0;
+        ui.spacing_mut().scroll = bar;
+        let gutter = egui::Margin {
+            right: 14,
+            ..Default::default()
+        };
+        scrolled(egui::ScrollArea::vertical())
+            .max_height(tall)
+            .min_scrolled_height(tall)
+            .show(ui, |ui| {
+                egui::Frame::NONE
+                    .inner_margin(gutter)
+                    .show(ui, |ui| self.settings_rows(ui));
+            });
+    }
+
+    fn settings_rows(&mut self, ui: &mut egui::Ui) {
+        widgets::section(ui, &self.t("language"));
+        if widgets::row(ui, self.texts.lang.name(), true) {
+            self.settings_open = false;
+            self.from_settings = true;
+            self.languages_open = true;
+        }
+
+        widgets::section(ui, &self.t("glass"));
+        let mut opacity = f64::from(self.optics.tint);
+        widgets::slider(ui, &self.t("opacity"), &mut opacity, (0.0, 1.0), false);
+        self.optics.tint = opacity as f32;
+        let mut blur = f64::from(self.optics.blur);
+        widgets::slider(ui, &self.t("blur"), &mut blur, (0.0, 1.0), false);
+        self.optics.blur = blur as f32;
+        ui.add_space(8.0);
+        if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
+            (self.optics.tint, self.optics.blur) = GLASS;
+        }
+        if self.card_used() {
+            widgets::section(ui, &self.t("graphics"));
+            let (turned, pressed) = widgets::toggle_warned(ui, &self.t("gpu"), &mut self.gpu);
+            if turned {
+                self.gpu_chosen = true;
+                self.gpu_turned();
+            }
+            self.gpu_warned ^= pressed;
+            widgets::warning(ui, ui.scope_id().with("gpu weak"), &self.t("gpu_weak"), self.gpu_warned);
+            if self.gpu {
+                ui.add_space(4.0);
+                let card = egui::RichText::new(&self.card)
+                    .size(12.0)
+                    .color(egui::Color32::from_white_alpha(110));
+                ui.add(egui::Label::new(card).truncate());
+                ui.add_space(2.0);
+                ui.label(
+                    egui::RichText::new(self.t("gpu_note"))
+                        .size(12.0)
+                        .color(egui::Color32::from_white_alpha(150)),
+                );
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    ui.add_space(8.0);
+                    widgets::toggle(ui, &self.t("exact"), &mut self.exact);
+                    ui.add_space(2.0);
+                    ui.label(
+                        egui::RichText::new(self.t("exact_note"))
+                            .size(12.0)
+                            .color(egui::Color32::from_white_alpha(150)),
+                    );
+                }
+            }
+        }
+
+        // The App Store updates its own builds, and they may not point at a download outside it.
+        #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32", feature = "store")))]
+        {
+            widgets::section(ui, &self.t("app_version"));
+            let label = match self.updates.newer() {
+                Some(newer) => format!("v{} → v{newer}", update::current()),
+                None => format!("v{}", update::current()),
+            };
+            if widgets::row(ui, &label, false) {
+                self.settings_open = false;
+                self.updates.show(ui.ctx());
+            }
+        }
     }
 
     fn inspector(&mut self, ui: &mut egui::Ui, width: f32) {
@@ -5676,15 +5751,6 @@ impl App {
     }
 
     fn inspector_scene(&mut self, ui: &mut egui::Ui) {
-        if self.phone.on || cfg!(any(target_os = "android", target_os = "ios", target_arch = "wasm32")) {
-            widgets::section(ui, &self.t("language"));
-            if widgets::row(ui, self.texts.lang.name(), true) {
-                self.languages_open = !self.languages_open;
-                self.sizes_open = false;
-                self.presets_open = false;
-            }
-        }
-
         ui.add_space(widgets::SECTION);
         let tabs = ["flames", "fractals", "shapes"].map(|key| self.t(key));
         if let Some(tab) = widgets::segments(ui, &tabs, self.tab()) {
@@ -5753,17 +5819,6 @@ impl App {
             }
         }
 
-        widgets::section(ui, &self.t("glass"));
-        let mut opacity = f64::from(self.optics.tint);
-        widgets::slider(ui, &self.t("opacity"), &mut opacity, (0.0, 1.0), false);
-        self.optics.tint = opacity as f32;
-        let mut blur = f64::from(self.optics.blur);
-        widgets::slider(ui, &self.t("blur"), &mut blur, (0.0, 1.0), false);
-        self.optics.blur = blur as f32;
-        ui.add_space(8.0);
-        if widgets::pill(ui, &self.t("reset"), false, ui.available_width()) {
-            (self.optics.tint, self.optics.blur) = GLASS;
-        }
         if self.adjust != before {
             let zoomed = Adjust {
                 zoom: self.adjust.zoom,
@@ -5773,41 +5828,6 @@ impl App {
                 self.touched = Instant::now();
             } else {
                 self.requested = None;
-            }
-        }
-
-        if self.card_used() {
-            widgets::section(ui, &self.t("graphics"));
-            let (turned, pressed) = widgets::toggle_warned(ui, &self.t("gpu"), &mut self.gpu);
-            if turned {
-                self.gpu_chosen = true;
-                self.gpu_turned();
-            }
-            self.gpu_warned ^= pressed;
-            widgets::warning(ui, ui.scope_id().with("gpu weak"), &self.t("gpu_weak"), self.gpu_warned);
-            if self.gpu {
-                ui.add_space(4.0);
-                let card = egui::RichText::new(&self.card)
-                    .size(12.0)
-                    .color(egui::Color32::from_white_alpha(110));
-                ui.add(egui::Label::new(card).truncate());
-                ui.add_space(2.0);
-                ui.label(
-                    egui::RichText::new(self.t("gpu_note"))
-                        .size(12.0)
-                        .color(egui::Color32::from_white_alpha(150)),
-                );
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    ui.add_space(8.0);
-                    widgets::toggle(ui, &self.t("exact"), &mut self.exact);
-                    ui.add_space(2.0);
-                    ui.label(
-                        egui::RichText::new(self.t("exact_note"))
-                            .size(12.0)
-                            .color(egui::Color32::from_white_alpha(150)),
-                    );
-                }
             }
         }
 
@@ -6063,25 +6083,25 @@ impl App {
         let labels: Vec<String> = keys.iter().map(|key| self.t(key)).collect();
         let natural: f32 = labels.iter().map(|label| widgets::pill_width(ui, label)).sum();
         let arrow = widgets::BACK + gap;
-        let one_row = arrow + natural + (labels.len() - 1) as f32 * gap <= room;
-        let hint = self.t("back");
+        let one_row = 2.0 * arrow + natural + (labels.len() - 1) as f32 * gap <= room;
+        let (hint, gear) = (self.t("back"), self.t("settings"));
 
-        let (mut clicked, mut back) = (None, false);
+        let (mut clicked, mut back, mut settings) = (None, false, false);
         let mut row = |ui: &mut egui::Ui, buttons: std::ops::Range<usize>| {
             ui.horizontal(|ui| {
                 let first = buttons.start == 0;
                 if first {
                     back = widgets::back(ui, &hint);
                 }
-                let width = match (one_row, first) {
-                    (true, _) => 0.0,
-                    (false, true) => (room - arrow - gap) * 0.5,
-                    (false, false) => (room - gap) * 0.5,
-                };
+                let last = buttons.end == labels.len();
+                let width = if one_row { 0.0 } else { (room - arrow - gap) * 0.5 };
                 for index in buttons {
                     if widgets::pill(ui, &labels[index], false, width) {
                         clicked = Some(keys[index]);
                     }
+                }
+                if last {
+                    settings = widgets::gear(ui, &gear);
                 }
             });
         };
@@ -6094,6 +6114,9 @@ impl App {
 
         if back {
             self.travel(true);
+        }
+        if settings {
+            self.act("settings");
         }
         if let Some(key) = clicked {
             self.act(key);
@@ -6156,8 +6179,31 @@ impl App {
                 self.presets_open = false;
                 self.sizes_open = false;
                 self.languages_open = false;
+                self.settings_open = false;
                 self.export.open = !self.export.open;
                 self.export.note.clear();
+            }
+            Some("settings") => {
+                let open = !self.settings_open && !self.from_settings;
+                self.from_settings = false;
+                self.presets_open = false;
+                self.sizes_open = false;
+                self.languages_open = false;
+                self.phone.sheet = false;
+                self.phone.tune = false;
+                #[cfg(feature = "store")]
+                {
+                    self.pro = None;
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    self.export.open = false;
+                }
+                #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
+                {
+                    self.updates.open = false;
+                }
+                self.settings_open = open;
             }
             Some("controls") => self.inspector_open = Some(!self.inspector_open.unwrap_or(false)),
             _ => {}
@@ -7659,6 +7705,33 @@ impl App {
             self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
         }
 
+        if let Some(shown) = self.stage.shown("settings", self.settings_open, motion::PANEL) {
+            let leaf = Leaf {
+                live: self.settings_open,
+                height: "settings_tall",
+                at: content.center(),
+                pivot: egui::Align2::CENTER_CENTER,
+                shown,
+            };
+            let sheet = Self::sheet(
+                "settings",
+                content.center(),
+                egui::Align2::CENTER_CENTER,
+                self.settings_open && live,
+            )
+            .show(&ctx, |ui| {
+                self.unfold(ui, &leaf);
+                widgets::pane().show(ui, |ui| {
+                    let width = sheet_width(content.width(), 300.0, self.phone.on);
+                    self.settings_sheet(ui, width, content.height());
+                    if widgets::close(ui, &self.t("close")) {
+                        self.settings_open = false;
+                    }
+                });
+            });
+            self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
+        }
+
         #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
         if let Some(shown) = self.stage.shown("updates", self.updates.open, motion::PANEL) {
             let width = (content.width() - 84.0).min(600.0);
@@ -7772,20 +7845,7 @@ impl App {
 
         if let Some(shown) = self.stage.shown("languages", self.languages_open, motion::PANEL) {
             let live = self.languages_open;
-            // On a computer the list hangs from its button in the title bar and is left as any dropdown is: by a
-            // row, the button, a click beside it or Escape. It has no close button of its own.
-            let dropdown = !self.phone.on
-                && cfg!(not(any(
-                    target_os = "android",
-                    target_os = "ios",
-                    target_arch = "wasm32"
-                )));
-            let (at, pivot, room) = if dropdown {
-                let at = self.language_anchor + egui::vec2(0.0, 12.0);
-                (at, egui::Align2::RIGHT_TOP, content.height())
-            } else {
-                list_place(content, self.phone.on)
-            };
+            let (at, pivot, room) = list_place(content, self.phone.on);
             let mut chosen = self.texts.lang;
             if live {
                 self.list_backdrop(&ctx, screen);
@@ -7802,11 +7862,7 @@ impl App {
                 widgets::pane().show(ui, |ui| {
                     ui.set_width(sheet_width(content.width(), 196.0, self.phone.on));
                     ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
-                    if dropdown {
-                        widgets::caption(ui, &self.t("language"));
-                    } else {
-                        widgets::heading(ui, &self.t("language"));
-                    }
+                    widgets::heading(ui, &self.t("language"));
                     let mut bar = egui::style::ScrollStyle::floating();
                     bar.bar_width = 5.0;
                     ui.spacing_mut().scroll = bar;
@@ -7822,7 +7878,7 @@ impl App {
                                 }
                             }
                         });
-                    if !dropdown && widgets::close(ui, &self.t("close")) {
+                    if widgets::close(ui, &self.t("close")) {
                         self.languages_open = false;
                     }
                 });
@@ -7830,6 +7886,10 @@ impl App {
             ctx.move_to_top(menu.response.layer_id);
             if chosen != self.texts.lang {
                 self.set_language(&ctx, chosen);
+            }
+            if !self.languages_open && self.from_settings {
+                self.from_settings = false;
+                self.settings_open = true;
             }
             self.leaf(&ctx, &mut panes, &menu.response, &leaf, self.optics.radius, true);
         }

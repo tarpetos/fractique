@@ -103,11 +103,6 @@ pub fn title(ui: &mut Ui, text: &str, size: f32) {
 }
 
 // A heading of a pane without a close button: a line of its own height under the pane's padding.
-pub fn caption(ui: &mut Ui, title: &str) {
-    ui.label(egui::RichText::new(title).font(font(11.0, SEMIBOLD)).color(white(120)));
-    ui.add_space(HEAD);
-}
-
 pub fn heading(ui: &mut Ui, title: &str) {
     head(ui, title, font(11.0, SEMIBOLD), white(120));
     ui.add_space(HEAD);
@@ -250,6 +245,40 @@ pub fn back(ui: &mut Ui, hint: &str) -> bool {
         ui.painter().line_segment([tip, tip + to], ink);
     }
     response.on_hover_text(hint).clicked()
+}
+
+pub fn gear(ui: &mut Ui, hint: &str) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(BACK, BACK), Sense::click());
+    let fill = if response.is_pointer_button_down_on() {
+        20
+    } else {
+        lift(30, 20.0, lit(ui, &response))
+    };
+    ui.painter().circle_filled(rect.center(), BACK * 0.5, white(fill));
+    cog(ui.painter(), rect.center(), 1.0, white(240));
+    response.on_hover_text(hint).clicked()
+}
+
+// A cog wheel of eight teeth, about 20 points across at scale 1.
+pub fn cog(painter: &egui::Painter, at: egui::Pos2, scale: f32, ink: egui::Color32) {
+    let stroke = egui::Stroke::new(1.6 * scale.max(0.7), ink);
+    painter.circle_stroke(at, 6.2 * scale, stroke);
+    painter.circle_stroke(at, 2.4 * scale, stroke);
+    let tooth = egui::Stroke::new(3.0 * scale.max(0.7), ink);
+    let half = std::f32::consts::FRAC_1_SQRT_2;
+    for (x, y) in [
+        (1.0, 0.0),
+        (half, half),
+        (0.0, 1.0),
+        (-half, half),
+        (-1.0, 0.0),
+        (-half, -half),
+        (0.0, -1.0),
+        (half, -half),
+    ] {
+        let way = vec2(x, y);
+        painter.line_segment([at + way * 6.6 * scale, at + way * 9.2 * scale], tooth);
+    }
 }
 
 pub const CLOSE: f32 = 28.0;

@@ -14,6 +14,8 @@
   "randomize": "Acak",
   "mutate": "Mutasi",
   "controls": "Kontrol",
+  "settings": "Pengaturan",
+  "app_version": "VERSI",
   "reset": "Atur ulang",
   "rendering": "merender",
   "random": "acak",
