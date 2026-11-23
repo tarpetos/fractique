@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* **App:** an export of several layers at Ultra and 3840 × 2160 stays on the graphics card instead of going to the processor.
 * **App:** a gear at the right of the toolbar, and on a phone above the export button, opens the settings: language, glass, GPU acceleration, version.
 * **App:** with GPU acceleration on, exports at Standard, High and Ultra are drawn by the graphics card, Ultra at 3840 × 2160 in 12 s on an RTX 4070 instead of 109 s; **Exact pictures** keeps them on the processor.
 * **App:** an Instant export larger than the picture on the screen is drawn by the graphics card too: 3840 × 2160 in 0.3 s on an RTX 4070 instead of 5 s.
