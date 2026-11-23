@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* **App:** with GPU acceleration on, exports at Standard, High and Ultra are drawn by the graphics card, Ultra at 3840 × 2160 in 12 s on an RTX 4070 instead of 109 s; **Exact pictures** keeps them on the processor.
 * **App Store builds:** hiding the panels to see the picture alone needs Fractique Pro; the eye opens its sheet.
 * **App:** after the graphics card gives up a deep view of a fractal drawn pixel by pixel, zooming back out draws the view on the card again, with its drafts while it moves.
 * **App, Linux:** the window has round corners, as on Windows and macOS.

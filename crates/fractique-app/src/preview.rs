@@ -78,6 +78,9 @@ pub struct Preview {
     sampler: wgpu::Sampler,
     layer: [wgpu::RenderPipeline; 3],
     toned: wgpu::RenderPipeline,
+    reduce: wgpu::RenderPipeline,
+    // The levels of an export drawn larger, made its size: the textures are kept while it is drawn from them.
+    reduced: Vec<wgpu::TextureView>,
     shrink: wgpu::RenderPipeline,
     blur: wgpu::RenderPipeline,
     inlay: wgpu::RenderPipeline,
@@ -334,6 +337,32 @@ impl Preview {
                 pipeline("fs_layer", blended(one, less_source)),
             ],
             toned: pipeline("fs_toned", None),
+            reduce: device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("fs_reduce"),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    entry_point: Some("vs_main"),
+                    module: &module,
+                    buffers: &[],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                primitive: wgpu::PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState::default(),
+                fragment: Some(wgpu::FragmentState {
+                    module: &module,
+                    entry_point: Some("fs_reduce"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: LEVELS,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                }),
+                multiview_mask: None,
+                cache: None,
+            }),
+            reduced: Vec::new(),
             shrink: pipeline("fs_shrink", None),
             blur: pipeline("fs_blur", None),
             inlay: pipeline(
@@ -674,6 +703,103 @@ impl Preview {
         let drawn = guarded(&device, &failed, ctx, || {
             self.passes(scene, size, size, levels, Kind::Draft).is_some()
         });
+        drawn && self.works()
+    }
+
+    // Levels drawn `from` a picture as many times larger a side as it is `to`, made its size before they are toned,
+    // then drawn into the textures of an export's tiles.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub fn draw_reduced(
+        &mut self,
+        scene: &Scene,
+        from: [u32; 2],
+        to: [u32; 2],
+        levels: &[&wgpu::TextureView],
+        ctx: &egui::Context,
+    ) -> bool {
+        let (device, failed) = (self.device.clone(), self.failed.clone());
+        let taps = (from[0] / to[0].max(1)).max(1);
+        let reduced: Option<Vec<wgpu::TextureView>> = guarded(&device, &failed, ctx, || {
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+            let mut views = Vec::new();
+            let uniforms = Uniforms {
+                tone: [0.0; 4],
+                blend: [0.0, 0.0, taps as f32, 0.0],
+                reach: [0.0; 4],
+            };
+            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("fractique preview uniforms"),
+                size: size_of::<Uniforms>() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.queue.write_buffer(&buffer, 0, bytemuck::bytes_of(&uniforms));
+            for source in levels {
+                let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("fractique reduced levels"),
+                    size: wgpu::Extent3d {
+                        width: to[0],
+                        height: to[1],
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: LEVELS,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[],
+                });
+                let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+                let entry = |binding, resource| wgpu::BindGroupEntry { binding, resource };
+                let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("fractique preview"),
+                    layout: &self.layout,
+                    entries: &[
+                        entry(0, buffer.as_entire_binding()),
+                        entry(1, wgpu::BindingResource::TextureView(source)),
+                        entry(2, wgpu::BindingResource::TextureView(&self.nothing)),
+                        entry(3, wgpu::BindingResource::Sampler(&self.sampler)),
+                    ],
+                });
+                {
+                    let mut drawing = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("fractique preview"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &view,
+                            depth_slice: None,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                        timestamp_writes: None,
+                        occlusion_query_set: None,
+                        multiview_mask: None,
+                    });
+                    drawing.set_pipeline(&self.reduce);
+                    drawing.set_bind_group(0, &bind_group, &[]);
+                    drawing.draw(0..3, 0..1);
+                }
+                views.push(view);
+            }
+            self.queue.submit([encoder.finish()]);
+            Some(views)
+        });
+        let Some(reduced) = reduced else {
+            return false;
+        };
+        self.reduced = reduced;
+        let reduced = std::mem::take(&mut self.reduced);
+        let sources: Vec<&wgpu::TextureView> = reduced.iter().collect();
+        let drawn = guarded(&device, &failed, ctx, || {
+            self.passes(scene, to, to, &sources, Kind::Tile).is_some()
+        });
+        drop(sources);
+        self.reduced = reduced;
         drawn && self.works()
     }
 
