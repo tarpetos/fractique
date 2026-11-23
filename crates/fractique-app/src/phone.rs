@@ -1264,12 +1264,12 @@ impl App {
                                     ui.spacing_mut().item_spacing.x = 26.0;
                                     ui.columns(2, |columns| {
                                         columns[0].spacing_mut().item_spacing = vec2(8.0, 2.0);
-                                        self.inspector_scene(&mut columns[0]);
+                                        self.tune_size(&mut columns[0]);
                                         columns[1].spacing_mut().item_spacing = vec2(8.0, 2.0);
                                         self.inspector_look(&mut columns[1]);
                                     });
                                 } else {
-                                    self.inspector_scene(ui);
+                                    self.tune_size(ui);
                                     self.inspector_look(ui);
                                 }
                             });

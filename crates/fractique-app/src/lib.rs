@@ -5859,6 +5859,15 @@ impl App {
         ui.add_space(6.0);
         self.colors(ui, 16.0);
 
+        self.tune_size(ui);
+
+        if !self.wall.live && !self.base.layers.is_empty() {
+            self.layers(ui);
+        }
+    }
+
+    // The size of the picture: on a phone the controls hold it and what else the screen and the styles do not.
+    pub(crate) fn tune_size(&mut self, ui: &mut egui::Ui) {
         widgets::section(ui, &self.t("size"));
         let label = match self.picture {
             Some([width, height]) => format!("{width} × {height}"),
@@ -5866,10 +5875,6 @@ impl App {
         };
         if widgets::dropdown(ui, &label) {
             self.open_sheet(Sheet::Sizes);
-        }
-
-        if !self.wall.live && !self.base.layers.is_empty() {
-            self.layers(ui);
         }
     }
 
