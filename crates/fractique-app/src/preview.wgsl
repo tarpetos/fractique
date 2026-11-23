@@ -81,6 +81,29 @@ fn fs_toned(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     return sum / max(count, 1.0);
 }
 
+// A picture drawn as many times larger a side as blend.z, made the picture's size before it is toned, as
+// fractique-core's tone.rs makes a supersampled one: the levels of its cells averaged, the colors of the lit ones.
+@fragment
+fn fs_reduce(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
+    let taps = i32(u.blend.z);
+    let limit = vec2<i32>(textureDimensions(levels)) - vec2<i32>(1);
+    let corner = vec2<i32>(floor(pos.xy)) * taps;
+    var color = vec3<f32>(0.0);
+    var lit = 0.0;
+    var level = 0.0;
+    for (var j = 0; j < taps; j++) {
+        for (var i = 0; i < taps; i++) {
+            let cell = textureLoad(levels, min(corner + vec2<i32>(i, j), limit), 0);
+            level = level + cell.a;
+            if (cell.a > 0.0) {
+                color = color + cell.rgb;
+                lit = lit + 1.0;
+            }
+        }
+    }
+    return vec4<f32>(color / max(lit, 1.0), level / f32(taps * taps));
+}
+
 @fragment
 fn fs_shrink(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
     let taps = i32(u.blend.z);

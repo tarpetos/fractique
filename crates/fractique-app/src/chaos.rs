@@ -68,6 +68,9 @@ const UNIT: f32 = 0.0015;
 // finished with those it has by then, so that it stays inside the ten seconds a picture may take.
 const LARGER_WITHIN: f32 = 8.0;
 const DEEP_UNIT: f32 = 0.003;
+// An export's unit: the way to the card and back took 9 ms of every unit of 10 on a GTX 1650, so Ultra at
+// 3840 × 2160 took it 585 s; with units of 40 ms, 305 s.
+const EXPORT_UNIT: f32 = 0.040;
 // A card whose unit of unplotted steps alone comes back after more than this has a long way to it and back, for
 // the session: its units are sized by that way, `FAR` times as long under a hand and `LONG` times with none. Not
 // a card of its own, where such a unit is long by its work: 4 ms for a dear flame on an RTX 4070.
@@ -568,6 +571,8 @@ struct Flight {
 
 struct Run {
     bounded: bool,
+    // An export has the card to itself: its units are longer and follow one another without waiting for a frame.
+    export: bool,
     // The picture, and the view in its middle: the picture is the view with a margin around it.
     size: [u32; 2],
     inner: [u32; 2],
@@ -641,6 +646,7 @@ pub struct Chaos {
     #[cfg(not(target_arch = "wasm32"))]
     waiter: std::sync::mpsc::Sender<wgpu::SubmissionIndex>,
     refused: Vec<Vec<String>>,
+    reserved: Option<Vec<String>>,
     longest: Arc<AtomicU32>,
     // A card of its own, not one that shares the processor's chip; and one with a long way to it and back.
     own: bool,
@@ -821,6 +827,7 @@ impl Chaos {
             #[cfg(not(target_arch = "wasm32"))]
             waiter,
             refused: Vec::new(),
+            reserved: None,
             longest,
             own: adapter.get_info().device_type == wgpu::DeviceType::DiscreteGpu && way().is_none(),
             far: Arc::default(),
@@ -926,6 +933,12 @@ impl Chaos {
                 self.draining = Some(pixels.chain);
             }
         }
+    }
+
+    // While an export is drawn, the card is its alone: a picture of the screen asked for meanwhile is not begun.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pub fn reserve(&mut self, keys: Option<Vec<String>>) {
+        self.reserved = keys;
     }
 
     // A test run's card gives the picture up as a card too slow for it does (FRACTIQUE_REFUSE in lib.rs).
@@ -1236,6 +1249,13 @@ impl Chaos {
         limit: Option<f32>,
         ctx: &egui::Context,
     ) -> bool {
+        if self
+            .reserved
+            .as_ref()
+            .is_some_and(|reserved| reserved.as_slice() != keys)
+        {
+            return false;
+        }
         if !self.works() {
             self.end();
             return false;
@@ -1447,6 +1467,7 @@ impl Chaos {
             );
             Run {
                 bounded,
+                export: self.reserved.is_some(),
                 size,
                 inner,
                 seed: scene.seed,
@@ -1758,7 +1779,9 @@ impl Parts {
                 let since = run.started.elapsed().as_secs_f32();
                 let took = at.duration_since(run.submitted).as_secs_f32().max(1e-4);
                 // A unit of a deep view tells of every particle and is dearer to send: it is a longer one.
-                let unit = if run.layers.iter().any(|layer| layer.deep.is_some()) {
+                let unit = if run.export {
+                    EXPORT_UNIT
+                } else if run.layers.iter().any(|layer| layer.deep.is_some()) {
                     DEEP_UNIT
                 } else {
                     UNIT
@@ -1783,7 +1806,7 @@ impl Parts {
                     && run
                         .limit
                         .is_some_and(|limit| run.pace.whole(worked, least) > limit * cost * busy(far));
-                let idle = least <= 0.0 && worked >= IDLE;
+                let idle = !run.export && least <= 0.0 && worked >= IDLE;
                 let late = took * 1000.0 > self.longest.load(Ordering::Relaxed) as f32;
                 if late {
                     log::warn!("the graphics card took {took:.2} s for one batch: the picture is given up");
@@ -1840,7 +1863,7 @@ impl Parts {
         }
         // A unit begins only inside the frame's slice: the next frame opens another. A card with a long way to
         // it works without a pause while the window is not used.
-        let free = self.far.load(Ordering::Relaxed) && !pace::held();
+        let free = run.export || self.far.load(Ordering::Relaxed) && !pace::held();
         if !free && !pace::within(run.opened.elapsed().as_secs_f32(), pace::slice().min(run.allowed)) {
             return Step::Waiting;
         }

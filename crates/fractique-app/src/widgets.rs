@@ -541,6 +541,11 @@ pub fn toggle_warned(ui: &mut Ui, label: &str, on: &mut bool) -> (bool, bool) {
     switch(ui, label, on, true)
 }
 
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+pub fn toggle(ui: &mut Ui, label: &str, on: &mut bool) -> bool {
+    switch(ui, label, on, false).0
+}
+
 const AMBER: Color32 = Color32::from_rgb(255, 196, 84);
 const SIGN: f32 = 26.0;
 

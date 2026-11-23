@@ -406,6 +406,19 @@ enum Wanted {
     Picture([u32; 2]),
 }
 
+// An export the graphics card draws, and whether its run is on the card.
+#[cfg(not(target_arch = "wasm32"))]
+struct CardExport {
+    later: export::Later,
+    scene: Scene,
+    // The processor's options, and the card's: the picture drawn as many times larger a side as the quality's
+    // supersampling, with as many points in all, then made smaller.
+    options: RenderOptions,
+    card: RenderOptions,
+    keys: Vec<String>,
+    begun: bool,
+}
+
 #[derive(Clone, Copy, PartialEq)]
 enum Listing {
     Presets,
@@ -1020,16 +1033,18 @@ const TRIAL: &str = "trial";
 enum Turn {
     Trial,
     Draft,
+    Export,
     Picture,
     Nobody,
 }
 
 // By the run that is on the card, not by whether a trial is on: a picture asked for during the trial is drawn by
 // the card too, and nothing else would take its units in.
-fn turn(keys: Option<&[String]>, draft: Option<&[String]>) -> Turn {
+fn turn(keys: Option<&[String]>, draft: Option<&[String]>, export: Option<&[String]>) -> Turn {
     match keys {
         Some(keys) if keys == [TRIAL] => Turn::Trial,
         Some(keys) if draft == Some(keys) => Turn::Draft,
+        Some(keys) if export == Some(keys) => Turn::Export,
         Some(_) => Turn::Picture,
         None => Turn::Nobody,
     }
@@ -1161,6 +1176,12 @@ struct App {
     given_up: bool,
     // The least magnification of a picture the card gave up: a view at most half as deep is tried on it again.
     refused_from: Option<f64>,
+    // Exports drawn by the processor alone: the same pixels on every device.
+    exact: bool,
+    #[cfg(not(target_arch = "wasm32"))]
+    card_export: Option<CardExport>,
+    #[cfg(not(target_arch = "wasm32"))]
+    export_began: Instant,
     // The picture awaited is the card's alone: the processor renders its small draft at the most.
     carded: bool,
     speeds: pace::Speeds,
@@ -1858,6 +1879,11 @@ impl App {
             magnified: false,
             given_up: false,
             refused_from: None,
+            exact: stored("exact").is_some_and(|exact| exact == "on"),
+            #[cfg(not(target_arch = "wasm32"))]
+            card_export: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            export_began: Instant::now(),
             carded: false,
             late: Arc::default(),
             too_long: None,
@@ -3044,8 +3070,11 @@ impl App {
             chaos.warm(ctx, [full.width, full.height]);
         } else {
             self.trial_step(&mut chaos, ctx);
-            match turn(chaos.keys(), self.draft_keys.as_deref()) {
+            #[cfg(not(target_arch = "wasm32"))]
+            self.card_export_step(&mut chaos, ctx);
+            match turn(chaos.keys(), self.draft_keys.as_deref(), self.export_keys()) {
                 Turn::Trial => tried = true,
+                Turn::Export => {}
                 Turn::Draft => self.draft_step(&mut chaos, ctx, frame),
                 Turn::Picture => self.chaos_step(&mut chaos, ctx, frame),
                 Turn::Nobody => {}
@@ -3080,6 +3109,131 @@ impl App {
             self.hand_over(ctx);
             self.tile_step(ctx);
         }
+    }
+
+    fn export_keys(&self) -> Option<&[String]> {
+        #[cfg(not(target_arch = "wasm32"))]
+        return self
+            .card_export
+            .as_ref()
+            .filter(|export| export.begun)
+            .map(|export| export.keys.as_slice());
+        #[cfg(target_arch = "wasm32")]
+        None
+    }
+
+    // Whether an export of this scene at Standard or above is drawn by the graphics card: unless exact pictures
+    // are asked for, wherever the card draws the scene's picture.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn exports_on_card(&self, scene: &Scene) -> bool {
+        !self.exact && self.gpu_on() && !self.given_up && on_card(scene) && self.chaos.is_some() && self.card_used()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn export_by_processor(&mut self, export: CardExport, ctx: &egui::Context, why: &str) {
+        if timed() {
+            eprintln!("times: the graphics card does not draw the export ({why}): the processor renders it");
+        }
+        let job = export::Job::start(
+            export.scene,
+            export.options,
+            export.later.path(),
+            ctx.clone(),
+            render_pool(),
+        );
+        self.export.job = Some(job);
+    }
+
+    // An export at Standard or above drawn by the graphics card: its own run, with the samples and the
+    // supersampling of its quality, while the screen keeps its picture; then the picture is copied back and saved.
+    // Whatever keeps the card from it hands the export to the processor.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn card_export_step(&mut self, chaos: &mut Chaos, ctx: &egui::Context) {
+        let Some(mut export) = self.card_export.take() else {
+            return;
+        };
+        let ours = export.begun && chaos.keys() == Some(export.keys.as_slice());
+        if export.later.cancelled() {
+            chaos.reserve(None);
+            if ours {
+                chaos.end();
+                self.requested = None;
+            }
+            return;
+        }
+        if !export.begun {
+            if self.drafting() || chaos.pending() {
+                self.card_export = Some(export);
+                return;
+            }
+            let options = export.card;
+            chaos.reserve(Some(export.keys.clone()));
+            if !chaos.begin(&export.scene, &options, [0; 2], &export.keys, Instant::now(), None, ctx) {
+                chaos.reserve(None);
+                self.export_by_processor(export, ctx, "not begun");
+                return;
+            }
+            export.begun = true;
+            self.export_began = Instant::now();
+            self.card_export = Some(export);
+            ctx.request_repaint();
+            return;
+        }
+        if !ours {
+            chaos.reserve(None);
+            let why = format!("another run: {:?}", chaos.keys().map(|keys| keys.len()));
+            self.export_by_processor(export, ctx, &why);
+            return;
+        }
+        if chaos.advance(ctx) == Step::Refused {
+            chaos.reserve(None);
+            let why = format!("refused: {}", chaos.why());
+            chaos.end();
+            self.requested = None;
+            self.export_by_processor(export, ctx, &why);
+            return;
+        }
+        if !chaos.finished() {
+            self.card_export = Some(export);
+            ctx.request_repaint();
+            return;
+        }
+        let wanted = [export.options.width, export.options.height];
+        let drawn = match (&mut self.preview, chaos.levels()) {
+            (Some(preview), Some((size, levels))) if size == wanted => {
+                preview.draw_tile(&export.scene, size, size, &levels, ctx)
+            }
+            (Some(preview), Some((size, levels))) => preview.draw_reduced(&export.scene, size, wanted, &levels, ctx),
+            _ => false,
+        };
+        chaos.reserve(None);
+        if !drawn {
+            chaos.end();
+            self.requested = None;
+            self.export_by_processor(export, ctx, "not drawn");
+            return;
+        }
+        if timed() {
+            eprintln!(
+                "times: the export of {} × {} from the graphics card after {:.3} s",
+                wanted[0],
+                wanted[1],
+                self.export_began.elapsed().as_secs_f32()
+            );
+        }
+        let later = export.later;
+        let read = self.preview.as_ref().and_then(|preview| {
+            preview.read_tile([0; 2], ctx, move |pixels| match pixels {
+                Some((rgba, from)) if from == wanted => later.save(rgba, from),
+                Some((rgba, from)) => later.shrunk(rgba, from, wanted),
+                None => later.fail(),
+            })
+        });
+        if let Some(read) = read {
+            chaos.watch(read);
+        }
+        chaos.end();
+        self.requested = None;
     }
 
     // An Instant export of the graphics card's picture: it waits for the last of the samples, then the picture
@@ -5643,6 +5797,17 @@ impl App {
                         .size(12.0)
                         .color(egui::Color32::from_white_alpha(150)),
                 );
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    ui.add_space(8.0);
+                    widgets::toggle(ui, &self.t("exact"), &mut self.exact);
+                    ui.add_space(2.0);
+                    ui.label(
+                        egui::RichText::new(self.t("exact_note"))
+                            .size(12.0)
+                            .color(egui::Color32::from_white_alpha(150)),
+                    );
+                }
             }
         }
 
@@ -6340,13 +6505,30 @@ impl App {
             },
             supersample,
         };
-        self.export.job = Some(export::Job::start(
-            self.scene_at([width, height]),
-            options,
-            path,
-            ctx.clone(),
-            render_pool(),
-        ));
+        let scene = self.scene_at([width, height]);
+        if samples != export::AS_SHOWN && self.exports_on_card(&scene) {
+            let (job, later) = export::Job::later([width, height], path, ctx.clone());
+            self.export.job = Some(job);
+            let card = RenderOptions {
+                width: width * supersample,
+                height: height * supersample,
+                samples_per_pixel: (samples / (supersample * supersample)).max(1),
+                supersample: 1,
+            };
+            let mut keys = chaos_keys(&scene, &card, [0; 2]);
+            keys.push("export".to_owned());
+            self.card_export = Some(CardExport {
+                later,
+                scene,
+                options,
+                card,
+                keys,
+                begun: false,
+            });
+            ctx.request_repaint();
+            return;
+        }
+        self.export.job = Some(export::Job::start(scene, options, path, ctx.clone(), render_pool()));
     }
 
     // A view that is a magnified picture on the screen is exported as that: rendering it is what the app spares.
@@ -6387,6 +6569,20 @@ impl App {
         }
         if let Some(index) = widgets::segments_of(ui, &qualities, self.export.quality, &off) {
             self.export.quality = index;
+        }
+        // Where a picture of Standard or above is drawn: the card's is quick, the processor's the same everywhere.
+        if export::QUALITIES[self.export.quality].1 != export::AS_SHOWN && !self.magnified {
+            let key = if self.exports_on_card(&self.scene_at(size)) {
+                "export_card"
+            } else {
+                "export_processor"
+            };
+            ui.add_space(8.0);
+            ui.label(
+                egui::RichText::new(self.t(key))
+                    .size(12.5)
+                    .color(egui::Color32::from_white_alpha(190)),
+            );
         }
         #[cfg(feature = "store")]
         if let Some(left) = self.saves_left() {
@@ -6942,6 +7138,7 @@ impl eframe::App for App {
         storage.set_string("glass_blur", self.optics.blur.to_string());
         if std::env::var_os("FRACTIQUE_GPU").is_none() {
             storage.set_string("gpu", if self.gpu { "on" } else { "off" }.to_owned());
+            storage.set_string("exact", if self.exact { "on" } else { "off" }.to_owned());
             if self.gpu_chosen {
                 storage.set_string("gpu_by", "owner".to_owned());
             }
@@ -8569,11 +8766,12 @@ mod tests {
     #[test]
     fn a_picture_asked_for_during_the_trial_has_the_card() {
         let (trial, picture, draft) = ([TRIAL.to_owned()], ["a flame".to_owned()], ["a draft".to_owned()]);
-        assert_eq!(turn(Some(&trial), None), Turn::Trial);
-        assert_eq!(turn(Some(&picture), None), Turn::Picture);
-        assert_eq!(turn(Some(&picture), Some(&draft)), Turn::Picture);
-        assert_eq!(turn(Some(&draft), Some(&draft)), Turn::Draft);
-        assert_eq!(turn(None, None), Turn::Nobody);
+        assert_eq!(turn(Some(&trial), None, None), Turn::Trial);
+        assert_eq!(turn(Some(&picture), None, None), Turn::Picture);
+        assert_eq!(turn(Some(&picture), Some(&draft), None), Turn::Picture);
+        assert_eq!(turn(Some(&draft), Some(&draft), None), Turn::Draft);
+        assert_eq!(turn(Some(&draft), None, Some(&draft)), Turn::Export);
+        assert_eq!(turn(None, None, None), Turn::Nobody);
     }
 
     #[test]
