@@ -6506,13 +6506,14 @@ impl App {
             supersample,
         };
         let scene = self.scene_at([width, height]);
-        if samples != export::AS_SHOWN && self.exports_on_card(&scene) {
+        // An Instant export that the screen's picture does not hold is drawn again, on the card where it can.
+        if self.exports_on_card(&scene) {
             let (job, later) = export::Job::later([width, height], path, ctx.clone());
             self.export.job = Some(job);
             let card = RenderOptions {
                 width: width * supersample,
                 height: height * supersample,
-                samples_per_pixel: (samples / (supersample * supersample)).max(1),
+                samples_per_pixel: (options.samples_per_pixel / (supersample * supersample)).max(1),
                 supersample: 1,
             };
             let mut keys = chaos_keys(&scene, &card, [0; 2]);
@@ -6625,8 +6626,10 @@ impl App {
         let drawn = self.full(self.requested.unwrap_or(self.aimed_size));
         let instant = export::QUALITIES[self.export.quality].1 == export::AS_SHOWN && !self.magnified;
         let quick = |app: &Self| {
-            export::way([drawn.width, drawn.height], size) == export::Way::Larger
-                && app.tiles_suit(&app.scene_at(size), size).is_some()
+            let scene = app.scene_at(size);
+            app.exports_on_card(&scene)
+                || export::way([drawn.width, drawn.height], size) == export::Way::Larger
+                    && app.tiles_suit(&scene, size).is_some()
         };
         if instant
             && let Some(key) = export::slow([drawn.width, drawn.height], size)
