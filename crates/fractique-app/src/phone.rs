@@ -13,9 +13,13 @@ use crate::{App, WHOLE, motion, named, shown};
 pub const SWIPE: f32 = 56.0;
 const TILE_RATIO: f32 = 1.6;
 const TUNE_WIDTH: f32 = 400.0;
-const IN_SIGHT: usize = 5;
 const LAYERS_IN_SIGHT: usize = 3;
-const ARROW: f32 = 14.0;
+const COLORS_IN_SIGHT: usize = 5;
+const ARROW: f32 = 22.0;
+const REACH: f32 = 8.0;
+// One size for the cells of both rows, so the two stand as wide as each other.
+const CELL: f32 = 32.0;
+const CELL_GAP: f32 = 4.0;
 const MOST_KEPT: usize = 48;
 // The recent pictures a tab keeps: each of the three has a list of its own.
 const MOST_RECENT: usize = 20;
@@ -616,10 +620,18 @@ fn carousel(
     let mut step = 0.0;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+        // An arrow takes room only while there is more on its side; a finger finds one anywhere from the cells out to
+        // the edge of the glass.
         let arrow = |ui: &mut egui::Ui, more: bool, left: bool| {
             let seen = ui.ctx().animate_bool(id.with(("arrow", left)), more);
+            let (rect, _) = ui.allocate_exact_size(vec2(ARROW * seen, cell), Sense::hover());
+            let reach = if left {
+                egui::Rect::from_min_max(rect.min - vec2(REACH, REACH), rect.max + vec2(0.0, REACH))
+            } else {
+                egui::Rect::from_min_max(rect.min - vec2(0.0, REACH), rect.max + vec2(REACH, REACH))
+            };
             let sense = if seen > 0.5 { Sense::click() } else { Sense::hover() };
-            let (rect, response) = ui.allocate_exact_size(vec2(ARROW * seen, cell), sense);
+            let response = ui.interact(reach, id.with(("tap", left)), sense);
             if seen > 0.0 {
                 let at = if left {
                     rect.right_center() - vec2(ARROW * 0.5, 0.0)
@@ -627,11 +639,11 @@ fn carousel(
                     rect.left_center() + vec2(ARROW * 0.5, 0.0)
                 };
                 let tip = if left { -3.5 } else { 3.5 };
-                let stroke = Stroke::new(1.8, ink.gamma_multiply(seen * 0.85));
+                let stroke = Stroke::new(2.0, ink.gamma_multiply(seen * 0.9));
                 ui.painter()
-                    .line_segment([at + vec2(-tip, -6.0), at + vec2(tip, 0.0)], stroke);
+                    .line_segment([at + vec2(-tip, -6.5), at + vec2(tip, 0.0)], stroke);
                 ui.painter()
-                    .line_segment([at + vec2(tip, 0.0), at + vec2(-tip, 6.0)], stroke);
+                    .line_segment([at + vec2(tip, 0.0), at + vec2(-tip, 6.5)], stroke);
             }
             seen > 0.5 && response.clicked()
         };
@@ -954,7 +966,7 @@ impl App {
                 paint(ui.painter(), rect.center(), dot * 0.5);
                 if chosen {
                     ui.painter()
-                        .circle_stroke(rect.center(), dot * 0.5 + 3.0, Stroke::new(1.8, Color32::WHITE));
+                        .circle_stroke(rect.center(), dot * 0.5 + 2.5, Stroke::new(1.6, Color32::WHITE));
                 }
                 response.clicked()
             };
@@ -998,8 +1010,8 @@ impl App {
             carousel(
                 ui,
                 id,
-                [cells, IN_SIGHT, focus],
-                [dot + 8.0, 3.0],
+                [cells, COLORS_IN_SIGHT, focus],
+                [dot + 8.0, CELL_GAP],
                 Color32::WHITE,
                 draw,
                 |_| {},
@@ -1113,26 +1125,13 @@ impl App {
             self.set_mode(tab);
         }
 
-        let strip = egui::Area::new(egui::Id::unique("phone_colors"))
-            .fixed_pos(egui::pos2(content.center().x, pill.response.rect.bottom() + space))
-            .pivot(Align2::CENTER_TOP)
-            .interactable(live)
-            .fade_in(false)
-            .show(ctx, |ui| {
-                ui.set_opacity(shown);
-                egui::Frame::NONE
-                    .inner_margin(egui::Margin::symmetric(11, 3))
-                    .show(ui, |ui| self.colors(ui, 20.0, true));
-            });
-        panes.push((strip.response.rect, strip.response.rect.height() * 0.5, false));
-        self.phone.clear.push(strip.response.rect);
-        let mut below = strip.response.rect.bottom() + 12.0;
+        let mut below = pill.response.rect.bottom() + space + 4.0;
+        let mut top = pill.response.rect;
 
-        // A picture of several layers shows them in a row under the colors, which paint the chosen one: a tap
-        // chooses a layer, the cross after them adds one, the sliders at the end open its card (so does a second
-        // tap on it).
+        // The picture's layers stand in a row under the tabs; the colors in the sheet paint the chosen one. A tap
+        // chooses a layer, the cross after them adds one, the sliders open its card (so does a second tap on it).
         let count = self.base.layers.len();
-        if count > 1 && !self.wall.live {
+        if count > 0 && !self.wall.live {
             let shades = self.layer_shades();
             let chosen = self.layer.min(count - 1);
             let (mut tapped, mut add, mut card) = (None, false, false);
@@ -1144,24 +1143,24 @@ impl App {
                 .show(ctx, |ui| {
                     ui.set_opacity(shown);
                     egui::Frame::NONE
-                        .inner_margin(egui::Margin::symmetric(11, 4))
+                        .inner_margin(egui::Margin::symmetric(6, 3))
                         .show(ui, |ui| {
-                            ui.spacing_mut().item_spacing = vec2(6.0, 0.0);
+                            ui.spacing_mut().item_spacing = vec2(CELL_GAP, 0.0);
                             ui.horizontal(|ui| {
                                 let id = egui::Id::unique("phone_layers_row");
                                 carousel(
                                     ui,
                                     id,
                                     [count, LAYERS_IN_SIGHT, chosen],
-                                    [30.0, 6.0],
+                                    [CELL, CELL_GAP],
                                     ink,
                                     |ui| {
                                         for (index, shade) in shades.iter().enumerate() {
                                             let (rect, response) =
-                                                ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
-                                            palette_disc(ui.painter(), rect.center(), 10.0, shade);
+                                                ui.allocate_exact_size(vec2(CELL, CELL), Sense::click());
+                                            palette_disc(ui.painter(), rect.center(), 12.0, shade);
                                             if index == chosen {
-                                                ui.painter().circle_stroke(rect.center(), 14.0, Stroke::new(2.0, ink));
+                                                ui.painter().circle_stroke(rect.center(), 14.5, Stroke::new(1.6, ink));
                                             }
                                             if response.clicked() {
                                                 tapped = Some(index);
@@ -1171,11 +1170,11 @@ impl App {
                                     |ui| {
                                         if count < fractique_core::scene::MAX_LAYERS {
                                             let (rect, response) =
-                                                ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+                                                ui.allocate_exact_size(vec2(CELL, CELL), Sense::click());
                                             let stroke = Stroke::new(1.6, ink);
                                             ui.painter().circle_stroke(
                                                 rect.center(),
-                                                11.0,
+                                                12.0,
                                                 Stroke::new(1.2, ink.gamma_multiply(0.6)),
                                             );
                                             ui.painter().line_segment(
@@ -1188,19 +1187,20 @@ impl App {
                                             );
                                             add = response.clicked();
                                         }
+                                        let (rect, response) = ui.allocate_exact_size(vec2(CELL, CELL), Sense::click());
+                                        ui.painter()
+                                            .circle_filled(rect.center(), 14.0, ink.gamma_multiply(0.14));
+                                        icon(ui.painter(), rect.center(), Icon::Style, ink, 0.7);
+                                        card = response.on_hover_text(self.texts.get("layer")).clicked();
                                     },
                                 );
-                                let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
-                                ui.painter()
-                                    .circle_filled(rect.center(), 14.0, ink.gamma_multiply(0.14));
-                                icon(ui.painter(), rect.center(), Icon::Style, ink, 0.7);
-                                card = response.on_hover_text(self.texts.get("layer")).clicked();
                             });
                         });
                 });
             panes.push((row.response.rect, row.response.rect.height() * 0.5, false));
             self.phone.clear.push(row.response.rect);
             below = row.response.rect.bottom() + 12.0;
+            top = row.response.rect;
             match tapped {
                 Some(index) if index == chosen => self.layer_card = true,
                 Some(index) => self.layer = index,
@@ -1212,6 +1212,25 @@ impl App {
             if add {
                 self.add_layer();
             }
+        }
+
+        // Under the layers, always, the colors of the chosen one; a wallpaper, which has no layers, has its hues there.
+        if self.wall.live || count > 0 {
+            let colors = egui::Area::new(egui::Id::unique("phone_colors"))
+                .fixed_pos(egui::pos2(content.center().x, below - 4.0))
+                .pivot(Align2::CENTER_TOP)
+                .interactable(live)
+                .fade_in(false)
+                .show(ctx, |ui| {
+                    ui.set_opacity(shown);
+                    egui::Frame::NONE
+                        .inner_margin(egui::Margin::symmetric(6, 3))
+                        .show(ui, |ui| self.colors(ui, CELL - 8.0, true));
+                });
+            panes.push((colors.response.rect, colors.response.rect.height() * 0.5, false));
+            self.phone.clear.push(colors.response.rect);
+            below = colors.response.rect.bottom() + 12.0;
+            top = top.union(colors.response.rect);
         }
 
         let similar = if self.wall.live { "similar" } else { "mutate" };
@@ -1227,13 +1246,13 @@ impl App {
             (Icon::Keep(is_kept), "keep"),
             (Icon::Back, "back"),
         ];
-        let taken = pill.response.rect.right().max(strip.response.rect.right()) + 8.0;
+        let taken = top.right() + 8.0;
         let beside = rail(content, content.top() + 6.0);
         let free = taken <= beside.shutter.x - beside.small * 0.5;
         let place = if free {
             beside
         } else {
-            rail(content, strip.response.rect.bottom() + 8.0)
+            rail(content, top.bottom() + 8.0)
         };
         let fan_left = place.fan[2].x - place.small * 0.5;
         // Where the name does not fit beside the buttons, as on a narrow upright phone, it stands above them.
