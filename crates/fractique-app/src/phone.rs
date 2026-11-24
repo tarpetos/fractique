@@ -13,6 +13,9 @@ use crate::{App, WHOLE, motion, named, shown};
 pub const SWIPE: f32 = 56.0;
 const TILE_RATIO: f32 = 1.6;
 const TUNE_WIDTH: f32 = 400.0;
+const IN_SIGHT: usize = 5;
+const LAYERS_IN_SIGHT: usize = 3;
+const ARROW: f32 = 14.0;
 const MOST_KEPT: usize = 48;
 // The recent pictures a tab keeps: each of the three has a list of its own.
 const MOST_RECENT: usize = 20;
@@ -570,6 +573,129 @@ fn note(recent: &mut Vec<Piece>, mut piece: Piece, step: Step, at: usize, now: u
 
 // A disc filled with a gradient from its upper left to its lower right, with a soft rim: rings of triangles,
 // each corner colored by its place along that line, and a last ring that fades out.
+// A row that keeps `shown` of its cells in sight: a finger scrolls the rest, and an arrow grows on each side where
+// there is more and shrinks away at the row's end. `after` stands between the cells and the arrow after them. The
+// chosen cell is brought into sight when it changes.
+fn carousel(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    [cells, shown, focus]: [usize; 3],
+    [cell, gap]: [f32; 2],
+    ink: Color32,
+    body: impl FnOnce(&mut egui::Ui),
+    after: impl FnOnce(&mut egui::Ui),
+) {
+    if cells <= shown {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = vec2(gap, 0.0);
+            body(ui);
+            after(ui);
+        });
+        return;
+    }
+    let ctx = ui.ctx().clone();
+    let pitch = cell + gap;
+    let view = shown as f32 * pitch - gap;
+    let most = cells as f32 * pitch - gap - view;
+    let (aim_key, at_key, focus_key, x_key) = (id.with("aim"), id.with("at"), id.with("focus"), id.with("x"));
+    let mut aim: Option<f32> = ctx.data(|data| data.get_temp(aim_key));
+    let offset: Option<f32> = ctx.data(|data| data.get_temp(at_key));
+    let before: Option<usize> = ctx.data(|data| data.get_temp(focus_key));
+    if before != Some(focus) {
+        let middle = (focus as f32 * pitch - (view - cell) * 0.5).clamp(0.0, most);
+        let seen = offset.is_some_and(|at| focus as f32 * pitch >= at && focus as f32 * pitch + cell <= at + view);
+        if offset.is_none() {
+            ctx.animate_value_with_time(x_key, middle, 0.0);
+            aim = Some(middle);
+        } else if !seen {
+            aim = Some(middle);
+        }
+        ctx.data_mut(|data| data.insert_temp(focus_key, focus));
+    }
+    let offset = offset.unwrap_or(0.0);
+    let mut step = 0.0;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+        let arrow = |ui: &mut egui::Ui, more: bool, left: bool| {
+            let seen = ui.ctx().animate_bool(id.with(("arrow", left)), more);
+            let sense = if seen > 0.5 { Sense::click() } else { Sense::hover() };
+            let (rect, response) = ui.allocate_exact_size(vec2(ARROW * seen, cell), sense);
+            if seen > 0.0 {
+                let at = if left {
+                    rect.right_center() - vec2(ARROW * 0.5, 0.0)
+                } else {
+                    rect.left_center() + vec2(ARROW * 0.5, 0.0)
+                };
+                let tip = if left { -3.5 } else { 3.5 };
+                let stroke = Stroke::new(1.8, ink.gamma_multiply(seen * 0.85));
+                ui.painter()
+                    .line_segment([at + vec2(-tip, -6.0), at + vec2(tip, 0.0)], stroke);
+                ui.painter()
+                    .line_segment([at + vec2(tip, 0.0), at + vec2(-tip, 6.0)], stroke);
+            }
+            seen > 0.5 && response.clicked()
+        };
+        if arrow(ui, offset > 0.5, true) {
+            step = -1.0;
+        }
+        let mut area = egui::ScrollArea::horizontal()
+            .id_salt(id)
+            .max_width(view)
+            .min_scrolled_width(view)
+            .content_margin(egui::Margin::ZERO)
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+            .scroll_source(egui::scroll_area::ScrollSource {
+                drag: egui::scroll_area::DragScroll::Always,
+                ..Default::default()
+            });
+        if let Some(target) = aim {
+            let now = ctx.animate_value_with_time(x_key, target, motion::SMALL);
+            area = area.horizontal_scroll_offset(now);
+            if (now - target).abs() < 0.5 {
+                aim = None;
+            }
+        }
+        // A scroll area takes the room left in the row, which a row centered on its line does not bound: it gets
+        // exactly its cells' room.
+        let output = ui
+            .allocate_ui_with_layout(
+                vec2(view, cell),
+                egui::Layout::left_to_right(egui::Align::Center),
+                |ui| {
+                    area.show(ui, |ui| {
+                        let row = vec2(cells as f32 * pitch - gap, cell);
+                        ui.allocate_ui_with_layout(row, egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.spacing_mut().item_spacing = vec2(gap, 0.0);
+                            body(ui);
+                        });
+                    })
+                },
+            )
+            .inner;
+        let now = output.state.clamped_offset().x;
+        if aim.is_none() {
+            ctx.animate_value_with_time(x_key, now, 0.0);
+        }
+        ctx.data_mut(|data| data.insert_temp(at_key, now));
+        ui.spacing_mut().item_spacing = vec2(gap, 0.0);
+        after(ui);
+        ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+        if arrow(ui, now < most - 0.5, false) {
+            step = 1.0;
+        }
+    });
+    if step != 0.0 {
+        let from = aim.unwrap_or(offset);
+        aim = Some((from + step * (shown - 1) as f32 * pitch).clamp(0.0, most));
+    }
+    ctx.data_mut(|data| match aim {
+        Some(target) => {
+            data.insert_temp(aim_key, target);
+        }
+        None => data.remove::<f32>(aim_key),
+    });
+}
+
 pub(crate) fn palette_disc(painter: &egui::Painter, at: Pos2, reach: f32, shades: &palette::Lut) {
     gradient_disc(painter, at, reach, |share| {
         let [r, g, b] = shades[(share * 255.0).round() as usize];
@@ -798,15 +924,31 @@ impl App {
         [torch, camera].map(|at| Rect::from_center_size(at, vec2(52.0, 52.0)))
     }
 
-    // The colors to choose from: a hue for the shapes, a palette for the flames, or the picture's own.
-    pub(crate) fn colors(&mut self, ui: &mut egui::Ui, dot: f32) {
+    // The colors to choose from: a hue for the shapes, a palette for the flames, or the picture's own. In a row a few
+    // stand in sight and the rest scroll; elsewhere they wrap.
+    pub(crate) fn colors(&mut self, ui: &mut egui::Ui, dot: f32, row: bool) {
         let walls = self.wall.on;
         let (at, worn) = (self.chosen_layer(), self.choice());
         let before = (self.wall.hue, worn);
         // Nine in a row: on a narrow screen the dots shrink before the last one drops to a line of its own.
-        let dot = dot.min((ui.available_width() - 8.0 * 3.0) / 9.0 - 8.0).max(10.0);
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = vec2(3.0, 6.0);
+        let dot = if row {
+            dot
+        } else {
+            dot.min((ui.available_width() - 8.0 * 3.0) / 9.0 - 8.0).max(10.0)
+        };
+        let (cells, focus) = if walls {
+            let hue = self.wall.hue;
+            (
+                1 + TINTS.len(),
+                TINTS
+                    .iter()
+                    .position(|(degrees, _)| Some(*degrees) == hue)
+                    .map_or(0, |at| at + 1),
+            )
+        } else {
+            (1 + palette::SWATCHES.len(), worn.map_or(0, |at| at + 1))
+        };
+        let mut draw = |ui: &mut egui::Ui| {
             let cell = |ui: &mut egui::Ui, chosen: bool, paint: &dyn Fn(&egui::Painter, Pos2, f32)| {
                 let (rect, response) = ui.allocate_exact_size(vec2(dot + 8.0, dot + 8.0), Sense::click());
                 paint(ui.painter(), rect.center(), dot * 0.5);
@@ -850,7 +992,24 @@ impl App {
                     }
                 }
             }
-        });
+        };
+        if row {
+            let id = egui::Id::unique(("phone_colors_row", walls));
+            carousel(
+                ui,
+                id,
+                [cells, IN_SIGHT, focus],
+                [dot + 8.0, 3.0],
+                Color32::WHITE,
+                draw,
+                |_| {},
+            );
+        } else {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = vec2(3.0, 6.0);
+                draw(ui);
+            });
+        }
         if before != (self.wall.hue, self.choice()) {
             if walls && !self.wall.live {
                 self.new_wallpaper();
@@ -962,8 +1121,8 @@ impl App {
             .show(ctx, |ui| {
                 ui.set_opacity(shown);
                 egui::Frame::NONE
-                    .inner_margin(egui::Margin::symmetric(8, 3))
-                    .show(ui, |ui| self.colors(ui, 20.0));
+                    .inner_margin(egui::Margin::symmetric(11, 3))
+                    .show(ui, |ui| self.colors(ui, 20.0, true));
             });
         panes.push((strip.response.rect, strip.response.rect.height() * 0.5, false));
         self.phone.clear.push(strip.response.rect);
@@ -985,38 +1144,52 @@ impl App {
                 .show(ctx, |ui| {
                     ui.set_opacity(shown);
                     egui::Frame::NONE
-                        .inner_margin(egui::Margin::symmetric(8, 4))
+                        .inner_margin(egui::Margin::symmetric(11, 4))
                         .show(ui, |ui| {
                             ui.spacing_mut().item_spacing = vec2(6.0, 0.0);
                             ui.horizontal(|ui| {
-                                for (index, shade) in shades.iter().enumerate() {
-                                    let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
-                                    palette_disc(ui.painter(), rect.center(), 10.0, shade);
-                                    if index == chosen {
-                                        ui.painter().circle_stroke(rect.center(), 14.0, Stroke::new(2.0, ink));
-                                    }
-                                    if response.clicked() {
-                                        tapped = Some(index);
-                                    }
-                                }
-                                if count < fractique_core::scene::MAX_LAYERS {
-                                    let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
-                                    let stroke = Stroke::new(1.6, ink);
-                                    ui.painter().circle_stroke(
-                                        rect.center(),
-                                        11.0,
-                                        Stroke::new(1.2, ink.gamma_multiply(0.6)),
-                                    );
-                                    ui.painter().line_segment(
-                                        [rect.center() - vec2(5.0, 0.0), rect.center() + vec2(5.0, 0.0)],
-                                        stroke,
-                                    );
-                                    ui.painter().line_segment(
-                                        [rect.center() - vec2(0.0, 5.0), rect.center() + vec2(0.0, 5.0)],
-                                        stroke,
-                                    );
-                                    add = response.clicked();
-                                }
+                                let id = egui::Id::unique("phone_layers_row");
+                                carousel(
+                                    ui,
+                                    id,
+                                    [count, LAYERS_IN_SIGHT, chosen],
+                                    [30.0, 6.0],
+                                    ink,
+                                    |ui| {
+                                        for (index, shade) in shades.iter().enumerate() {
+                                            let (rect, response) =
+                                                ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+                                            palette_disc(ui.painter(), rect.center(), 10.0, shade);
+                                            if index == chosen {
+                                                ui.painter().circle_stroke(rect.center(), 14.0, Stroke::new(2.0, ink));
+                                            }
+                                            if response.clicked() {
+                                                tapped = Some(index);
+                                            }
+                                        }
+                                    },
+                                    |ui| {
+                                        if count < fractique_core::scene::MAX_LAYERS {
+                                            let (rect, response) =
+                                                ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+                                            let stroke = Stroke::new(1.6, ink);
+                                            ui.painter().circle_stroke(
+                                                rect.center(),
+                                                11.0,
+                                                Stroke::new(1.2, ink.gamma_multiply(0.6)),
+                                            );
+                                            ui.painter().line_segment(
+                                                [rect.center() - vec2(5.0, 0.0), rect.center() + vec2(5.0, 0.0)],
+                                                stroke,
+                                            );
+                                            ui.painter().line_segment(
+                                                [rect.center() - vec2(0.0, 5.0), rect.center() + vec2(0.0, 5.0)],
+                                                stroke,
+                                            );
+                                            add = response.clicked();
+                                        }
+                                    },
+                                );
                                 let (rect, response) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
                                 ui.painter()
                                     .circle_filled(rect.center(), 14.0, ink.gamma_multiply(0.14));
@@ -1486,7 +1659,7 @@ impl App {
                                         }
                                         widgets::section(ui, &self.t("color"));
                                         ui.add_space(6.0);
-                                        self.colors(ui, 26.0);
+                                        self.colors(ui, 26.0, false);
                                         if self.wall.on {
                                             self.sheet_walls(ui, size, scale);
                                         } else if self.fractals {

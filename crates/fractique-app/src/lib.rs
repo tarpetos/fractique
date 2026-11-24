@@ -5933,7 +5933,7 @@ impl App {
         }
         widgets::section(ui, &self.t("color"));
         ui.add_space(6.0);
-        self.colors(ui, 16.0);
+        self.colors(ui, 16.0, false);
 
         self.tune_size(ui);
 

@@ -66,19 +66,19 @@ pub const NAMES: [&str; 8] = [
 
 // Dark palettes of one hue after the posters of rezonanca.art: the first color is the background they are laid on,
 // the one before the last the warm light from below. A solid reads them as its light.
-pub const STUDIO: [&str; 8] = [
-    "amethyst", "cobalt", "garnet", "abyss", "lagoon", "frost", "rosewood", "bronze",
+pub const STUDIO: [&str; 9] = [
+    "amethyst", "cobalt", "garnet", "abyss", "lagoon", "frost", "rosewood", "bronze", "forest",
 ];
 
 // What the app offers to color a layer with: the first eight, then those of one hue.
-pub const SWATCHES: [&str; 16] = [
+pub const SWATCHES: [&str; 17] = [
     NAMES[0], NAMES[1], NAMES[2], NAMES[3], NAMES[4], NAMES[5], NAMES[6], NAMES[7], STUDIO[0], STUDIO[1], STUDIO[2],
-    STUDIO[3], STUDIO[4], STUDIO[5], STUDIO[6], STUDIO[7],
+    STUDIO[3], STUDIO[4], STUDIO[5], STUDIO[6], STUDIO[7], STUDIO[8],
 ];
 
 const AT: [f64; 6] = [0.0, 0.2, 0.45, 0.7, 0.88, 1.0];
 
-const BACKDROPS: [(&str, [u32; 6]); 8] = [
+const BACKDROPS: [(&str, [u32; 6]); 9] = [
     ("amethyst", [0x0A061E, 0x281E78, 0x7A4DFF, 0xB9A6F2, 0xFF6E8C, 0xFFD6D2]),
     ("cobalt", [0x030614, 0x142878, 0x285CE8, 0x9DB6F0, 0xFFA546, 0xFFE8C8]),
     ("garnet", [0x100408, 0x460C1A, 0xAA1E28, 0xE07A6E, 0xFF963C, 0xFFE6BE]),
@@ -87,6 +87,7 @@ const BACKDROPS: [(&str, [u32; 6]); 8] = [
     ("frost", [0x0C111A, 0x1E3352, 0x527199, 0xB4C8E0, 0x8BAED4, 0xEEF5FF]),
     ("rosewood", [0x140812, 0x3A0C2A, 0x8E2260, 0xE06A9A, 0xFFB070, 0xFFF0F0]),
     ("bronze", [0x0E0A06, 0x3A2410, 0x8A5A22, 0xD8A860, 0xFF8A50, 0xFFF2DC]),
+    ("forest", [0x040E0A, 0x0E3224, 0x1E6E4A, 0x86C8A0, 0xE8B45A, 0xF0FFF2]),
 ];
 
 pub fn is_backdrop(color: [f64; 3]) -> bool {
