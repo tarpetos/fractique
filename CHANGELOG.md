@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4
+
+* **App Store builds, iPhone and iPad:** the free saves of the day are kept in the Keychain, so deleting the app and installing it again no longer gives three new ones.
+* **App Store builds:** the App Store lists the 15 languages of the app, and Settings offers them as the app's language.
+
 ## 1.0.3
 
 * **App, phones:** a row of layers under the colors chooses the layer the colors, presets and buttons change; its sliders open the layer's blend, opacity and order.

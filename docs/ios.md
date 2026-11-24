@@ -208,8 +208,9 @@ by a new sandbox tester. The purchase is kept on the device in the app's prefere
 `app.fractique.pro`); deleting the app removes it, and the next start or **Restore purchases** brings it back. The start asks through
 `ios/ProWatch.swift`, a framework of one function beside the binary: StoreKit 2 tells what the Apple Account owns
 without a question to the person, and has no interface but Swift. The builds of `bundle.sh` do not carry it. A refund does not lock
-the app again. The free saves of the day are kept in the app's own settings under `saves`, as the date and a
-count; deleting the app clears them.
+the app again. The free saves of the day are kept as the date and a count, in the app's own settings under `saves`
+and, on an iPhone and an iPad, in the Keychain (a generic password, service `app.fractique.pro`, account `saves`), which is read first:
+deleting the app and installing it again does not give the day's saves back.
 
 ### A Mac App Store build
 

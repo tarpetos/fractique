@@ -34,6 +34,14 @@ mod store;
 mod storekit;
 #[cfg(target_os = "linux")]
 mod tiling;
+
+#[cfg(feature = "store")]
+fn kept_saves() -> Option<String> {
+    #[cfg(target_os = "ios")]
+    return storekit::kept_saves();
+    #[cfg(not(target_os = "ios"))]
+    None
+}
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
 mod update;
 #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
@@ -2096,7 +2104,9 @@ impl App {
             #[cfg(feature = "store")]
             store: store::open(&cc.egui_ctx),
             #[cfg(feature = "store")]
-            saves: stored("saves").map_or_else(store::Saves::default, |text| store::Saves::parse(&text)),
+            saves: kept_saves()
+                .or_else(|| stored("saves"))
+                .map_or_else(store::Saves::default, |text| store::Saves::parse(&text)),
             #[cfg(feature = "store")]
             pro: std::env::var("FRACTIQUE_SHOW")
                 .is_ok_and(|what| what.starts_with("pro"))
@@ -6957,6 +6967,8 @@ impl App {
                 #[cfg(feature = "store")]
                 if self.pro_missing() {
                     self.saves.count(&store::today());
+                    #[cfg(target_os = "ios")]
+                    storekit::keep_saves(&self.saves.text());
                 }
                 if timed() {
                     let seconds = self.export_asked.elapsed().as_secs_f32();
