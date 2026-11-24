@@ -1,4 +1,4 @@
-use fractique_core::{Scene, palette};
+use fractique_core::{Scene, fractal, palette};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Choices(Vec<Option<usize>>);
@@ -32,17 +32,29 @@ impl Choices {
     }
 
     pub fn dress(&self, scene: &mut Scene) {
-        for (layer, choice) in scene.layers.iter_mut().zip(&self.0) {
-            let name = choice.and_then(|at| palette::NAMES.get(at));
+        for (index, (layer, choice)) in scene.layers.iter_mut().zip(&self.0).enumerate() {
+            let name = choice.and_then(|at| palette::SWATCHES.get(at));
             if let Some(palette) = name.and_then(|name| palette::named(name)) {
                 *layer.palette_mut() = palette;
+            }
+            // A palette of one hue brings its background, which the bottom layer covers but where it is clear;
+            // another palette takes such a background back to the dark one.
+            if index == 0 && name.is_some() {
+                match name.and_then(|name| palette::backdrop(name)) {
+                    Some(background) => {
+                        scene.background = background;
+                        layer.blend = fractique_core::Blend::Over;
+                    }
+                    None if palette::is_backdrop(scene.background) => scene.background = fractal::BACKGROUND,
+                    None => {}
+                }
             }
         }
     }
 
     pub fn saved(&self, layers: usize) -> serde_json::Value {
         (0..layers)
-            .map(|layer| self.of(layer).and_then(|at| palette::NAMES.get(at)).copied())
+            .map(|layer| self.of(layer).and_then(|at| palette::SWATCHES.get(at)).copied())
             .collect()
     }
 
@@ -50,7 +62,7 @@ impl Choices {
     pub fn restored(session: &serde_json::Value, layers: usize) -> Self {
         let chosen = |name: &serde_json::Value| {
             let name = name.as_str()?;
-            palette::NAMES.iter().position(|each| *each == name)
+            palette::SWATCHES.iter().position(|each| *each == name)
         };
         match session.get("colors").and_then(serde_json::Value::as_array) {
             Some(names) => Self((0..layers).map(|layer| names.get(layer).and_then(chosen)).collect()),
@@ -73,7 +85,7 @@ mod tests {
     }
 
     fn at(name: &str) -> Option<usize> {
-        palette::NAMES.iter().position(|each| *each == name)
+        palette::SWATCHES.iter().position(|each| *each == name)
     }
 
     fn dressed(choices: &Choices, scene: &Scene) -> Scene {
@@ -98,6 +110,22 @@ mod tests {
         assert_eq!(shown.layers[1].palette(), &palette::named("ember").expect("a palette"));
         choices.choose(1, None);
         assert_eq!(dressed(&choices, &scene).layers[1], scene.layers[1]);
+    }
+
+    #[test]
+    fn a_palette_of_one_hue_brings_its_background_and_another_takes_it_away() {
+        let scene = fractal::preset("mandelbox-blossom").expect("a preset");
+        assert_eq!(Some(scene.background), palette::backdrop("rosewood"));
+        let mut choices = Choices::all(at("amethyst"), 1);
+        assert_eq!(
+            Some(dressed(&choices, &scene).background),
+            palette::backdrop("amethyst")
+        );
+        choices.choose(0, at("orchid"));
+        assert_eq!(dressed(&choices, &scene).background, fractal::BACKGROUND);
+        let own = fractal::preset("julia-dragon").expect("a preset");
+        choices.choose(0, at("ember"));
+        assert_eq!(dressed(&choices, &own).background, own.background);
     }
 
     #[test]

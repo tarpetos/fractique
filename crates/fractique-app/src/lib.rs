@@ -123,6 +123,7 @@ struct Rendered {
     image: Image,
     soft: (Vec<u8>, u32, u32),
     speed: Option<(String, bool, f64)>,
+    whole: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -690,6 +691,8 @@ struct Offer {
     card: bool,
     pixels: [u32; 2],
     generation: u64,
+    // Not the picture of half the side that comes first: the time is told with the whole one.
+    whole: bool,
 }
 
 // A sheet on its way in or out: the name its height is kept under, the point it hangs from and how far it is shown.
@@ -823,7 +826,7 @@ fn orbit_deepest(kind: &str) -> Option<f64> {
         "buddhabrot" => Some(10.0),
         "clifford" | "de_jong" | "hopalong" => Some(30.0),
         "gumowski_mira" => Some(50.0),
-        "lorenz" => Some(100.0),
+        "lorenz" | "flow" => Some(100.0),
         _ => None,
     }
 }
@@ -1311,6 +1314,8 @@ struct App {
     listing: Listing,
     adding_layer: bool,
     layer: usize,
+    // The camera last chosen for a solid, kept for the presets and random scenes after it.
+    camera: Option<f64>,
     #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
     maximize_again: bool,
     #[cfg(target_os = "linux")]
@@ -2038,6 +2043,7 @@ impl App {
             },
             adding_layer: false,
             layer: 0,
+            camera: stored("camera").and_then(|text| text.parse().ok()),
             #[cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))]
             maximize_again: false,
             #[cfg(target_os = "linux")]
@@ -2186,7 +2192,8 @@ impl App {
     }
 
     fn show_preset(&mut self, name: &str) {
-        if let Some(scene) = presets::get(name).or_else(|| fractal::preset(name)) {
+        if let Some(mut scene) = presets::get(name).or_else(|| fractal::preset(name)) {
+            self.keep_camera(&mut scene);
             self.pick(named(scene, &self.display(name)), name.to_owned(), false);
         }
     }
@@ -2207,7 +2214,8 @@ impl App {
         }
     }
 
-    fn choose(&mut self, scene: Scene, title: String) {
+    fn choose(&mut self, mut scene: Scene, title: String) {
+        self.keep_camera(&mut scene);
         if self.wall.live || self.base.layers.len() < 2 {
             self.pick(scene, title, false);
             return;
@@ -2242,6 +2250,16 @@ impl App {
                 .clone();
         }
         self.display(&self.title)
+    }
+
+    // The type shown is that of the chosen layer, so that its list and presets are the ones it is of.
+    fn follow_layer(&mut self) {
+        let at = self.layer.min(self.base.layers.len().saturating_sub(1));
+        if let Some(shown) = self.base.layers.get(at).and_then(|layer| layer.fractal())
+            && shown.kind != self.kind
+        {
+            self.kind = shown.kind.clone();
+        }
     }
 
     // The tab a scene belongs to, and the kind of its first fractal.
@@ -2628,9 +2646,10 @@ impl App {
                     }
                 };
                 let watch: &(dyn Fn(f64) + Sync) = &watch;
+                // A kind the processor alone draws is let finish: given up, its view would stand magnified and soft.
                 let control = Control {
                     cancel: Some(&cancel),
-                    progress: (!draft && !home).then_some(watch),
+                    progress: (!draft && !home && !slow).then_some(watch),
                 };
                 #[cfg(not(target_arch = "wasm32"))]
                 let result = render_pool().install(|| rendered(&scene, &options, &control, &kept, home, sources));
@@ -2661,6 +2680,7 @@ impl App {
                     generation,
                     draft,
                     aside,
+                    whole,
                     view,
                     zoom,
                     held,
@@ -2696,7 +2716,7 @@ impl App {
         };
         // One time a picture: from the click, the step of the wheel or the edge it answers to the finished
         // picture. A first picture has none.
-        if last {
+        if last && offer.whole {
             let scale = self.scale_of(offer.at.view.zoom, offer.at.zoom);
             let took = self.deferred.take().unwrap_or(self.began.elapsed().as_secs_f32());
             self.status = status_of(self.picture.map_or(offer.pixels, |_| offer.at.size), took, scale);
@@ -2785,6 +2805,7 @@ impl App {
                         card: false,
                         pixels: [image.width, image.height],
                         generation: done.generation,
+                        whole: false,
                     };
                     self.offer(offer, false);
                     self.trace.stage("draft");
@@ -2839,6 +2860,7 @@ impl App {
                     card: false,
                     pixels: [image.width, image.height],
                     generation: done.generation,
+                    whole: done.whole,
                 };
                 self.offer(offer, !done.draft);
             }
@@ -2847,7 +2869,7 @@ impl App {
             if !done.draft {
                 self.remember(self.requested.unwrap_or([done.image.width, done.image.height]));
             }
-            if !done.draft {
+            if !done.draft && done.whole {
                 self.rendering = false;
                 self.shown_frames = self.shown_frames.max(1);
                 if shows("preview")
@@ -3857,6 +3879,7 @@ impl App {
                 card,
                 pixels: inner,
                 generation: self.generation,
+                whole: true,
             };
             self.offer(offer, !first);
         }
@@ -4059,8 +4082,9 @@ impl App {
                     }
                 }
             });
-        let Some((scene, title)) = chosen else { return };
+        let Some((mut scene, title)) = chosen else { return };
         self.presets_open = false;
+        self.keep_camera(&mut scene);
         if adding {
             let name = self.display(&title);
             if let Some(mut layer) = scene.layers.into_iter().next()
@@ -4094,7 +4118,8 @@ impl App {
         if self.fractals {
             self.seed += 1;
             let title = format!("{} {}", self.kind, self.seed);
-            if let Some(scene) = fractal::random_scene(&self.kind, self.seed) {
+            if let Some(mut scene) = fractal::random_scene(&self.kind, self.seed) {
+                self.keep_camera(&mut scene);
                 return (named(scene, &self.display(&title)), title);
             }
         }
@@ -4201,6 +4226,9 @@ impl App {
             } else if field.lost_focus() && self.typed.as_ref().is_some_and(|(of, _)| *of == key) {
                 self.typed = None;
             }
+        }
+        if let Some((_, isometric)) = changed.iter().find(|(name, _)| *name == "isometric") {
+            self.camera = Some(*isometric);
         }
         if (!changed.is_empty() || !written.is_empty())
             && let Some(shown) = self.base.layers[at].fractal_mut()
@@ -5672,6 +5700,20 @@ impl App {
         format!("{} {}", shown(&self.t("random")), self.seed)
     }
 
+    // The camera chosen for a solid stays with the solids that come after it.
+    fn keep_camera(&self, scene: &mut Scene) {
+        let Some(isometric) = self.camera else {
+            return;
+        };
+        for layer in &mut scene.layers {
+            if let Some(shown) = layer.fractal_mut()
+                && fractal::spec(&shown.kind).is_some_and(|spec| spec.params.iter().any(|p| p.name == "isometric"))
+            {
+                shown.params.insert("isometric".to_owned(), isometric);
+            }
+        }
+    }
+
     fn pick(&mut self, scene: Scene, title: String, is_random: bool) {
         self.begin();
         self.choices = colors::Choices::all(self.choice(), scene.layers.len());
@@ -5891,7 +5933,7 @@ impl App {
         }
         widgets::section(ui, &self.t("color"));
         ui.add_space(6.0);
-        self.colors(ui, 16.0);
+        self.colors(ui, 16.0, false);
 
         self.tune_size(ui);
 
@@ -5998,7 +6040,7 @@ impl App {
             .iter()
             .enumerate()
             .map(|(index, layer)| {
-                let chosen = self.choices.of(index).and_then(|at| palette::NAMES.get(at));
+                let chosen = self.choices.of(index).and_then(|at| palette::SWATCHES.get(at));
                 let worn = chosen.and_then(|name| palette::named(name));
                 palette::lut(worn.as_ref().unwrap_or(layer.palette()))
             })
@@ -7170,7 +7212,7 @@ impl App {
             return;
         }
         if let Some(name) = step.strip_prefix("palette:") {
-            let choice = palette::NAMES.iter().position(|each| *each == name);
+            let choice = palette::SWATCHES.iter().position(|each| *each == name);
             self.choices.choose(self.chosen_layer(), choice);
             self.requested = None;
             self.asked = Instant::now();
@@ -7336,6 +7378,7 @@ impl eframe::App for App {
         self.trace.stage("frame");
         let began = Instant::now();
         self.trace.slept = 0.0;
+        self.follow_layer();
         self.draw(ui, frame);
         #[cfg(target_os = "linux")]
         self.round_corners(ui.ctx());
@@ -7353,6 +7396,9 @@ impl eframe::App for App {
         storage.set_string("language", self.texts.lang.code().to_owned());
         storage.set_string("glass_opacity", self.optics.tint.to_string());
         storage.set_string("glass_blur", self.optics.blur.to_string());
+        if let Some(isometric) = self.camera {
+            storage.set_string("camera", isometric.to_string());
+        }
         if std::env::var_os("FRACTIQUE_GPU").is_none() {
             storage.set_string("gpu", if self.gpu { "on" } else { "off" }.to_owned());
             storage.set_string("exact", if self.exact { "on" } else { "off" }.to_owned());

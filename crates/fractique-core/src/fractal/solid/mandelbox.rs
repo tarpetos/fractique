@@ -1,6 +1,6 @@
 use super::{
-    COLOR_DENSITY, COLOR_SHIFT, FIELD_OF_VIEW, FOG, GLOW, LIGHT_TILT, LIGHT_TURN, Marcher, Point, SHADOW, Solid, TILT,
-    TURN, dot, fitted, moved, picked, set, value,
+    COLOR_DENSITY, COLOR_SHIFT, FIELD_OF_VIEW, FOG, GLOW, ISOMETRIC, LIGHT_COLOR, LIGHT_TILT, LIGHT_TURN, Marcher, Point,
+    SHADOW, Solid, TILT, TURN, dot, fitted, moved, picked, set, value,
 };
 use crate::fractal::{Draw, Family, Param, Preset, Spec, random_palette, stream};
 use crate::rng::Rng;
@@ -36,6 +36,8 @@ pub(super) static SPEC: Spec = Spec {
         GLOW,
         COLOR_DENSITY,
         COLOR_SHIFT,
+        LIGHT_COLOR,
+        ISOMETRIC,
     ],
     tone: Tone {
         brightness: 1.0,
@@ -97,6 +99,34 @@ pub(super) static SPEC: Spec = Spec {
             center: [0.0, 0.0],
             zoom: 1.0,
             params: &[("scale", -1.5), ("inner_radius", 0.28), ("iterations", 16.0), ("turn", -38.0), ("tilt", 52.0), ("distance", 4.15), ("light_turn", 34.0), ("light_tilt", 47.0), ("fog", 0.4), ("color_density", 4.92), ("color_shift", 0.2)],
+        },
+        Preset {
+            name: "plaza",
+            palette: "amethyst",
+            center: [0.0, 0.0],
+            zoom: 1.0,
+            params: &[("scale", -2.5), ("iterations", 12.0), ("distance", 8.0), ("fog", 0.2), ("turn", 45.0), ("tilt", 35.264), ("light_turn", -40.6), ("light_tilt", 48.6), ("shadow", 1.0), ("glow", 1.0), ("light_color", 1.0), ("isometric", 1.0)],
+        },
+        Preset {
+            name: "kiln",
+            palette: "garnet",
+            center: [0.3, -0.2],
+            zoom: 1.6,
+            params: &[("scale", -3.0), ("iterations", 12.0), ("distance", 6.0), ("fog", 0.2), ("turn", 45.0), ("tilt", 35.264), ("light_turn", -40.6), ("light_tilt", 48.6), ("shadow", 1.0), ("glow", 1.0), ("light_color", 1.0), ("isometric", 1.0)],
+        },
+        Preset {
+            name: "blossom",
+            palette: "rosewood",
+            center: [0.0, 0.0],
+            zoom: 1.3,
+            params: &[("scale", -3.0), ("iterations", 12.0), ("distance", 6.0), ("fog", 0.2), ("turn", 45.0), ("tilt", 35.264), ("light_turn", -40.6), ("light_tilt", 48.6), ("shadow", 1.0), ("glow", 1.0), ("light_color", 1.0), ("isometric", 1.0)],
+        },
+        Preset {
+            name: "cloister",
+            palette: "cobalt",
+            center: [0.25, 0.35],
+            zoom: 2.4,
+            params: &[("scale", -2.5), ("iterations", 12.0), ("distance", 8.0), ("fog", 0.2), ("turn", 45.0), ("tilt", 35.264), ("light_turn", -40.6), ("light_tilt", 48.6), ("shadow", 1.0), ("glow", 1.0), ("light_color", 1.0), ("isometric", 1.0)],
         },
     ],
 };
@@ -225,6 +255,12 @@ mod tests {
     fn it_renders_to_its_golden_hash() {
         let hash = golden(&preset("mandelbox-cube").unwrap());
         assert_eq!(hash, 0x94e8_912e_9e81_b569, "got {hash:#018x}");
+    }
+
+    #[test]
+    fn its_isometric_view_in_the_light_s_colors_renders_to_its_golden_hash() {
+        let hash = golden(&preset("mandelbox-plaza").unwrap());
+        assert_eq!(hash, 0xfca9_34b6_542d_8952, "got {hash:#018x}");
     }
 
     #[test]

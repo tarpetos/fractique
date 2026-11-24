@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* **Fractals:** Mandelbox, Mandelbulb and Menger sponge have an isometric camera and can take their colors from the light; presets in that style.
+* **Fractals:** a new kind, `flow`: nine smooth attractors in three dimensions (Thomas, Halvorsen, Chen, Aizawa and others) drawn as lines.
+* **App:** a fractal only the processor draws is always finished, at any zoom, and its time is told once, for the whole picture.
+* **App, phones:** the layers, then the colors, in two rows under the switch: three layers and five colors in sight, the rest scrolled by a finger or by the arrows at their ends.
+* **Colors:** nine dark palettes of one hue after rezonanca.art, each with its own background: amethyst, cobalt, garnet, abyss, lagoon, frost, rosewood, bronze, forest.
+
 ## 1.0.3
 
 * **App, phones:** a row of layers under the colors chooses the layer the colors, presets and buttons change; its sliders open the layer's blend, opacity and order.
