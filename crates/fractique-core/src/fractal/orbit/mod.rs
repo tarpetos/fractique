@@ -8,6 +8,7 @@ super::family! {
     buddhabrot,
     clifford,
     de_jong,
+    flow,
     gumowski_mira,
     hopalong,
     lorenz,
@@ -545,8 +546,9 @@ mod tests {
                 name => {
                     assert_eq!(prepared.tables[0].len(), Ranks::STEPS + 1, "{name}");
                     assert_eq!(prepared.tables[1].len(), Ranks::STEPS + 1, "{name}");
-                    assert_eq!(prepared.tables[2].is_empty(), name != "lorenz", "{name}");
-                    assert_eq!(prepared.numbers[12] == 0.0, name != "lorenz", "{name}");
+                    let shared = name == "lorenz" || name == "flow";
+                    assert_eq!(prepared.tables[2].is_empty(), !shared, "{name}");
+                    assert_eq!(prepared.numbers[12] == 0.0, !shared, "{name}");
                 }
             }
         }

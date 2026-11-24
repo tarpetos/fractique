@@ -526,6 +526,23 @@
     "pl": "Wyspa",
     "id": "Pulau"
   },
+  "n_mandelbrot_lace": {
+    "en": "Lace",
+    "uk": "Мереживо",
+    "ru": "Кружево",
+    "de": "Spitze",
+    "fr": "Dentelle",
+    "es": "Encaje",
+    "it": "Pizzo",
+    "ja": "レース",
+    "zh-Hans": "蕾丝",
+    "pt-BR": "Renda",
+    "ko": "레이스",
+    "hi": "लेस",
+    "tr": "Dantel",
+    "pl": "Koronka",
+    "id": "Renda"
+  },
   "n_mandelbrot_lightning": {
     "en": "Lightning",
     "uk": "Блискавка",
@@ -576,6 +593,23 @@
     "tr": "Sarmal",
     "pl": "Spirala",
     "id": "Spiral"
+  },
+  "n_mandelbrot_tide": {
+    "en": "Tide",
+    "uk": "Приплив",
+    "ru": "Прилив",
+    "de": "Flut",
+    "fr": "Marée",
+    "es": "Marea",
+    "it": "Marea",
+    "ja": "潮",
+    "zh-Hans": "潮汐",
+    "pt-BR": "Maré",
+    "ko": "밀물",
+    "hi": "ज्वार",
+    "tr": "Gelgit",
+    "pl": "Przypływ",
+    "id": "Pasang"
   },
   "n_mandelbrot_whole": {
     "en": "Whole",

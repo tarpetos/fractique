@@ -24,7 +24,7 @@ use family;
 
 const FAMILIES: [&[&Spec]; 5] = [escape::KINDS, root::KINDS, orbit::KINDS, geometric::KINDS, solid::KINDS];
 
-const BACKGROUND: [f64; 3] = [0.008, 0.01, 0.03];
+pub const BACKGROUND: [f64; 3] = [0.008, 0.01, 0.03];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Family {
@@ -277,7 +277,12 @@ impl Spec {
                 fractal.text.insert(text.name.to_owned(), (*value).to_owned());
             }
         }
-        scene_of(fractal, format!("{}-{}", self.name, preset.name), 0)
+        let mut scene = scene_of(fractal, format!("{}-{}", self.name, preset.name), 0);
+        if let Some(background) = palette::backdrop(preset.palette) {
+            scene.background = background;
+            scene.layers[0].blend = Blend::Over;
+        }
+        scene
     }
 }
 

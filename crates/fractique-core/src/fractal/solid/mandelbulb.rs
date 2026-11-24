@@ -1,6 +1,6 @@
 use super::{
-    COLOR_DENSITY, COLOR_SHIFT, FIELD_OF_VIEW, FOG, GLOW, LIGHT_TILT, LIGHT_TURN, Marcher, Point, SHADOW, Solid, TILT,
-    TURN, dot, fitted, moved, picked, set, value,
+    COLOR_DENSITY, COLOR_SHIFT, FIELD_OF_VIEW, FOG, GLOW, ISOMETRIC, LIGHT_COLOR, LIGHT_TILT, LIGHT_TURN, Marcher, Point,
+    SHADOW, Solid, TILT, TURN, dot, fitted, moved, picked, set, value,
 };
 use crate::fractal::{Draw, Family, Param, Preset, Spec, random_palette, stream};
 use crate::math::{atan2, cos, ln, pow, sin};
@@ -31,6 +31,8 @@ pub(super) static SPEC: Spec = Spec {
         GLOW,
         COLOR_DENSITY,
         COLOR_SHIFT,
+        LIGHT_COLOR,
+        ISOMETRIC,
     ],
     tone: Tone {
         brightness: 1.0,
@@ -86,6 +88,20 @@ pub(super) static SPEC: Spec = Spec {
             center: [0.0, 0.0],
             zoom: 1.0,
             params: &[("power", 16.0), ("turn", 25.0), ("tilt", 28.0), ("color_density", 2.2), ("color_shift", 0.5)],
+        },
+        Preset {
+            name: "lagoon",
+            palette: "lagoon",
+            center: [0.0, 0.0],
+            zoom: 1.0,
+            params: &[("fog", 0.2), ("turn", 45.0), ("tilt", 25.0), ("light_turn", -40.6), ("light_tilt", 48.6), ("shadow", 1.0), ("glow", 1.0), ("light_color", 1.0), ("isometric", 1.0)],
+        },
+        Preset {
+            name: "clay",
+            palette: "garnet",
+            center: [0.1, 0.25],
+            zoom: 2.2,
+            params: &[("fog", 0.2), ("turn", 45.0), ("tilt", 25.0), ("light_turn", -40.6), ("light_tilt", 48.6), ("shadow", 1.0), ("glow", 1.0), ("light_color", 1.0), ("isometric", 1.0)],
         },
     ],
 };

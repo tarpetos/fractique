@@ -264,7 +264,7 @@ The kinds, by family:
 | --- | --- | --- |
 | Escape-time | per pixel | `burning_ship`, `julia`, `magnet`, `mandelbrot`, `multibrot`, `phoenix`, `tricorn` |
 | Root-finding | per pixel | `newton`, `nova` |
-| Orbit | density | `buddhabrot`, `clifford`, `de_jong`, `gumowski_mira`, `hopalong`, `lorenz` |
+| Orbit | density | `buddhabrot`, `clifford`, `de_jong`, `flow`, `gumowski_mira`, `hopalong`, `lorenz` |
 | Geometric | either | `apollonian`, `kleinian`, `l_system`, `lyapunov` |
 | Solid | per pixel | `mandelbox`, `mandelbulb`, `menger_sponge` |
 
@@ -370,9 +370,13 @@ Each of the 64 streams of a render follows orbits from its own random numbers an
 | --- | --- | --- | --- |
 | `clifford` | x′ = sin(a y) + c cos(a x), y′ = sin(b x) + d cos(b y); the start is within ±0.5 and the first 32 steps are not plotted | `a` (−1.4), `b` (1.6), `c` (1), `d` (0.7), each from −3 to 3 | (1 + sin(a y)) / 2 |
 | `de_jong` | x′ = sin(a y) − cos(b x), y′ = sin(c x) − cos(d y); the start is within ±0.5 and the first 32 steps are not plotted | `a` (1.4), `b` (−2.3), `c` (2.4), `d` (−2.1), each from −4 to 4 | `color_by` |
+| `flow` | One of nine flows in three dimensions, chosen by `system`: 1 Thomas (dx/dt = sin y − b x, and so round, b = 0.208186), 2 Halvorsen (a = 1.4), 3 Chen (35, 3, 28), 4 Dadras (3, 2.7, 1.7, 2, 9), 5 Rössler (0.2, 0.2, 5.7), 6 Sprott (2.07, 1.79), 7 four wings (0.2, 0.01, −0.4), 8 Aizawa (0.95, 0.7, 0.6, 3.5, 0.25, 0.1), 9 Rabinovich–Fabrikant (0.87, 1.1). Each is followed by the fourth-order Runge-Kutta method in a time step of its own (0.002 to 0.05) from a starting point of its own; its first 4000 steps are not plotted, and it is followed for `length` times a span of its own (40 to 1500 units of time); then the same orbit again, as for `lorenz` | `system` (1 to 9, whole, 1), `turn` (−180 to 180 degrees, 0), `tilt` (−90 to 90 degrees, 0), `length` (0.05 to 50, 1) | `color_by` |
 | `gumowski_mira` | x′ = y + a (1 − b y²) y + f(x), y′ = f(x′) − x, with f(x) = μ x + 2 (1 − μ) x² / (1 + x²). An orbit starts within ±`scatter` in x and in y, its first 2000 steps are not plotted and the next 200 000 are; then another starts | `mu` (−1 to 1, −0.496), `a` (0 to 0.1, 0.008), `b` (0 to 1, 0.05), `scatter` (0.1 to 20, 4) | `color_by` |
 | `hopalong` | x′ = y − sgn(x) √\|b x − c\|, y′ = a − x, with sgn(0) = 0. An orbit starts within ±0.1 in x and in y and is plotted for `orbit_length` steps; then another starts | `a` (−100 to 100, 0.4), `b` (0 to 10, 1), `c` (−100 to 100, 0), `orbit_length` (1000 to 10 000 000, whole, 300 000) | `color_by` |
 | `lorenz` | dx/dt = σ (y − x), dy/dt = x (ρ − z) − y, dz/dt = x y − β z, by the fourth-order Runge-Kutta method in steps of 0.005. The orbit starts at (1, 1, ρ), its first 4000 steps are not plotted, and it is followed for `duration` units of time; then the same orbit is followed again, so every stream draws the same lines. A point is plotted at a random place between two steps | `sigma` (1 to 40, 10), `rho` (1 to 250, 28), `beta` (0.1 to 10, 8/3), `turn` (−180 to 180 degrees, 0), `tilt` (−90 to 90 degrees, 0), `duration` (5 to 100 000, 150) | `color_by` |
+
+`flow` is turned and tipped as `lorenz` is, about its own z axis and without the shift of z. `system` is a
+choice: the app shows the names of the flows.
 
 `lorenz` is seen from the side, turned about its upright axis by `turn` and tipped towards the viewer by `tilt`:
 the picture's x is x cos(turn) − y sin(turn), and its y is (z − ρ + 1) cos(tilt) + (x sin(turn) + y cos(turn))
@@ -392,7 +396,7 @@ A speed and a position are not used as they are, but by their rank: before the r
 spread over the first steps of 8 orbits of its own (at most 500 000 steps in all), and a value's place is the
 share of the measured values under it. So the palette is used evenly whatever the numbers are.
 
-The points of `gumowski_mira`, `hopalong` and `lorenz` are moved and scaled before they are plotted, because
+The points of `flow`, `gumowski_mira`, `hopalong` and `lorenz` are moved and scaled before they are plotted, because
 their own sizes run from 1 to several hundred: the middle between the 2nd and the 98th percentile of the measured
 points, in x and in y, becomes the origin, and half of the larger of the two spans becomes 1. A camera at the
 origin with a zoom near 1.5 therefore frames any of them, and the picture stays framed while a parameter changes.
@@ -667,6 +671,22 @@ A pixel of a solid is drawn again from the grid of samples where it differs from
 | `glow` | 0 to 1 | 0.25 | The halo around the solid. |
 | `color_density` | 0.01 to 100 | 1 | How fast the colors run along the palette. |
 | `color_shift` | 0 to 2 | 0 | Where on the palette the colors start. |
+| `light_color` | 0 to 1 | 0 | How far the light chooses the color in place of the trap (below). |
+| `isometric` | 0 or 1 | 0 | 1: the rays are parallel (below). A choice: the app shows Perspective and Isometric. |
+
+With `isometric` 1 every ray leaves the plane through the eye square to it, along the direction the eye looks, and
+the picture is the solid's projection along that direction: the point (x, y) of the picture is x × s to the right
+of the eye and y × s above it, with s = `distance` × tan(`field_of_view` / 2) / 2, so the solid keeps about the
+size it has seen from the eye. A ray meets the solid where the estimate is under the width of a pixel at the eye's
+distance, at every depth. `turn` 45 and `tilt` 35.264 (the angle whose tangent is 1 / √2) are the view along the
+diagonal of a cube, the isometric one.
+
+With `light_color` above 0 the palette is read as the light, from its first stop in the shade to its last where
+the light falls full. The place on the palette is p + (√(linear light), at most 1, − p) × `light_color`, with p
+the place the trap gives (taken back into 0 to 1 as the palette is read), and the `light` of the sample is
+light + (e^(−0.8 × `fog` × far) − light) × `light_color`: at 1 the surface is whole and only the fog lets the
+background through, so a far part takes the background's color. The presets that use it lay the layer `over` a
+background in the palette's own hue.
 
 | Kind | Solid and estimate | Own parameters |
 | --- | --- | --- |
