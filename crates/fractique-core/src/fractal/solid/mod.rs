@@ -21,8 +21,28 @@ const FOG: Param = Param::real("fog", 0.3, 0.0, 1.0);
 const GLOW: Param = Param::real("glow", 0.25, 0.0, 1.0);
 const COLOR_DENSITY: Param = Param::real("color_density", 1.0, 0.01, 100.0).log();
 const COLOR_SHIFT: Param = Param::real("color_shift", 0.0, 0.0, 2.0);
+const LIGHT_COLOR: Param = Param::real("light_color", 0.0, 0.0, 1.0);
+const ISOMETRIC: Param = Param::whole("isometric", 0.0, 0.0, 1.0);
 
 const STEPS: u32 = 160;
+// The lamps of the light in the colors of the light, after those printed on Rezonanca's Diskont posters: their
+// strengths, the reach of the core as a share of the ball around the solid, how fast the light runs along the
+// palette, and the place the far haze takes on it.
+const KEY: f64 = 1.9;
+const FILL: f64 = 0.3;
+const RIM: f64 = 1.3;
+const CORE: f64 = 1.6;
+const AMBIENT: f64 = 0.05;
+const SHEEN: f64 = 0.8;
+const SOFT: f64 = 3.0;
+const AMBER: f64 = 0.6;
+const AMBER_TRAP: f64 = 0.17;
+const CORE_REACH: f64 = 0.33;
+const CORE_HAZE: f64 = 1.2;
+const INK: f64 = 0.75;
+const HAZE_AT: f64 = 0.1;
+// The light runs up to here on the palette: its last colors are left for the core.
+const INK_TOP: f64 = 0.85;
 const SHADOW_STEPS: u32 = 20;
 const PROBES: u32 = 5;
 // The side, in pixels, of the cells whose rays share one look ahead.
@@ -80,6 +100,11 @@ pub(super) trait Solid: Sync {
 pub(super) struct Marcher<S> {
     solid: S,
     eye: Point,
+    // Half the width of the view on the plane through the middle, for parallel rays; 0 for rays from the eye.
+    parallel: f64,
+    light_color: f64,
+    // How far the light of the core reaches.
+    core: f64,
     right: Point,
     up: Point,
     forward: Point,
@@ -104,7 +129,7 @@ struct Hit {
 
 impl<S: Solid> Marcher<S> {
     // `params`: turn, tilt, distance, field of view, the light's turn and tilt, shadow, fog, glow, color density
-    // and shift.
+    // and shift, how far the light chooses the color, and whether the rays are parallel.
     pub(super) fn new(solid: S, params: &[f64], camera: &Camera) -> Self {
         let (turn, tilt) = (params[0].to_radians(), params[1].to_radians());
         let (light_turn, light_tilt) = (params[4].to_radians(), params[5].to_radians());
@@ -120,13 +145,18 @@ impl<S: Solid> Marcher<S> {
             toward,
         ));
         let reach = solid.reach();
+        let spread = tan(params[3].to_radians() * 0.5) * 0.5;
+        let isometric = params.get(12).copied().unwrap_or(0.0) >= 1.0;
         Self {
             solid,
             eye: along([0.0; 3], back, params[2]),
+            parallel: if isometric { spread * params[2] } else { 0.0 },
+            light_color: params.get(11).copied().unwrap_or(0.0),
+            core: reach * CORE_REACH,
             right,
             up,
             forward,
-            spread: tan(params[3].to_radians() * 0.5) * 0.5,
+            spread,
             light,
             shadow: params[6],
             fog: params[7],
@@ -145,16 +175,37 @@ impl<S: Solid> Marcher<S> {
     }
 
     #[inline]
-    fn ray(&self, x: f64, y: f64) -> Point {
+    fn ray(&self, x: f64, y: f64) -> (Point, Point) {
+        if self.parallel > 0.0 {
+            let from = along(
+                along(self.eye, self.right, x * self.parallel),
+                self.up,
+                y * self.parallel,
+            );
+            return (from, self.forward);
+        }
         let (across, above) = (x * self.spread, y * self.spread);
-        unit(along(along(self.forward, self.right, across), self.up, above))
+        (
+            self.eye,
+            unit(along(along(self.forward, self.right, across), self.up, above)),
+        )
+    }
+
+    // How wide a ray's footprint is at `depth`, for a pixel whose rays part by `cone`.
+    #[inline]
+    fn width(&self, depth: f64, cone: f64) -> f64 {
+        if self.parallel > 0.0 {
+            cone * dot(self.eye, self.eye).sqrt()
+        } else {
+            depth * cone
+        }
     }
 
     // The depths at which a ray enters and leaves the ball around the solid, and how deep it cuts into it.
     #[inline]
-    fn crossing(&self, direction: Point) -> Option<(f64, f64, f64)> {
-        let toward = dot(self.eye, direction);
-        let outside = dot(self.eye, self.eye) - self.reach * self.reach;
+    fn crossing(&self, origin: Point, direction: Point) -> Option<(f64, f64, f64)> {
+        let toward = dot(origin, direction);
+        let outside = dot(origin, origin) - self.reach * self.reach;
         let root = toward * toward - outside;
         if root <= 0.0 {
             return None;
@@ -166,23 +217,23 @@ impl<S: Solid> Marcher<S> {
     // The ray's walk from the depth `from`: where it meets the solid, or how near it came (as an angle), the
     // color there and how deep the ray cut into the ball.
     #[inline]
-    fn walk(&self, direction: Point, cone: f64, from: f64) -> Result<Hit, (f64, f64, f64)> {
-        let Some((enters, leaves, through)) = self.crossing(direction) else {
+    fn walk(&self, (origin, direction): (Point, Point), cone: f64, from: f64) -> Result<Hit, (f64, f64, f64)> {
+        let Some((enters, leaves, through)) = self.crossing(origin, direction) else {
             return Err((f64::INFINITY, 0.0, 0.0));
         };
         let floor = self.reach * 1e-12;
         let mut depth = enters.max(from);
         let (mut nearest, mut nearest_trap) = (f64::INFINITY, 0.0);
         let mut last = Hit {
-            point: self.eye,
+            point: origin,
             depth,
             fine: floor,
             trap: 0.0,
         };
         for _ in 0..STEPS {
-            let point = along(self.eye, direction, depth);
+            let point = along(origin, direction, depth);
             let (distance, trap) = self.solid.distance(point);
-            let fine = (depth * cone).max(floor);
+            let fine = self.width(depth, cone).max(floor);
             last = Hit {
                 point,
                 depth,
@@ -192,7 +243,7 @@ impl<S: Solid> Marcher<S> {
             if distance < fine {
                 return Ok(last);
             }
-            let angle = distance / depth.max(floor);
+            let angle = distance / self.width(depth, 1.0).max(floor);
             if angle < nearest {
                 (nearest, nearest_trap) = (angle, trap);
             }
@@ -206,18 +257,23 @@ impl<S: Solid> Marcher<S> {
 
     // The depth up to which every ray within `angle` of this one is clear of the solid, and 0 where they all
     // pass it by.
-    fn clear(&self, direction: Point, angle: f64) -> f64 {
-        let Some((enters, leaves, _)) = self.crossing(direction) else {
+    fn clear(&self, (origin, direction): (Point, Point), angle: f64) -> f64 {
+        let Some((enters, leaves, _)) = self.crossing(origin, direction) else {
             return 0.0;
         };
         let mut depth = enters;
         for _ in 0..STEPS {
-            let distance = self.solid.distance(along(self.eye, direction, depth)).0 * S::STRIDE;
-            let room = distance - depth * angle;
-            if room < depth * angle {
+            let distance = self.solid.distance(along(origin, direction, depth)).0 * S::STRIDE;
+            let aside = self.width(depth, angle);
+            let room = distance - aside;
+            if room < aside {
                 return depth;
             }
-            depth += room / (1.0 + angle);
+            depth += if self.parallel > 0.0 {
+                room
+            } else {
+                room / (1.0 + angle)
+            };
             if depth > leaves {
                 return 0.0;
             }
@@ -278,10 +334,14 @@ impl<S: Solid> Marcher<S> {
 
 impl<S: Solid> Marcher<S> {
     fn lit_sample(&self, x: f64, y: f64, pixel: f64, from: f64) -> Option<Sample> {
-        let direction = self.ray(x, y);
-        let hit = match self.walk(direction, pixel * self.spread, from) {
+        let ray = self.ray(x, y);
+        let direction = ray.1;
+        let hit = match self.walk(ray, pixel * self.spread, from) {
             Ok(hit) => hit,
             Err((nearest, trap, through)) => {
+                if self.light_color > 0.0 {
+                    return self.core_haze(ray, through);
+                }
                 // A halo about a fiftieth of the picture wide, gone where the ray only grazes the ball.
                 let width = 0.08 * self.spread / self.zoom;
                 let near = nearest / width;
@@ -293,10 +353,11 @@ impl<S: Solid> Marcher<S> {
                 });
             }
         };
-        let normal = self.normal(hit.point, hit.fine);
+        // In the colors of the light the surface is read a little wider than a pixel: the light turns softly.
+        let normal = self.normal(hit.point, hit.fine * (1.0 + SOFT * self.light_color));
         let above = along(hit.point, normal, hit.fine * 2.0);
         // The pits are measured at a hundredth of the picture, so that a view looks alike at any size and zoom.
-        let span = (hit.depth * self.spread * 0.04 / self.zoom).max(hit.fine * 2.0);
+        let span = (self.width(hit.depth, self.spread) * 0.04 / self.zoom).max(hit.fine * 2.0);
         let open = self.open(above, normal, span);
         let facing = dot(normal, self.light);
         let mut direct = facing.max(0.0);
@@ -317,9 +378,59 @@ impl<S: Solid> Marcher<S> {
         let linear = open * (0.16 + 0.2 * sky + 0.08 * rim) + direct * (0.72 + 0.5 * shine);
         let near = (dot(self.eye, self.eye).sqrt() - self.reach).max(0.0);
         let far = (hit.depth - near) / self.reach;
-        let light = (linear * exp(-1.6 * self.fog * far)).sqrt();
+        let haze = exp(-1.6 * self.fog * far);
+        let light = (linear * haze).sqrt();
+        if self.light_color > 0.0 {
+            // The light of five lamps read through the palette, as an ink from its first stop (no light) to its
+            // last: a key, a fill from the other side, a rim along the outline, a core in the middle of the solid
+            // and an amber glow where the orbit came near the middle.
+            let lit = if direct > 0.0 { direct } else { 0.0 };
+            let fill = open * (0.5 - 0.5 * facing);
+            let outline = 1.0 + dot(direction, normal);
+            let rim = open * outline * outline * 0.25;
+            let core = exp(-dot(hit.point, hit.point) / (2.0 * self.core * self.core)) * self.glow;
+            let amber = if hit.trap < AMBER_TRAP { open } else { 0.0 };
+            let lux = KEY * lit + FILL * fill + RIM * rim + AMBER * amber + AMBIENT * open;
+            // The core lights the pits as well as the faces, and the air it fills on the way shows too.
+            let (origin, _) = self.ray(x, y);
+            let toward = -dot(origin, direction);
+            let passed = if toward > 0.0 && toward < hit.depth {
+                let apart = dot(origin, origin) - toward * toward;
+                CORE_HAZE * self.glow * exp(-apart.max(0.0) / (2.0 * self.core * self.core))
+            } else {
+                0.0
+            };
+            let glow = CORE * core + passed;
+            // The pits are darkened twice, at a hundredth of the picture and at a fifth of that, so the fine relief
+            // shows as well as the deep wells.
+            let fine = self.open(above, normal, (span * 0.2).max(hit.fine * 2.0));
+            let shut = open * fine;
+            let sheen = SHEEN * shine * lit;
+            let ink = (1.0 - exp(-INK * (lux * (0.15 + 0.85 * shut * shut) + sheen + glow))) * INK_TOP * haze
+                + (1.0 - haze) * HAZE_AT;
+            let turn = self.place(hit.trap) * 0.5;
+            let own = 1.0 - (2.0 * (turn - turn.floor()) - 1.0).abs();
+            return Some(Sample {
+                at: own + (ink - own) * self.light_color,
+                light: light + (1.0 - light) * self.light_color,
+            });
+        }
         Some(Sample {
             at: self.place(hit.trap),
+            light,
+        })
+    }
+}
+
+impl<S: Solid> Marcher<S> {
+    // The light of the core seen through the gaps: the closer a ray passes the middle, the more of it.
+    fn core_haze(&self, (origin, direction): (Point, Point), through: f64) -> Option<Sample> {
+        let toward = dot(origin, direction);
+        let apart = (dot(origin, origin) - toward * toward).max(0.0);
+        let lux = CORE_HAZE * self.glow * exp(-apart / (2.0 * self.core * self.core)) * (through * 3.0).min(1.0);
+        let light = lux.min(1.0) * self.light_color;
+        (light > 0.004).then(|| Sample {
+            at: 1.0 - exp(-INK * KEY * lux),
             light,
         })
     }
@@ -615,8 +726,8 @@ mod tests {
     fn a_coarser_picture_takes_the_surface_sooner() {
         let field = ball([0.0, 0.0, 4.0, 40.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
         let direction = [0.0, 0.0, -1.0];
-        let fine = field.walk(direction, 1e-4, 0.0).ok().unwrap();
-        let coarse = field.walk(direction, 1e-1, 0.0).ok().unwrap();
+        let fine = field.walk((field.eye, direction), 1e-4, 0.0).ok().unwrap();
+        let coarse = field.walk((field.eye, direction), 1e-1, 0.0).ok().unwrap();
         assert!(coarse.depth < fine.depth && (fine.depth - 3.0).abs() < 1e-3);
     }
 

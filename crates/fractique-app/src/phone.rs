@@ -838,7 +838,7 @@ impl App {
                 if cell(ui, worn.is_none(), &none) {
                     self.choices.choose(at, None);
                 }
-                for (index, name) in palette::NAMES.iter().enumerate() {
+                for (index, name) in palette::SWATCHES.iter().enumerate() {
                     let Some(shades) = palette::named(name).map(|named| palette::lut(&named)) else {
                         continue;
                     };
@@ -1704,7 +1704,7 @@ impl App {
         let pixels = [(side[0] * scale) as usize, (side[1] * scale) as usize];
         let mut budget = 2;
         let worn = self.choice();
-        let colors = worn.and_then(|at| palette::named(palette::NAMES[at]));
+        let colors = worn.and_then(|at| palette::named(palette::SWATCHES[at]));
         let pictured = |name: &str| {
             let mut scene = fractal::preset(name)?;
             if let Some(colors) = &colors {
@@ -1789,7 +1789,7 @@ impl App {
             random = Self::tile(ui, side, None, &random_label, self.is_random && !self.wall.live);
             for name in presets::names() {
                 let worn = self.choice();
-                let colors = worn.and_then(|at| palette::named(palette::NAMES[at]));
+                let colors = worn.and_then(|at| palette::named(palette::SWATCHES[at]));
                 let key = format!("p {name} {worn:?}");
                 let picture = self.thumb(&ctx, key, pixels, 10, &mut budget, || {
                     let mut scene = presets::get(name)?;

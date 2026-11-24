@@ -64,7 +64,46 @@ pub const NAMES: [&str; 8] = [
     "aurora", "emerald", "ember", "violet", "ice", "sunset", "orchid", "gold",
 ];
 
+// Dark palettes of one hue after the posters of rezonanca.art: the first color is the background they are laid on,
+// the one before the last the warm light from below. A solid reads them as its light.
+pub const STUDIO: [&str; 8] = [
+    "amethyst", "cobalt", "garnet", "abyss", "lagoon", "frost", "rosewood", "bronze",
+];
+
+// What the app offers to color a layer with: the first eight, then those of one hue.
+pub const SWATCHES: [&str; 16] = [
+    NAMES[0], NAMES[1], NAMES[2], NAMES[3], NAMES[4], NAMES[5], NAMES[6], NAMES[7], STUDIO[0], STUDIO[1], STUDIO[2],
+    STUDIO[3], STUDIO[4], STUDIO[5], STUDIO[6], STUDIO[7],
+];
+
+const AT: [f64; 6] = [0.0, 0.2, 0.45, 0.7, 0.88, 1.0];
+
+const BACKDROPS: [(&str, [u32; 6]); 8] = [
+    ("amethyst", [0x0A061E, 0x281E78, 0x7A4DFF, 0xB9A6F2, 0xFF6E8C, 0xFFD6D2]),
+    ("cobalt", [0x030614, 0x142878, 0x285CE8, 0x9DB6F0, 0xFFA546, 0xFFE8C8]),
+    ("garnet", [0x100408, 0x460C1A, 0xAA1E28, 0xE07A6E, 0xFF963C, 0xFFE6BE]),
+    ("abyss", [0x031030, 0x0B2E70, 0x226DBC, 0x8FC4EC, 0x4CD0DC, 0xE0FAFF]),
+    ("lagoon", [0x04181F, 0x0C3F44, 0x1F8C88, 0x8AD8CE, 0x48D8C8, 0xD8FFF6]),
+    ("frost", [0x0C111A, 0x1E3352, 0x527199, 0xB4C8E0, 0x8BAED4, 0xEEF5FF]),
+    ("rosewood", [0x140812, 0x3A0C2A, 0x8E2260, 0xE06A9A, 0xFFB070, 0xFFF0F0]),
+    ("bronze", [0x0E0A06, 0x3A2410, 0x8A5A22, 0xD8A860, 0xFF8A50, 0xFFF2DC]),
+];
+
+pub fn is_backdrop(color: [f64; 3]) -> bool {
+    BACKDROPS.iter().any(|(_, colors)| hex(0.0, colors[0]).color == color)
+}
+
+pub fn backdrop(name: &str) -> Option<[f64; 3]> {
+    let (_, colors) = BACKDROPS.iter().find(|(each, _)| *each == name)?;
+    Some(hex(0.0, colors[0]).color)
+}
+
 pub fn named(name: &str) -> Option<Palette> {
+    if let Some((_, colors)) = BACKDROPS.iter().find(|(each, _)| *each == name) {
+        return Some(Palette {
+            stops: AT.iter().zip(colors).map(|(pos, color)| hex(*pos, *color)).collect(),
+        });
+    }
     let colors: &[u32] = match name {
         "aurora" => &[0x2B3A8C, 0x3F6FD8, 0x35C9C2, 0x7CF2E0, 0x3FD67A, 0x1E8F5A],
         "emerald" => &[0x3A3F8F, 0x2F8F6B, 0x55E05A, 0xB6FF6A, 0x4FD0A0, 0xD070E0],
@@ -105,7 +144,7 @@ mod tests {
 
     #[test]
     fn named_palettes_are_valid() {
-        for name in NAMES {
+        for name in NAMES.into_iter().chain(STUDIO) {
             let palette = named(name).expect(name);
             assert!(validate(&palette).is_ok(), "{name}");
         }

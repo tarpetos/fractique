@@ -66,6 +66,20 @@ pub(super) static SPEC: Spec = Spec {
             zoom: 45.0,
             params: &[("iterations", 500.0), ("color_density", 2.0), ("color_shift", 1.4)],
         },
+        Preset {
+            name: "lace",
+            palette: "cobalt",
+            center: [-0.7453, 0.1127],
+            zoom: 180.0,
+            params: &[("iterations", 600.0)],
+        },
+        Preset {
+            name: "tide",
+            palette: "abyss",
+            center: [-0.7436, 0.1318],
+            zoom: 900.0,
+            params: &[("iterations", 800.0)],
+        },
     ],
 };
 

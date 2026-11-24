@@ -302,11 +302,12 @@ mod tests {
         // 32-bit numbers do not hold an orbit of the hopalong on its curve, the steps a walker of the Buddhabrot
         // takes for an orbit have no bound that is known before it walks, and the walkers of the Gumowski-Mira
         // map walk long orbits one step after another, which the processor does faster: they are the processor's.
+        // The flows have no shader yet.
         let left: Vec<&str> = fractal::all()
             .filter(|spec| spec.family == fractal::Family::Orbit && !KINDS.iter().any(|entry| entry.kind == spec.name))
             .map(|spec| spec.name)
             .collect();
-        assert_eq!(left, ["buddhabrot", "gumowski_mira", "hopalong"]);
+        assert_eq!(left, ["buddhabrot", "flow", "gumowski_mira", "hopalong"]);
     }
 
     #[test]

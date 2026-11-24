@@ -1,6 +1,6 @@
 use super::{
-    COLOR_DENSITY, COLOR_SHIFT, FIELD_OF_VIEW, FOG, GLOW, LIGHT_TILT, LIGHT_TURN, Marcher, Point, SHADOW, Solid, TILT,
-    TURN, dot, fitted, moved, picked, set, value,
+    COLOR_DENSITY, COLOR_SHIFT, FIELD_OF_VIEW, FOG, GLOW, ISOMETRIC, LIGHT_COLOR, LIGHT_TILT, LIGHT_TURN, Marcher, Point,
+    SHADOW, Solid, TILT, TURN, dot, fitted, moved, picked, set, value,
 };
 use crate::fractal::{Draw, Family, Param, Preset, Spec, random_palette, stream};
 use crate::math::{cos, sin};
@@ -34,6 +34,8 @@ pub(super) static SPEC: Spec = Spec {
         GLOW,
         COLOR_DENSITY,
         COLOR_SHIFT,
+        LIGHT_COLOR,
+        ISOMETRIC,
     ],
     tone: Tone {
         brightness: 1.0,
@@ -95,6 +97,20 @@ pub(super) static SPEC: Spec = Spec {
             center: [0.0, 0.0],
             zoom: 1.0,
             params: &[("iterations", 7.0), ("scale", 2.6), ("twist", -30.0), ("bend", 20.0), ("turn", -20.0), ("tilt", 35.0), ("distance", 4.0), ("color_density", 2.5), ("color_shift", 0.8)],
+        },
+        Preset {
+            name: "sandstone",
+            palette: "bronze",
+            center: [0.0, 0.0],
+            zoom: 2.2,
+            params: &[("distance", 5.0), ("fog", 0.2), ("turn", 45.0), ("tilt", 35.264), ("light_turn", -40.6), ("light_tilt", 48.6), ("shadow", 1.0), ("glow", 1.0), ("light_color", 1.0), ("isometric", 1.0)],
+        },
+        Preset {
+            name: "candy",
+            palette: "amethyst",
+            center: [0.15, -0.1],
+            zoom: 1.5,
+            params: &[("distance", 5.0), ("fog", 0.2), ("turn", 45.0), ("tilt", 35.264), ("light_turn", -40.6), ("light_tilt", 48.6), ("shadow", 1.0), ("glow", 1.0), ("light_color", 1.0), ("isometric", 1.0)],
         },
     ],
 };
