@@ -9,6 +9,11 @@
 </div>
 
 <p align="center">
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-ko-kr.svg" alt="App Store에서 다운로드" height="48"></a><br>
+  <sub>iPhone 및 iPad. Windows, macOS, Linux, Android는 <a href="https://github.com/tarpetos/fractique/releases/latest">최신 릴리스</a>에서 무료로.</sub>
+</p>
+
+<p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: 모든 화면을 위한 프랙탈 배경화면" width="880"></a>
 </p>
 
