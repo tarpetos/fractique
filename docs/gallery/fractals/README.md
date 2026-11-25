@@ -1,6 +1,6 @@
 # Fractals
 
-[Gallery](../README.md) · next: [Wallpapers](../wallpapers/README.md)
+[Gallery](../README.md) · next: [Isometric fractals](../isometric/README.md)
 
 A click on a picture downloads its `.frcq` file; the name under it leads to the file in the repository.
 
@@ -60,4 +60,4 @@ Fractals of other kinds, most of them presets of their kind and some views of a 
 | [![Desert Lightning](F097-desert-lightning.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F097-desert-lightning.frcq) | [![Gilded Palm](F098-gilded-palm.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F098-gilded-palm.frcq) | [![Coral Seahorse](F099-coral-seahorse.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F099-coral-seahorse.frcq) | [![Rust Canopy](F100-rust-canopy.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F100-rust-canopy.frcq) |
 | [Desert Lightning](F097-desert-lightning.frcq) | [Gilded Palm](F098-gilded-palm.frcq) | [Coral Seahorse](F099-coral-seahorse.frcq) | [Rust Canopy](F100-rust-canopy.frcq) |
 
-[Gallery](../README.md) · next: [Wallpapers](../wallpapers/README.md)
+[Gallery](../README.md) · next: [Isometric fractals](../isometric/README.md)

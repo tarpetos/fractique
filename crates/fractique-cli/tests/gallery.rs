@@ -5,7 +5,12 @@ use fractique_core::{Scene, file};
 use fractique_mcp::load;
 use serde_json::{Value, json};
 
-const AT_LEAST: [(&str, usize); 3] = [("flames", 100), ("fractals", 100), ("wallpapers", 100)];
+const AT_LEAST: [(&str, usize); 4] = [
+    ("flames", 100),
+    ("fractals", 100),
+    ("isometric", 100),
+    ("wallpapers", 100),
+];
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/gallery")
@@ -67,6 +72,12 @@ fn every_file_of_the_gallery_loads_as_a_valid_scene_of_its_folder() {
         match folder {
             "flames" => assert!(scene.layers.iter().all(|layer| layer.flame().is_some()), "{at}"),
             "fractals" => assert!(scene.layers.iter().any(|layer| layer.flame().is_none()), "{at}"),
+            "isometric" => assert!(
+                scene.layers.iter().all(|layer| layer
+                    .fractal()
+                    .is_some_and(|fractal| fractal.params.get("isometric") == Some(&1.0))),
+                "{at}"
+            ),
             _ => assert!(scene.sheets.is_some(), "{at}"),
         }
     }
@@ -94,7 +105,7 @@ fn every_file_of_the_gallery_is_a_document_the_app_opens() {
         }
         assert!(wall["dark"].is_boolean(), "{at}");
         match folder {
-            "fractals" => {
+            "fractals" | "isometric" => {
                 assert_eq!(document["fractals"], true, "{at}");
                 assert_eq!(
                     document["kind"], document["shown"]["layers"][0]["fractal"]["kind"],

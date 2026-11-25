@@ -35,7 +35,7 @@ built on it.
 | 28 | **Colors of a layer:** a chosen palette belongs to the selected layer, each layer keeps its own through adding, removing and reordering, and a dot before a layer's name shows the colors it is drawn with | Done |
 | 29 | **One territory at every zoom:** a picture can be moved within the same nine framings at every zoom, so zooming in never moves the camera; the blurred picture follows a fast zoom to the kind's ceiling | Done |
 | 30 | **Faint parts of a deep view:** a view that holds less than an eighth of a flame raises its faint end and gives it a share of the points, so what a bright part in the frame kept dark is seen and smooth | Done |
-| 31 | **A gallery:** a hundred flames, a hundred fractals and a hundred wallpapers in `docs/gallery`, each with the `.frcq` file that renders it again; forty of them in two or three layers of different colors | Done |
+| 31 | **A gallery:** a hundred flames, a hundred fractals, a hundred isometric fractals and a hundred wallpapers in `docs/gallery`, each with the `.frcq` file that renders it again; forty of them in two or three layers of different colors | Done |
 | 32 | **The tools from the AppImage:** its first word, `cli`, `mcp` or `server`, starts the program packed in it | Done |
 
 ## App, next
