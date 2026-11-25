@@ -176,8 +176,8 @@ Account when the app is opened on them; **Restore purchases** asks the App Store
 Without the purchase three pictures a day are saved or shared, at any size of the lists and at any quality. The
 export sheet says how many are left: "Free saves left today: 2". A picture counts once it is made for **Save** or
 **Share**, not when an export is cancelled or fails. The count is kept on the device and starts again at midnight
-by the device's clock; nothing is sent anywhere, so it does not follow the person to another device, and deleting
-the app clears it. With Fractique Pro nothing is counted.
+by the device's clock; nothing is sent anywhere, so it does not follow the person to another device. On an iPhone and an iPad
+deleting the app does not clear it; on a Mac it does. With Fractique Pro nothing is counted.
 
 **Custom** has a small lock. Pressing **Apply** under it, pressing **Save** or **Share** with a typed size, or
 pressing **Save** or **Share** when no free save is left opens the **Fractique Pro** sheet: the price as the App

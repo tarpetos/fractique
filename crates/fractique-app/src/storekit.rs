@@ -364,3 +364,71 @@ pub fn open(ctx: &egui::Context) -> Store {
     }
     Store::new(owned, events, Box::new(backend))
 }
+
+#[cfg(target_os = "ios")]
+#[link(name = "Security", kind = "framework")]
+#[link(name = "CoreFoundation", kind = "framework")]
+unsafe extern "C" {
+    static kSecClass: *mut AnyObject;
+    static kSecClassGenericPassword: *mut AnyObject;
+    static kSecAttrService: *mut AnyObject;
+    static kSecAttrAccount: *mut AnyObject;
+    static kSecValueData: *mut AnyObject;
+    static kSecReturnData: *mut AnyObject;
+    static kCFBooleanTrue: *mut AnyObject;
+    fn SecItemCopyMatching(query: *mut AnyObject, result: *mut *mut AnyObject) -> i32;
+    fn SecItemAdd(attributes: *mut AnyObject, result: *mut *mut AnyObject) -> i32;
+    fn SecItemUpdate(query: *mut AnyObject, attributes: *mut AnyObject) -> i32;
+    fn CFRelease(object: *mut AnyObject);
+}
+
+// errSecItemNotFound
+#[cfg(target_os = "ios")]
+const NOT_FOUND: i32 = -25300;
+
+#[cfg(target_os = "ios")]
+unsafe fn saves_entry() -> *mut AnyObject {
+    unsafe {
+        let entry: *mut AnyObject = msg_send![class!(NSMutableDictionary), dictionary];
+        let _: () = msg_send![entry, setObject: kSecClassGenericPassword, forKey: kSecClass];
+        let _: () = msg_send![entry, setObject: string(crate::store::PRODUCT), forKey: kSecAttrService];
+        let _: () = msg_send![entry, setObject: string("saves"), forKey: kSecAttrAccount];
+        entry
+    }
+}
+
+// The free saves of the day, kept in the Keychain: what is there outlives the app being deleted, which the app's
+// own settings do not.
+#[cfg(target_os = "ios")]
+pub fn kept_saves() -> Option<String> {
+    unsafe {
+        let query = saves_entry();
+        let _: () = msg_send![query, setObject: kCFBooleanTrue, forKey: kSecReturnData];
+        let mut found: *mut AnyObject = null_mut();
+        if SecItemCopyMatching(query, &mut found) != 0 || found.is_null() {
+            return None;
+        }
+        let bytes: *const u8 = msg_send![found, bytes];
+        let length: usize = msg_send![found, length];
+        let text =
+            (!bytes.is_null()).then(|| String::from_utf8_lossy(std::slice::from_raw_parts(bytes, length)).into_owned());
+        CFRelease(found);
+        text
+    }
+}
+
+#[cfg(target_os = "ios")]
+pub fn keep_saves(text: &str) {
+    unsafe {
+        let data: *mut AnyObject =
+            msg_send![class!(NSData), dataWithBytes: text.as_ptr().cast::<c_void>(), length: text.len()];
+        let change: *mut AnyObject = msg_send![class!(NSMutableDictionary), dictionary];
+        let _: () = msg_send![change, setObject: data, forKey: kSecValueData];
+        let updated = SecItemUpdate(saves_entry(), change);
+        if updated == NOT_FOUND {
+            let entry = saves_entry();
+            let _: () = msg_send![entry, setObject: data, forKey: kSecValueData];
+            SecItemAdd(entry, null_mut());
+        }
+    }
+}

@@ -4,7 +4,7 @@ options:
     macOS: "12.0"
 settings:
   base:
-    MARKETING_VERSION: "1.0.3"
+    MARKETING_VERSION: "1.0.4"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   FractiquePro:
@@ -45,6 +45,8 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: Fractique
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, uk, ru, de, fr, es, it, ja, zh-Hans, pt-BR, ko, hi, tr, pl, id]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.graphics-design
