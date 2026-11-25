@@ -48,7 +48,7 @@ jobs:
           certificate-p12: ${{ secrets.APPLE_DISTRIBUTION_P12 }}
           certificate-password: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
       - name: Build and sign
-        run: ./scripts/mac/appstore.sh --export
+        run: ./scripts/mac/appstore.sh
       # App Review refuses a private API; a dependency once linked one (_CGSSetWindowBackgroundBlurRadius, from winit).
       - name: No private window-server API
         run: |

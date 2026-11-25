@@ -81,8 +81,8 @@ write to `dist/`.
 | Linux | `scripts/build/build-linux.sh [--formats appimage,deb]` | `cargo-packager` |
 | macOS | `scripts/build/build-mac.sh [--formats app,dmg]` | `cargo-packager`, after both kinds of Mac are built and joined with `lipo` into universal programs. The app is not signed by Apple: copied from the `.dmg` it needs `xattr -dr com.apple.quarantine /Applications/Fractique.app` |
 | Android | `cargo apk build --release --lib` in `crates/fractique-app`, as the workflow does | `cargo-apk`, the Android NDK, Java 17, the keystore |
-| iOS | `scripts/ios/testflight.sh --export` ([ios.md](ios.md#testflight)), as the workflow does; it goes to TestFlight, not into the release's files | Xcode, xcodegen, the App Store Connect key, the distribution certificate |
-| The Mac App Store | `scripts/mac/appstore.sh --export` ([ios.md](ios.md#a-mac-app-store-build)), as the workflow does; it goes to App Store Connect, not into the release's files | Xcode, xcodegen, the App Store Connect key, the distribution certificate |
+| iOS | `scripts/ios/testflight.sh` ([ios.md](ios.md#testflight)), as the workflow does; it goes to TestFlight, not into the release's files | Xcode, xcodegen, the App Store Connect key, the distribution certificate |
+| The Mac App Store | `scripts/mac/appstore.sh` ([ios.md](ios.md#a-mac-app-store-build)), as the workflow does; it goes to App Store Connect, not into the release's files | Xcode, xcodegen, the App Store Connect key, the distribution certificate |
 | Docker | `docker build -t fractique-server .` ([server.md](server.md#docker)), as the workflow does on a runner of each processor | Docker |
 | Web | `crates/fractique-app/index.html` is a [Trunk](https://trunkrs.dev) page; not part of a release | Trunk |
 
@@ -93,8 +93,9 @@ uploads the iOS and the Mac build, together with the release here, and only when
 version is then submitted for review by hand. A fix that is wanted after a version is in a store is the next
 version: App Store Connect takes no more builds of a version it has released.
 
-The scripts upload from a Mac only in a clean checkout of the version's tag, for the case the workflow's upload
-must be repeated; anywhere else they refuse, and `--export` builds and signs without uploading.
+Nobody uploads a build to TestFlight or App Store Connect from their own computer, an agent neither: the scripts
+build and sign, and upload nothing. When an upload of the tag's run fails, the failed jobs of that run are started
+again (`gh run rerun <run id> --failed`); its builds are kept for seven days.
 
 [`.claude/app-store-release.md`](../.claude/app-store-release.md) holds what a release to the stores needs: the
 identifiers, the commands for each platform, the sizes of the screenshots and what passed the first review.

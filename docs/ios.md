@@ -102,8 +102,10 @@ account the app works for 7 days.
 ./scripts/ios/testflight.sh
 ```
 
-It builds Fractique, signs it for the App Store and uploads it; every run gets a new build number. TestFlight offers
-the build to the testers after Apple processes it (5 to 30 minutes).
+It builds Fractique and signs it for the App Store into `ios/build/export`, with a new build number every run. It
+uploads nothing: a build goes to TestFlight only from the `Release` workflow of a version tag, never from anyone's
+own computer ([releasing.md](releasing.md#the-stores)). TestFlight offers the build to the testers after Apple
+processes it (5 to 30 minutes).
 
 Once per Mac: `brew install xcodegen`, and Xcode signed in (Settings, Accounts) to the Apple account of the team that
 owns the app `app.fractique` in App Store Connect. `FRACTIQUE_TEAM_ID` picks another team.
@@ -111,7 +113,7 @@ owns the app `app.fractique` in App Store Connect. `FRACTIQUE_TEAM_ID` picks ano
 ### From GitHub
 
 The **Release** workflow builds the same on one of GitHub's Macs, beside the other platforms, with
-`scripts/ios/testflight.sh --export`, and App Store Connect checks the build. For a version tag it uploads the build
+`scripts/ios/testflight.sh`, and App Store Connect checks the build. For a version tag it uploads the build
 once every platform of the release is built; a run started by hand (Actions, Release, Run workflow; **ios** there
 builds this alone) uploads nothing ([releasing.md](releasing.md#the-stores)). The build goes to TestFlight only, so
 to the testers of the team. The runner has no signed-in Xcode. It signs with the team's distribution certificate and
@@ -150,7 +152,7 @@ Without the certificate Xcode makes a new development certificate on every fresh
 account refuses with "Your account has reached the maximum number of certificates". Those made by runners can be
 revoked under **Certificates** in the developer account: their private keys went with the runners.
 
-The same key works on a Mac without a signed-in Xcode: `ASC_KEY_PATH` (the file), `ASC_KEY_ID` and `ASC_ISSUER_ID`
+The same key signs on a Mac without a signed-in Xcode: `ASC_KEY_PATH` (the file), `ASC_KEY_ID` and `ASC_ISSUER_ID`
 in front of `scripts/ios/testflight.sh`.
 
 `ios/` holds the Xcode project that wraps the Rust binary: Xcode compiles an empty `stub.c`, then
@@ -193,7 +195,7 @@ itself.
 
 ### Testing it
 
-On a device, with a build from `scripts/ios/testflight.sh` installed through TestFlight, or with
+On a device, with a build of a version tag installed through TestFlight, or with
 `FRACTIQUE_FEATURES=store ./scripts/ios/run-iphone.sh`. A TestFlight build buys in the sandbox by itself and
 charges nothing; for a build installed by cable, sign in with the sandbox tester under **Settings, Developer,
 Sandbox Apple Account**.
@@ -233,13 +235,13 @@ deleting the app and installing it again does not give the day's saves back.
 ### A Mac App Store build
 
 ```sh
-./scripts/mac/appstore.sh          # build, sign for the App Store, upload
+./scripts/mac/appstore.sh          # build and sign for the App Store into mac/build/export
 ./scripts/mac/appstore.sh --run    # build, sign for this Mac and open the app in its sandbox
 ```
 
-The upload is made only in a clean checkout of the version's tag. The `Release` workflow builds the same as its
-**Mac App Store** job (`release-mac.yml`), with `--export` and the key and certificate of the iOS build, and for a
-version tag uploads it once every platform is built ([releasing.md](releasing.md#the-stores)).
+Neither uploads. The `Release` workflow builds the first as its **Mac App Store** job (`release-mac.yml`), with the
+key and certificate of the iOS build, and for a version tag uploads it once every platform is built
+([releasing.md](releasing.md#the-stores)).
 
 `scripts/build/build-mac.sh` makes the app that is downloaded from the releases, which has no purchase and updates
 itself. The Mac App Store's build is another one:
@@ -257,8 +259,8 @@ itself. The Mac App Store's build is another one:
 `mac/` holds the Xcode project that wraps the Rust binary, as `ios/` does. cargo started by Xcode cannot compile
 the C code of a dependency, so the script builds the binary first and Xcode's build step only copies it in.
 
-Once per Mac: `brew install xcodegen`, and Xcode signed in to the team's Apple account. The upload has been run;
-the purchase itself has not been made on a Mac.
+Once per Mac: `brew install xcodegen`, and Xcode signed in to the team's Apple account. The purchase itself has
+not been made on a Mac.
 
 ## What the app needs from iOS
 
