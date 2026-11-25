@@ -1,6 +1,6 @@
 # Gallery
 
-100 flames, 100 fractals and 100 wallpapers made with Fractique, each a small picture and the `.frcq` file it was
+100 flames, 100 fractals, 100 isometric fractals and 100 wallpapers made with Fractique, each a small picture and the `.frcq` file it was
 rendered from. The file holds the whole scene, so it renders the same picture again at any size and quality, on any
 machine.
 
@@ -31,6 +31,15 @@ made from the `.frcq` files by `tools/gallery/make_gallery.py` ([usage.md](../us
 | [Ember Cathedral](fractals/F001-ember-cathedral.frcq) | [Teal Maelstrom](fractals/F002-teal-maelstrom.frcq) | [Golden Galaxies](fractals/F003-golden-galaxies.frcq) | [Neon Garden](fractals/F004-neon-garden.frcq) |
 
 [All 100 fractals](fractals/README.md)
+
+## [Isometric fractals](isometric/README.md)
+
+| | | | |
+| --- | --- | --- | --- |
+| [![Copper Citadel](isometric/I001-copper-citadel.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I001-copper-citadel.frcq) | [![Amber Maze](isometric/I002-amber-maze.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I002-amber-maze.frcq) | [![Brass Shrine](isometric/I003-brass-shrine.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I003-brass-shrine.frcq) | [![Flame Altar](isometric/I004-flame-altar.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I004-flame-altar.frcq) |
+| [Copper Citadel](isometric/I001-copper-citadel.frcq) | [Amber Maze](isometric/I002-amber-maze.frcq) | [Brass Shrine](isometric/I003-brass-shrine.frcq) | [Flame Altar](isometric/I004-flame-altar.frcq) |
+
+[All 100 isometric fractals](isometric/README.md)
 
 ## [Wallpapers](wallpapers/README.md)
 

@@ -28,6 +28,12 @@ SECTIONS = [
         "**Fractals** tab.\n",
     ),
     (
+        "isometric",
+        "Isometric fractals",
+        "Mandelboxes and Menger sponges seen without perspective, most of them straight at their middle, so they come\n"
+        "out symmetric. They open in the **Fractals** tab.\n",
+    ),
+    (
         "wallpapers",
         "Wallpapers",
         "A wallpaper's file holds its seed, layout and material, and the shapes laid out for a 16:9 screen. The app\n"
