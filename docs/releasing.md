@@ -50,8 +50,8 @@ app: it goes to the GitHub Container Registry as `ghcr.io/tarpetos/fractique-ser
 The `Release` workflow does the rest. It refuses a tag that does not match the version in `Cargo.toml`, before
 anything is built. The desktop installers, the APK and the Docker image are then made
 side by side; the release is published when the installers and the APK are there, whatever becomes of the image. A tag
-uploads nothing to Apple: the builds for TestFlight and for the Mac App Store are uploaded by hand, before the tag,
-so that what is sent for review is the build that was tested. Started by hand without a tag, it builds the installers and keeps them as
+uploads nothing to Apple: the builds for TestFlight and for the Mac App Store are uploaded by hand, after the tag
+and from a checkout of it, so that what a store gets is the release ([the stores](#the-stores)). Started by hand without a tag, it builds the installers and keeps them as
 artifacts without publishing, uploads the iOS build to TestFlight and the Mac one to App Store Connect, and builds the image and asks the server
 in it for an answer without pushing it; with **ios**, **mac** or **docker** chosen it does only that one, with **appstore** the two uploads to Apple, side by side in one run, and with **desktop** the installers alone, to try them on a machine before a tag.
 
@@ -81,6 +81,15 @@ write to `dist/`.
 | The Mac App Store | `scripts/mac/appstore.sh` ([ios.md](ios.md#a-mac-app-store-build)), as the workflow does; it goes to App Store Connect, not into the release's files | Xcode, xcodegen, the App Store Connect key |
 | Docker | `docker build -t fractique-server .` ([server.md](server.md#docker)), as the workflow does on a runner of each processor | Docker |
 | Web | `crates/fractique-app/index.html` is a [Trunk](https://trunkrs.dev) page; not part of a release | Trunk |
+
+## The stores
+
+A version goes to the App Store after it is released here, never before: the tag first, then a build of that tag
+for each store platform, iPhone and iPad as one and the Mac as another. A platform may be left out of a release
+and get the same tag later, or skip a version. A fix that is wanted after a tag is the next version.
+
+[`.claude/app-store-release.md`](../.claude/app-store-release.md) holds what a release to the stores needs: the
+identifiers, the commands for each platform, the sizes of the screenshots and what passed the first review.
 
 ## How the app updates
 

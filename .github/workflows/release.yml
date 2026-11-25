@@ -66,7 +66,7 @@ jobs:
   ios:
     name: iOS
     needs: version
-    # Started by hand only: a tag publishes the downloads, and the stores get the build that was tested.
+    # Started by hand only: a tag publishes the downloads; the stores get a build of the tag afterwards.
     if: inputs.platforms == 'all' || inputs.platforms == 'appstore' || inputs.platforms == 'ios'
     uses: ./.github/workflows/release-ios.yml
     secrets:
