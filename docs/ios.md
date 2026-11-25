@@ -110,11 +110,12 @@ owns the app `app.fractique` in App Store Connect. `FRACTIQUE_TEAM_ID` picks ano
 
 ### From GitHub
 
-The **Release** workflow does the same on one of GitHub's Macs, beside the installers of the other systems: for
-every version tag, and when it is started by hand (Actions, Release, Run workflow; **ios** there builds this
-alone). The build goes to TestFlight only, so to the testers of the team; a refusal by Apple does not hold the
-installers back. It has no signed-in Xcode, so it signs with an App Store Connect API key, which the team's
-account holder or an admin makes once:
+The **Release** workflow builds the same on one of GitHub's Macs, beside the other platforms, with
+`scripts/ios/testflight.sh --export`, and App Store Connect checks the build. For a version tag it uploads the build
+once every platform of the release is built; a run started by hand (Actions, Release, Run workflow; **ios** there
+builds this alone) uploads nothing ([releasing.md](releasing.md#the-stores)). The build goes to TestFlight only, so
+to the testers of the team. The runner has no signed-in Xcode. It signs with the team's distribution certificate and
+an App Store Connect API key, which the team's account holder or an admin makes once:
 
 1. In App Store Connect: **Users and Access, Integrations, App Store Connect API, Team Keys**, the plus. Name it,
    give it the role **Admin** (a lower role cannot fetch the certificate that signs for the App Store), generate.
@@ -131,6 +132,23 @@ gh secret set ASC_ISSUER_ID
 The last two ask for the value. Keep the `.p8` file somewhere safe outside GitHub: a secret cannot be read back.
 Whoever has the key can upload builds and manage the team's apps; **Revoke** beside the key in App Store Connect
 ends that.
+
+The certificate, on a Mac with Xcode signed in to the team:
+
+1. Xcode, **Settings, Accounts**, the team, **Manage Certificates**. Without an **Apple Distribution** certificate in
+   the list, the plus and **Apple Distribution** make one.
+2. In Keychain Access, under **My Certificates**, the right click on **Apple Distribution: … (73L32W9C88)**,
+   **Export**, as a `.p12` file with a password. The certificate must show its private key under it.
+3. Into the secrets:
+
+```sh
+base64 -i ~/Desktop/Certificates.p12 | gh secret set APPLE_DISTRIBUTION_P12
+gh secret set APPLE_DISTRIBUTION_P12_PASSWORD
+```
+
+Without the certificate Xcode makes a new development certificate on every fresh runner, and after a few the
+account refuses with "Your account has reached the maximum number of certificates". Those made by runners can be
+revoked under **Certificates** in the developer account: their private keys went with the runners.
 
 The same key works on a Mac without a signed-in Xcode: `ASC_KEY_PATH` (the file), `ASC_KEY_ID` and `ASC_ISSUER_ID`
 in front of `scripts/ios/testflight.sh`.
@@ -219,8 +237,9 @@ deleting the app and installing it again does not give the day's saves back.
 ./scripts/mac/appstore.sh --run    # build, sign for this Mac and open the app in its sandbox
 ```
 
-The `Release` workflow runs the first as its **Mac App Store** job (`release-mac.yml`), with the App Store Connect
-key that uploads the iOS build, when it is started by hand with **all**, **appstore** (the iOS and the Mac build in one run) or **mac**; a version tag uploads nothing to Apple.
+The upload is made only in a clean checkout of the version's tag. The `Release` workflow builds the same as its
+**Mac App Store** job (`release-mac.yml`), with `--export` and the key and certificate of the iOS build, and for a
+version tag uploads it once every platform is built ([releasing.md](releasing.md#the-stores)).
 
 `scripts/build/build-mac.sh` makes the app that is downloaded from the releases, which has no purchase and updates
 itself. The Mac App Store's build is another one:

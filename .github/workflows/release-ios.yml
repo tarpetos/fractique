@@ -1,4 +1,5 @@
-# It signs with an App Store Connect API key from the repository's secrets; docs/ios.md says how to make it.
+# The iOS build for TestFlight: built, signed and checked by App Store Connect here, uploaded by release.yml once every
+# platform of the release is built. docs/ios.md says how to make the key and the certificate in the secrets.
 name: Release iOS
 
 on:
@@ -9,6 +10,10 @@ on:
       ASC_KEY_ID:
         required: false
       ASC_ISSUER_ID:
+        required: false
+      APPLE_DISTRIBUTION_P12:
+        required: false
+      APPLE_DISTRIBUTION_P12_PASSWORD:
         required: false
 
 permissions:
@@ -35,18 +40,21 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: xcodegen
         run: brew install xcodegen
-      - name: Build, sign and upload
-        env:
-          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-        run: |
-          if [ -z "$ASC_KEY_P8" ] || [ -z "$ASC_KEY_ID" ] || [ -z "$ASC_ISSUER_ID" ]; then
-            echo "::error::The secrets ASC_KEY_P8, ASC_KEY_ID and ASC_ISSUER_ID are not set. See docs/ios.md."
-            exit 1
-          fi
-          export ASC_KEY_PATH="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
-          printf '%s\n' "$ASC_KEY_P8" > "$ASC_KEY_PATH"
-          chmod 600 "$ASC_KEY_PATH"
-          trap 'rm -f "$ASC_KEY_PATH"' EXIT
-          ./scripts/ios/testflight.sh
+      - uses: ./.github/actions/apple-signing
+        with:
+          key-p8: ${{ secrets.ASC_KEY_P8 }}
+          key-id: ${{ secrets.ASC_KEY_ID }}
+          issuer-id: ${{ secrets.ASC_ISSUER_ID }}
+          certificate-p12: ${{ secrets.APPLE_DISTRIBUTION_P12 }}
+          certificate-password: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+      - name: Build and sign
+        run: ./scripts/ios/testflight.sh --export
+      # A version App Store Connect no longer takes, or a build it would refuse, fails here, before anything is uploaded.
+      - name: App Store Connect checks it
+        run: xcrun altool --validate-app --type ios --file ios/build/export/*.ipa --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: appstore-ios
+          path: ios/build/export/*.ipa
+          if-no-files-found: error
+          retention-days: 7

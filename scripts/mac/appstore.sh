@@ -1,6 +1,7 @@
 #!/bin/sh
 # Builds Fractique for the Mac App Store, sandboxed and with the purchase, and uploads it to App Store Connect:
-#   scripts/mac/appstore.sh          build, sign for the App Store, upload
+#   scripts/mac/appstore.sh          build, sign for the App Store, upload; only in a clean checkout of the version's tag
+#   scripts/mac/appstore.sh --export build and sign for the App Store into mac/build/export, upload nothing
 #   scripts/mac/appstore.sh --run    build, sign for this Mac and open the app, to try it in its sandbox
 # Needs xcodegen (brew install xcodegen), the Mac platform added to the app record of the bundle identifier, and
 # either Xcode signed in to the team's Apple account or an App Store Connect API key in ASC_KEY_PATH (the .p8
@@ -14,6 +15,14 @@ mac="$(sed -n 's/^ *MARKETING_VERSION: *"\(.*\)"/\1/p' mac/project.yml | head -n
 if [ "$version" != "$mac" ]; then
     echo "[mac] Cargo.toml says $version, mac/project.yml says $mac: make them equal." >&2
     exit 1
+fi
+
+# An upload from a Mac is made from a clean checkout of the tag, as the Release workflow's is (docs/releasing.md).
+if [ "$mode" = "upload" ]; then
+    if [ "$(git describe --exact-match --tags HEAD 2>/dev/null || true)" != "v$version" ] || [ -n "$(git status --porcelain)" ]; then
+        echo "[mac] An upload is made from a clean checkout of the tag v$version; --export builds and signs without uploading." >&2
+        exit 1
+    fi
 fi
 
 if ! command -v cargo >/dev/null 2>&1; then
@@ -52,9 +61,22 @@ fi
 
 # In UTC, so that a build from GitHub and one from a Mac in another time zone keep counting upwards.
 build="$(date -u +%y%m%d%H%M)"
+options=ExportOptions.plist
+if [ "$mode" = "--export" ]; then
+    mkdir -p build
+    options=build/ExportOptions.plist
+    cp ExportOptions.plist "$options"
+    plutil -replace destination -string export "$options"
+fi
+# FRACTIQUE_SIGN_IDENTITY: the Release workflow signs the archive with the team's distribution certificate.
 xcodebuild -quiet -project Fractique.xcodeproj -scheme Fractique -configuration Release \
     -destination generic/platform=macOS -archivePath build/Fractique.xcarchive "$@" \
-    DEVELOPMENT_TEAM="$team" CURRENT_PROJECT_VERSION="$build" archive
-xcodebuild -exportArchive -archivePath build/Fractique.xcarchive -exportOptionsPlist ExportOptions.plist \
+    DEVELOPMENT_TEAM="$team" CURRENT_PROJECT_VERSION="$build" \
+    ${FRACTIQUE_SIGN_IDENTITY:+"CODE_SIGN_IDENTITY=$FRACTIQUE_SIGN_IDENTITY"} archive
+xcodebuild -exportArchive -archivePath build/Fractique.xcarchive -exportOptionsPlist "$options" \
     -exportPath build/export "$@" DEVELOPMENT_TEAM="$team"
-echo "[mac] Uploaded build $build. App Store Connect shows it after Apple processes it (5-30 minutes)."
+if [ "$mode" = "--export" ]; then
+    echo "[mac] Build $build is in mac/build/export, not uploaded."
+else
+    echo "[mac] Uploaded build $build. App Store Connect shows it after Apple processes it (5-30 minutes)."
+fi

@@ -27,16 +27,16 @@ tagged on GitHub first, and a store gets a build of that tag. No passwords, keys
 - `git tag v<version> && git push origin v<version>` starts the `Release` workflow: it builds the installers, the
   APK and the Docker image and publishes the release. Watch it with `gh run watch`; it is finished when
   `gh release view v<version>` shows the release.
-- A tag uploads nothing to Apple. The uploads are made from a Mac, from a checkout of the tag.
-- The `Release` workflow started by hand with **ios**, **mac** or **appstore** can upload too; the uploads of a
-  release are made from a Mac.
+- The tag's run builds every platform, iOS and the Mac App Store included, and sends nothing out unless all of
+  them succeed: then it uploads the two Apple builds, pushes the Docker image and publishes the release.
+- Started by hand, the `Release` workflow builds and checks without uploading or publishing.
 
 ## iOS (iPhone and iPad)
 
 | | |
 | --- | --- |
 | Test before the tag | `FRACTIQUE_FEATURES=store ./scripts/ios/run-iphone.sh` on a device, `./scripts/ios/run-simulator.sh` in the Simulator |
-| Build and upload | `export PATH=/opt/homebrew/opt/rustup/bin:$PATH`, then `./scripts/ios/testflight.sh` in a checkout of the tag |
+| Build and upload | The tag's `Release` run. From a Mac only to repeat it: `export PATH=/opt/homebrew/opt/rustup/bin:$PATH`, then `./scripts/ios/testflight.sh` in a clean checkout of the tag (it refuses elsewhere) |
 | Upload an archive again | In `ios/`: `xcodebuild -exportArchive -archivePath build/Fractique.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/export -allowProvisioningUpdates DEVELOPMENT_TEAM=73L32W9C88` |
 | Build number | UTC date and time, `yymmddHHMM`, made by the script |
 | Processed build | 5 to 30 minutes after the upload; the Internal TestFlight group gets it by itself |
@@ -50,7 +50,7 @@ tagged on GitHub first, and a store gets a build of that tag. No passwords, keys
 | --- | --- |
 | Test before the tag | `./scripts/mac/appstore.sh --run`: the store build in its sandbox on this Mac |
 | Before the upload | `nm -u target/mac-app-store/fractique-gui \| grep CGS` shows `_CGShieldingWindowLevel` alone |
-| Build and upload | `./scripts/mac/appstore.sh` in a checkout of the tag |
+| Build and upload | The tag's `Release` run. From a Mac only to repeat it: `./scripts/mac/appstore.sh` in a clean checkout of the tag |
 | Screenshots | 2880 × 1800 |
 
 ## Both
