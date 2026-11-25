@@ -87,4 +87,5 @@ is stable, not that it is good.
 | `crates/fractique-cli/src/mcp.rs` | The MCP server over stdio (`fractique mcp`) |
 | `crates/fractique-server/` | The HTTP server (`fractique-server`): `lib.rs` API, queue and limits; `mcp.rs` MCP over HTTP at `/mcp`; `tests/api.rs`, `tests/mcp.rs`; described in `docs/server.md`. `Dockerfile`, `docker-compose.yml` at the root |
 | `docs/gallery/` (`flames/`, `fractals/`, `isometric/`, `wallpapers/`, a `README.md` in each and one in front), `tools/gallery/make_gallery.py` | A hundred flames, a hundred fractals (`F...`), a hundred isometric fractals (`I...`) and a hundred wallpapers (`W...`) as `.frcq` files beside their pictures; the script makes the pictures and the five pages from the files ("The gallery" in `docs/usage.md`) |
+| `.claude/app-store-release.md` | What a release to the App Store needs: identifiers, commands, sizes, the owner's choices. A store gets a build of a tag, after the tag |
 | `docs/roadmap.md` | What is done and what comes next |
