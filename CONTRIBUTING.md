@@ -54,6 +54,10 @@ fully justified: when a reader would otherwise get something wrong and the code 
 Every change reaches `master` through a pull request; a direct push is refused, for the owners too. A pull request
 is merged by squashing, so its title becomes the one commit: write it as a commit message (below).
 
+A pull request that changes what a user gets adds one short line to `## Unreleased` at the top of `CHANGELOG.md`,
+and starts that section if there is none. When a version is released, `## Unreleased` is renamed to
+`## <version>` and nothing else changes; the next pull request starts a new `## Unreleased`.
+
 ## Commit messages
 
 Pull requests are squash-merged: the pull request's title becomes the one commit on `master` (the pull request

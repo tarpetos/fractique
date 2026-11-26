@@ -26,6 +26,9 @@ and the commands. The short mark `frcq.` was tried and is on hold: do not use it
 ## Rules
 
 - **Everything in English:** code, comments, docs, UI text, commit messages.
+- **Changelog:** every merge to `master` that a user notices adds one short line to `## Unreleased` at the top of
+  `CHANGELOG.md` (the section is started if missing). Only a release renames it to `## <version>`. Never add lines
+  to the section of a released version: check `git tag` first.
 - **Comments:** almost none. No module headers, no doc comments that say what a function, a struct or a field is, no
   narration. One line, only for a workaround, an outside constraint or where a tuned number comes from. Explanations
   go in `docs/`.
