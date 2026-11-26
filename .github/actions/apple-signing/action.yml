@@ -1,5 +1,5 @@
 name: Apple signing
-description: The App Store Connect key and the distribution certificate, for a build on one of GitHub's Macs
+description: The App Store Connect key and the development certificate, for a build on one of GitHub's Macs
 
 inputs:
   key-p8:
@@ -30,7 +30,7 @@ runs:
           [ -n "${!name}" ] || missing="$missing $name"
         done
         if [ -n "$missing" ]; then
-          echo "::error::Not set:$missing. The secrets ASC_KEY_P8, ASC_KEY_ID, ASC_ISSUER_ID, APPLE_DISTRIBUTION_P12 and APPLE_DISTRIBUTION_P12_PASSWORD are described in docs/ios.md."
+          echo "::error::Not set:$missing. The secrets ASC_KEY_P8, ASC_KEY_ID, ASC_ISSUER_ID, APPLE_DEVELOPMENT_P12 and APPLE_DEVELOPMENT_P12_PASSWORD are described in docs/ios.md."
           exit 1
         fi
         # xcodebuild reads the key from ASC_KEY_PATH (the scripts), altool from API_PRIVATE_KEYS_DIR.
@@ -44,17 +44,20 @@ runs:
           echo "ASC_ISSUER_ID=$ISSUER_ID"
           echo "API_PRIVATE_KEYS_DIR=$keys"
         } >> "$GITHUB_ENV"
-        # One distribution certificate of the team, kept in the secrets: without it Xcode makes a new development
-        # certificate on every fresh runner, and the account refuses more after a few.
+        # One development certificate of the team, kept in the secrets: Xcode signs an archive with it, and without
+        # it makes a new one on every fresh runner, until the account refuses more. The export signs for the App Store
+        # with the certificate Apple keeps for the team, which the key fetches.
         keychain="$RUNNER_TEMP/signing.keychain-db"
         password="$(uuidgen)"
         security create-keychain -p "$password" "$keychain"
         security set-keychain-settings -lut 21600 "$keychain"
         security unlock-keychain -p "$password" "$keychain"
-        printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
-        security import "$RUNNER_TEMP/distribution.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-        rm -f "$RUNNER_TEMP/distribution.p12"
+        printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/development.p12"
+        security import "$RUNNER_TEMP/development.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+        rm -f "$RUNNER_TEMP/development.p12"
         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" > /dev/null
         security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
-        security find-identity -v -p codesigning "$keychain"
-        echo "FRACTIQUE_SIGN_IDENTITY=Apple Distribution" >> "$GITHUB_ENV"
+        if ! security find-identity -v -p codesigning "$keychain" | grep -q '"Apple Development: '; then
+          echo "::error::APPLE_DEVELOPMENT_P12 holds no Apple Development certificate with its private key. See docs/ios.md."
+          exit 1
+        fi

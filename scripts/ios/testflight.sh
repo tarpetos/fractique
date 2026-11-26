@@ -24,11 +24,9 @@ if [ -n "${ASC_KEY_PATH:-}" ]; then
 fi
 rm -rf build
 xcodegen generate --quiet
-# FRACTIQUE_SIGN_IDENTITY: the Release workflow signs the archive with the team's distribution certificate.
 xcodebuild -quiet -project Fractique.xcodeproj -scheme Fractique -configuration Release \
     -destination generic/platform=iOS -archivePath build/Fractique.xcarchive "$@" \
-    DEVELOPMENT_TEAM="$team" CURRENT_PROJECT_VERSION="$build" \
-    ${FRACTIQUE_SIGN_IDENTITY:+"CODE_SIGN_IDENTITY=$FRACTIQUE_SIGN_IDENTITY"} archive
+    DEVELOPMENT_TEAM="$team" CURRENT_PROJECT_VERSION="$build" archive
 xcodebuild -exportArchive -archivePath build/Fractique.xcarchive -exportOptionsPlist ExportOptions.plist \
     -exportPath build/export "$@" DEVELOPMENT_TEAM="$team"
 echo "[ios] Build $build is in ios/build/export, not uploaded."

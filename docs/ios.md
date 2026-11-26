@@ -116,8 +116,8 @@ The **Release** workflow builds the same on one of GitHub's Macs, beside the oth
 `scripts/ios/testflight.sh`, and App Store Connect checks the build. For a version tag it uploads the build
 once every platform of the release is built; a run started by hand (Actions, Release, Run workflow; **ios** there
 builds this alone) uploads nothing ([releasing.md](releasing.md#the-stores)). The build goes to TestFlight only, so
-to the testers of the team. The runner has no signed-in Xcode. It signs with the team's distribution certificate and
-an App Store Connect API key, which the team's account holder or an admin makes once:
+to the testers of the team. The runner has no signed-in Xcode. It signs with a development certificate of the team
+and an App Store Connect API key, which the team's account holder or an admin makes once:
 
 1. In App Store Connect: **Users and Access, Integrations, App Store Connect API, Team Keys**, the plus. Name it,
    give it the role **Admin** (a lower role cannot fetch the certificate that signs for the App Store), generate.
@@ -137,20 +137,22 @@ ends that.
 
 The certificate, on a Mac with Xcode signed in to the team:
 
-1. Xcode, **Settings, Accounts**, the team, **Manage Certificates**. Without an **Apple Distribution** certificate in
-   the list, the plus and **Apple Distribution** make one.
-2. In Keychain Access, under **My Certificates**, the right click on **Apple Distribution: … (73L32W9C88)**,
+1. Xcode, **Settings, Accounts**, the team, **Manage Certificates**. Without an **Apple Development** certificate in
+   the list, the plus and **Apple Development** make one.
+2. In Keychain Access, under **My Certificates**, the right click on **Apple Development: …** of the team,
    **Export**, as a `.p12` file with a password. The certificate must show its private key under it.
 3. Into the secrets:
 
 ```sh
-base64 -i ~/Desktop/Certificates.p12 | gh secret set APPLE_DISTRIBUTION_P12
-gh secret set APPLE_DISTRIBUTION_P12_PASSWORD
+base64 -i ~/Desktop/Certificates.p12 | gh secret set APPLE_DEVELOPMENT_P12
+gh secret set APPLE_DEVELOPMENT_P12_PASSWORD
 ```
 
-Without the certificate Xcode makes a new development certificate on every fresh runner, and after a few the
-account refuses with "Your account has reached the maximum number of certificates". Those made by runners can be
-revoked under **Certificates** in the developer account: their private keys went with the runners.
+Xcode signs an archive for development and refuses another certificate there; it signs for the App Store when it
+exports the archive, with the certificate Apple keeps for the team, which the key fetches. Without a development
+certificate in its keychain Xcode makes a new one on every fresh runner, and after a few the account refuses with
+"Your account has reached the maximum number of certificates". Those made by runners can be revoked under
+**Certificates** in the developer account: their private keys went with the runners.
 
 The same key signs on a Mac without a signed-in Xcode: `ASC_KEY_PATH` (the file), `ASC_KEY_ID` and `ASC_ISSUER_ID`
 in front of `scripts/ios/testflight.sh`.

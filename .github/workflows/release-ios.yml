@@ -11,9 +11,9 @@ on:
         required: false
       ASC_ISSUER_ID:
         required: false
-      APPLE_DISTRIBUTION_P12:
+      APPLE_DEVELOPMENT_P12:
         required: false
-      APPLE_DISTRIBUTION_P12_PASSWORD:
+      APPLE_DEVELOPMENT_P12_PASSWORD:
         required: false
 
 permissions:
@@ -45,8 +45,8 @@ jobs:
           key-p8: ${{ secrets.ASC_KEY_P8 }}
           key-id: ${{ secrets.ASC_KEY_ID }}
           issuer-id: ${{ secrets.ASC_ISSUER_ID }}
-          certificate-p12: ${{ secrets.APPLE_DISTRIBUTION_P12 }}
-          certificate-password: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          certificate-p12: ${{ secrets.APPLE_DEVELOPMENT_P12 }}
+          certificate-password: ${{ secrets.APPLE_DEVELOPMENT_P12_PASSWORD }}
       - name: Build and sign
         run: ./scripts/ios/testflight.sh
       # A version App Store Connect no longer takes, or a build it would refuse, fails here, before anything is uploaded.

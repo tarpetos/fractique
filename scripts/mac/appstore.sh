@@ -53,11 +53,9 @@ fi
 
 # In UTC, so that a build from GitHub and one from a Mac in another time zone keep counting upwards.
 build="$(date -u +%y%m%d%H%M)"
-# FRACTIQUE_SIGN_IDENTITY: the Release workflow signs the archive with the team's distribution certificate.
 xcodebuild -quiet -project Fractique.xcodeproj -scheme Fractique -configuration Release \
     -destination generic/platform=macOS -archivePath build/Fractique.xcarchive "$@" \
-    DEVELOPMENT_TEAM="$team" CURRENT_PROJECT_VERSION="$build" \
-    ${FRACTIQUE_SIGN_IDENTITY:+"CODE_SIGN_IDENTITY=$FRACTIQUE_SIGN_IDENTITY"} archive
+    DEVELOPMENT_TEAM="$team" CURRENT_PROJECT_VERSION="$build" archive
 xcodebuild -exportArchive -archivePath build/Fractique.xcarchive -exportOptionsPlist ExportOptions.plist \
     -exportPath build/export "$@" DEVELOPMENT_TEAM="$team"
 echo "[mac] Build $build is in mac/build/export, not uploaded."

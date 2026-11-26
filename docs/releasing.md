@@ -55,9 +55,10 @@ succeeded: then the iOS and the Mac builds are uploaded to App Store Connect, th
 published, in that order. One failed build means no upload, no image and no release; a failed upload means no image
 and no release. After a fix the tag is deleted, here and on GitHub, and pushed again on the new commit.
 
-Started by hand, the workflow builds and sends nothing: the installers and the APK are kept as artifacts, the two
-Apple builds are signed and checked, and the image is built and asked for an answer. With **desktop**, **ios**,
-**mac** or **docker** chosen it builds that one alone, with **appstore** the two Apple builds, to try them before a tag.
+Started by hand, from a branch or from a tag, the workflow builds and sends nothing: the installers and the APK are
+kept as artifacts, the two Apple builds are signed and checked, and the image is built and asked for an answer. With
+**desktop**, **ios**, **mac** or **docker** chosen it builds that one alone, with **appstore** the two Apple builds,
+to try them before a tag.
 
 The workflows are three. `CI` and `Release` are each one entry file that calls the others, so GitHub shows one run
 for each:
@@ -81,8 +82,8 @@ write to `dist/`.
 | Linux | `scripts/build/build-linux.sh [--formats appimage,deb]` | `cargo-packager` |
 | macOS | `scripts/build/build-mac.sh [--formats app,dmg]` | `cargo-packager`, after both kinds of Mac are built and joined with `lipo` into universal programs. The app is not signed by Apple: copied from the `.dmg` it needs `xattr -dr com.apple.quarantine /Applications/Fractique.app` |
 | Android | `cargo apk build --release --lib` in `crates/fractique-app`, as the workflow does | `cargo-apk`, the Android NDK, Java 17, the keystore |
-| iOS | `scripts/ios/testflight.sh` ([ios.md](ios.md#testflight)), as the workflow does; it goes to TestFlight, not into the release's files | Xcode, xcodegen, the App Store Connect key, the distribution certificate |
-| The Mac App Store | `scripts/mac/appstore.sh` ([ios.md](ios.md#a-mac-app-store-build)), as the workflow does; it goes to App Store Connect, not into the release's files | Xcode, xcodegen, the App Store Connect key, the distribution certificate |
+| iOS | `scripts/ios/testflight.sh` ([ios.md](ios.md#testflight)), as the workflow does; it goes to TestFlight, not into the release's files | Xcode, xcodegen, the App Store Connect key, a development certificate |
+| The Mac App Store | `scripts/mac/appstore.sh` ([ios.md](ios.md#a-mac-app-store-build)), as the workflow does; it goes to App Store Connect, not into the release's files | Xcode, xcodegen, the App Store Connect key, a development certificate |
 | Docker | `docker build -t fractique-server .` ([server.md](server.md#docker)), as the workflow does on a runner of each processor | Docker |
 | Web | `crates/fractique-app/index.html` is a [Trunk](https://trunkrs.dev) page; not part of a release | Trunk |
 
@@ -95,7 +96,8 @@ version: App Store Connect takes no more builds of a version it has released.
 
 Nobody uploads a build to TestFlight or App Store Connect from their own computer, an agent neither: the scripts
 build and sign, and upload nothing. When an upload of the tag's run fails, the failed jobs of that run are started
-again (`gh run rerun <run id> --failed`); its builds are kept for seven days.
+again (`gh run rerun <run id> --failed`); its builds are kept for seven days. Each of the two uploads is a job
+of its own, so a build that arrived is not sent again.
 
 [`.claude/app-store-release.md`](../.claude/app-store-release.md) holds what a release to the stores needs: the
 identifiers, the commands for each platform, the sizes of the screenshots and what passed the first review.
@@ -284,7 +286,7 @@ Four keys sign a release. None is in the repository; the workflow reads them fro
 | `CARGO_PACKAGER_SIGN_PRIVATE_KEY`, `CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD` | The desktop installers, for the app's updater, and the command line tool, the MCP server and the HTTP server, for their `update` command | Installed copies refuse every later update, the app and the three programs alike: people must install by hand once |
 | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` | The APK | Android refuses to install a later APK over the app: it must be removed first |
 | `ASC_KEY_P8`, `ASC_KEY_ID`, `ASC_ISSUER_ID` | The iOS build, for TestFlight, and the build for the Mac App Store ([ios.md](ios.md#from-github)) | Nothing is lost: the key is revoked in App Store Connect and a new one made |
-| `APPLE_DISTRIBUTION_P12`, `APPLE_DISTRIBUTION_P12_PASSWORD` | The same two builds: the team's Apple Distribution certificate with its private key ([ios.md](ios.md#from-github)) | Nothing is lost: the certificate is revoked under Certificates in the developer account and a new one made |
+| `APPLE_DEVELOPMENT_P12`, `APPLE_DEVELOPMENT_P12_PASSWORD` | The archives of the same two builds: an Apple Development certificate of the team with its private key ([ios.md](ios.md#from-github)) | Nothing is lost: the certificate is revoked under Certificates in the developer account and a new one made |
 
 Keep copies of the first two outside GitHub: a secret cannot be read back from there.
 
