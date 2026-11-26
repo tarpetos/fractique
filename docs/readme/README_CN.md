@@ -9,6 +9,11 @@
 </div>
 
 <p align="center">
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-zh-cn.svg" alt="在 App Store 下载" height="48"></a><br>
+  <sub>iPhone 和 iPad。Windows、macOS、Linux 和 Android：在<a href="https://github.com/tarpetos/fractique/releases/latest">最新版本</a>中免费下载。</sub>
+</p>
+
+<p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique：适合每一块屏幕的分形壁纸" width="880"></a>
 </p>
 

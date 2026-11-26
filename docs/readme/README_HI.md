@@ -9,6 +9,11 @@
 </div>
 
 <p align="center">
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-en-us.svg" alt="App Store से डाउनलोड करें" height="48"></a><br>
+  <sub>iPhone और iPad. Windows, macOS, Linux और Android: <a href="https://github.com/tarpetos/fractique/releases/latest">नवीनतम रिलीज़</a> में मुफ़्त.</sub>
+</p>
+
+<p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: हर स्क्रीन के लिए फ्रैक्टल वॉलपेपर" width="880"></a>
 </p>
 
