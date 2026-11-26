@@ -174,7 +174,8 @@ jobs:
 
       - name: Release notes, update manifests and checksums
         run: |
-          awk -v v="## $VERSION" '$0 == v {on = 1; next} on && /^## / {exit} on {print}' CHANGELOG.md > notes.md
+          # The section of the version, with or without the "(unreleased)" it carries until the release.
+          awk -v v="## $VERSION" '$0 == v || $0 == v " (unreleased)" {on = 1; next} on && /^## / {exit} on {print}' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then echo "See CHANGELOG.md." > notes.md; fi
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
           # GitHub lists the files by name in one long list. The notes open with the app for each system; the
