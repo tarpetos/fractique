@@ -60,7 +60,10 @@ and no release. After a fix the tag is deleted, here and on GitHub, and pushed a
 Started by hand, from a branch or from a tag, the workflow builds and sends nothing: the installers and the APK are
 kept as artifacts, the two Apple builds are signed and checked, and the image is built and asked for an answer. With
 **desktop**, **ios**, **mac** or **docker** chosen it builds that one alone, with **appstore** the two Apple builds,
-to try them before a tag.
+to try them before a tag. One exception: with **testflight** ticked, the iOS build goes to TestFlight once every
+build asked for has succeeded, to try a branch on an iPhone (`gh workflow run release.yml --ref <branch> -f
+platforms=ios -f testflight=true`). It reaches the team's testers only, under the version in the files and a new
+build number; it is never submitted for review, which takes a tag's build alone.
 
 The workflows are three. `CI` and `Release` are each one entry file that calls the others, so GitHub shows one run
 for each:
@@ -97,7 +100,8 @@ version is then submitted for review by hand. A fix that is wanted after a versi
 version: App Store Connect takes no more builds of a version it has released.
 
 Nobody uploads a build to TestFlight or App Store Connect from their own computer, an agent neither: the scripts
-build and sign, and upload nothing. When an upload of the tag's run fails, the failed jobs of that run are started
+build and sign, and upload nothing. Uploads come from the `Release` workflow alone: a tag's run, or a run started
+by hand with **testflight**, which sends the iOS build to TestFlight only. When an upload of the tag's run fails, the failed jobs of that run are started
 again (`gh run rerun <run id> --failed`); its builds are kept for seven days. Each of the two uploads is a job
 of its own, so a build that arrived is not sent again.
 

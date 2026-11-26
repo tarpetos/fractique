@@ -29,7 +29,8 @@ tagged on GitHub first, and a store gets a build of that tag. No passwords, keys
   `gh release view v<version>` shows the release.
 - The tag's run builds every platform, iOS and the Mac App Store included, and sends nothing out unless all of
   them succeed: then it uploads the two Apple builds, pushes the Docker image and publishes the release.
-- Started by hand, the `Release` workflow builds and checks without uploading or publishing.
+- Started by hand, the `Release` workflow builds and checks without uploading or publishing; with **testflight**
+  ticked it also sends the iOS build to TestFlight.
 
 ## iOS (iPhone and iPad)
 
@@ -69,7 +70,9 @@ tagged on GitHub first, and a store gets a build of that tag. No passwords, keys
 
 ## Standing choices of the owner
 
-- Builds go to TestFlight and App Store Connect only from the `Release` run of a version tag. Nobody uploads from
+- Builds go to TestFlight and App Store Connect only from the `Release` workflow on GitHub: a version tag's run, or
+  a run started by hand with **testflight** (a branch's iOS build, for the testers only; started on the owner's
+  word; never submitted for review). A store version is submitted only with its tag's build. Nobody uploads from
   their own computer, an agent neither: no `xcodebuild -exportArchive` with an upload, no Transporter, no
   `altool --upload-app`.
 - The release option is **manual**, phased release off. A version is released when the owner says so.
