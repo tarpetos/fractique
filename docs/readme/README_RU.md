@@ -9,6 +9,11 @@
 </div>
 
 <p align="center">
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-ru-ru.svg" alt="Загрузите в App Store" height="48"></a><br>
+  <sub>iPhone и iPad. Windows, macOS, Linux и Android: бесплатно, в <a href="https://github.com/tarpetos/fractique/releases/latest">последнем релизе</a>.</sub>
+</p>
+
+<p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: фрактальные обои для любого экрана" width="880"></a>
 </p>
 

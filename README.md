@@ -9,6 +9,11 @@
 </div>
 
 <p align="center">
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="assets/badges/app-store-en-us.svg" alt="Download on the App Store" height="48"></a><br>
+  <sub>iPhone and iPad. Windows, macOS, Linux and Android: free, in the <a href="https://github.com/tarpetos/fractique/releases/latest">latest release</a>.</sub>
+</p>
+
+<p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="docs/samples/video.webp" alt="Fractique: fractal wallpapers for every screen" width="880"></a>
 </p>
 

@@ -9,6 +9,11 @@
 </div>
 
 <p align="center">
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-id-id.svg" alt="Download di App Store" height="48"></a><br>
+  <sub>iPhone dan iPad. Windows, macOS, Linux, dan Android: gratis, di <a href="https://github.com/tarpetos/fractique/releases/latest">rilis terbaru</a>.</sub>
+</p>
+
+<p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: wallpaper fraktal untuk setiap layar" width="880"></a>
 </p>
 

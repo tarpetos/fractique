@@ -9,6 +9,11 @@
 </div>
 
 <p align="center">
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-tr-tr.svg" alt="App Store'dan İndirin" height="48"></a><br>
+  <sub>iPhone ve iPad. Windows, macOS, Linux ve Android: <a href="https://github.com/tarpetos/fractique/releases/latest">son sürümde</a> ücretsiz.</sub>
+</p>
+
+<p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: her ekran için fraktal duvar kağıtları" width="880"></a>
 </p>
 

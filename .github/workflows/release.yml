@@ -126,10 +126,10 @@ jobs:
           {
             echo "## Downloads"
             echo
-            echo "| Windows | Linux | macOS | Android |"
-            echo "| :---: | :---: | :---: | :---: |"
-            echo "| **$(link "Fractique.exe" "Fractique_${v}_x64.exe")** | **$(link "AppImage" "Fractique_${v}_x86_64.AppImage")** · $(link ".deb" "Fractique_${v}_amd64.deb") | **$(link "Fractique.dmg" "Fractique_${v}_universal.dmg")** | **$(link "Fractique.apk" "Fractique_${v}_android.apk")** |"
-            echo "| 64-bit, no installer | any distribution · Debian, Ubuntu | Apple Silicon and Intel | Android 8 and newer |"
+            echo "| Windows | Linux | macOS | Android | iPhone, iPad |"
+            echo "| :---: | :---: | :---: | :---: | :---: |"
+            echo "| **$(link "Fractique.exe" "Fractique_${v}_x64.exe")** | **$(link "AppImage" "Fractique_${v}_x86_64.AppImage")** · $(link ".deb" "Fractique_${v}_amd64.deb") | **$(link "Fractique.dmg" "Fractique_${v}_universal.dmg")** | **$(link "Fractique.apk" "Fractique_${v}_android.apk")** | **[App Store](https://apps.apple.com/app/fractique/id6836122841)** |"
+            echo "| 64-bit, no installer | any distribution · Debian, Ubuntu | Apple Silicon and Intel | Android 8 and newer | iOS 15 and newer |"
             echo
             echo "<details>"
             echo "<summary>Command line tool, MCP server, HTTP server, Docker</summary>"
