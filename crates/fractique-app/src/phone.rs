@@ -7,6 +7,7 @@ use fractique_core::wallpaper::{Layout, Material, Request, chosen, random_wallpa
 use fractique_core::{Control, RenderOptions, Scene, fractal, math, palette, presets, render};
 use serde_json::{Value, json};
 
+use crate::colors::Choices;
 use crate::widgets::{self, MEDIUM, SEMIBOLD, font};
 use crate::{App, WHOLE, motion, named, shown};
 
@@ -67,6 +68,8 @@ pub struct Piece {
     pub title: String,
     pub kind: Kind,
     pub origin: Origin,
+    pub colors: Choices,
+    pub layer: usize,
 }
 
 impl Piece {
@@ -123,6 +126,18 @@ impl Piece {
             }
             Kind::Flame(scene) => json!({ "title": self.title, "scene": scene.to_json() }),
         };
+        if let Kind::Flame(scene) = &self.kind {
+            let colors = self.colors.saved(scene.layers.len());
+            if colors
+                .as_array()
+                .is_some_and(|all| all.iter().any(|one| !one.is_null()))
+            {
+                value["colors"] = colors;
+            }
+            if self.layer > 0 {
+                value["layer"] = json!(self.layer);
+            }
+        }
         if self.origin != Origin::default() {
             value["family"] = json!(self.origin.family);
             value["mutation"] = json!(self.origin.mutation);
@@ -144,6 +159,10 @@ impl Piece {
             ),
         };
         let number = |key: &str| value.get(key).and_then(Value::as_u64);
+        let colors = match &kind {
+            Kind::Flame(scene) if value.get("colors").is_some() => Choices::restored(value, scene.layers.len()),
+            _ => Choices::default(),
+        };
         let origin = Origin {
             family: number("family").unwrap_or(0),
             mutation: number("mutation")
@@ -151,7 +170,13 @@ impl Piece {
                 .unwrap_or(0),
             made: number("made"),
         };
-        Some(Self { title, kind, origin })
+        Some(Self {
+            title,
+            kind,
+            origin,
+            colors,
+            layer: number("layer").map_or(0, |layer| layer as usize),
+        })
     }
 }
 
@@ -520,7 +545,12 @@ fn note(recent: &mut Vec<Piece>, mut piece: Piece, step: Step, at: usize, now: u
     });
     let family = now.max(recent.iter().map(|other| other.origin.family + 1).max().unwrap_or(0));
     match (step, twin, before) {
-        (Step::Adjusted | Step::Visited, Some(twin), _) => return twin,
+        // The same picture: it keeps the colors and the layer chosen last.
+        (Step::Adjusted | Step::Visited, Some(twin), _) => {
+            recent[rows[twin]].colors = piece.colors;
+            recent[rows[twin]].layer = piece.layer;
+            return twin;
+        }
         // A flame that is being adjusted is one picture, not one for every move of a slider.
         (Step::Adjusted, None, Some(before)) => {
             piece.origin = recent[before].origin;
@@ -779,12 +809,16 @@ impl App {
                 title: shown(&self.title),
                 kind: Kind::Wall(self.seed, layout, material, self.wall.dark, self.wall.hue),
                 origin: self.phone.origin,
+                colors: Choices::default(),
+                layer: 0,
             }
         } else {
             Piece {
                 title: shown(&self.title),
                 kind: Kind::Flame(Box::new(self.dressed())),
                 origin: self.phone.origin,
+                colors: self.choices.clone(),
+                layer: self.chosen_layer(),
             }
         }
     }
@@ -870,8 +904,9 @@ impl App {
             Kind::Flame(scene) => {
                 self.wall.on = false;
                 self.follow(scene);
-                self.choices = crate::colors::Choices::default();
                 self.pick((**scene).clone(), piece.title.clone(), false);
+                self.choices = piece.colors.clone();
+                self.layer = piece.layer.min(scene.layers.len().saturating_sub(1));
             }
         }
         self.phone.step = Step::Picked;
@@ -2104,6 +2139,8 @@ mod tests {
             title: "Waves Steel".into(),
             kind: Kind::Wall(seed, Layout::ALL[0].1, Material::ALL[0].1, false, None),
             origin: Origin::default(),
+            colors: Choices::default(),
+            layer: 0,
         }
     }
 
@@ -2114,6 +2151,8 @@ mod tests {
             title: title.into(),
             kind: Kind::Flame(Box::new(scene)),
             origin: Origin::default(),
+            colors: Choices::default(),
+            layer: 0,
         }
     }
 
@@ -2220,6 +2259,26 @@ mod tests {
         let mut same = phone.recent[0].clone();
         same.origin = Origin::default();
         assert_eq!(same.key(), phone.recent[0].key());
+    }
+
+    #[test]
+    fn a_picture_keeps_its_colors_and_its_layer_in_the_list_and_after_a_restart() {
+        let mut two = flame("Two Layers", 1.0);
+        if let Kind::Flame(scene) = &mut two.kind {
+            let copy = scene.layers[0].clone();
+            scene.layers.push(copy);
+        }
+        let ember = palette::SWATCHES.iter().position(|name| *name == "ember");
+        let mut recent = Vec::new();
+        note(&mut recent, two.clone(), Step::Fresh, 0, 100);
+        two.colors.choose(1, ember);
+        two.layer = 1;
+        assert_eq!(note(&mut recent, two.clone(), Step::Adjusted, 0, 200), 0);
+        assert_eq!((recent[0].colors.of(1), recent[0].layer), (ember, 1));
+        let mut phone = Phone::new(None, None);
+        phone.recent = recent;
+        let again = Phone::new(None, Some(phone.recent_text()));
+        assert_eq!((again.recent[0].colors.of(1), again.recent[0].layer), (ember, 1));
     }
 
     #[test]

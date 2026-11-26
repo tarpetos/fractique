@@ -8,6 +8,7 @@
 * **App, phones:** the layers, then the colors, in two rows under the switch: three layers and five colors in sight, the rest scrolled by a finger or by the arrows at their ends.
 * **Gallery:** a hundred isometric fractals, `docs/gallery/isometric/`.
 * **Colors:** nine dark palettes of one hue after rezonanca.art, each with its own background: amethyst, cobalt, garnet, abyss, lagoon, frost, rosewood, bronze, forest.
+* **App, phones:** Back brings a picture back with the colors and the layer chosen for it.
 * **App Store builds, iPhone and iPad:** the free saves of the day are kept in the Keychain, so deleting the app and installing it again no longer gives three new ones.
 * **App Store builds:** the App Store lists the 15 languages of the app, and Settings offers them as the app's language.
 
