@@ -5165,12 +5165,16 @@ impl App {
         self.touched = Instant::now();
     }
 
+    fn layer_card_shown(&self) -> bool {
+        self.layer_card && !self.base.layers.is_empty() && !self.wall.live
+    }
+
     fn sheet_open(&self) -> bool {
         let lists = self.sizes_open
             || self.presets_open
             || self.languages_open
             || self.settings_open
-            || self.layer_card
+            || self.layer_card_shown()
             || self.pro_open();
         #[cfg(not(target_arch = "wasm32"))]
         let lists = lists || self.export.open;
@@ -7931,7 +7935,7 @@ impl App {
             self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
         }
 
-        let card = self.layer_card && self.base.layers.len() > 1 && !self.wall.live;
+        let card = self.layer_card_shown();
         if let Some(shown) = self.stage.shown("layer_card", card, motion::PANEL) {
             // It stands at the foot of the screen, so the picture it changes stays in sight above it.
             let at = egui::pos2(content.center().x, content.bottom() - 16.0);

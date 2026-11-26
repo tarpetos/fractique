@@ -2,6 +2,7 @@
 
 ## 1.0.4
 
+* **App, phones:** deleting one of two layers no longer leaves the picture without its buttons; the layer card opens for a picture of one layer too.
 * **Fractals:** Mandelbox, Mandelbulb and Menger sponge have an isometric camera and can take their colors from the light; presets in that style.
 * **Fractals:** a new kind, `flow`: nine smooth attractors in three dimensions (Thomas, Halvorsen, Chen, Aizawa and others) drawn as lines.
 * **App:** a fractal only the processor draws is always finished, at any zoom, and its time is told once, for the whole picture.
