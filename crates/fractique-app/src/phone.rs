@@ -610,6 +610,21 @@ fn note(recent: &mut Vec<Piece>, mut piece: Piece, step: Step, at: usize, now: u
 // A row that keeps `shown` of its cells in sight: a finger scrolls the rest, and an arrow grows on each side where
 // there is more and shrinks away at the row's end. `after` stands between the cells and the arrow after them. The
 // chosen cell is brought into sight when it changes.
+// How many of `count` cells go in a row, with at least the gap between them and the rows as even as they can be
+// (18 in rows of 10 would leave 8 under them: they go in two rows of 9), and the gap that spreads a row over the
+// whole width.
+fn spread(width: f32, cell: f32, least: f32, count: usize) -> (usize, f32) {
+    let fit = (((width + least) / (cell + least)).floor() as usize).max(1);
+    let rows = count.div_ceil(fit).max(1);
+    let columns = count.div_ceil(rows).max(1);
+    let gap = if columns > 1 {
+        ((width - columns as f32 * cell) / (columns - 1) as f32).max(least)
+    } else {
+        least
+    };
+    (columns, gap)
+}
+
 fn carousel(
     ui: &mut egui::Ui,
     id: egui::Id,
@@ -1052,8 +1067,13 @@ impl App {
                 |_| {},
             );
         } else {
+            // As many in a row as fit, spread over the whole width: the same margin at both ends. The width is
+            // widened by a point so that a row that fits exactly does not drop its last dot.
+            let width = ui.available_width();
+            let (_, gap) = spread(width, dot + 8.0, 3.0, cells);
             ui.horizontal_wrapped(|ui| {
-                ui.spacing_mut().item_spacing = vec2(3.0, 6.0);
+                ui.set_max_width(width + 1.0);
+                ui.spacing_mut().item_spacing = vec2(gap, 6.0);
                 draw(ui);
             });
         }
@@ -2279,6 +2299,24 @@ mod tests {
         phone.recent = recent;
         let again = Phone::new(None, Some(phone.recent_text()));
         assert_eq!((again.recent[0].colors.of(1), again.recent[0].layer), (ember, 1));
+    }
+
+    #[test]
+    fn the_colors_fill_their_rows_from_edge_to_edge() {
+        // The sheet's eighteen colors: two rows of nine at any phone's width, each row as wide as the sheet.
+        for width in [300.0f32, 325.0, 329.5, 345.0, 361.0, 402.0] {
+            let dot = 26.0f32.min((width - 8.0 * 3.0) / 9.0 - 8.0).max(10.0);
+            let (columns, gap) = spread(width, dot + 8.0, 3.0, 18);
+            assert_eq!(columns, 9, "{width}");
+            let row = columns as f32 * (dot + 8.0) + (columns - 1) as f32 * gap;
+            assert!((row - width).abs() < 0.01, "{width}: {row}");
+        }
+        // Where ten fit, the rows stay even: nine and nine, spread wider.
+        let (columns, gap) = spread(280.0, 24.0, 3.0, 18);
+        assert_eq!(columns, 9);
+        assert!((9.0 * 24.0 + 8.0 * gap - 280.0).abs() < 0.01);
+        // Where all fit, one row.
+        assert_eq!(spread(500.0, 24.0, 3.0, 18).0, 18);
     }
 
     #[test]
