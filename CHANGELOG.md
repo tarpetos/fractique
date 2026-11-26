@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.4
+## 1.0.5
 
 * **App, phones:** deleting one of two layers no longer leaves the picture without its buttons; the layer card opens for a picture of one layer too.
 * **Fractals:** Mandelbox, Mandelbulb and Menger sponge have an isometric camera and can take their colors from the light; presets in that style.
@@ -11,6 +11,10 @@
 * **Gallery:** a hundred isometric fractals, `docs/gallery/isometric/`.
 * **Colors:** nine dark palettes of one hue after rezonanca.art, each with its own background: amethyst, cobalt, garnet, abyss, lagoon, frost, rosewood, bronze, forest.
 * **App, phones:** Back brings a picture back with the colors and the layer chosen for it.
+
+## 1.0.4
+
+* **App Store only:** a release for iPhone and iPad, with no release on GitHub.
 * **App Store builds, iPhone and iPad:** the free saves of the day are kept in the Keychain, so deleting the app and installing it again no longer gives three new ones.
 * **App Store builds:** the App Store lists the 15 languages of the app, and Settings offers them as the app's language.
 
