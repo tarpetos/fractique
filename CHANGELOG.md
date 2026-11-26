@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.5
+## 1.0.5 (unreleased)
 
 * **App, phones:** deleting one of two layers no longer leaves the picture without its buttons; the layer card opens for a picture of one layer too.
 * **Fractals:** Mandelbox, Mandelbulb and Menger sponge have an isometric camera and can take their colors from the light; presets in that style.
