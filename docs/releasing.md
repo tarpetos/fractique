@@ -36,8 +36,9 @@ app: it goes to the GitHub Container Registry as `ghcr.io/tarpetos/fractique-ser
    build script refuses to build when its own differs from `Cargo.toml` (the desktop scripts read
    `Packager.toml`, `testflight.sh` and `appstore.sh` their `project.yml`), and the `Release` workflow when any of the three does, before anything is built. Every program takes the
    one in `Cargo.toml`.
-2. Add a section `## <version> (unreleased)` at the top of `CHANGELOG.md` when the version is set, and take the
-   "(unreleased)" away in the last commit before the tag. The section becomes the release's notes and what the app
+2. In `CHANGELOG.md`, rename the section `## Unreleased` at the top, where changes are listed as they are merged,
+   to `## <version>`, and start a new empty `## Unreleased` above it after the tag. The section becomes the
+   release's notes and what the app
    shows under "Updates and what's new". On the release's page a section
    "Downloads" stands above it: the app for each system, and the other programs folded away under them. The app
    reads the notes from that page and leaves the section out.
