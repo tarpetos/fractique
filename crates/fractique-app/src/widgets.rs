@@ -691,8 +691,10 @@ pub fn slider_to(
 
 // Half of the 44 points a finger needs to take the knob.
 const GRIP: f32 = 22.0;
-const DECIDED: f32 = 12.0;
-const SIDEWAYS: f32 = 2.0;
+// A finger lands this far above and below the track and still takes the slider: 42 points in all.
+const REACH: (f32, f32) = (12.0, 8.0);
+const DECIDED: f32 = 6.0;
+const SIDEWAYS: f32 = 1.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Finger {
@@ -701,12 +703,9 @@ enum Finger {
     Scrolls,
 }
 
-// A finger on a slider of a panel that scrolls: only one that landed on the knob and goes clearly sideways moves
-// the knob, from where the knob is; any other scrolls the panel.
-fn finger(from_knob: f32, moved: egui::Vec2) -> Finger {
-    if from_knob.abs() > GRIP {
-        Finger::Scrolls
-    } else if moved.length() <= DECIDED {
+// A finger on a slider of a panel that scrolls: one that goes sideways moves the knob, any other scrolls the panel.
+fn finger(moved: egui::Vec2) -> Finger {
+    if moved.length() <= DECIDED {
         Finger::Undecided
     } else if moved.x.abs() > SIDEWAYS * moved.y.abs() {
         Finger::Slides
@@ -763,9 +762,12 @@ pub fn slider_as(
         white(240),
     );
 
-    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click_and_drag());
+    let (rect, track_only) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::hover());
+    let reach = egui::Rect::from_min_max(rect.min - vec2(0.0, REACH.0), rect.max + vec2(0.0, REACH.1));
+    let response = ui.interact(reach, track_only.id.with("reach"), Sense::click_and_drag());
     let knob = 8.0;
     let (start, end) = (rect.left() + knob, rect.right() - knob);
+    let knob_at = start + (end - start) * to_share(*value).clamp(0.0, 1.0) as f32;
     let mut changed = false;
     let touched = ui.input(|input| {
         input.any_touches()
@@ -780,12 +782,14 @@ pub fn slider_as(
         let mut held: Option<(Finger, f32)> = ui.data(|data| data.get_temp(id));
         if response.dragged() {
             let (origin, now) = ui.input(|input| (input.pointer.press_origin(), input.pointer.interact_pos()));
-            let knob_at = start + (end - start) * to_share(*value).clamp(0.0, 1.0) as f32;
-            let (gesture, ahead) =
-                held.get_or_insert_with(|| (Finger::Undecided, origin.map_or(f32::INFINITY, |from| knob_at - from.x)));
+            // Taken by the knob, the knob keeps its distance to the finger; taken beside it, it comes to the finger.
+            let (gesture, ahead) = held.get_or_insert_with(|| {
+                let ahead = origin.map_or(0.0, |from| knob_at - from.x);
+                (Finger::Undecided, if ahead.abs() <= GRIP { ahead } else { 0.0 })
+            });
             if *gesture == Finger::Undecided {
                 let moved = origin.zip(now).map_or(egui::Vec2::ZERO, |(from, to)| to - from);
-                *gesture = finger(*ahead, moved);
+                *gesture = finger(moved);
             }
             match *gesture {
                 Finger::Scrolls => {
@@ -797,6 +801,12 @@ pub fn slider_as(
             }
         } else {
             held = None;
+            if response.clicked()
+                && let Some(at) = response.interact_pointer_pos()
+                && (at.x - knob_at).abs() > GRIP
+            {
+                aimed = Some(at.x);
+            }
         }
         ui.data_mut(|data| match held {
             Some(held) => {
@@ -927,20 +937,30 @@ mod tests {
         let (value, scrolled) = swiped((0.5, 0.0), (0.7, -120.0));
         assert_eq!(value, 0.5);
         assert!(scrolled > 60.0, "{scrolled}");
-        // A finger on the track beside the knob never moves it, whichever way it goes, nor does a tap there.
-        for to in [(0.6, 0.0), (0.2, -120.0), (0.2, 0.0)] {
-            assert_eq!(swiped((0.2, 0.0), to).0, 0.5, "{to:?}");
+        // Taken on the track beside the knob and led sideways, the knob comes to the finger and goes with it.
+        let (value, scrolled) = swiped((0.2, 0.0), (0.6, 3.0));
+        assert!((value - 0.6).abs() < 0.02, "{value}");
+        assert_eq!(scrolled, 0.0);
+        // A tap on the track puts the knob there.
+        assert!((swiped((0.2, 0.0), (0.2, 0.0)).0 - 0.2).abs() < 0.02);
+        // One that goes up from there scrolls and leaves the knob.
+        let (value, scrolled) = swiped((0.2, 0.0), (0.25, -120.0));
+        assert_eq!(value, 0.5);
+        assert!(scrolled > 60.0, "{scrolled}");
+        // A finger a little above or below the track takes it too.
+        for below in [-11.0, 7.0] {
+            let (value, _) = swiped((0.5, below), (0.8, below));
+            assert!((value - 0.8).abs() < 0.02, "{below} {value}");
         }
     }
 
     #[test]
     fn a_finger_is_read_by_where_it_landed_and_where_it_goes() {
-        assert_eq!(finger(0.0, vec2(5.0, 0.0)), Finger::Undecided);
-        assert_eq!(finger(GRIP, vec2(30.0, 14.0)), Finger::Slides);
-        assert_eq!(finger(0.0, vec2(30.0, 16.0)), Finger::Scrolls);
-        assert_eq!(finger(0.0, vec2(0.0, 13.0)), Finger::Scrolls);
-        assert_eq!(finger(GRIP + 1.0, vec2(40.0, 0.0)), Finger::Scrolls);
-        assert_eq!(finger(f32::INFINITY, vec2(40.0, 0.0)), Finger::Scrolls);
+        assert_eq!(finger(vec2(5.0, 0.0)), Finger::Undecided);
+        assert_eq!(finger(vec2(8.0, 2.0)), Finger::Slides);
+        assert_eq!(finger(vec2(30.0, 26.0)), Finger::Slides);
+        assert_eq!(finger(vec2(30.0, 31.0)), Finger::Scrolls);
+        assert_eq!(finger(vec2(0.0, 7.0)), Finger::Scrolls);
     }
 
     fn inside(pane: egui::Rect, radius: f32, at: egui::Pos2) -> bool {
