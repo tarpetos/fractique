@@ -45,10 +45,10 @@ enum Command {
         /// Render the wallpaper of this seed: stacked sheets instead of a flame
         #[arg(long, conflicts_with_all = ["scene", "preset", "random"])]
         wallpaper: Option<u64>,
-        /// The wallpaper's layout (bands, discs, waves, ribbons, burst, arcs, tiles, bars, fan, slats, planes, steps, frames, lines); the seed picks one
+        /// The wallpaper's layout (bands, discs, waves, ribbons, burst, arcs, tiles, bars, fan, slats, planes, steps, frames, lines, garden, ripples, pebbles, horizon, twist, mosaic); the seed picks one
         #[arg(long)]
         layout: Option<String>,
-        /// The wallpaper's material (relief, paper, glass, glow, steel, carbon); the seed picks one
+        /// The wallpaper's material (relief, paper, glass, glow, steel, carbon, clay, chrome, candy, velvet); the seed picks one
         #[arg(long)]
         material: Option<String>,
         /// The wallpaper's dark version
@@ -91,10 +91,11 @@ enum Command {
     /// Print the wallpaper of a seed as JSON
     Wallpaper {
         seed: u64,
-        /// bands, discs, waves, ribbons, burst, arcs, tiles, bars, fan, slats, planes, steps, frames or lines
+        /// bands, discs, waves, ribbons, burst, arcs, tiles, bars, fan, slats, planes, steps, frames, lines, garden, ripples,
+        /// pebbles, horizon, twist or mosaic
         #[arg(long)]
         layout: Option<String>,
-        /// relief, paper, glass, glow, steel or carbon
+        /// relief, paper, glass, glow, steel, carbon, clay, chrome, candy or velvet
         #[arg(long)]
         material: Option<String>,
         #[arg(long)]

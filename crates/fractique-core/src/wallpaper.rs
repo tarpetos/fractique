@@ -20,10 +20,16 @@ pub enum Layout {
     Steps,
     Frames,
     Lines,
+    Garden,
+    Ripples,
+    Pebbles,
+    Horizon,
+    Twist,
+    Mosaic,
 }
 
 impl Layout {
-    pub const ALL: [(&'static str, Layout); 14] = [
+    pub const ALL: [(&'static str, Layout); 20] = [
         ("bands", Layout::Bands),
         ("discs", Layout::Discs),
         ("waves", Layout::Waves),
@@ -38,6 +44,12 @@ impl Layout {
         ("steps", Layout::Steps),
         ("frames", Layout::Frames),
         ("lines", Layout::Lines),
+        ("garden", Layout::Garden),
+        ("ripples", Layout::Ripples),
+        ("pebbles", Layout::Pebbles),
+        ("horizon", Layout::Horizon),
+        ("twist", Layout::Twist),
+        ("mosaic", Layout::Mosaic),
     ];
 
     pub fn parse(name: &str) -> Option<Self> {
@@ -53,16 +65,24 @@ pub enum Material {
     Glow,
     Steel,
     Carbon,
+    Clay,
+    Chrome,
+    Candy,
+    Velvet,
 }
 
 impl Material {
-    pub const ALL: [(&'static str, Material); 6] = [
+    pub const ALL: [(&'static str, Material); 10] = [
         ("relief", Material::Relief),
         ("paper", Material::Paper),
         ("glass", Material::Glass),
         ("glow", Material::Glow),
         ("steel", Material::Steel),
         ("carbon", Material::Carbon),
+        ("clay", Material::Clay),
+        ("chrome", Material::Chrome),
+        ("candy", Material::Candy),
+        ("velvet", Material::Velvet),
     ];
 
     pub fn parse(name: &str) -> Option<Self> {
@@ -417,6 +437,172 @@ fn fan(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
         .collect()
 }
 
+// Flowers of five to eight petals, larger at the back, scattered over the picture.
+fn garden(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
+    let n = count(rng, 3, 6);
+    let petals = count(rng, 5, 8);
+    let pointed = rng.next_f64() < 0.6;
+    (0..n)
+        .map(|i| {
+            let t = i as f64 / (n - 1) as f64;
+            let length = rng.range(0.75, 1.15) * (1.0 - 0.45 * t) * ex.max(1.0);
+            let center = [ex * rng.range(-0.85, 0.85), ey * rng.range(-0.8, 0.85)];
+            let turn = rng.range(0.0, 360.0);
+            let width = (2.0 * length * sin(PI / petals as f64) * 0.9).min(length * 0.7);
+            (0..petals)
+                .map(|p| {
+                    let rotation = turn + 360.0 * p as f64 / petals as f64;
+                    if pointed {
+                        Shape::Petal {
+                            base: center,
+                            length,
+                            width,
+                            rotation,
+                        }
+                    } else {
+                        let angle = rotation.to_radians();
+                        boxed(
+                            [
+                                center[0] + sin(angle) * length / 2.0,
+                                center[1] - cos(angle) * length / 2.0,
+                            ],
+                            [width / 2.0, length / 2.0],
+                            [width / 2.0; 4],
+                            rotation,
+                        )
+                    }
+                })
+                .collect()
+        })
+        .collect()
+}
+
+// Rings spreading from two or three points, as on water, each wider and thinner than the one inside it.
+fn ripples(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
+    let sources = count(rng, 2, 3);
+    let mut out = Vec::new();
+    for _ in 0..sources {
+        let center = [ex * rng.range(-0.9, 0.9), ey * rng.range(-0.85, 0.85)];
+        let rings = count(rng, 3, 5);
+        let first = rng.range(0.18, 0.35);
+        let step = rng.range(0.22, 0.4) * ex.max(1.0);
+        for k in 0..rings {
+            let radius = first + step * k as f64;
+            out.push(vec![Shape::Ring {
+                center,
+                radius,
+                thickness: (0.16 - 0.025 * k as f64).max(0.05),
+                span: 360.0,
+                rotation: 0.0,
+            }]);
+        }
+    }
+    out.push(vec![disc(
+        [ex * rng.range(-0.5, 0.5), ey * rng.range(-0.5, 0.5)],
+        rng.range(0.12, 0.2),
+    )]);
+    out
+}
+
+// Rounded stones of many sizes, heaped towards the foot of the picture.
+fn pebbles(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
+    let n = count(rng, 9, 15);
+    (0..n)
+        .map(|i| {
+            let t = i as f64 / (n - 1) as f64;
+            let size = rng.range(0.35, 0.75) * (1.0 - 0.35 * t) * ex.max(1.0);
+            let half = [size, size * rng.range(0.6, 0.9)];
+            let low = rng.next_f64();
+            let center = [ex * rng.range(-1.05, 1.05), ey * (1.05 - 1.7 * low * low)];
+            vec![boxed(
+                center,
+                half,
+                [half[1] * rng.range(0.75, 1.0); 4],
+                rng.range(-35.0, 35.0),
+            )]
+        })
+        .collect()
+}
+
+// A low sun behind hills that lie one before another, the nearest the darkest.
+fn horizon(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
+    let sun = [ex * rng.range(-0.6, 0.6), ey * rng.range(-0.45, 0.05)];
+    let radius = rng.range(0.45, 0.8) * ex.max(1.0);
+    let mut out = vec![vec![disc(sun, radius)]];
+    if rng.next_bool() {
+        out.push(vec![Shape::Ring {
+            center: sun,
+            radius: radius * 1.45,
+            thickness: radius * 0.12,
+            span: 360.0,
+            rotation: 0.0,
+        }]);
+    }
+    let hills = count(rng, 3, 5);
+    for i in 0..hills {
+        let t = i as f64 / (hills - 1) as f64;
+        out.push(vec![Shape::Wave {
+            level: sun[1] + radius * 0.6 + (ey - sun[1]) * 0.55 * t,
+            swells: vec![
+                Swell {
+                    height: rng.range(0.12, 0.3) * (1.0 - 0.4 * t),
+                    length: rng.range(2.4, 4.5) * ex,
+                    shift: rng.range(0.0, TAU),
+                },
+                Swell {
+                    height: rng.range(0.02, 0.06),
+                    length: rng.range(0.6, 1.2) * ex,
+                    shift: rng.range(0.0, TAU),
+                },
+            ],
+            thickness: 0.0,
+            rotation: rng.range(-4.0, 4.0),
+        }]);
+    }
+    out
+}
+
+// Rounded squares one inside another, each turned a little further: a spiral of frames.
+fn twist(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
+    let n = count(rng, 6, 10);
+    let center = [ex * rng.range(-0.35, 0.35), ey * rng.range(-0.3, 0.3)];
+    let largest = rng.range(1.2, 1.6) * ex.max(1.0);
+    let shrink = rng.range(0.8, 0.88);
+    let step = sign(rng) * rng.range(7.0, 15.0);
+    let round = rng.range(0.1, 0.35);
+    (0..n)
+        .map(|i| {
+            let half = largest * pow(shrink, i as f64);
+            vec![boxed(center, [half, half], [half * round; 4], step * i as f64)]
+        })
+        .collect()
+}
+
+// Diamonds in a lattice, some missing, some rounded, the rows alternating in two sheets.
+fn mosaic(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
+    let columns = count(rng, 3, 5);
+    let cell = 2.0 * ex / columns as f64;
+    let half = cell / 2.0 * rng.range(0.86, 0.96);
+    let round = half * rng.range(0.0, 0.5);
+    let rows = (2.0 * ey / (cell / 2.0)).ceil() as usize + 2;
+    let mut out = Vec::new();
+    for row in 0..rows {
+        let shift = if row % 2 == 0 { 0.0 } else { cell / 2.0 };
+        let y = -ey - cell / 2.0 + row as f64 * cell / 2.0;
+        let shapes: Vec<Shape> = (0..=columns)
+            .filter(|_| rng.next_f64() > 0.2)
+            .map(|column| {
+                let x = -ex + shift + cell * column as f64;
+                boxed([x, y], [half / 2.0_f64.sqrt(); 2], [round; 4], 45.0)
+            })
+            .collect();
+        if !shapes.is_empty() {
+            out.push(shapes);
+        }
+    }
+    out
+}
+
 fn turned(center: [f64; 2], angle: f64) -> [f64; 2] {
     let (c, s) = (cos(angle.to_radians()), sin(angle.to_radians()));
     [center[0] * c - center[1] * s, center[0] * s + center[1] * c]
@@ -713,6 +899,113 @@ fn dress(
                 },
             )
         }
+        // Soft matt clay: pale colors, puffed edges, no shine, round shadows.
+        Material::Clay => {
+            let lightness = pick(0.42, 0.84);
+            (
+                oklch(pick(0.3, 0.92), 0.03, still(0.0)),
+                Sheets {
+                    light,
+                    rim: 0.04,
+                    rim_width: 0.004,
+                    bevel: pick(0.4, 0.3),
+                    shadow: pick(0.5, 0.3),
+                    shadow_offset: 0.025,
+                    shadow_blur: 0.2,
+                    gradient: 0.08,
+                    stack: (0..shapes.len())
+                        .map(|i| {
+                            let t = (i as f64 + 1.0) / n;
+                            Sheet {
+                                color: oklch(lightness + 0.06 * t + jitter[i], 0.07, along(t)),
+                                color_to: None,
+                                opacity: 1.0,
+                                shapes: Vec::new(),
+                            }
+                        })
+                        .collect(),
+                },
+            )
+        }
+        // Polished metal: a pale and a dark band across each sheet, a hard bevel, a thin bright edge; the hue only
+        // tints it.
+        Material::Chrome => (
+            oklch(pick(0.16, 0.86), 0.015, still(0.0)),
+            Sheets {
+                light,
+                rim: 0.7,
+                rim_width: 0.004,
+                bevel: 0.55,
+                shadow: pick(0.55, 0.35),
+                shadow_offset: 0.03,
+                shadow_blur: 0.08,
+                gradient: 0.6,
+                stack: (0..shapes.len())
+                    .map(|i| {
+                        let t = (i as f64 + 1.0) / n;
+                        let (l, h) = (pick(0.42, 0.6) + 0.1 * t + jitter[i] * 4.0, along(t));
+                        Sheet {
+                            color: oklch(l, 0.035, h),
+                            color_to: Some(oklch(l + 0.25, 0.015, h)),
+                            opacity: 1.0,
+                            shapes: Vec::new(),
+                        }
+                    })
+                    .collect(),
+            },
+        ),
+        // Glossy sweets: strong colors, a bright bevel and a gradient across each sheet.
+        Material::Candy => (
+            oklch(pick(0.2, 0.95), 0.03, still(0.0)),
+            Sheets {
+                light,
+                rim: 0.35,
+                rim_width: 0.006,
+                bevel: 0.45,
+                shadow: pick(0.45, 0.25),
+                shadow_offset: 0.03,
+                shadow_blur: 0.12,
+                gradient: 0.3,
+                stack: (0..shapes.len())
+                    .map(|i| {
+                        let t = (i as f64 + 1.0) / n;
+                        let (l, h) = (pick(0.62, 0.72) + 0.05 * t, along(t));
+                        Sheet {
+                            color: oklch(l, 0.16, h),
+                            color_to: Some(oklch(l + 0.1, 0.12, h + 20.0)),
+                            opacity: 1.0,
+                            shapes: Vec::new(),
+                        }
+                    })
+                    .collect(),
+            },
+        ),
+        // Velvet: deep colors that drink the light, long soft shadows, a dark fold across each sheet.
+        Material::Velvet => (
+            oklch(pick(0.14, 0.32), 0.05, still(0.0)),
+            Sheets {
+                light,
+                rim: 0.06,
+                rim_width: 0.003,
+                bevel: 0.12,
+                shadow: 0.6,
+                shadow_offset: 0.045,
+                shadow_blur: 0.3,
+                gradient: 0.35,
+                stack: (0..shapes.len())
+                    .map(|i| {
+                        let t = (i as f64 + 1.0) / n;
+                        let (l, h) = (pick(0.3, 0.42) + 0.08 * t, along(t));
+                        Sheet {
+                            color: oklch(l, 0.12, h),
+                            color_to: Some(oklch(l - 0.1, 0.1, h - 15.0)),
+                            opacity: 1.0,
+                            shapes: Vec::new(),
+                        }
+                    })
+                    .collect(),
+            },
+        ),
         Material::Carbon => (
             oklch(pick(0.12, 0.94), 0.004, sober),
             Sheets {
@@ -793,6 +1086,12 @@ pub fn random_wallpaper(seed: u64, request: &Request) -> Scene {
         Layout::Steps => steps(&mut rng, ex, ey),
         Layout::Frames => frames(&mut rng, ex, ey),
         Layout::Lines => lines(&mut rng, ex, ey),
+        Layout::Garden => garden(&mut rng, ex, ey),
+        Layout::Ripples => ripples(&mut rng, ex, ey),
+        Layout::Pebbles => pebbles(&mut rng, ex, ey),
+        Layout::Horizon => horizon(&mut rng, ex, ey),
+        Layout::Twist => twist(&mut rng, ex, ey),
+        Layout::Mosaic => mosaic(&mut rng, ex, ey),
     };
     let sheets = dress(
         &mut Rng::derive(seed, WALLPAPER_DOMAIN, 2),
