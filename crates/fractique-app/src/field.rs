@@ -1533,8 +1533,8 @@ mod tests {
         over.opacity = 0.6;
         scene.layers.push(over);
         let mut choices = crate::colors::Choices::all(None, 2);
-        choices.choose(0, Some(2));
-        choices.choose(1, Some(4));
+        choices.choose(0, Some(crate::colors::Choice::Swatch(2)));
+        choices.choose(1, Some(crate::colors::Choice::Swatch(4)));
         choices.dress(&mut scene);
         let exact = fractique_core::render(&scene, &options, &Control::default()).expect("it renders");
         let mut alike = scene.clone();

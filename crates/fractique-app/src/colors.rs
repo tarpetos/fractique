@@ -1,18 +1,115 @@
-use fractique_core::{Scene, fractal, palette};
+use fractique_core::{Palette, Scene, Stop, fractal, palette};
+
+pub const MOST_OWN: usize = 5;
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Choice {
+    Swatch(usize),
+    // Colors of one's own, one to five, in sRGB from 0 to 1, in the order of the gradient.
+    Own(Vec<[f64; 3]>),
+}
+
+impl Choice {
+    pub fn palette(&self) -> Option<Palette> {
+        match self {
+            Choice::Swatch(at) => palette::SWATCHES.get(*at).and_then(|name| palette::named(name)),
+            Choice::Own(colors) => own(colors),
+        }
+    }
+
+    pub fn swatch(&self) -> Option<usize> {
+        match self {
+            Choice::Swatch(at) => Some(*at),
+            Choice::Own(_) => None,
+        }
+    }
+
+    fn saved(&self) -> serde_json::Value {
+        match self {
+            Choice::Swatch(at) => palette::SWATCHES
+                .get(*at)
+                .map_or(serde_json::Value::Null, |name| (*name).into()),
+            Choice::Own(colors) => colors.iter().map(|color| hex(*color)).collect(),
+        }
+    }
+
+    fn restored(value: &serde_json::Value) -> Option<Self> {
+        match value {
+            serde_json::Value::String(name) => palette::SWATCHES
+                .iter()
+                .position(|each| each == name)
+                .map(Choice::Swatch),
+            serde_json::Value::Array(colors) => {
+                let colors: Vec<[f64; 3]> = colors
+                    .iter()
+                    .filter_map(|c| c.as_str().and_then(parse_hex))
+                    .take(MOST_OWN)
+                    .collect();
+                (!colors.is_empty()).then_some(Choice::Own(colors))
+            }
+            _ => None,
+        }
+    }
+}
+
+pub fn hex(color: [f64; 3]) -> String {
+    let [r, g, b] = color.map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
+    format!("#{r:02x}{g:02x}{b:02x}")
+}
+
+pub fn parse_hex(text: &str) -> Option<[f64; 3]> {
+    let digits = text.strip_prefix('#')?;
+    if digits.len() != 6 {
+        return None;
+    }
+    let channel = |at: usize| {
+        u8::from_str_radix(digits.get(at..at + 2)?, 16)
+            .ok()
+            .map(|v| f64::from(v) / 255.0)
+    };
+    Some([channel(0)?, channel(2)?, channel(4)?])
+}
+
+// A palette of one's own colors: several are spread evenly from the first to the last; one goes from its own dark
+// through itself to its own light, so a flame in it still has depth.
+pub fn own(colors: &[[f64; 3]]) -> Option<Palette> {
+    let mix = |color: [f64; 3], toward: f64, by: f64| color.map(|c| (c + (toward - c) * by).clamp(0.0, 1.0));
+    let stop = |pos: f64, color: [f64; 3]| Stop {
+        pos,
+        color: color.map(|c| c.clamp(0.0, 1.0)),
+    };
+    match colors {
+        [] => None,
+        [one] => Some(Palette {
+            stops: vec![
+                stop(0.0, mix(*one, 0.0, 0.6)),
+                stop(0.55, *one),
+                stop(1.0, mix(*one, 1.0, 0.45)),
+            ],
+        }),
+        many => Some(Palette {
+            stops: many
+                .iter()
+                .enumerate()
+                .map(|(at, color)| stop(at as f64 / (many.len() - 1) as f64, *color))
+                .collect(),
+        }),
+    }
+}
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Choices(Vec<Option<usize>>);
+pub struct Choices(Vec<Option<Choice>>);
 
 impl Choices {
-    pub fn all(choice: Option<usize>, layers: usize) -> Self {
+    pub fn all(choice: Option<Choice>, layers: usize) -> Self {
         Self(vec![choice; layers])
     }
 
-    pub fn of(&self, layer: usize) -> Option<usize> {
-        self.0.get(layer).copied().flatten()
+    pub fn of(&self, layer: usize) -> Option<Choice> {
+        self.0.get(layer).cloned().flatten()
     }
 
-    pub fn choose(&mut self, layer: usize, choice: Option<usize>) {
+    pub fn choose(&mut self, layer: usize, choice: Option<Choice>) {
         if self.0.len() <= layer {
             self.0.resize(layer + 1, None);
         }
@@ -33,13 +130,16 @@ impl Choices {
 
     pub fn dress(&self, scene: &mut Scene) {
         for (index, (layer, choice)) in scene.layers.iter_mut().zip(&self.0).enumerate() {
-            let name = choice.and_then(|at| palette::SWATCHES.get(at));
-            if let Some(palette) = name.and_then(|name| palette::named(name)) {
+            let Some(choice) = choice else {
+                continue;
+            };
+            if let Some(palette) = choice.palette() {
                 *layer.palette_mut() = palette;
             }
             // A palette of one hue brings its background, which the bottom layer covers but where it is clear;
-            // another palette takes such a background back to the dark one.
-            if index == 0 && name.is_some() {
+            // another palette, one's own colors too, takes such a background back to the dark one.
+            if index == 0 {
+                let name = choice.swatch().and_then(|at| palette::SWATCHES.get(at));
                 match name.and_then(|name| palette::backdrop(name)) {
                     Some(background) => {
                         scene.background = background;
@@ -54,19 +154,19 @@ impl Choices {
 
     pub fn saved(&self, layers: usize) -> serde_json::Value {
         (0..layers)
-            .map(|layer| self.of(layer).and_then(|at| palette::SWATCHES.get(at)).copied())
+            .map(|layer| self.of(layer).map_or(serde_json::Value::Null, |choice| choice.saved()))
             .collect()
     }
 
     // A session of before the choices were a layer's has one "palette", which every layer wore.
     pub fn restored(session: &serde_json::Value, layers: usize) -> Self {
-        let chosen = |name: &serde_json::Value| {
-            let name = name.as_str()?;
-            palette::SWATCHES.iter().position(|each| *each == name)
-        };
         match session.get("colors").and_then(serde_json::Value::as_array) {
-            Some(names) => Self((0..layers).map(|layer| names.get(layer).and_then(chosen)).collect()),
-            None => Self::all(session.get("palette").and_then(chosen), layers),
+            Some(saved) => Self(
+                (0..layers)
+                    .map(|layer| saved.get(layer).and_then(Choice::restored))
+                    .collect(),
+            ),
+            None => Self::all(session.get("palette").and_then(Choice::restored), layers),
         }
     }
 }
@@ -84,8 +184,11 @@ mod tests {
         scene
     }
 
-    fn at(name: &str) -> Option<usize> {
-        palette::SWATCHES.iter().position(|each| *each == name)
+    fn at(name: &str) -> Option<Choice> {
+        palette::SWATCHES
+            .iter()
+            .position(|each| *each == name)
+            .map(Choice::Swatch)
     }
 
     fn dressed(choices: &Choices, scene: &Scene) -> Scene {
@@ -197,5 +300,39 @@ mod tests {
         }
         let both = serde_json::json!({ "palette": "ember", "colors": [null, "ice"] });
         assert_eq!(Choices::restored(&both, 2).of(0), None);
+    }
+
+    #[test]
+    fn colors_of_one_s_own_make_a_gradient_and_come_back_from_a_session() {
+        let (red, blue) = ([0.9, 0.1, 0.1], [0.1, 0.2, 0.9]);
+        let two = own(&[red, blue]).expect("a palette");
+        assert_eq!(two.stops.iter().map(|s| s.pos).collect::<Vec<_>>(), [0.0, 1.0]);
+        assert_eq!((two.stops[0].color, two.stops[1].color), (red, blue));
+        let one = own(&[red]).expect("a palette");
+        assert_eq!(one.stops.len(), 3);
+        assert_eq!(one.stops[1].color, red);
+        assert!(one.stops[0].color[0] < red[0] && one.stops[2].color[1] > red[1]);
+        assert_eq!(own(&[]), None);
+
+        let scene = two_layers();
+        let mut choices = Choices::all(None, 2);
+        choices.choose(1, Some(Choice::Own(vec![red, blue])));
+        assert_eq!(dressed(&choices, &scene).layers[1].palette(), &two);
+        let session = serde_json::json!({ "colors": choices.saved(2) });
+        assert_eq!(session["colors"], serde_json::json!([null, ["#e61a1a", "#1a33e6"]]));
+        let back = Choices::restored(&session, 2);
+        let Some(Choice::Own(colors)) = back.of(1) else {
+            panic!("the colors come back");
+        };
+        assert_eq!(
+            colors.iter().map(|c| hex(*c)).collect::<Vec<_>>(),
+            ["#e61a1a", "#1a33e6"]
+        );
+        let odd = serde_json::json!({ "colors": [["#12", "nope", "#00ff00"], []] });
+        assert_eq!(
+            Choices::restored(&odd, 2).of(0),
+            Some(Choice::Own(vec![[0.0, 1.0, 0.0]]))
+        );
+        assert_eq!(Choices::restored(&odd, 2).of(1), None);
     }
 }

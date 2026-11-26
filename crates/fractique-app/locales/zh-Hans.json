@@ -130,6 +130,7 @@
   "share": "分享",
   "allow_storage": "请允许访问存储以保存图像。",
   "color": "颜色",
+  "own_colors": "自定义颜色",
   "graphics": "图形",
   "gpu_note": "开启加速时，画面和导出在不同设备上可能略有差异。",
   "exact": "精确图像",

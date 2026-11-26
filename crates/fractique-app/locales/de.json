@@ -130,6 +130,7 @@
   "share": "Teilen",
   "allow_storage": "Speicherzugriff erlauben, um das Bild zu speichern.",
   "color": "FARBE",
+  "own_colors": "Eigene Farben",
   "graphics": "GRAFIK",
   "gpu_note": "Mit Beschleunigung können das Bild und die Exporte von Gerät zu Gerät leicht abweichen.",
   "exact": "Exakte Bilder",

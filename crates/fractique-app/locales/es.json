@@ -130,6 +130,7 @@
   "share": "Compartir",
   "allow_storage": "Permite el acceso al almacenamiento para guardar la imagen.",
   "color": "COLOR",
+  "own_colors": "Tus colores",
   "graphics": "GRÁFICOS",
   "gpu_note": "Con la aceleración activada, la imagen y las exportaciones pueden variar un poco de un dispositivo a otro.",
   "exact": "Imágenes exactas",

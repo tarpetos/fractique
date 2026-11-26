@@ -130,6 +130,7 @@
   "share": "Paylaş",
   "allow_storage": "Görüntüyü kaydetmek için depolama erişimine izin verin.",
   "color": "RENK",
+  "own_colors": "Kendi renklerin",
   "graphics": "GRAFİK",
   "gpu_note": "Hızlandırma açıkken resim ve dışa aktarmalar cihazdan cihaza biraz farklı görünebilir.",
   "exact": "Birebir resimler",

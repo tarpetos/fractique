@@ -77,6 +77,48 @@ pub struct Request {
     pub ratio: f64,
     pub dark: bool,
     pub hue: Option<f64>,
+    // A gradient of hues from the back of the wallpaper to its front; it takes the place of `hue`.
+    pub hues: Option<Hues>,
+}
+
+pub const MOST_HUES: usize = 5;
+
+// Up to five hues in degrees, in order.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hues {
+    hues: [f64; MOST_HUES],
+    count: usize,
+}
+
+impl Hues {
+    // None for no hue or one that is not a number; more than five keep the first five.
+    pub fn new(hues: &[f64]) -> Option<Self> {
+        if hues.is_empty() || !hues.iter().all(|hue| hue.is_finite()) {
+            return None;
+        }
+        let count = hues.len().min(MOST_HUES);
+        let mut kept = [0.0; MOST_HUES];
+        for (slot, hue) in kept.iter_mut().zip(hues) {
+            *slot = hue.rem_euclid(360.0);
+        }
+        Some(Self { hues: kept, count })
+    }
+
+    pub fn list(&self) -> &[f64] {
+        &self.hues[..self.count]
+    }
+
+    // The hue a share of the way along, each step taking the shorter way round the circle.
+    pub fn at(&self, share: f64) -> f64 {
+        if self.count == 1 {
+            return self.hues[0];
+        }
+        let place = share.clamp(0.0, 1.0) * (self.count - 1) as f64;
+        let step = (place.floor() as usize).min(self.count - 2);
+        let (from, to) = (self.hues[step], self.hues[step + 1]);
+        let turn = (to - from + 540.0).rem_euclid(360.0) - 180.0;
+        (from + turn * (place - step as f64)).rem_euclid(360.0)
+    }
 }
 
 // OKLCH (Björn Ottosson's OKLab) to sRGB: equal steps in it look equal, so generated palettes stay even.
@@ -487,7 +529,7 @@ fn lines(rng: &mut Rng, _ex: f64, ey: f64) -> Vec<Vec<Shape>> {
 fn dress(
     rng: &mut Rng,
     material: Material,
-    (dark, picked): (bool, Option<f64>),
+    (dark, picked, hues): (bool, Option<f64>, Option<Hues>),
     shapes: Vec<Vec<Shape>>,
     ex: f64,
     ey: f64,
@@ -515,10 +557,21 @@ fn dress(
     };
     let accent = ACCENTS[rng.below(6) as usize] + rng.range(-6.0, 6.0);
     let accented = 1 + rng.below(2) as usize;
+    let picked = hues.map(|hues| hues.at(0.0)).or(picked);
     let (hue, grey, sober, sober_chroma, accent) = match picked.filter(|hue| hue.is_finite()) {
         Some(hue) => (hue, false, hue, sober_chroma.max(0.03), hue),
         None => (hue, grey, sober, sober_chroma, accent),
     };
+    // The hue a share of the way from the back to the front: the gradient asked for, or the hue turning.
+    let along = |share: f64| match hues {
+        Some(hues) if hues.count > 1 => hues.at(share),
+        _ => hue + turn * share,
+    };
+    let still = |share: f64| match hues {
+        Some(hues) if hues.count > 1 => hues.at(share),
+        _ => hue,
+    };
+    let accent = hues.filter(|hues| hues.count > 1).map_or(accent, |hues| hues.at(1.0));
     let pick = |on_dark: f64, on_light: f64| if dark { on_dark } else { on_light };
 
     let (base, mut sheets) = match material {
@@ -538,8 +591,9 @@ fn dress(
                     gradient: pick(0.2, 0.05),
                     stack: jitter
                         .iter()
-                        .map(|by| Sheet {
-                            color: oklch(lightness + by, chroma, hue),
+                        .enumerate()
+                        .map(|(i, by)| Sheet {
+                            color: oklch(lightness + by, chroma, still((i as f64 + 1.0) / n)),
                             color_to: None,
                             opacity: 1.0,
                             shapes: Vec::new(),
@@ -564,7 +618,7 @@ fn dress(
                     stack: (0..shapes.len())
                         .map(|i| {
                             let t = (i as f64 + 1.0) / n;
-                            let (l, c, h) = (from + (to - from) * t * 0.9, 0.04 + 0.11 * t, hue + turn * t);
+                            let (l, c, h) = (from + (to - from) * t * 0.9, 0.04 + 0.11 * t, along(t));
                             Sheet {
                                 color: oklch(l, c, h),
                                 color_to: Some(oklch(l - 0.07, c, h + 12.0)),
@@ -589,7 +643,10 @@ fn dress(
                 gradient: 0.08,
                 stack: (0..shapes.len())
                     .map(|i| {
-                        let h = hue + turn * (i as f64 + 1.0) / n;
+                        let h = match hues {
+                            Some(hues) if hues.count > 1 => hues.at((i as f64 + 1.0) / n),
+                            _ => hue + turn * (i as f64 + 1.0) / n,
+                        };
                         Sheet {
                             color: oklch(pick(0.66, 0.72), 0.15, h),
                             color_to: Some(oklch(pick(0.74, 0.8), 0.12, h + 25.0)),
@@ -615,7 +672,7 @@ fn dress(
                     .map(|i| {
                         let t = (i as f64 + 1.0) / n;
                         Sheet {
-                            color: oklch(pick(0.17 + 0.1 * t, 0.9 - 0.05 * t), pick(0.06, 0.04), hue + turn * t),
+                            color: oklch(pick(0.17 + 0.1 * t, 0.9 - 0.05 * t), pick(0.06, 0.04), along(t)),
                             color_to: None,
                             opacity: 1.0,
                             shapes: Vec::new(),
@@ -639,7 +696,15 @@ fn dress(
                     gradient: pick(0.22, 0.07),
                     stack: (0..shapes.len())
                         .map(|i| Sheet {
-                            color: oklch(from + (to - from) * (i as f64 + 1.0) / n, sober_chroma, sober),
+                            color: {
+                                let t = (i as f64 + 1.0) / n;
+                                let h = if hues.is_some_and(|hues| hues.count > 1) {
+                                    still(t)
+                                } else {
+                                    sober
+                                };
+                                oklch(from + (to - from) * t, sober_chroma, h)
+                            },
                             color_to: None,
                             opacity: 1.0,
                             shapes: Vec::new(),
@@ -732,7 +797,7 @@ pub fn random_wallpaper(seed: u64, request: &Request) -> Scene {
     let sheets = dress(
         &mut Rng::derive(seed, WALLPAPER_DOMAIN, 2),
         material,
-        (request.dark, request.hue),
+        (request.dark, request.hue, request.hues),
         shapes,
         ex,
         ey,
@@ -758,6 +823,7 @@ mod tests {
             ratio,
             dark,
             hue: None,
+            hues: None,
         }
     }
 
@@ -787,14 +853,54 @@ mod tests {
             ratio: 2.0,
             dark: false,
             hue: None,
+            hues: None,
         };
         assert_ne!(random_wallpaper(1, &ask), random_wallpaper(2, &ask));
         let tinted = Request {
             hue: Some(140.0),
+            hues: None,
             ..ask
         };
         assert_ne!(random_wallpaper(1, &ask), random_wallpaper(1, &tinted));
         random_wallpaper(1, &tinted).validate().unwrap();
+        // One hue given as a gradient is the same wallpaper; two make another, in every material.
+        let one = Request {
+            hue: None,
+            hues: Hues::new(&[140.0]),
+            ..ask
+        };
+        assert_eq!(random_wallpaper(1, &one), random_wallpaper(1, &tinted));
+        for (_, material) in Material::ALL {
+            let single = Request {
+                material: Some(material),
+                ..tinted
+            };
+            let both = Request {
+                material: Some(material),
+                hue: None,
+                hues: Hues::new(&[140.0, 320.0]),
+                ..ask
+            };
+            assert_ne!(random_wallpaper(3, &single), random_wallpaper(3, &both), "{material:?}");
+            random_wallpaper(3, &both).validate().unwrap();
+        }
+    }
+
+    #[test]
+    fn a_gradient_of_hues_goes_the_short_way_round() {
+        let hues = Hues::new(&[0.0, 120.0]).unwrap();
+        assert!((hues.at(0.5) - 60.0).abs() < 1e-9);
+        let across = Hues::new(&[350.0, 10.0]).unwrap();
+        assert!(across.at(0.5).abs() < 1e-9 || (across.at(0.5) - 360.0).abs() < 1e-9);
+        let three = Hues::new(&[10.0, 100.0, 200.0]).unwrap();
+        assert!((three.at(1.0) - 200.0).abs() < 1e-9);
+        assert!((three.at(0.75) - 150.0).abs() < 1e-9);
+        assert_eq!(Hues::new(&[]), None);
+        assert_eq!(Hues::new(&[f64::NAN]), None);
+        assert_eq!(
+            Hues::new(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap().list().len(),
+            MOST_HUES
+        );
     }
 
     #[test]

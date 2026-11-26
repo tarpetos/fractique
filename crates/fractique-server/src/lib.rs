@@ -194,6 +194,7 @@ impl WallpaperBody {
             ratio: f64::from(height) / f64::from(width),
             dark: self.dark,
             hue: self.hue,
+            hues: None,
         })
     }
 }
