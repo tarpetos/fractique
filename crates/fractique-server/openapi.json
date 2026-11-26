@@ -720,7 +720,10 @@
               "pebbles",
               "horizon",
               "twist",
-              "mosaic"
+              "mosaic",
+              "bubbles",
+              "dunes",
+              "confetti"
             ],
             "description": "How the shapes are laid out; the seed picks when left out"
           },
@@ -736,7 +739,8 @@
               "clay",
               "chrome",
               "candy",
-              "velvet"
+              "velvet",
+              "pearl"
             ],
             "description": "What the shapes are made of; the seed picks when left out"
           },

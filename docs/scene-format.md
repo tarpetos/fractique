@@ -766,7 +766,7 @@ A swell is one sine: `height` (how far it moves the curve), `length` above 0 (th
 ### Generated wallpapers
 
 `fractique wallpaper SEED` and `fractique render --wallpaper SEED` write such a scene for a seed
-(`crates/fractique-core/src/wallpaper.rs`). The seed picks one of 20 layouts and 10 materials, the colors and the
+(`crates/fractique-core/src/wallpaper.rs`). The seed picks one of 23 layouts and 11 materials, the colors and the
 light; a layout or a material can be given instead. The shapes are laid out for the proportion of the size given,
 from 1:4 to 4:1, so the scene is for images of that proportion. The scene has `sheets`, a `background` and no
 layers, and is named `wallpaper-SEED`.
@@ -785,6 +785,9 @@ layers, and is named `wallpaper-SEED`.
 | `horizon` | A circle, a sun, behind waves, hills |
 | `twist` | Rounded squares one inside another, each turned further |
 | `mosaic` | Rounded boxes turned 45°, a lattice of diamonds |
+| `bubbles` | Circles of many sizes, some only rings, more of them low |
+| `dunes` | Steep waves lying aslant |
+| `confetti` | Small rounded strips and dots at every angle |
 
 | Material | What it sets |
 | --- | --- |
@@ -798,6 +801,7 @@ layers, and is named `wallpaper-SEED`.
 | `chrome` | A pale and a dark band across each sheet, a hard bevel, a thin bright rim |
 | `candy` | Strong glossy colors with a gradient across each sheet |
 | `velvet` | Deep colors, long soft shadows, a dark fold across each sheet |
+| `pearl` | Pale colors with a sheen that turns to another hue across each sheet |
 
 Each has a light and a dark version of the same shapes.
 

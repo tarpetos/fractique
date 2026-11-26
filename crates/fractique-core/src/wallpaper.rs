@@ -26,10 +26,13 @@ pub enum Layout {
     Horizon,
     Twist,
     Mosaic,
+    Bubbles,
+    Dunes,
+    Confetti,
 }
 
 impl Layout {
-    pub const ALL: [(&'static str, Layout); 20] = [
+    pub const ALL: [(&'static str, Layout); 23] = [
         ("bands", Layout::Bands),
         ("discs", Layout::Discs),
         ("waves", Layout::Waves),
@@ -50,6 +53,9 @@ impl Layout {
         ("horizon", Layout::Horizon),
         ("twist", Layout::Twist),
         ("mosaic", Layout::Mosaic),
+        ("bubbles", Layout::Bubbles),
+        ("dunes", Layout::Dunes),
+        ("confetti", Layout::Confetti),
     ];
 
     pub fn parse(name: &str) -> Option<Self> {
@@ -69,10 +75,11 @@ pub enum Material {
     Chrome,
     Candy,
     Velvet,
+    Pearl,
 }
 
 impl Material {
-    pub const ALL: [(&'static str, Material); 10] = [
+    pub const ALL: [(&'static str, Material); 11] = [
         ("relief", Material::Relief),
         ("paper", Material::Paper),
         ("glass", Material::Glass),
@@ -83,6 +90,7 @@ impl Material {
         ("chrome", Material::Chrome),
         ("candy", Material::Candy),
         ("velvet", Material::Velvet),
+        ("pearl", Material::Pearl),
     ];
 
     pub fn parse(name: &str) -> Option<Self> {
@@ -603,6 +611,84 @@ fn mosaic(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
     out
 }
 
+// Bubbles rising: many circles, small and large, more of them low, a few only their outline.
+fn bubbles(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
+    let groups = count(rng, 4, 6);
+    (0..groups)
+        .map(|g| {
+            let t = g as f64 / (groups - 1) as f64;
+            (0..count(rng, 4, 7))
+                .map(|_| {
+                    let radius = rng.range(0.08, 0.32) * (1.25 - 0.6 * t) * ex.max(1.0);
+                    let rise = rng.next_f64();
+                    let center = [ex * rng.range(-1.0, 1.0), ey * (1.0 - 2.0 * rise * rise.sqrt())];
+                    if rng.next_f64() < 0.25 {
+                        Shape::Ring {
+                            center,
+                            radius,
+                            thickness: radius * 0.22,
+                            span: 360.0,
+                            rotation: 0.0,
+                        }
+                    } else {
+                        disc(center, radius)
+                    }
+                })
+                .collect()
+        })
+        .collect()
+}
+
+// Dunes: steep waves lying aslant, one before another, a long swell with a sharper one on it.
+fn dunes(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
+    let n = count(rng, 5, 8);
+    let tilt = sign(rng) * rng.range(16.0, 30.0);
+    (0..n)
+        .map(|i| {
+            let t = i as f64 / (n - 1) as f64;
+            let length = rng.range(2.2, 3.8) * ex;
+            vec![Shape::Wave {
+                level: ey * (-0.75 + 1.75 * t),
+                swells: vec![
+                    Swell {
+                        height: rng.range(0.18, 0.34),
+                        length,
+                        shift: rng.range(0.0, TAU),
+                    },
+                    Swell {
+                        height: rng.range(0.05, 0.1),
+                        length: length / 2.0,
+                        shift: rng.range(0.0, TAU),
+                    },
+                ],
+                thickness: 0.0,
+                rotation: tilt,
+            }]
+        })
+        .collect()
+}
+
+// Confetti: many small strips and dots strewn at every angle.
+fn confetti(rng: &mut Rng, ex: f64, ey: f64) -> Vec<Vec<Shape>> {
+    let groups = count(rng, 4, 5);
+    let size = rng.range(0.1, 0.15) * ex.max(1.0);
+    (0..groups)
+        .map(|_| {
+            (0..count(rng, 12, 18))
+                .map(|_| {
+                    let center = [ex * rng.range(-1.05, 1.05), ey * rng.range(-1.05, 1.05)];
+                    if rng.next_f64() < 0.3 {
+                        disc(center, size * rng.range(0.5, 0.8))
+                    } else {
+                        let half = [size * rng.range(0.9, 1.6), size * rng.range(0.3, 0.45)];
+                        boxed(center, half, [half[1] * rng.range(0.0, 1.0); 4], rng.range(0.0, 180.0))
+                    }
+                })
+                .collect()
+        })
+        .collect()
+}
+
 fn turned(center: [f64; 2], angle: f64) -> [f64; 2] {
     let (c, s) = (cos(angle.to_radians()), sin(angle.to_radians()));
     [center[0] * c - center[1] * s, center[0] * s + center[1] * c]
@@ -1006,6 +1092,32 @@ fn dress(
                     .collect(),
             },
         ),
+        // Mother of pearl: pale, with a sheen that turns to another hue across each sheet.
+        Material::Pearl => (
+            oklch(pick(0.22, 0.93), 0.02, still(0.0)),
+            Sheets {
+                light,
+                rim: 0.5,
+                rim_width: 0.005,
+                bevel: 0.3,
+                shadow: pick(0.45, 0.22),
+                shadow_offset: 0.025,
+                shadow_blur: 0.14,
+                gradient: 0.55,
+                stack: (0..shapes.len())
+                    .map(|i| {
+                        let t = (i as f64 + 1.0) / n;
+                        let (l, h) = (pick(0.66, 0.84) + 0.04 * t, along(t));
+                        Sheet {
+                            color: oklch(l, 0.06, h),
+                            color_to: Some(oklch(l + 0.06, 0.08, h + 70.0)),
+                            opacity: 1.0,
+                            shapes: Vec::new(),
+                        }
+                    })
+                    .collect(),
+            },
+        ),
         Material::Carbon => (
             oklch(pick(0.12, 0.94), 0.004, sober),
             Sheets {
@@ -1092,6 +1204,9 @@ pub fn random_wallpaper(seed: u64, request: &Request) -> Scene {
         Layout::Horizon => horizon(&mut rng, ex, ey),
         Layout::Twist => twist(&mut rng, ex, ey),
         Layout::Mosaic => mosaic(&mut rng, ex, ey),
+        Layout::Bubbles => bubbles(&mut rng, ex, ey),
+        Layout::Dunes => dunes(&mut rng, ex, ey),
+        Layout::Confetti => confetti(&mut rng, ex, ey),
     };
     let sheets = dress(
         &mut Rng::derive(seed, WALLPAPER_DOMAIN, 2),
