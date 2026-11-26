@@ -37,7 +37,7 @@ app: it goes to the GitHub Container Registry as `ghcr.io/tarpetos/fractique-ser
    `Packager.toml`, `testflight.sh` and `appstore.sh` their `project.yml`), and the `Release` workflow when any of the three does, before anything is built. Every program takes the
    one in `Cargo.toml`.
 2. In `CHANGELOG.md`, rename the section `## Unreleased` at the top, where changes are listed as they are merged,
-   to `## <version>`, and start a new empty `## Unreleased` above it after the tag. The section becomes the
+   to `## <version>`, and change nothing else; the next merge starts a new `## Unreleased`. The section becomes the
    release's notes and what the app
    shows under "Updates and what's new". On the release's page a section
    "Downloads" stands above it: the app for each system, and the other programs folded away under them. The app
