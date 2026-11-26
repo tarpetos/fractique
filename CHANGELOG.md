@@ -11,6 +11,7 @@
 * **Gallery:** a hundred isometric fractals, `docs/gallery/isometric/`.
 * **Colors:** nine dark palettes of one hue after rezonanca.art, each with its own background: amethyst, cobalt, garnet, abyss, lagoon, frost, rosewood, bronze, forest.
 * **App, phones:** Back brings a picture back with the colors and the layer chosen for it.
+* **App:** the colors stand in even rows from edge to edge: on a phone the 18 in two rows of nine, not eight, eight and two.
 
 ## 1.0.4
 
