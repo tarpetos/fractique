@@ -1,5 +1,6 @@
 #!/bin/sh
-# Builds Fractique, signs it for the App Store and uploads it to TestFlight: scripts/ios/testflight.sh
+# Builds Fractique and signs it for the App Store into ios/build/export. It uploads nothing: builds go to TestFlight
+# only from the Release workflow of a version tag (docs/releasing.md#the-stores).
 # Needs xcodegen (brew install xcodegen), an App Store Connect app record for the bundle identifier, and either
 # Xcode signed in to the team's Apple account or an App Store Connect API key in ASC_KEY_PATH (the .p8 file),
 # ASC_KEY_ID and ASC_ISSUER_ID. FRACTIQUE_TEAM_ID picks the team.
@@ -28,4 +29,4 @@ xcodebuild -quiet -project Fractique.xcodeproj -scheme Fractique -configuration 
     DEVELOPMENT_TEAM="$team" CURRENT_PROJECT_VERSION="$build" archive
 xcodebuild -exportArchive -archivePath build/Fractique.xcarchive -exportOptionsPlist ExportOptions.plist \
     -exportPath build/export "$@" DEVELOPMENT_TEAM="$team"
-echo "[ios] Uploaded build $build. TestFlight shows it after Apple processes it (5-30 minutes)."
+echo "[ios] Build $build is in ios/build/export, not uploaded."

@@ -102,19 +102,22 @@ account the app works for 7 days.
 ./scripts/ios/testflight.sh
 ```
 
-It builds Fractique, signs it for the App Store and uploads it; every run gets a new build number. TestFlight offers
-the build to the testers after Apple processes it (5 to 30 minutes).
+It builds Fractique and signs it for the App Store into `ios/build/export`, with a new build number every run. It
+uploads nothing: a build goes to TestFlight only from the `Release` workflow of a version tag, never from anyone's
+own computer ([releasing.md](releasing.md#the-stores)). TestFlight offers the build to the testers after Apple
+processes it (5 to 30 minutes).
 
 Once per Mac: `brew install xcodegen`, and Xcode signed in (Settings, Accounts) to the Apple account of the team that
 owns the app `app.fractique` in App Store Connect. `FRACTIQUE_TEAM_ID` picks another team.
 
 ### From GitHub
 
-The **Release** workflow does the same on one of GitHub's Macs, beside the installers of the other systems: for
-every version tag, and when it is started by hand (Actions, Release, Run workflow; **ios** there builds this
-alone). The build goes to TestFlight only, so to the testers of the team; a refusal by Apple does not hold the
-installers back. It has no signed-in Xcode, so it signs with an App Store Connect API key, which the team's
-account holder or an admin makes once:
+The **Release** workflow builds the same on one of GitHub's Macs, beside the other platforms, with
+`scripts/ios/testflight.sh`, and App Store Connect checks the build. For a version tag it uploads the build
+once every platform of the release is built; a run started by hand (Actions, Release, Run workflow; **ios** there
+builds this alone) uploads nothing ([releasing.md](releasing.md#the-stores)). The build goes to TestFlight only, so
+to the testers of the team. The runner has no signed-in Xcode. It signs with a development certificate of the team
+and an App Store Connect API key, which the team's account holder or an admin makes once:
 
 1. In App Store Connect: **Users and Access, Integrations, App Store Connect API, Team Keys**, the plus. Name it,
    give it the role **Admin** (a lower role cannot fetch the certificate that signs for the App Store), generate.
@@ -132,7 +135,26 @@ The last two ask for the value. Keep the `.p8` file somewhere safe outside GitHu
 Whoever has the key can upload builds and manage the team's apps; **Revoke** beside the key in App Store Connect
 ends that.
 
-The same key works on a Mac without a signed-in Xcode: `ASC_KEY_PATH` (the file), `ASC_KEY_ID` and `ASC_ISSUER_ID`
+The certificate, on a Mac with Xcode signed in to the team:
+
+1. Xcode, **Settings, Accounts**, the team, **Manage Certificates**. Without an **Apple Development** certificate in
+   the list, the plus and **Apple Development** make one.
+2. In Keychain Access, under **My Certificates**, the right click on **Apple Development: …** of the team,
+   **Export**, as a `.p12` file with a password. The certificate must show its private key under it.
+3. Into the secrets:
+
+```sh
+base64 -i ~/Desktop/Certificates.p12 | gh secret set APPLE_DEVELOPMENT_P12
+gh secret set APPLE_DEVELOPMENT_P12_PASSWORD
+```
+
+Xcode signs an archive for development and refuses another certificate there; it signs for the App Store when it
+exports the archive, with the certificate Apple keeps for the team, which the key fetches. Without a development
+certificate in its keychain Xcode makes a new one on every fresh runner, and after a few the account refuses with
+"Your account has reached the maximum number of certificates". Those made by runners can be revoked under
+**Certificates** in the developer account: their private keys went with the runners.
+
+The same key signs on a Mac without a signed-in Xcode: `ASC_KEY_PATH` (the file), `ASC_KEY_ID` and `ASC_ISSUER_ID`
 in front of `scripts/ios/testflight.sh`.
 
 `ios/` holds the Xcode project that wraps the Rust binary: Xcode compiles an empty `stub.c`, then
@@ -175,7 +197,7 @@ itself.
 
 ### Testing it
 
-On a device, with a build from `scripts/ios/testflight.sh` installed through TestFlight, or with
+On a device, with a build of a version tag installed through TestFlight, or with
 `FRACTIQUE_FEATURES=store ./scripts/ios/run-iphone.sh`. A TestFlight build buys in the sandbox by itself and
 charges nothing; for a build installed by cable, sign in with the sandbox tester under **Settings, Developer,
 Sandbox Apple Account**.
@@ -215,12 +237,13 @@ deleting the app and installing it again does not give the day's saves back.
 ### A Mac App Store build
 
 ```sh
-./scripts/mac/appstore.sh          # build, sign for the App Store, upload
+./scripts/mac/appstore.sh          # build and sign for the App Store into mac/build/export
 ./scripts/mac/appstore.sh --run    # build, sign for this Mac and open the app in its sandbox
 ```
 
-The `Release` workflow runs the first as its **Mac App Store** job (`release-mac.yml`), with the App Store Connect
-key that uploads the iOS build, when it is started by hand with **all**, **appstore** (the iOS and the Mac build in one run) or **mac**; a version tag uploads nothing to Apple.
+Neither uploads. The `Release` workflow builds the first as its **Mac App Store** job (`release-mac.yml`), with the
+key and certificate of the iOS build, and for a version tag uploads it once every platform is built
+([releasing.md](releasing.md#the-stores)).
 
 `scripts/build/build-mac.sh` makes the app that is downloaded from the releases, which has no purchase and updates
 itself. The Mac App Store's build is another one:
@@ -238,8 +261,8 @@ itself. The Mac App Store's build is another one:
 `mac/` holds the Xcode project that wraps the Rust binary, as `ios/` does. cargo started by Xcode cannot compile
 the C code of a dependency, so the script builds the binary first and Xcode's build step only copies it in.
 
-Once per Mac: `brew install xcodegen`, and Xcode signed in to the team's Apple account. The upload has been run;
-the purchase itself has not been made on a Mac.
+Once per Mac: `brew install xcodegen`, and Xcode signed in to the team's Apple account. The purchase itself has
+not been made on a Mac.
 
 ## What the app needs from iOS
 

@@ -1,0 +1,63 @@
+name: Apple signing
+description: The App Store Connect key and the development certificate, for a build on one of GitHub's Macs
+
+inputs:
+  key-p8:
+    required: true
+  key-id:
+    required: true
+  issuer-id:
+    required: true
+  certificate-p12:
+    required: true
+  certificate-password:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: The key and the certificate
+      shell: bash
+      env:
+        KEY_P8: ${{ inputs.key-p8 }}
+        KEY_ID: ${{ inputs.key-id }}
+        ISSUER_ID: ${{ inputs.issuer-id }}
+        P12: ${{ inputs.certificate-p12 }}
+        P12_PASSWORD: ${{ inputs.certificate-password }}
+      run: |
+        missing=""
+        for name in KEY_P8 KEY_ID ISSUER_ID P12 P12_PASSWORD; do
+          [ -n "${!name}" ] || missing="$missing $name"
+        done
+        if [ -n "$missing" ]; then
+          echo "::error::Not set:$missing. The secrets ASC_KEY_P8, ASC_KEY_ID, ASC_ISSUER_ID, APPLE_DEVELOPMENT_P12 and APPLE_DEVELOPMENT_P12_PASSWORD are described in docs/ios.md."
+          exit 1
+        fi
+        # xcodebuild reads the key from ASC_KEY_PATH (the scripts), altool from API_PRIVATE_KEYS_DIR.
+        keys="$RUNNER_TEMP/private_keys"
+        mkdir -p "$keys"
+        printf '%s\n' "$KEY_P8" > "$keys/AuthKey_$KEY_ID.p8"
+        chmod 600 "$keys/AuthKey_$KEY_ID.p8"
+        {
+          echo "ASC_KEY_PATH=$keys/AuthKey_$KEY_ID.p8"
+          echo "ASC_KEY_ID=$KEY_ID"
+          echo "ASC_ISSUER_ID=$ISSUER_ID"
+          echo "API_PRIVATE_KEYS_DIR=$keys"
+        } >> "$GITHUB_ENV"
+        # One development certificate of the team, kept in the secrets: Xcode signs an archive with it, and without
+        # it makes a new one on every fresh runner, until the account refuses more. The export signs for the App Store
+        # with the certificate Apple keeps for the team, which the key fetches.
+        keychain="$RUNNER_TEMP/signing.keychain-db"
+        password="$(uuidgen)"
+        security create-keychain -p "$password" "$keychain"
+        security set-keychain-settings -lut 21600 "$keychain"
+        security unlock-keychain -p "$password" "$keychain"
+        printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/development.p12"
+        security import "$RUNNER_TEMP/development.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+        rm -f "$RUNNER_TEMP/development.p12"
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" > /dev/null
+        security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+        if ! security find-identity -v -p codesigning "$keychain" | grep -q '"Apple Development: '; then
+          echo "::error::APPLE_DEVELOPMENT_P12 holds no Apple Development certificate with its private key. See docs/ios.md."
+          exit 1
+        fi

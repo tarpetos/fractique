@@ -8,13 +8,11 @@ permissions:
 
 jobs:
   # The image of the HTTP server with the web app, built on a runner of each kind of processor rather than emulated.
+  # It is pushed by release.yml once every platform of the release is built.
   image:
     name: Image (${{ matrix.arch }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
-    permissions:
-      contents: read
-      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -47,29 +45,12 @@ jobs:
           curl --fail --silent --show-error --output /dev/null http://localhost:8080/presets
           docker rm -f fractique
 
-      - name: Push
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker push "$IMAGE:$VERSION-${{ matrix.arch }}"
+      - name: Keep the image
+        run: docker save "$IMAGE:$VERSION-${{ matrix.arch }}" | gzip > image-${{ matrix.arch }}.tar.gz
 
-  # One name for both: Docker picks the image of the machine's processor.
-  manifest:
-    name: Image for both processors
-    needs: image
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Join the two images
-        env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/fractique-server"
-          version="${GITHUB_REF_NAME#v}"
-          echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker buildx imagetools create -t "$image:$version" -t "$image:latest" "$image:$version-amd64" "$image:$version-arm64"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docker-${{ matrix.arch }}
+          path: image-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7
