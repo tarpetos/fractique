@@ -91,6 +91,7 @@
   "fractals": "Fraktale",
   "fractal_kind": "TYP",
   "heavy_kind": "Aufwendig: braucht länger zum Zeichnen",
+  "slow": "Langsam",
   "parameters": "PARAMETER",
   "layout": "LAYOUT",
   "material": "MATERIAL",

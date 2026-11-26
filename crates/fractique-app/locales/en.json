@@ -91,6 +91,7 @@
   "fractals": "Fractals",
   "fractal_kind": "TYPE",
   "heavy_kind": "Heavy: takes longer to draw",
+  "slow": "Slow",
   "parameters": "PARAMETERS",
   "layout": "LAYOUT",
   "material": "MATERIAL",

@@ -91,6 +91,7 @@
   "fractals": "Frattali",
   "fractal_kind": "TIPO",
   "heavy_kind": "Pesante: richiede più tempo per il disegno",
+  "slow": "Lento",
   "parameters": "PARAMETRI",
   "layout": "DISPOSIZIONE",
   "material": "MATERIALE",
