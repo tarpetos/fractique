@@ -770,6 +770,27 @@ pub(crate) fn palette_disc(painter: &egui::Painter, at: Pos2, reach: f32, shades
     });
 }
 
+// An amber pill in a tile's upper corner, an hourglass and a word: this one is drawn by the processor and slowly.
+fn slow_badge(painter: &egui::Painter, frame: Rect, text: &str) {
+    const AMBER: Color32 = Color32::from_rgb(255, 196, 84);
+    let ink = Color32::from_rgb(40, 26, 4);
+    let galley = painter.layout_no_wrap(text.to_owned(), font(10.5, SEMIBOLD), ink);
+    let size = vec2(galley.size().x + 26.0, 20.0);
+    let pill = Rect::from_min_size(frame.right_top() + vec2(-size.x - 5.0, 5.0), size).intersect(frame.shrink(5.0));
+    painter.rect_filled(pill, CornerRadius::same(10), AMBER);
+    let (at, half) = (pill.left_center() + vec2(10.0, 0.0), vec2(3.4, 5.0));
+    let stroke = Stroke::new(1.3, ink);
+    painter.line_segment([at - half, at + vec2(half.x, -half.y)], stroke);
+    painter.line_segment([at + vec2(-half.x, half.y), at + half], stroke);
+    painter.line_segment([at - half, at + half], stroke);
+    painter.line_segment([at + vec2(half.x, -half.y), at + vec2(-half.x, half.y)], stroke);
+    painter.galley(
+        egui::pos2(pill.left() + 18.0, pill.center().y - galley.size().y * 0.5),
+        galley,
+        ink,
+    );
+}
+
 // The color a hue of the wallpapers is shown in: the hue alone, light and clear.
 fn hue_color(degrees: f64) -> Color32 {
     widgets::rgb(widgets::hsv_to_rgb([(degrees / 360.0) as f32, 0.62, 0.9]))
@@ -1810,6 +1831,18 @@ impl App {
     }
 
     fn tile(ui: &mut egui::Ui, side: [f32; 2], picture: Option<egui::TextureId>, label: &str, chosen: bool) -> bool {
+        Self::marked_tile(ui, side, picture, label, chosen, None)
+    }
+
+    // A tile with a mark in its corner: an amber one with an hourglass, for what takes long.
+    fn marked_tile(
+        ui: &mut egui::Ui,
+        side: [f32; 2],
+        picture: Option<egui::TextureId>,
+        label: &str,
+        chosen: bool,
+        mark: Option<&str>,
+    ) -> bool {
         let (rect, response) = ui.allocate_exact_size(vec2(side[0], side[1] + 20.0), Sense::click());
         let frame = Rect::from_min_size(rect.min, vec2(side[0], side[1]));
         let round = CornerRadius::same(10);
@@ -1829,6 +1862,9 @@ impl App {
             Stroke::new(0.6, Color32::from_white_alpha(70))
         };
         ui.painter().rect_stroke(frame, round, edge, egui::StrokeKind::Inside);
+        if let Some(mark) = mark {
+            slow_badge(ui.painter(), frame, mark);
+        }
         let color = if chosen {
             Color32::WHITE
         } else {
@@ -2164,16 +2200,28 @@ impl App {
         widgets::section(ui, &self.t("fractal_kind"));
         ui.add_space(4.0);
         let mut kind = None;
+        let slow = self.t("slow");
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(gap, 10.0);
-            for spec in fractal::all().filter(|spec| !crate::heavy(spec.name)) {
+            for spec in fractal::all() {
                 let first = spec
                     .presets
                     .first()
                     .map(|preset| format!("{}-{}", spec.name, preset.name));
                 let key = format!("p {first:?} {worn:?}");
-                let picture = self.thumb(&ctx, key, pixels, 10, &mut budget, || pictured(&first?));
-                if Self::tile(ui, side, picture, &self.kind_name(spec.name), self.kind == spec.name) {
+                // The kinds the processor alone draws, and takes long at: a smaller picture, and a mark.
+                let heavy = crate::heavy(spec.name);
+                let drawn = if heavy { pixels.map(|side| side / 2) } else { pixels };
+                let picture = self.thumb(&ctx, key, drawn, 10, &mut budget, || pictured(&first?));
+                let mark = heavy.then_some(slow.as_str());
+                if Self::marked_tile(
+                    ui,
+                    side,
+                    picture,
+                    &self.kind_name(spec.name),
+                    self.kind == spec.name,
+                    mark,
+                ) {
                     kind = Some(spec.name);
                 }
             }

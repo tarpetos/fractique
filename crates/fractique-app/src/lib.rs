@@ -1492,7 +1492,7 @@ const HEAVY: [&str; 9] = [
     "l_system",
 ];
 
-fn heavy(kind: &str) -> bool {
+pub(crate) fn heavy(kind: &str) -> bool {
     HEAVY.contains(&kind)
 }
 
@@ -4174,10 +4174,7 @@ impl App {
         ui.spacing_mut().scroll = bar;
         let mut chosen = None;
         let hint = self.t("heavy_kind");
-        // A phone is not offered the kinds that take its processor long, here as in the styles.
-        let kinds: Vec<_> = fractal::all()
-            .filter(|spec| !self.phone.on || !heavy(spec.name))
-            .collect();
+        let kinds: Vec<_> = fractal::all().collect();
         let tall = list_height(kinds.len(), room);
         egui::ScrollArea::vertical()
             .max_height(tall)

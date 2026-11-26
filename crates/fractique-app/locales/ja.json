@@ -91,6 +91,7 @@
   "fractals": "フラクタル",
   "fractal_kind": "種類",
   "heavy_kind": "重い: 描画に時間がかかります",
+  "slow": "低速",
   "parameters": "パラメーター",
   "layout": "レイアウト",
   "material": "素材",
