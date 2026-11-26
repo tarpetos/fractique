@@ -11,11 +11,11 @@
 * **Gallery:** a hundred isometric fractals, `docs/gallery/isometric/`.
 * **Colors:** nine dark palettes of one hue after rezonanca.art, each with its own background: amethyst, cobalt, garnet, abyss, lagoon, frost, rosewood, bronze, forest.
 * **App, phones:** Back brings a picture back with the colors and the layer chosen for it.
+* **App:** the colors stand in even rows from edge to edge: on a phone the 18 in two rows of nine, not eight, eight and two.
 
 ## 1.0.4
 
 * **App Store only:** a release for iPhone and iPad, with no release on GitHub.
-* **App:** the colors stand in even rows from edge to edge: on a phone the 18 in two rows of nine, not eight, eight and two.
 * **App Store builds, iPhone and iPad:** the free saves of the day are kept in the Keychain, so deleting the app and installing it again no longer gives three new ones.
 * **App Store builds:** the App Store lists the 15 languages of the app, and Settings offers them as the app's language.
 
