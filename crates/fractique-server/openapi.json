@@ -714,7 +714,16 @@
               "planes",
               "steps",
               "frames",
-              "lines"
+              "lines",
+              "garden",
+              "ripples",
+              "pebbles",
+              "horizon",
+              "twist",
+              "mosaic",
+              "bubbles",
+              "dunes",
+              "confetti"
             ],
             "description": "How the shapes are laid out; the seed picks when left out"
           },
@@ -726,7 +735,12 @@
               "glass",
               "glow",
               "steel",
-              "carbon"
+              "carbon",
+              "clay",
+              "chrome",
+              "candy",
+              "velvet",
+              "pearl"
             ],
             "description": "What the shapes are made of; the seed picks when left out"
           },

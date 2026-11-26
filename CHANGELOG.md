@@ -14,6 +14,7 @@
 * **App:** the colors stand in even rows from edge to edge: on a phone the 18 in two rows of nine, not eight, eight and two.
 * **App:** your own colors: a gradient of one to five for a layer of a flame or a fractal, picked on a square and a bar of hues, and of one to five hues for a wallpaper; **Your colors** under the palettes, a rainbow circle in the phone's row.
 * **App, phones:** every type of fractal, as on a computer, the isometric ones included; the nine that take the processor long are marked **Slow**.
+* **Wallpapers:** nine more layouts (garden, ripples, pebbles, horizon, twist, mosaic, bubbles, dunes, confetti) and five more materials (clay, chrome, candy, velvet, pearl); a seed given no layout or material may now pick another.
 
 ## 1.0.4
 
