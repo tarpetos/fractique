@@ -7,6 +7,7 @@
 * **App, phones:** every type of fractal, as on a computer, the isometric ones included; the nine that take the processor long are marked **Slow**.
 * **Wallpapers:** nine more layouts (garden, ripples, pebbles, horizon, twist, mosaic, bubbles, dunes, confetti) and five more materials (clay, chrome, candy, velvet, pearl); a seed given no layout or material may now pick another.
 * **Releases:** the `Release` workflow started by hand can send a branch's iOS build to TestFlight, for the testers only (`testflight`).
+* **App:** an export the graphics card draws moves its bar while it is drawn, instead of standing at 0 % until the end.
 
 ## 1.0.5
 

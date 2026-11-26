@@ -3310,6 +3310,7 @@ impl App {
             return;
         }
         if !chaos.finished() {
+            export.later.drawn(chaos.drawn_share());
             self.card_export = Some(export);
             ctx.request_repaint();
             return;

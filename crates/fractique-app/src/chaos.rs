@@ -1033,6 +1033,22 @@ impl Chaos {
         }
     }
 
+    // How much of the run's points are plotted, all its layers together, by what each costs: what an export's bar
+    // shows while the card draws it.
+    pub fn drawn_share(&self) -> f32 {
+        self.read(|run| {
+            let (done, goal) = run.layers.iter().fold((0.0, 0.0), |(done, goal), layer| {
+                let weight = layer.weight.max(1) as f64;
+                (
+                    done + layer.done.min(layer.goal) as f64 * weight,
+                    goal + layer.goal as f64 * weight,
+                )
+            });
+            if goal > 0.0 { (done / goal) as f32 } else { 0.0 }
+        })
+        .unwrap_or(0.0)
+    }
+
     pub fn finished(&self) -> bool {
         let pixels = self.pixels.as_ref().is_some_and(|pixels| pixels.report.full.is_some());
         pixels || self.base.is_some() || self.read(|run| run.full.is_some()).unwrap_or(false)
