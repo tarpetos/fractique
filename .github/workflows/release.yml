@@ -3,7 +3,8 @@ name: Release
 # Entry point for a release: release-desktop.yml, release-android.yml, release-ios.yml, release-mac.yml and
 # release-docker.yml build side by side. Only when every one of them has succeeded is anything sent out: the
 # uploads to Apple, then the Docker image and the GitHub release. A run started by hand builds and sends nothing,
-# on a tag too.
+# on a tag too, but for the iOS build to TestFlight when `testflight` is ticked: a branch's build for the team's
+# testers, never submitted for review.
 on:
   # Only for a release (a version tag) or when started by hand: never on every push or pull request.
   push:
@@ -15,6 +16,10 @@ on:
         type: choice
         options: [all, desktop, appstore, ios, mac, docker]
         default: all
+      testflight:
+        description: Upload the iOS build to TestFlight, for the team's testers (never submitted for review)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -131,6 +136,33 @@ jobs:
           printf '%s\n' "$ASC_KEY_P8" > "$API_PRIVATE_KEYS_DIR/AuthKey_$ASC_KEY_ID.p8"
           chmod 600 "$API_PRIVATE_KEYS_DIR/AuthKey_$ASC_KEY_ID.p8"
           xcrun altool --upload-app --type ${{ matrix.type }} --file appstore/${{ matrix.file }} --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+  # A run started by hand with testflight ticked: the iOS build goes to TestFlight once every build asked for has
+  # succeeded. Its build number is new and its version the one in the files.
+  testflight:
+    name: Upload to TestFlight (by hand)
+    needs: [desktop, android, ios, mac, docker]
+    if: >-
+      always() && github.event_name == 'workflow_dispatch' && inputs.testflight && needs.ios.result == 'success'
+      && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    runs-on: macos-latest
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: appstore-ios
+          path: appstore
+      - name: Upload
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          export API_PRIVATE_KEYS_DIR="$RUNNER_TEMP/private_keys"
+          mkdir -p "$API_PRIVATE_KEYS_DIR"
+          printf '%s\n' "$ASC_KEY_P8" > "$API_PRIVATE_KEYS_DIR/AuthKey_$ASC_KEY_ID.p8"
+          chmod 600 "$API_PRIVATE_KEYS_DIR/AuthKey_$ASC_KEY_ID.p8"
+          xcrun altool --upload-app --type ios --file appstore/*.ipa --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          echo "::notice::Uploaded to TestFlight from $GITHUB_REF_NAME at ${GITHUB_SHA::7}. Never submit this build for review."
 
   publish:
     name: Publish release

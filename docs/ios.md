@@ -115,7 +115,8 @@ owns the app `app.fractique` in App Store Connect. `FRACTIQUE_TEAM_ID` picks ano
 The **Release** workflow builds the same on one of GitHub's Macs, beside the other platforms, with
 `scripts/ios/testflight.sh`, and App Store Connect checks the build. For a version tag it uploads the build
 once every platform of the release is built; a run started by hand (Actions, Release, Run workflow; **ios** there
-builds this alone) uploads nothing ([releasing.md](releasing.md#the-stores)). The build goes to TestFlight only, so
+builds this alone) uploads nothing, unless **testflight** is ticked: then the iOS build of that branch goes to
+TestFlight, for the testers only, never for review ([releasing.md](releasing.md#the-stores)). The build goes to TestFlight only, so
 to the testers of the team. The runner has no signed-in Xcode. It signs with a development certificate of the team
 and an App Store Connect API key, which the team's account holder or an admin makes once:
 
