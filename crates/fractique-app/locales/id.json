@@ -130,6 +130,7 @@
   "share": "Bagikan",
   "allow_storage": "Izinkan akses penyimpanan untuk menyimpan gambar.",
   "color": "WARNA",
+  "own_colors": "Warna sendiri",
   "graphics": "GRAFIS",
   "gpu_note": "Dengan akselerasi aktif, gambar dan ekspor bisa sedikit berbeda dari perangkat ke perangkat.",
   "exact": "Gambar persis",

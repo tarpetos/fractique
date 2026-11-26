@@ -692,6 +692,7 @@ mod tests {
             ratio: f64::from(options.height) / f64::from(options.width),
             dark,
             hue: None,
+            hues: None,
         };
         random_wallpaper(seed, &request)
     }

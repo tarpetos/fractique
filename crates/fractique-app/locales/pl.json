@@ -130,6 +130,7 @@
   "share": "Udostępnij",
   "allow_storage": "Zezwól na dostęp do pamięci, aby zapisać obraz.",
   "color": "KOLOR",
+  "own_colors": "Własne kolory",
   "graphics": "GRAFIKA",
   "gpu_note": "Z włączonym przyspieszeniem obraz i eksporty mogą się nieco różnić między urządzeniami.",
   "exact": "Dokładne obrazy",

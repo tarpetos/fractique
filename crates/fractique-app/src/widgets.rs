@@ -354,6 +354,29 @@ pub fn dotted(width: f32) -> (f32, f32, f32) {
     (ROW_EDGE + DOT * 0.5, start, (width - start - ROW_EDGE).max(0.0))
 }
 
+// A button as wide as the panel, a dot of its colors before its name; ringed while what it opens is worn.
+pub fn dot_button(ui: &mut Ui, text: &str, chosen: bool, dot: Dot) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::click());
+    let fill = lift(22, 22.0, lit(ui, &response));
+    ui.painter().rect_filled(rect, CornerRadius::same(12), white(fill));
+    let ring = if chosen { white(230) } else { white(36) };
+    ui.painter().rect_stroke(
+        rect,
+        CornerRadius::same(12),
+        egui::Stroke::new(if chosen { 1.6 } else { 1.0 }, ring),
+        egui::StrokeKind::Inside,
+    );
+    dot(ui.painter(), rect.left_center() + vec2(24.0, 0.0), 11.0);
+    ui.painter().text(
+        rect.left_center() + vec2(46.0, 0.0),
+        Align2::LEFT_CENTER,
+        text,
+        font(14.0, MEDIUM),
+        white(240),
+    );
+    response.clicked()
+}
+
 pub fn dot_row(ui: &mut Ui, text: &str, dot: Dot) -> bool {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
     let (middle, start, room) = dotted(rect.width());
@@ -846,6 +869,207 @@ pub fn slider_as(
     changed
 }
 
+// The color picker: hue, saturation and value from 0 to 1.
+pub fn hsv_to_rgb([h, s, v]: [f32; 3]) -> [f64; 3] {
+    let h = h.rem_euclid(1.0) * 6.0;
+    let sector = h.floor();
+    let f = h - sector;
+    let (p, q, t) = (v * (1.0 - s), v * (1.0 - s * f), v * (1.0 - s * (1.0 - f)));
+    let [r, g, b] = match sector as u8 {
+        0 => [v, t, p],
+        1 => [q, v, p],
+        2 => [p, v, t],
+        3 => [p, q, v],
+        4 => [t, p, v],
+        _ => [v, p, q],
+    };
+    [r, g, b].map(|c| f64::from(c.clamp(0.0, 1.0)))
+}
+
+pub fn rgb_to_hsv(rgb: [f64; 3]) -> [f32; 3] {
+    let [r, g, b] = rgb.map(|c| c.clamp(0.0, 1.0) as f32);
+    let (high, low) = (r.max(g).max(b), r.min(g).min(b));
+    let span = high - low;
+    let hue = if span <= f32::EPSILON {
+        0.0
+    } else if high == r {
+        ((g - b) / span).rem_euclid(6.0) / 6.0
+    } else if high == g {
+        ((b - r) / span + 2.0) / 6.0
+    } else {
+        ((r - g) / span + 4.0) / 6.0
+    };
+    let saturation = if high <= f32::EPSILON { 0.0 } else { span / high };
+    [hue, saturation, high]
+}
+
+pub fn rgb(color: [f64; 3]) -> Color32 {
+    let [r, g, b] = color.map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
+    Color32::from_rgb(r, g, b)
+}
+
+fn picker_knob(painter: &egui::Painter, at: egui::Pos2, fill: Color32) {
+    painter.circle_filled(at + vec2(0.0, 1.0), 10.0, Color32::from_black_alpha(80));
+    painter.circle_filled(at, 9.0, Color32::WHITE);
+    painter.circle_filled(at, 7.0, fill);
+}
+
+// Where the finger or the pointer is, as shares of the rect, while it holds the area.
+fn held_share(rect: egui::Rect, response: &egui::Response) -> Option<egui::Vec2> {
+    let at = response.interact_pointer_pos()?;
+    (response.dragged() || response.clicked() || response.is_pointer_button_down_on()).then(|| {
+        vec2(
+            ((at.x - rect.left()) / rect.width()).clamp(0.0, 1.0),
+            ((at.y - rect.top()) / rect.height()).clamp(0.0, 1.0),
+        )
+    })
+}
+
+// Saturation across, value down, for the hue given.
+pub fn color_square(ui: &mut Ui, hsv: &mut [f32; 3], height: f32) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click_and_drag());
+    let mut changed = false;
+    if let Some(share) = held_share(rect, &response) {
+        let next = [hsv[0], share.x, 1.0 - share.y];
+        changed = next != *hsv;
+        *hsv = next;
+    }
+    const STEPS: usize = 16;
+    let mut mesh = egui::Mesh::default();
+    for row in 0..=STEPS {
+        for column in 0..=STEPS {
+            let (s, v) = (column as f32 / STEPS as f32, 1.0 - row as f32 / STEPS as f32);
+            let at = rect.left_top() + vec2(rect.width() * s, rect.height() * (1.0 - v));
+            mesh.colored_vertex(at, rgb(hsv_to_rgb([hsv[0], s, v])));
+        }
+    }
+    let width = (STEPS + 1) as u32;
+    for row in 0..STEPS as u32 {
+        for column in 0..STEPS as u32 {
+            let corner = row * width + column;
+            mesh.add_triangle(corner, corner + 1, corner + width);
+            mesh.add_triangle(corner + 1, corner + width + 1, corner + width);
+        }
+    }
+    ui.painter().add(egui::Shape::mesh(mesh));
+    ui.painter().rect_stroke(
+        rect,
+        CornerRadius::same(2),
+        egui::Stroke::new(1.0, white(40)),
+        egui::StrokeKind::Inside,
+    );
+    let at = rect.left_top() + vec2(rect.width() * hsv[1], rect.height() * (1.0 - hsv[2]));
+    picker_knob(ui.painter(), at, rgb(hsv_to_rgb(*hsv)));
+    changed
+}
+
+// The hues around the circle, left to right.
+pub fn hue_bar(ui: &mut Ui, hue: &mut f32) -> bool {
+    // The bar is as tall as it looks; its knob stands out of it above and below.
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 16.0), Sense::hover());
+    let response = ui.interact(
+        rect.expand2(vec2(0.0, 6.0)),
+        response.id.with("reach"),
+        Sense::click_and_drag(),
+    );
+    let mut changed = false;
+    if let Some(share) = held_share(rect, &response) {
+        let next = share.x.min(0.999);
+        changed = next != *hue;
+        *hue = next;
+    }
+    let band = rect;
+    const STEPS: usize = 36;
+    let mut mesh = egui::Mesh::default();
+    for step in 0..=STEPS {
+        let share = step as f32 / STEPS as f32;
+        let color = rgb(hsv_to_rgb([share, 0.85, 0.95]));
+        let x = band.left() + band.width() * share;
+        mesh.colored_vertex(egui::pos2(x, band.top()), color);
+        mesh.colored_vertex(egui::pos2(x, band.bottom()), color);
+    }
+    for step in 0..STEPS as u32 {
+        let at = step * 2;
+        mesh.add_triangle(at, at + 1, at + 2);
+        mesh.add_triangle(at + 1, at + 3, at + 2);
+    }
+    ui.painter().add(egui::Shape::mesh(mesh));
+    let at = egui::pos2(band.left() + band.width() * *hue, rect.center().y);
+    picker_knob(ui.painter(), at, rgb(hsv_to_rgb([*hue, 0.85, 0.95])));
+    changed
+}
+
+// A strip that shows a gradient, \`shade\` giving the color a share of the way along.
+pub fn gradient_strip(ui: &mut Ui, height: f32, shade: impl Fn(f32) -> Color32) {
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
+    const STEPS: usize = 48;
+    let mut mesh = egui::Mesh::default();
+    for step in 0..=STEPS {
+        let share = step as f32 / STEPS as f32;
+        let x = rect.left() + rect.width() * share;
+        mesh.colored_vertex(egui::pos2(x, rect.top()), shade(share));
+        mesh.colored_vertex(egui::pos2(x, rect.bottom()), shade(share));
+    }
+    for step in 0..STEPS as u32 {
+        let at = step * 2;
+        mesh.add_triangle(at, at + 1, at + 2);
+        mesh.add_triangle(at + 1, at + 3, at + 2);
+    }
+    ui.painter().add(egui::Shape::mesh(mesh));
+    ui.painter().rect_stroke(
+        rect,
+        CornerRadius::same(2),
+        egui::Stroke::new(1.0, white(40)),
+        egui::StrokeKind::Inside,
+    );
+}
+
+pub enum Chip {
+    Pick(usize),
+    Add,
+    Remove,
+}
+
+// The colors of a gradient in a row, the chosen one ringed, then a plus to add one and a minus to take the chosen
+// one away.
+pub fn color_chips(ui: &mut Ui, colors: &[Color32], chosen: usize, most: usize) -> Option<Chip> {
+    let mut act = None;
+    ui.horizontal(|ui| {
+        // The cells are as wide as the chosen one's ring, so the first stands flush with the strip above it.
+        ui.spacing_mut().item_spacing.x = 10.0;
+        for (at, color) in colors.iter().enumerate() {
+            let (rect, response) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::click());
+            ui.painter().circle_filled(rect.center(), 13.0, *color);
+            if at == chosen {
+                ui.painter()
+                    .circle_stroke(rect.center(), 16.0, egui::Stroke::new(1.8, Color32::WHITE));
+            }
+            if response.clicked() {
+                act = Some(Chip::Pick(at));
+            }
+        }
+        let sign = |ui: &mut Ui, plus: bool, enabled: bool| {
+            let (rect, response) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::click());
+            let fill = lift(26, if enabled { 24.0 } else { 0.0 }, lit(ui, &response));
+            ui.painter().circle_filled(rect.center(), 13.0, white(fill));
+            let ink = egui::Stroke::new(1.6, white(if enabled { 235 } else { 70 }));
+            let c = rect.center();
+            ui.painter().line_segment([c - vec2(5.0, 0.0), c + vec2(5.0, 0.0)], ink);
+            if plus {
+                ui.painter().line_segment([c - vec2(0.0, 5.0), c + vec2(0.0, 5.0)], ink);
+            }
+            enabled && response.clicked()
+        };
+        if sign(ui, true, colors.len() < most) {
+            act = Some(Chip::Add);
+        }
+        if sign(ui, false, colors.len() > 1) {
+            act = Some(Chip::Remove);
+        }
+    });
+    act
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -952,6 +1176,24 @@ mod tests {
             let (value, _) = swiped((0.5, below), (0.8, below));
             assert!((value - 0.8).abs() < 0.02, "{below} {value}");
         }
+    }
+
+    #[test]
+    fn a_color_goes_to_hue_saturation_and_value_and_back() {
+        for color in [
+            [1.0, 0.0, 0.0],
+            [0.2, 0.6, 0.9],
+            [0.5, 0.5, 0.5],
+            [0.0, 0.0, 0.0],
+            [0.95, 0.85, 0.1],
+        ] {
+            let back = hsv_to_rgb(rgb_to_hsv(color));
+            assert!(
+                color.iter().zip(back).all(|(a, b)| (a - b).abs() < 1e-5),
+                "{color:?} {back:?}"
+            );
+        }
+        assert_eq!(rgb_to_hsv([0.0, 1.0, 0.0])[0], 1.0 / 3.0);
     }
 
     #[test]

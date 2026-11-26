@@ -135,6 +135,7 @@ pub fn wallpaper_request(
         ratio: f64::from(height) / f64::from(width),
         dark,
         hue: None,
+        hues: None,
     })
 }
 

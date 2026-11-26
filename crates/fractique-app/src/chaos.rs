@@ -2857,8 +2857,8 @@ pub(crate) mod tests {
         both.layers
             .extend(presets::get("ember-vortex").expect("the preset exists").layers);
         let mut choices = crate::colors::Choices::all(None, 2);
-        choices.choose(0, Some(4));
-        choices.choose(1, Some(2));
+        choices.choose(0, Some(crate::colors::Choice::Swatch(4)));
+        choices.choose(1, Some(crate::colors::Choice::Swatch(2)));
         choices.dress(&mut both);
         let exact = fractique_core::render(&both, &options, &Control::default()).expect("it renders");
         let (quick, _, _) = card.drawn(&both, &options).expect("the graphics card draws it");
@@ -2987,6 +2987,7 @@ pub(crate) mod tests {
             ratio: 0.625,
             dark: true,
             hue: None,
+            hues: None,
         };
         let mut wallpaper = fractique_core::wallpaper::random_wallpaper(3, &request);
         wallpaper.layers = presets::get("aurora-spiral").expect("the preset exists").layers;

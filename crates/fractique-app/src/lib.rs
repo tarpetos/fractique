@@ -64,7 +64,7 @@ use eframe::egui_wgpu::{self, wgpu};
 use fractique_core::palette;
 use fractique_core::random::{Generator, mutate, random_scene, random_scene_of};
 use fractique_core::scene::{Blend, Layer, MAX_LAYERS};
-use fractique_core::wallpaper::{Layout, Material, Request, chosen as wallpaper_choice, random_wallpaper};
+use fractique_core::wallpaper::{Hues, Layout, Material, Request, chosen as wallpaper_choice, random_wallpaper};
 use fractique_core::{
     Control, Developed, Image, RenderError, RenderOptions, Scene, Tone, compose, develop, fractal, presets,
     render_density, render_layer,
@@ -1112,6 +1112,16 @@ impl Adjust {
     }
 }
 
+// Hues saved as a list of numbers.
+fn hues_of(value: Option<&serde_json::Value>) -> Option<Hues> {
+    let list: Vec<f64> = value?
+        .as_array()?
+        .iter()
+        .filter_map(serde_json::Value::as_f64)
+        .collect();
+    Hues::new(&list)
+}
+
 #[derive(Default)]
 struct Wall {
     on: bool,
@@ -1121,6 +1131,8 @@ struct Wall {
     held: Option<(Layout, Material)>,
     dark: bool,
     hue: Option<f64>,
+    // One's own colors, as hues: they take the place of `hue`.
+    hues: Option<Hues>,
 }
 
 impl Wall {
@@ -1131,6 +1143,7 @@ impl Wall {
             ratio: f64::from(size[1].max(1)) / f64::from(size[0].max(1)),
             dark: self.dark,
             hue: self.hue,
+            hues: self.hues,
         }
     }
 }
@@ -1306,6 +1319,13 @@ struct App {
     settings_open: bool,
     // A phone's card of the chosen layer, opened from the row of layers on the picture.
     pub(crate) layer_card: bool,
+    // The sheet of one's own colors, the color in it being changed, the hue it is at (kept where a grey has none),
+    // and the colors last made, to come back to.
+    pub(crate) own_open: bool,
+    own_at: usize,
+    own_hsv: Option<[f32; 3]>,
+    own_flame: Vec<[f64; 3]>,
+    own_wall: Vec<f64>,
     // The language list was opened from the settings, which come back when it closes.
     from_settings: bool,
     picture: Option<[u32; 2]>,
@@ -2018,6 +2038,11 @@ impl App {
             languages_open: opens("languages"),
             settings_open: opens("settings") && !opens("languages"),
             layer_card: opens("card"),
+            own_open: opens("own"),
+            own_at: 0,
+            own_hsv: None,
+            own_flame: Vec::new(),
+            own_wall: Vec::new(),
             from_settings: opens("settings") && opens("languages"),
             picture: std::env::var("FRACTIQUE_PICTURE")
                 .ok()
@@ -2159,7 +2184,7 @@ impl App {
         self.layer.min(self.base.layers.len().saturating_sub(1))
     }
 
-    fn choice(&self) -> Option<usize> {
+    fn choice(&self) -> Option<colors::Choice> {
         self.choices.of(self.chosen_layer())
     }
 
@@ -3951,6 +3976,7 @@ impl App {
                 "held": self.wall.held.and_then(|(layout, material)| Some([name(layout)?, stuff(material)?])),
                 "dark": self.wall.dark,
                 "hue": self.wall.hue,
+                "hues": self.wall.hues.map(|hues| hues.list().to_vec()),
             },
         });
         session.to_string()
@@ -4006,6 +4032,7 @@ impl App {
             layout: word("layout").and_then(Layout::parse),
             material: word("material").and_then(Material::parse),
             hue: wall.get("hue").and_then(serde_json::Value::as_f64),
+            hues: hues_of(wall.get("hues")),
             held: held.and_then(|held| {
                 Some((
                     Layout::parse(held.first()?.as_str()?)?,
@@ -4549,6 +4576,10 @@ impl App {
         }
         if self.settings_open {
             self.settings_open = false;
+            return;
+        }
+        if self.own_open {
+            self.own_open = false;
             return;
         }
         if self.layer_card {
@@ -5175,6 +5206,7 @@ impl App {
             || self.languages_open
             || self.settings_open
             || self.layer_card_shown()
+            || self.own_open
             || self.pro_open();
         #[cfg(not(target_arch = "wasm32"))]
         let lists = lists || self.export.open;
@@ -6054,8 +6086,7 @@ impl App {
             .iter()
             .enumerate()
             .map(|(index, layer)| {
-                let chosen = self.choices.of(index).and_then(|at| palette::SWATCHES.get(at));
-                let worn = chosen.and_then(|name| palette::named(name));
+                let worn = self.choices.of(index).and_then(|choice| choice.palette());
                 palette::lut(worn.as_ref().unwrap_or(layer.palette()))
             })
             .collect()
@@ -6394,6 +6425,7 @@ impl App {
                 self.phone.sheet = false;
                 self.phone.tune = false;
                 self.layer_card = false;
+                self.own_open = false;
                 #[cfg(feature = "store")]
                 {
                     self.pro = None;
@@ -7229,7 +7261,28 @@ impl App {
         }
         if let Some(name) = step.strip_prefix("palette:") {
             let choice = palette::SWATCHES.iter().position(|each| *each == name);
-            self.choices.choose(self.chosen_layer(), choice);
+            self.choices
+                .choose(self.chosen_layer(), choice.map(colors::Choice::Swatch));
+            self.requested = None;
+            self.asked = Instant::now();
+            self.shown_frames = 0;
+            return;
+        }
+        // own:#rrggbb+#rrggbb: one's own colors, hues of them on a wallpaper, with their sheet open.
+        if let Some(list) = step.strip_prefix("own:") {
+            let colors: Vec<[f64; 3]> = list.split('+').filter_map(colors::parse_hex).collect();
+            if self.wall.on {
+                let hues: Vec<f64> = colors
+                    .iter()
+                    .map(|color| f64::from(widgets::rgb_to_hsv(*color)[0]) * 360.0)
+                    .collect();
+                self.wall.hues = Hues::new(&hues);
+                self.new_wallpaper();
+            } else if !colors.is_empty() {
+                self.choices
+                    .choose(self.chosen_layer(), Some(colors::Choice::Own(colors)));
+            }
+            self.open_own();
             self.requested = None;
             self.asked = Instant::now();
             self.shown_frames = 0;
@@ -7954,6 +8007,31 @@ impl App {
                     self.layers(ui);
                     if widgets::close(ui, &self.t("close")) {
                         self.layer_card = false;
+                    }
+                });
+            });
+            self.leaf(&ctx, &mut panes, &sheet.response, &leaf, self.optics.radius, true);
+        }
+
+        let own = self.own_open;
+        if let Some(shown) = self.stage.shown("own_colors", own, motion::PANEL) {
+            // At the foot of the screen, as a layer's card: the picture it colors stays in sight.
+            let at = egui::pos2(content.center().x, content.bottom() - 16.0);
+            let leaf = Leaf {
+                live: own,
+                height: "own_colors_tall",
+                at,
+                pivot: egui::Align2::CENTER_BOTTOM,
+                shown,
+            };
+            let sheet = Self::sheet("own_colors", at, egui::Align2::CENTER_BOTTOM, own && live).show(&ctx, |ui| {
+                self.unfold(ui, &leaf);
+                widgets::pane().show(ui, |ui| {
+                    ui.set_width(sheet_width(content.width(), 300.0, self.phone.on));
+                    ui.spacing_mut().item_spacing = egui::vec2(8.0, 2.0);
+                    self.own_editor(ui);
+                    if widgets::close(ui, &self.t("close")) {
+                        self.own_open = false;
                     }
                 });
             });

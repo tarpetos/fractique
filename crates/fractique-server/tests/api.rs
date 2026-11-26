@@ -170,6 +170,7 @@ async fn random_scenes_and_wallpapers_are_the_core_ones() {
         ratio: 600.0 / 800.0,
         dark: true,
         hue: None,
+        hues: None,
     };
     assert_eq!(
         wallpaper.body,
@@ -230,6 +231,7 @@ async fn a_render_is_the_png_of_the_core_render() {
         ratio: 64.0 / 96.0,
         dark: false,
         hue: None,
+        hues: None,
     };
     let mut reseeded = preset.clone();
     reseeded.seed = 99;

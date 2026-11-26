@@ -12,6 +12,7 @@
 * **Colors:** nine dark palettes of one hue after rezonanca.art, each with its own background: amethyst, cobalt, garnet, abyss, lagoon, frost, rosewood, bronze, forest.
 * **App, phones:** Back brings a picture back with the colors and the layer chosen for it.
 * **App:** the colors stand in even rows from edge to edge: on a phone the 18 in two rows of nine, not eight, eight and two.
+* **App:** your own colors: a gradient of one to five for a layer of a flame or a fractal, picked on a square and a bar of hues, and of one to five hues for a wallpaper; **Your colors** under the palettes, a rainbow circle in the phone's row.
 
 ## 1.0.4
 

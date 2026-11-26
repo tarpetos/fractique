@@ -130,6 +130,7 @@
   "share": "Share",
   "allow_storage": "Allow storage access to save the picture.",
   "color": "COLOR",
+  "own_colors": "Your colors",
   "graphics": "GRAPHICS",
   "gpu_note": "With acceleration on, the picture and the exports can look slightly different from device to device.",
   "exact": "Exact pictures",
