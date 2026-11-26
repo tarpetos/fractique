@@ -1,6 +1,13 @@
 # Changelog
 
-## 1.0.5 (unreleased)
+## Unreleased
+
+* **App:** the colors stand in even rows from edge to edge: on a phone the 18 in two rows of nine, not eight, eight and two.
+* **App:** your own colors: a gradient of one to five for a layer of a flame or a fractal, picked on a square and a bar of hues, and of one to five hues for a wallpaper; **Your colors** under the palettes, a rainbow circle in the phone's row.
+* **App, phones:** every type of fractal, as on a computer, the isometric ones included; the nine that take the processor long are marked **Slow**.
+* **Wallpapers:** nine more layouts (garden, ripples, pebbles, horizon, twist, mosaic, bubbles, dunes, confetti) and five more materials (clay, chrome, candy, velvet, pearl); a seed given no layout or material may now pick another.
+
+## 1.0.5
 
 * **App, phones:** deleting one of two layers no longer leaves the picture without its buttons; the layer card opens for a picture of one layer too.
 * **Fractals:** Mandelbox, Mandelbulb and Menger sponge have an isometric camera and can take their colors from the light; presets in that style.
@@ -11,10 +18,6 @@
 * **Gallery:** a hundred isometric fractals, `docs/gallery/isometric/`.
 * **Colors:** nine dark palettes of one hue after rezonanca.art, each with its own background: amethyst, cobalt, garnet, abyss, lagoon, frost, rosewood, bronze, forest.
 * **App, phones:** Back brings a picture back with the colors and the layer chosen for it.
-* **App:** the colors stand in even rows from edge to edge: on a phone the 18 in two rows of nine, not eight, eight and two.
-* **App:** your own colors: a gradient of one to five for a layer of a flame or a fractal, picked on a square and a bar of hues, and of one to five hues for a wallpaper; **Your colors** under the palettes, a rainbow circle in the phone's row.
-* **App, phones:** every type of fractal, as on a computer, the isometric ones included; the nine that take the processor long are marked **Slow**.
-* **Wallpapers:** nine more layouts (garden, ripples, pebbles, horizon, twist, mosaic, bubbles, dunes, confetti) and five more materials (clay, chrome, candy, velvet, pearl); a seed given no layout or material may now pick another.
 
 ## 1.0.4
 
