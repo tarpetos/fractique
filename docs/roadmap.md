@@ -35,10 +35,11 @@ built on it.
 | 28 | **Colors of a layer:** a chosen palette belongs to the selected layer, each layer keeps its own through adding, removing and reordering, and a dot before a layer's name shows the colors it is drawn with | Done |
 | 29 | **One territory at every zoom:** a picture can be moved within the same nine framings at every zoom, so zooming in never moves the camera; the blurred picture follows a fast zoom to the kind's ceiling | Done |
 | 30 | **Faint parts of a deep view:** a view that holds less than an eighth of a flame raises its faint end and gives it a share of the points, so what a bright part in the frame kept dark is seen and smooth | Done |
-| 31 | **A gallery:** a hundred flames, a hundred fractals, a hundred isometric fractals and a hundred wallpapers in `docs/gallery`, each with the `.frcq` file that renders it again; forty of them in two or three layers of different colors | Done |
+| 31 | **A gallery:** a hundred flames, a hundred fractals, a hundred isometric fractals and a hundred wallpapers in `docs/gallery`, each with the `.frcq` file that renders it again; forty of them in two or three layers of different colors, eighty in the dark palettes of one hue | Done |
 | 32 | **The tools from the AppImage:** its first word, `cli`, `mcp` or `server`, starts the program packed in it | Done |
 | 33 | **Your own colors:** a gradient of one to eight colors for a layer, picked on a square and a bar of hues, and of one to eight colors for a wallpaper, kept in the session and the recent pictures | Done |
-| 34 | **Phones as computers:** every kind of fractal on a phone, the isometric solids included, the slow ones marked **Slow** | Done |
+| 34 | **Phones as computers:** every kind of fractal on a phone, the isometric solids included | Done |
+| 35 | **Full rows on a phone:** the Ikeda attractor (24 kinds, the card draws it too), a 30th flame preset and more presets of five kinds, so that every row of tiles ends full; **Add layer** first and **Random** as a few random pictures in turn; one's own colors in eight fixed places, with the picker and **Delete color** in one card, and the same picker for a wallpaper's colors | Done |
 
 ## App, next
 
@@ -48,7 +49,7 @@ What the app does not do yet:
 - The chaos game on the graphics card in a browser: the page renders on its one thread, so the exact render would
   have to wait for the graphics card's picture first.
 - Choosing a wallpaper's color on a computer (a phone has it in its styles).
-- More fractals of other kinds on the graphics card: it draws flames, the Clifford, De Jong and Lorenz
+- More fractals of other kinds on the graphics card: it draws flames, the Clifford, De Jong, Ikeda and Lorenz
   attractors ([architecture.md](architecture.md#orbits-on-the-graphics-card)), the escape-time and
   root-finding kinds ([architecture.md](architecture.md#fractals-drawn-pixel-by-pixel-on-the-graphics-card)) and
   wallpapers; a
