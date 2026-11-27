@@ -6,20 +6,19 @@
     <a href="https://github.com/tarpetos/fractique/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/tarpetos/fractique/ci-master.yml?branch=master&label=CI&logo=github" alt="CI"></a>
     <a href="https://github.com/tarpetos/fractique/releases"><img src="https://img.shields.io/github/downloads/tarpetos/fractique/total?label=%D0%B7%D0%B0%D0%B3%D1%80%D1%83%D0%B7%D0%BA%D0%B8" alt="Загрузки"></a>
   </p>
+  <p>
+    <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-ru-ru.svg" alt="Загрузите в App Store" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-ru-ru.svg" alt="Скачать для Windows" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-ru-ru.svg" alt="Скачать для macOS" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-ru-ru.svg" alt="Скачать для Linux" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-ru-ru.svg" alt="Скачать для Android" height="48"></a>
+  </p>
   <p><strong>Генератор фрактального пламени, классических фракталов и обоев, который из одинаковых входных данных даёт одинаковое изображение на любой платформе.</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <strong>Русский</strong> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
     <a href="README_CN.md">简体中文</a> · <a href="README_PT.md">Português</a> · <a href="README_KO.md">한국어</a> · <a href="README_HI.md">हिन्दी</a> · <a href="README_TR.md">Türkçe</a> · <a href="README_PL.md">Polski</a> · <a href="README_ID.md">Bahasa Indonesia</a>
   </sub></p>
 </div>
-
-<p align="center">
-  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-ru-ru.svg" alt="Загрузите в App Store" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-ru-ru.svg" alt="Скачать для Windows" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-ru-ru.svg" alt="Скачать для macOS" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-ru-ru.svg" alt="Скачать для Linux" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-ru-ru.svg" alt="Скачать для Android" height="48"></a>
-</p>
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: фрактальные обои для любого экрана" width="880"></a>

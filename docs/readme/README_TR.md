@@ -6,20 +6,19 @@
     <a href="https://github.com/tarpetos/fractique/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/tarpetos/fractique/ci-master.yml?branch=master&label=CI&logo=github" alt="CI"></a>
     <a href="https://github.com/tarpetos/fractique/releases"><img src="https://img.shields.io/github/downloads/tarpetos/fractique/total?label=indirme" alt="İndirme"></a>
   </p>
+  <p>
+    <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-tr-tr.svg" alt="App Store'dan İndirin" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-tr-tr.svg" alt="Windows için indir" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-tr-tr.svg" alt="macOS için indir" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-tr-tr.svg" alt="Linux için indir" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-tr-tr.svg" alt="Android için indir" height="48"></a>
+  </p>
   <p><strong>Aynı girdiden her platformda aynı görüntüyü üreten bir fraktal alev, klasik fraktal ve duvar kâğıdı üreteci.</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
     <a href="README_CN.md">简体中文</a> · <a href="README_PT.md">Português</a> · <a href="README_KO.md">한국어</a> · <a href="README_HI.md">हिन्दी</a> · <strong>Türkçe</strong> · <a href="README_PL.md">Polski</a> · <a href="README_ID.md">Bahasa Indonesia</a>
   </sub></p>
 </div>
-
-<p align="center">
-  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-tr-tr.svg" alt="App Store'dan İndirin" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-tr-tr.svg" alt="Windows için indir" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-tr-tr.svg" alt="macOS için indir" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-tr-tr.svg" alt="Linux için indir" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-tr-tr.svg" alt="Android için indir" height="48"></a>
-</p>
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: her ekran için fraktal duvar kağıtları" width="880"></a>

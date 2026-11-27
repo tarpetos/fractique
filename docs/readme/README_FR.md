@@ -6,20 +6,19 @@
     <a href="https://github.com/tarpetos/fractique/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/tarpetos/fractique/ci-master.yml?branch=master&label=CI&logo=github" alt="CI"></a>
     <a href="https://github.com/tarpetos/fractique/releases"><img src="https://img.shields.io/github/downloads/tarpetos/fractique/total?label=t%C3%A9l%C3%A9chargements" alt="Téléchargements"></a>
   </p>
+  <p>
+    <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-fr-fr.svg" alt="Télécharger dans l'App Store" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-fr-fr.svg" alt="Télécharger pour Windows" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-fr-fr.svg" alt="Télécharger pour macOS" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-fr-fr.svg" alt="Télécharger pour Linux" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-fr-fr.svg" alt="Télécharger pour Android" height="48"></a>
+  </p>
   <p><strong>Un générateur de flammes fractales, de fractales classiques et de fonds d’écran qui donne la même image à partir de la même entrée, sur toutes les plateformes.</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <a href="README_DE.md">Deutsch</a> · <strong>Français</strong> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
     <a href="README_CN.md">简体中文</a> · <a href="README_PT.md">Português</a> · <a href="README_KO.md">한국어</a> · <a href="README_HI.md">हिन्दी</a> · <a href="README_TR.md">Türkçe</a> · <a href="README_PL.md">Polski</a> · <a href="README_ID.md">Bahasa Indonesia</a>
   </sub></p>
 </div>
-
-<p align="center">
-  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-fr-fr.svg" alt="Télécharger dans l'App Store" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-fr-fr.svg" alt="Télécharger pour Windows" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-fr-fr.svg" alt="Télécharger pour macOS" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-fr-fr.svg" alt="Télécharger pour Linux" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-fr-fr.svg" alt="Télécharger pour Android" height="48"></a>
-</p>
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique : des fonds d'écran fractals pour tous les écrans" width="880"></a>
