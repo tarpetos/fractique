@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* **Gallery:** 80 of the 400 pictures in the dark palettes of one hue, the wallpapers in their hues, renamed after their new colors.
+
 ## 1.0.6
 
 * **App:** the types of fractal only the processor draws are no longer marked slow: they are done in about ten seconds.
