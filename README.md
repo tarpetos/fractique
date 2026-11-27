@@ -6,20 +6,19 @@
     <a href="https://github.com/tarpetos/fractique/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/tarpetos/fractique/ci-master.yml?branch=master&label=CI&logo=github" alt="CI"></a>
     <a href="https://github.com/tarpetos/fractique/releases"><img src="https://img.shields.io/github/downloads/tarpetos/fractique/total?label=downloads" alt="Downloads"></a>
   </p>
+  <p>
+    <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="assets/badges/app-store-en-us.svg" alt="Download on the App Store" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/windows-en-us.svg" alt="Download for Windows" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/macos-en-us.svg" alt="Download for macOS" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/linux-en-us.svg" alt="Download for Linux" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/android-en-us.svg" alt="Download for Android" height="48"></a>
+  </p>
   <p><strong>A generator of fractal flames, classic fractals and wallpapers that gives the same picture from the same input, on every platform.</strong></p>
   <p><sub>
     <strong>English</strong> · <a href="docs/readme/README_UK.md">Українська</a> · <a href="docs/readme/README_RU.md">Русский</a> · <a href="docs/readme/README_DE.md">Deutsch</a> · <a href="docs/readme/README_FR.md">Français</a> · <a href="docs/readme/README_ES.md">Español</a> · <a href="docs/readme/README_IT.md">Italiano</a> · <a href="docs/readme/README_JA.md">日本語</a><br>
     <a href="docs/readme/README_CN.md">简体中文</a> · <a href="docs/readme/README_PT.md">Português</a> · <a href="docs/readme/README_KO.md">한국어</a> · <a href="docs/readme/README_HI.md">हिन्दी</a> · <a href="docs/readme/README_TR.md">Türkçe</a> · <a href="docs/readme/README_PL.md">Polski</a> · <a href="docs/readme/README_ID.md">Bahasa Indonesia</a>
   </sub></p>
 </div>
-
-<p align="center">
-  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="assets/badges/app-store-en-us.svg" alt="Download on the App Store" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/windows-en-us.svg" alt="Download for Windows" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/macos-en-us.svg" alt="Download for macOS" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/linux-en-us.svg" alt="Download for Linux" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/android-en-us.svg" alt="Download for Android" height="48"></a>
-</p>
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="docs/samples/video.webp" alt="Fractique: fractal wallpapers for every screen" width="880"></a>

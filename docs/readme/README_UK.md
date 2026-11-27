@@ -6,20 +6,19 @@
     <a href="https://github.com/tarpetos/fractique/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/tarpetos/fractique/ci-master.yml?branch=master&label=CI&logo=github" alt="CI"></a>
     <a href="https://github.com/tarpetos/fractique/releases"><img src="https://img.shields.io/github/downloads/tarpetos/fractique/total?label=%D0%B7%D0%B0%D0%B2%D0%B0%D0%BD%D1%82%D0%B0%D0%B6%D0%B5%D0%BD%D0%BD%D1%8F" alt="Завантаження"></a>
   </p>
+  <p>
+    <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-uk-ua.svg" alt="Завантажте в App Store" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-uk-ua.svg" alt="Завантажити для Windows" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-uk-ua.svg" alt="Завантажити для macOS" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-uk-ua.svg" alt="Завантажити для Linux" height="48"></a>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-uk-ua.svg" alt="Завантажити для Android" height="48"></a>
+  </p>
   <p><strong>Генератор фрактального полум’я, класичних фракталів і шпалер, який з однакових вхідних даних дає однакове зображення на будь-якій платформі.</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <strong>Українська</strong> · <a href="README_RU.md">Русский</a> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
     <a href="README_CN.md">简体中文</a> · <a href="README_PT.md">Português</a> · <a href="README_KO.md">한국어</a> · <a href="README_HI.md">हिन्दी</a> · <a href="README_TR.md">Türkçe</a> · <a href="README_PL.md">Polski</a> · <a href="README_ID.md">Bahasa Indonesia</a>
   </sub></p>
 </div>
-
-<p align="center">
-  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-uk-ua.svg" alt="Завантажте в App Store" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-uk-ua.svg" alt="Завантажити для Windows" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-uk-ua.svg" alt="Завантажити для macOS" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-uk-ua.svg" alt="Завантажити для Linux" height="48"></a>
-  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-uk-ua.svg" alt="Завантажити для Android" height="48"></a>
-</p>
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=z7EAQGUys8U"><img src="../samples/video.webp" alt="Fractique: фрактальні шпалери для будь-якого екрана" width="880"></a>
