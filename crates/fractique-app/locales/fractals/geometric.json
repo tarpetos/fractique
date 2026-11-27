@@ -356,6 +356,40 @@
     "pl": "Potrójny",
     "id": "Rangkap Tiga"
   },
+  "n_kleinian_bloom": {
+    "en": "Bloom",
+    "uk": "Цвітіння",
+    "ru": "Цветение",
+    "de": "Blüte",
+    "fr": "Floraison",
+    "es": "Floración",
+    "it": "Fioritura",
+    "ja": "開花",
+    "zh-Hans": "绽放",
+    "pt-BR": "Florada",
+    "ko": "개화",
+    "hi": "खिलना",
+    "tr": "Çiçeklenme",
+    "pl": "Rozkwit",
+    "id": "Mekar"
+  },
+  "n_kleinian_curl": {
+    "en": "Curl",
+    "uk": "Завиток",
+    "ru": "Завиток",
+    "de": "Locke",
+    "fr": "Volute",
+    "es": "Rizo",
+    "it": "Ricciolo",
+    "ja": "巻き毛",
+    "zh-Hans": "卷曲",
+    "pt-BR": "Cacho",
+    "ko": "곱슬",
+    "hi": "घुंघराला",
+    "tr": "Kıvrım",
+    "pl": "Lok",
+    "id": "Ikal"
+  },
   "n_kleinian_cusp": {
     "en": "Cusp",
     "uk": "Вістря",
@@ -458,6 +492,23 @@
     "pl": "Pas",
     "id": "Jalur"
   },
+  "n_kleinian_waves": {
+    "en": "Waves",
+    "uk": "Хвилі",
+    "ru": "Волны",
+    "de": "Wellen",
+    "fr": "Vagues",
+    "es": "Olas",
+    "it": "Onde",
+    "ja": "波",
+    "zh-Hans": "波浪",
+    "pt-BR": "Ondas",
+    "ko": "물결",
+    "hi": "लहरें",
+    "tr": "Dalgalar",
+    "pl": "Fale",
+    "id": "Gelombang"
+  },
   "n_kleinian_whirls": {
     "en": "Whirls",
     "uk": "Вихори",
@@ -543,6 +594,23 @@
     "pl": "Hilbert",
     "id": "Hilbert"
   },
+  "n_l_system_island": {
+    "en": "Island",
+    "uk": "Острів",
+    "ru": "Остров",
+    "de": "Insel",
+    "fr": "Île",
+    "es": "Isla",
+    "it": "Isola",
+    "ja": "島",
+    "zh-Hans": "岛屿",
+    "pt-BR": "Ilha",
+    "ko": "섬",
+    "hi": "द्वीप",
+    "tr": "Ada",
+    "pl": "Wyspa",
+    "id": "Pulau"
+  },
   "n_l_system_koch-snowflake": {
     "en": "Koch Snowflake",
     "uk": "Сніжинка Коха",
@@ -559,6 +627,23 @@
     "tr": "Koch Kar Tanesi",
     "pl": "Płatek Kocha",
     "id": "Kepingan Salju Koch"
+  },
+  "n_l_system_levy": {
+    "en": "Lévy Curve",
+    "uk": "Крива Леві",
+    "ru": "Кривая Леви",
+    "de": "Lévy-Kurve",
+    "fr": "Courbe de Lévy",
+    "es": "Curva de Lévy",
+    "it": "Curva di Lévy",
+    "ja": "レヴィ曲線",
+    "zh-Hans": "莱维曲线",
+    "pt-BR": "Curva de Lévy",
+    "ko": "레비 곡선",
+    "hi": "लेवी वक्र",
+    "tr": "Lévy Eğrisi",
+    "pl": "Krzywa Lévy’ego",
+    "id": "Kurva Lévy"
   },
   "n_l_system_plant": {
     "en": "Plant",
@@ -593,6 +678,23 @@
     "tr": "Sierpinski",
     "pl": "Sierpiński",
     "id": "Sierpinski"
+  },
+  "n_l_system_tree": {
+    "en": "Tree",
+    "uk": "Дерево",
+    "ru": "Дерево",
+    "de": "Baum",
+    "fr": "Arbre",
+    "es": "Árbol",
+    "it": "Albero",
+    "ja": "木",
+    "zh-Hans": "树",
+    "pt-BR": "Árvore",
+    "ko": "나무",
+    "hi": "पेड़",
+    "tr": "Ağaç",
+    "pl": "Drzewo",
+    "id": "Pohon"
   },
   "n_lyapunov_feathers": {
     "en": "Feathers",

@@ -1,4 +1,4 @@
-use crate::math::{PI, TAU, cos, pow, sin};
+use crate::math::{PI, TAU, atan2, cos, pow, sin};
 use crate::rng::Rng;
 use crate::scene::{SCENE_VERSION, Scene, Shape, Sheet, Sheets, Swell};
 
@@ -109,14 +109,18 @@ pub struct Request {
     pub hues: Option<Hues>,
 }
 
-pub const MOST_HUES: usize = 5;
+pub const MOST_HUES: usize = 8;
 
-// Up to five hues in degrees, in order.
+// Up to eight hues in degrees, in order, each with a tone: the OKLCH lightness added to what the material gives it
+// and the factor of its chroma. [0, 1] leaves the material's colors as they are.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hues {
     hues: [f64; MOST_HUES],
+    tones: [[f64; 2]; MOST_HUES],
     count: usize,
 }
+
+const PLAIN: [f64; 2] = [0.0, 1.0];
 
 impl Hues {
     // None for no hue or one that is not a number; more than five keep the first five.
@@ -129,11 +133,43 @@ impl Hues {
         for (slot, hue) in kept.iter_mut().zip(hues) {
             *slot = hue.rem_euclid(360.0);
         }
-        Some(Self { hues: kept, count })
+        Some(Self {
+            hues: kept,
+            tones: [PLAIN; MOST_HUES],
+            count,
+        })
+    }
+
+    pub fn toned(hues: &[f64], tones: &[[f64; 2]]) -> Option<Self> {
+        let mut made = Self::new(hues)?;
+        for (slot, [lighter, stronger]) in made.tones.iter_mut().zip(tones) {
+            if lighter.is_finite() && stronger.is_finite() {
+                *slot = [lighter.clamp(-1.0, 1.0), stronger.clamp(0.0, 4.0)];
+            }
+        }
+        Some(made)
     }
 
     pub fn list(&self) -> &[f64] {
         &self.hues[..self.count]
+    }
+
+    pub fn tones(&self) -> &[[f64; 2]] {
+        &self.tones[..self.count]
+    }
+
+    fn plain(&self) -> bool {
+        self.tones().iter().all(|tone| *tone == PLAIN)
+    }
+
+    fn tone_at(&self, share: f64) -> [f64; 2] {
+        if self.count == 1 {
+            return self.tones[0];
+        }
+        let place = share.clamp(0.0, 1.0) * (self.count - 1) as f64;
+        let step = (place.floor() as usize).min(self.count - 2);
+        let (from, to, part) = (self.tones[step], self.tones[step + 1], place - step as f64);
+        [from[0] + (to[0] - from[0]) * part, from[1] + (to[1] - from[1]) * part]
     }
 
     // The hue a share of the way along, each step taking the shorter way round the circle.
@@ -147,6 +183,32 @@ impl Hues {
         let turn = (to - from + 540.0).rem_euclid(360.0) - 180.0;
         (from + turn * (place - step as f64)).rem_euclid(360.0)
     }
+}
+
+// sRGB to OKLCH: lightness, chroma and hue in degrees.
+pub fn lightness_chroma(color: [f64; 3]) -> [f64; 3] {
+    let [r, g, b] = color.map(|v| {
+        let v = v.clamp(0.0, 1.0);
+        if v <= 0.040_45 {
+            v / 12.92
+        } else {
+            pow((v + 0.055) / 1.055, 2.4)
+        }
+    });
+    let root = |v: f64| pow(v.max(0.0), 1.0 / 3.0);
+    let l = root(0.412_221_470_8 * r + 0.536_332_536_3 * g + 0.051_445_992_9 * b);
+    let m = root(0.211_903_498_2 * r + 0.680_699_545_1 * g + 0.107_396_956_6 * b);
+    let s = root(0.088_302_461_9 * r + 0.281_718_837_6 * g + 0.629_978_700_5 * b);
+    let lightness = 0.210_454_255_3 * l + 0.793_617_785_0 * m - 0.004_072_046_8 * s;
+    let a = 1.977_998_495_1 * l - 2.428_592_205_0 * m + 0.450_593_709_9 * s;
+    let b = 0.025_904_037_1 * l + 0.782_771_766_2 * m - 0.808_675_766_0 * s;
+    [lightness, (a * a + b * b).sqrt(), atan2(b, a).to_degrees()]
+}
+
+// A color made lighter by `tone[0]` and its chroma times `tone[1]`, in OKLCH.
+pub fn toned(color: [f64; 3], [lighter, stronger]: [f64; 2]) -> [f64; 3] {
+    let [lightness, chroma, hue] = lightness_chroma(color);
+    oklch((lightness + lighter).clamp(0.0, 1.0), chroma * stronger, hue)
 }
 
 // OKLCH (Björn Ottosson's OKLab) to sRGB: equal steps in it look equal, so generated palettes stay even.
@@ -1160,6 +1222,16 @@ fn dress(
             shapes: vec![boxed([0.0, 0.0], [ex + 1.0, ey + 1.0], [0.0; 4], 0.0)],
         },
     );
+    if let Some(hues) = hues.filter(|hues| !hues.plain()) {
+        let last = (sheets.stack.len() - 1).max(1) as f64;
+        for (at, sheet) in sheets.stack.iter_mut().enumerate() {
+            let tone = hues.tone_at(at as f64 / last);
+            sheet.color = toned(sheet.color, tone);
+            if let Some(to) = &mut sheet.color_to {
+                *to = toned(*to, tone);
+            }
+        }
+    }
     sheets
 }
 
@@ -1312,7 +1384,10 @@ mod tests {
         assert_eq!(Hues::new(&[]), None);
         assert_eq!(Hues::new(&[f64::NAN]), None);
         assert_eq!(
-            Hues::new(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap().list().len(),
+            Hues::new(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+                .unwrap()
+                .list()
+                .len(),
             MOST_HUES
         );
     }
@@ -1339,5 +1414,23 @@ mod tests {
             }
         }
         assert_eq!(oklch(1.0, 0.0, 0.0), [1.0, 1.0, 1.0]);
+    }
+
+    #[test]
+    fn a_tone_makes_the_hues_lighter_or_paler_and_a_plain_one_changes_nothing() {
+        let asked = |hues: Option<Hues>| Request {
+            hues,
+            ..request(Layout::Bands, Material::Paper, 1.6, false)
+        };
+        let plain = random_wallpaper(7, &asked(Hues::new(&[200.0, 300.0])));
+        let toned_plain = random_wallpaper(7, &asked(Hues::toned(&[200.0, 300.0], &[[0.0, 1.0], [0.0, 1.0]])));
+        assert_eq!(plain, toned_plain);
+        let darker = random_wallpaper(7, &asked(Hues::toned(&[200.0, 300.0], &[[-0.2, 0.5], [-0.2, 0.5]])));
+        let light = |scene: &Scene| lightness_chroma(scene.sheets.as_ref().unwrap().stack[2].color);
+        let (was, now) = (light(&plain), light(&darker));
+        assert!(now[0] < was[0] - 0.1 && now[1] < was[1], "{was:?} {now:?}");
+        let back = lightness_chroma(toned([0.2, 0.5, 0.9], [0.0, 1.0]));
+        let own = lightness_chroma([0.2, 0.5, 0.9]);
+        assert!((back[0] - own[0]).abs() < 0.002 && (back[1] - own[1]).abs() < 0.002);
     }
 }

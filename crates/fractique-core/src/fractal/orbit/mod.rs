@@ -11,6 +11,7 @@ super::family! {
     flow,
     gumowski_mira,
     hopalong,
+    ikeda,
     lorenz,
 }
 

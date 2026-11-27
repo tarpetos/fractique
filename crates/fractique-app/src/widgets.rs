@@ -133,18 +133,6 @@ pub fn locked_row(ui: &mut Ui, text: &str, selected: bool, locked: bool) -> bool
     response.clicked()
 }
 
-pub fn marked_row(ui: &mut Ui, text: &str, selected: bool, mark: Option<&str>) -> bool {
-    let (rect, response) = plain_row(ui, text, selected);
-    match mark {
-        Some(hint) => {
-            let at = rect.right_center() - vec2(16.0, 0.0);
-            ui.painter().circle_filled(at, 3.5, Color32::from_rgb(255, 190, 90));
-            response.on_hover_text(hint).clicked()
-        }
-        None => response.clicked(),
-    }
-}
-
 // A row with a dim note at its right edge.
 pub fn noted_row(ui: &mut Ui, text: &str, note: &str, selected: bool) -> bool {
     let (rect, response) = plain_row(ui, text, selected);
@@ -1024,50 +1012,103 @@ pub fn gradient_strip(ui: &mut Ui, height: f32, shade: impl Fn(f32) -> Color32) 
     );
 }
 
+// The places of a gradient's colors, always where they are: the colors, the chosen one ringed, then empty rings, the
+// first with a plus; a tap on an empty ring adds a color. Gives the middle of the chosen color too.
+pub fn color_slots(ui: &mut Ui, colors: &[Color32], chosen: usize, most: usize) -> (Option<Chip>, f32) {
+    const RADIUS: f32 = 13.0;
+    const RING: f32 = 16.0;
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 2.0 * RING + 2.0), Sense::hover());
+    let step = (rect.width() - 2.0 * RING) / (most.max(2) - 1) as f32;
+    let place = |at: usize| egui::pos2(rect.left() + RING + step * at as f32, rect.center().y);
+    let mut act = None;
+    for at in 0..most {
+        let center = place(at);
+        let hit = egui::Rect::from_center_size(center, vec2(step.min(44.0), 44.0));
+        let response = ui.interact(hit, ui.scope_id().with(("slot", at)), Sense::click());
+        match colors.get(at) {
+            Some(color) => {
+                ui.painter().circle_filled(center, RADIUS, *color);
+                if at == chosen {
+                    ui.painter()
+                        .circle_stroke(center, RING, egui::Stroke::new(1.8, Color32::WHITE));
+                }
+                if response.clicked() {
+                    act = Some(Chip::Pick(at));
+                }
+            }
+            None => {
+                let first = at == colors.len();
+                let ring = lift(if first { 70 } else { 36 }, 50.0, lit(ui, &response));
+                ui.painter()
+                    .circle_stroke(center, RADIUS, egui::Stroke::new(1.2, white(ring)));
+                if first {
+                    let ink = egui::Stroke::new(1.5, white(220));
+                    ui.painter()
+                        .line_segment([center - vec2(5.0, 0.0), center + vec2(5.0, 0.0)], ink);
+                    ui.painter()
+                        .line_segment([center - vec2(0.0, 5.0), center + vec2(0.0, 5.0)], ink);
+                }
+                if response.clicked() {
+                    act = Some(Chip::Add);
+                }
+            }
+        }
+    }
+    let middle = place(chosen.min(colors.len().saturating_sub(1)));
+    (act, middle.x)
+}
+
+// How far the card of the picker reaches past the pane's content on each side.
+const CARD_OUTSET: f32 = 10.0;
+
+// A card behind the picker of the chosen color, its top pointing up at that color at `x`: what it changes is that one.
+pub fn editing_card(inner: egui::Rect, x: f32) -> egui::Shape {
+    let rect = inner.expand(CARD_OUTSET);
+    let fill = white(16);
+    let tip = egui::pos2(x.clamp(rect.left() + 18.0, rect.right() - 18.0), rect.top() - 8.0);
+    egui::Shape::Vec(vec![
+        egui::Shape::rect_filled(rect, CornerRadius::same(12), fill),
+        egui::Shape::convex_polygon(
+            vec![tip + vec2(-9.0, 8.0), tip, tip + vec2(9.0, 8.0)],
+            fill,
+            egui::Stroke::NONE,
+        ),
+    ])
+}
+
+// A button as wide as the pane's content, a bin and its text together in its middle.
+pub fn delete_button(ui: &mut Ui, text: &str, enabled: bool) -> bool {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 42.0), Sense::click());
+    let fill = if enabled {
+        lift(26, 22.0, lit(ui, &response))
+    } else {
+        14
+    };
+    ui.painter().rect_filled(rect, CornerRadius::same(12), white(fill));
+    let ink = white(if enabled { 235 } else { 80 });
+    let galley = ui.painter().layout_no_wrap(text.to_owned(), font(15.0, MEDIUM), ink);
+    let (bin, gap) = (14.0, 8.0);
+    let left = rect.center().x - (bin + gap + galley.size().x) * 0.5;
+    let at = egui::pos2(left + bin * 0.5, rect.center().y);
+    let stroke = egui::Stroke::new(1.5, ink);
+    let line = |from: egui::Vec2, to: egui::Vec2| {
+        ui.painter().line_segment([at + from, at + to], stroke);
+    };
+    line(vec2(-6.0, -4.5), vec2(6.0, -4.5));
+    line(vec2(-2.0, -6.5), vec2(2.0, -6.5));
+    line(vec2(-4.5, -4.5), vec2(-3.6, 6.5));
+    line(vec2(-3.6, 6.5), vec2(3.6, 6.5));
+    line(vec2(3.6, 6.5), vec2(4.5, -4.5));
+    line(vec2(-1.2, -1.5), vec2(-1.0, 4.0));
+    line(vec2(1.2, -1.5), vec2(1.0, 4.0));
+    let text_at = egui::pos2(left + bin + gap, rect.center().y - galley.size().y * 0.5);
+    ui.painter().galley(text_at, galley, ink);
+    enabled && response.clicked()
+}
+
 pub enum Chip {
     Pick(usize),
     Add,
-    Remove,
-}
-
-// The colors of a gradient in a row, the chosen one ringed, then a plus to add one and a minus to take the chosen
-// one away.
-pub fn color_chips(ui: &mut Ui, colors: &[Color32], chosen: usize, most: usize) -> Option<Chip> {
-    let mut act = None;
-    ui.horizontal(|ui| {
-        // The cells are as wide as the chosen one's ring, so the first stands flush with the strip above it.
-        ui.spacing_mut().item_spacing.x = 10.0;
-        for (at, color) in colors.iter().enumerate() {
-            let (rect, response) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::click());
-            ui.painter().circle_filled(rect.center(), 13.0, *color);
-            if at == chosen {
-                ui.painter()
-                    .circle_stroke(rect.center(), 16.0, egui::Stroke::new(1.8, Color32::WHITE));
-            }
-            if response.clicked() {
-                act = Some(Chip::Pick(at));
-            }
-        }
-        let sign = |ui: &mut Ui, plus: bool, enabled: bool| {
-            let (rect, response) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::click());
-            let fill = lift(26, if enabled { 24.0 } else { 0.0 }, lit(ui, &response));
-            ui.painter().circle_filled(rect.center(), 13.0, white(fill));
-            let ink = egui::Stroke::new(1.6, white(if enabled { 235 } else { 70 }));
-            let c = rect.center();
-            ui.painter().line_segment([c - vec2(5.0, 0.0), c + vec2(5.0, 0.0)], ink);
-            if plus {
-                ui.painter().line_segment([c - vec2(0.0, 5.0), c + vec2(0.0, 5.0)], ink);
-            }
-            enabled && response.clicked()
-        };
-        if sign(ui, true, colors.len() < most) {
-            act = Some(Chip::Add);
-        }
-        if sign(ui, false, colors.len() > 1) {
-            act = Some(Chip::Remove);
-        }
-    });
-    act
 }
 
 #[cfg(test)]

@@ -37,7 +37,7 @@ built on it.
 | 30 | **Faint parts of a deep view:** a view that holds less than an eighth of a flame raises its faint end and gives it a share of the points, so what a bright part in the frame kept dark is seen and smooth | Done |
 | 31 | **A gallery:** a hundred flames, a hundred fractals, a hundred isometric fractals and a hundred wallpapers in `docs/gallery`, each with the `.frcq` file that renders it again; forty of them in two or three layers of different colors | Done |
 | 32 | **The tools from the AppImage:** its first word, `cli`, `mcp` or `server`, starts the program packed in it | Done |
-| 33 | **Your own colors:** a gradient of one to five colors for a layer, picked on a square and a bar of hues, and of one to five hues for a wallpaper, kept in the session and the recent pictures | Done |
+| 33 | **Your own colors:** a gradient of one to eight colors for a layer, picked on a square and a bar of hues, and of one to eight colors for a wallpaper, kept in the session and the recent pictures | Done |
 | 34 | **Phones as computers:** every kind of fractal on a phone, the isometric solids included, the slow ones marked **Slow** | Done |
 
 ## App, next

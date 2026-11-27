@@ -1,11 +1,14 @@
+use fractique_core::wallpaper::{Hues, lightness_chroma, toned};
 use fractique_core::{Palette, Scene, Stop, fractal, palette};
 
-pub const MOST_OWN: usize = 5;
+use crate::widgets;
+
+pub const MOST_OWN: usize = 8;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Choice {
     Swatch(usize),
-    // Colors of one's own, one to five, in sRGB from 0 to 1, in the order of the gradient.
+    // Colors of one's own, one to eight, in sRGB from 0 to 1, in the order of the gradient.
     Own(Vec<[f64; 3]>),
 }
 
@@ -50,6 +53,38 @@ impl Choice {
             _ => None,
         }
     }
+}
+
+// One's own colors of a wallpaper as its hues: each color's hue, and how much lighter and stronger it is than the
+// full color of that hue, which is what the material is given.
+pub fn wall_hues(colors: &[[f64; 3]]) -> Option<Hues> {
+    let full = |color: [f64; 3]| widgets::hsv_to_rgb([widgets::rgb_to_hsv(color)[0], 1.0, 1.0]);
+    let hues: Vec<f64> = colors
+        .iter()
+        .map(|color| f64::from(widgets::rgb_to_hsv(*color)[0]) * 360.0)
+        .collect();
+    let tones: Vec<[f64; 2]> = colors
+        .iter()
+        .map(|color| {
+            let ([lightness, chroma, _], [plain, strong, _]) =
+                (lightness_chroma(*color), lightness_chroma(full(*color)));
+            let round = |value: f64| (value * 1000.0).round() / 1000.0;
+            [
+                round(lightness - plain),
+                if strong > 1e-6 { round(chroma / strong) } else { 1.0 },
+            ]
+        })
+        .collect();
+    Hues::toned(&hues, &tones)
+}
+
+// The colors of a wallpaper's hues, as one's own colors show them.
+pub fn wall_colors(hues: &Hues) -> Vec<[f64; 3]> {
+    hues.list()
+        .iter()
+        .zip(hues.tones())
+        .map(|(hue, tone)| toned(widgets::hsv_to_rgb([(*hue / 360.0) as f32, 1.0, 1.0]), *tone))
+        .collect()
 }
 
 pub fn hex(color: [f64; 3]) -> String {
