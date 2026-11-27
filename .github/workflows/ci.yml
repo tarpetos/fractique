@@ -1,24 +1,43 @@
 name: CI
 
-# Entry point for the checks of the code: lint.yml and test.yml run from here. The title has a workflow of its own,
-# title.yml: an edited title then leaves these checks as they were, instead of showing them as skipped.
-# A push to master runs them too: a pull request may read the caches of master, not those of another pull request.
+# The checks of a pull request: its title here, the code in lint.yml and test.yml. An edited title checks the title
+# alone; the code's jobs of that run are skipped and those of the commit's own run keep their result.
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
-  push:
-    branches: [master]
+    types: [opened, edited, reopened, synchronize]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # A title edited while the code is checked does not cancel that run.
+  group: ci-${{ github.ref }}-${{ github.event.action == 'edited' && 'title' || 'code' }}
   cancel-in-progress: true
 
 jobs:
+  # Pull requests are squash-merged, so the title becomes the commit on master.
+  title:
+    name: Conventional title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          types='feat|fix|perf|refactor|docs|build|ci|chore|revert'
+          scopes='core|cli|mcp|server|app|setup|build|ci|docs|release|deps'
+          pattern="^(${types})(\((${scopes})\))?!?: [a-z0-9\`].*[^.]$"
+          echo "Title: $TITLE"
+          if ! [[ "$TITLE" =~ $pattern ]]; then
+            echo "::error::The title must look like 'type(scope): summary', for example 'fix(core): keep the glow inside the image'."
+            echo "Types: ${types//|/, }. Scopes (optional): ${scopes//|/, }."
+            echo "The summary starts in lower case and has no full stop at the end. See CONTRIBUTING.md, 'Commit messages'."
+            exit 1
+          fi
+
   changes:
     name: Changes
+    if: github.event.action != 'edited'
     runs-on: ubuntu-latest
     outputs:
       rust: ${{ steps.diff.outputs.rust }}
