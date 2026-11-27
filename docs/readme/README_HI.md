@@ -1,9 +1,9 @@
 <div align="center">
+  <img src="../../assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
     <a href="README_CN.md">简体中文</a> · <a href="README_PT.md">Português</a> · <a href="README_KO.md">한국어</a> · <strong>हिन्दी</strong> · <a href="README_TR.md">Türkçe</a> · <a href="README_PL.md">Polski</a> · <a href="README_ID.md">Bahasa Indonesia</a>
   </sub></p>
-  <img src="../../assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <h1>Fractique</h1>
   <p>
     <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="https://img.shields.io/github/v/release/tarpetos/fractique?label=%E0%A4%B0%E0%A4%BF%E0%A4%B2%E0%A5%80%E0%A4%9C%E0%A4%BC&color=e8743b" alt="नवीनतम रिलीज़"></a>
