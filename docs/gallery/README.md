@@ -18,8 +18,8 @@ made from the `.frcq` files by `tools/gallery/make_gallery.py` ([usage.md](../us
 
 | | | | |
 | --- | --- | --- | --- |
-| [![Phoenix Flare](flames/001-phoenix-flare.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/001-phoenix-flare.frcq) | [![Peacock Plume](flames/002-peacock-plume.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/002-peacock-plume.frcq) | [![Rose Heart](flames/003-rose-heart.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/003-rose-heart.frcq) | [![Nautilus Frost](flames/004-nautilus-frost.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/004-nautilus-frost.frcq) |
-| [Phoenix Flare](flames/001-phoenix-flare.frcq) | [Peacock Plume](flames/002-peacock-plume.frcq) | [Rose Heart](flames/003-rose-heart.frcq) | [Nautilus Frost](flames/004-nautilus-frost.frcq) |
+| [![Phoenix Flare](flames/001-phoenix-flare.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/001-phoenix-flare.frcq) | [![Peacock Plume](flames/002-peacock-plume.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/002-peacock-plume.frcq) | [![Amethyst Heart](flames/003-amethyst-heart.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/003-amethyst-heart.frcq) | [![Nautilus Frost](flames/004-nautilus-frost.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/flames/004-nautilus-frost.frcq) |
+| [Phoenix Flare](flames/001-phoenix-flare.frcq) | [Peacock Plume](flames/002-peacock-plume.frcq) | [Amethyst Heart](flames/003-amethyst-heart.frcq) | [Nautilus Frost](flames/004-nautilus-frost.frcq) |
 
 [All 100 flames](flames/README.md)
 
@@ -27,8 +27,8 @@ made from the `.frcq` files by `tools/gallery/make_gallery.py` ([usage.md](../us
 
 | | | | |
 | --- | --- | --- | --- |
-| [![Ember Cathedral](fractals/F001-ember-cathedral.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F001-ember-cathedral.frcq) | [![Teal Maelstrom](fractals/F002-teal-maelstrom.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F002-teal-maelstrom.frcq) | [![Golden Galaxies](fractals/F003-golden-galaxies.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F003-golden-galaxies.frcq) | [![Neon Garden](fractals/F004-neon-garden.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F004-neon-garden.frcq) |
-| [Ember Cathedral](fractals/F001-ember-cathedral.frcq) | [Teal Maelstrom](fractals/F002-teal-maelstrom.frcq) | [Golden Galaxies](fractals/F003-golden-galaxies.frcq) | [Neon Garden](fractals/F004-neon-garden.frcq) |
+| [![Ember Cathedral](fractals/F001-ember-cathedral.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F001-ember-cathedral.frcq) | [![Teal Maelstrom](fractals/F002-teal-maelstrom.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F002-teal-maelstrom.frcq) | [![Abyss Galaxies](fractals/F003-abyss-galaxies.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F003-abyss-galaxies.frcq) | [![Neon Garden](fractals/F004-neon-garden.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/fractals/F004-neon-garden.frcq) |
+| [Ember Cathedral](fractals/F001-ember-cathedral.frcq) | [Teal Maelstrom](fractals/F002-teal-maelstrom.frcq) | [Abyss Galaxies](fractals/F003-abyss-galaxies.frcq) | [Neon Garden](fractals/F004-neon-garden.frcq) |
 
 [All 100 fractals](fractals/README.md)
 
@@ -36,8 +36,8 @@ made from the `.frcq` files by `tools/gallery/make_gallery.py` ([usage.md](../us
 
 | | | | |
 | --- | --- | --- | --- |
-| [![Copper Citadel](isometric/I001-copper-citadel.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I001-copper-citadel.frcq) | [![Amber Maze](isometric/I002-amber-maze.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I002-amber-maze.frcq) | [![Brass Shrine](isometric/I003-brass-shrine.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I003-brass-shrine.frcq) | [![Flame Altar](isometric/I004-flame-altar.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I004-flame-altar.frcq) |
-| [Copper Citadel](isometric/I001-copper-citadel.frcq) | [Amber Maze](isometric/I002-amber-maze.frcq) | [Brass Shrine](isometric/I003-brass-shrine.frcq) | [Flame Altar](isometric/I004-flame-altar.frcq) |
+| [![Copper Citadel](isometric/I001-copper-citadel.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I001-copper-citadel.frcq) | [![Rosewood Maze](isometric/I002-rosewood-maze.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I002-rosewood-maze.frcq) | [![Brass Shrine](isometric/I003-brass-shrine.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I003-brass-shrine.frcq) | [![Flame Altar](isometric/I004-flame-altar.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/isometric/I004-flame-altar.frcq) |
+| [Copper Citadel](isometric/I001-copper-citadel.frcq) | [Rosewood Maze](isometric/I002-rosewood-maze.frcq) | [Brass Shrine](isometric/I003-brass-shrine.frcq) | [Flame Altar](isometric/I004-flame-altar.frcq) |
 
 [All 100 isometric fractals](isometric/README.md)
 
@@ -45,7 +45,7 @@ made from the `.frcq` files by `tools/gallery/make_gallery.py` ([usage.md](../us
 
 | | | | |
 | --- | --- | --- | --- |
-| [![Pink Lotus](wallpapers/W001-pink-lotus.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W001-pink-lotus.frcq) | [![Teal Ribbons](wallpapers/W002-teal-ribbons.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W002-teal-ribbons.frcq) | [![Aqua Fan](wallpapers/W003-aqua-fan.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W003-aqua-fan.frcq) | [![Ember Discs](wallpapers/W004-ember-discs.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W004-ember-discs.frcq) |
-| [Pink Lotus](wallpapers/W001-pink-lotus.frcq) | [Teal Ribbons](wallpapers/W002-teal-ribbons.frcq) | [Aqua Fan](wallpapers/W003-aqua-fan.frcq) | [Ember Discs](wallpapers/W004-ember-discs.frcq) |
+| [![Pink Lotus](wallpapers/W001-pink-lotus.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W001-pink-lotus.frcq) | [![Teal Ribbons](wallpapers/W002-teal-ribbons.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W002-teal-ribbons.frcq) | [![Cobalt Wing](wallpapers/W003-cobalt-wing.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W003-cobalt-wing.frcq) | [![Ember Discs](wallpapers/W004-ember-discs.webp)](https://github.com/tarpetos/fractique/raw/master/docs/gallery/wallpapers/W004-ember-discs.frcq) |
+| [Pink Lotus](wallpapers/W001-pink-lotus.frcq) | [Teal Ribbons](wallpapers/W002-teal-ribbons.frcq) | [Cobalt Wing](wallpapers/W003-cobalt-wing.frcq) | [Ember Discs](wallpapers/W004-ember-discs.frcq) |
 
 [All 100 wallpapers](wallpapers/README.md)
