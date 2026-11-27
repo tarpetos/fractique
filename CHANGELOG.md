@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.6
 
 * **App:** the types of fractal only the processor draws are no longer marked slow: they are done in about ten seconds.
 * **Fractals:** a new kind, `ikeda`: the spirals of the Ikeda map, drawn by the graphics card too.

@@ -3,7 +3,7 @@
 
 name = "fractique"
 product-name = "Fractique"
-version = "1.0.5" # keep equal to the workspace version in the root Cargo.toml (the build scripts check it)
+version = "1.0.6" # keep equal to the workspace version in the root Cargo.toml (the build scripts check it)
 identifier = "app.fractique"
 description = "Fractal flames, classic fractals and wallpapers"
 category = "GraphicsAndDesign"
