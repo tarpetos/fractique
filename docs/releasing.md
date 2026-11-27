@@ -65,17 +65,16 @@ build asked for has succeeded, to try a branch on an iPhone (`gh workflow run re
 platforms=ios -f testflight=true`). It reaches the team's testers only, under the version in the files and a new
 build number; it is never submitted for review, which takes a tag's build alone.
 
-The workflows are three. `CI` and `Release` are each one entry file that calls the others, so GitHub shows one run
-for each:
+The workflows are two. Each is one entry file that calls the others, so GitHub shows one run for each:
 
 | Run | When | Entry | Calls |
 | --- | --- | --- | --- |
-| `CI` | Every pull request and every push to `master` | `ci.yml` (what changed) | `lint.yml`, `test.yml` |
-| `Title` | Every pull request, and again when its title is edited | `title.yml` | |
+| `CI` | Every pull request, and again when its title is edited | `ci.yml` (the title, what changed) | `lint.yml`, `test.yml` |
 | `Release` | A version tag, or by hand | `release.yml` (the version, the publishing) | `release-desktop.yml`, `release-android.yml`, `release-ios.yml`, `release-mac.yml`, `release-docker.yml` |
 
-The title has a workflow of its own so that an edited title checks the title alone and leaves the checks of the
-code as they were. One more file, `ios-sim.yml`, is started by hand only: it runs the app in the iOS Simulator
+An edited title checks the title alone: the code's jobs of that run are skipped, and those of the commit's own run
+keep their result. Nothing runs on a push to `master`: what is merged was checked in its pull request. One more
+file, `ios-sim.yml`, is started by hand only: it runs the app in the iOS Simulator
 ([ios.md](ios.md#in-the-simulator)).
 
 To build installers on your own machine: `scripts/build/build-linux.sh`, `build-mac.sh`, `build-win.ps1`. They

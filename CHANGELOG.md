@@ -9,6 +9,7 @@
 * **Releases:** the `Release` workflow started by hand can send a branch's iOS build to TestFlight, for the testers only (`testflight`).
 * **App:** an export the graphics card draws moves its bar while it is drawn, instead of standing at 0 % until the end.
 * **App:** your own colors on a solid lit in the colors of the light (the isometric Mandelbox, Mandelbulb and Menger sponge) run from a dark of the first to a pale of the last, so it keeps its depth.
+* **Checks:** the title is checked in the `CI` workflow, which no longer runs on a push to `master`.
 
 ## 1.0.5
 
