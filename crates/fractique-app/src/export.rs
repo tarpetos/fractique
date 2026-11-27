@@ -314,7 +314,8 @@ impl Bar {
 
     // Writes the file, a strip of rows at a time, after a render that took `rendered` seconds.
     fn write(&self, path: &Path, rgba: &[u8], size: [u32; 2], ctx: &egui::Context) -> Outcome {
-        let rendered = if self.developing > 0.0 {
+        // A picture that was rendered, or drawn by the card with its share told, has a part of the bar already.
+        let rendered = if self.developing > 0.0 || self.permille.load(Ordering::Relaxed) > 0 {
             self.began.elapsed().as_secs_f64()
         } else {
             0.0
@@ -623,6 +624,11 @@ pub struct Later {
 }
 
 impl Later {
+    // How far the graphics card has drawn the picture: the bar moves with it before the file is written.
+    pub fn drawn(&self, share: f32) {
+        self.bar.sample(f64::from(share), &self.ctx);
+    }
+
     pub fn cancelled(&self) -> bool {
         self.bar.cancel.load(Ordering::Relaxed)
     }
@@ -876,6 +882,28 @@ mod tests {
         assert!(!job.developing());
         job.sample(1.0, &ctx);
         assert!(job.developing() && job.share() < 1.0);
+    }
+
+    #[test]
+    fn an_export_the_card_draws_moves_its_bar_while_it_is_drawn() {
+        let dir = std::env::temp_dir().join(format!("fractique-later-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("card.png");
+        let (job, later) = Job::later([64, 36], path.clone(), egui::Context::default());
+        assert_eq!(job.share(), 0.0);
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        later.drawn(0.5);
+        let half = job.share();
+        assert!(half > 0.0 && half < 1.0, "{half}");
+        later.drawn(0.25);
+        assert_eq!(job.share(), half, "the bar never goes back");
+        later.drawn(0.9);
+        let most = job.share();
+        assert!(most > half, "{most}");
+        later.save(vec![0; 64 * 36 * 4], [64, 36]);
+        assert!(matches!(job.done.recv().unwrap(), Outcome::Saved(_)));
+        assert_eq!(job.share(), 1.0);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
