@@ -41,7 +41,7 @@ const ESCAPED: f32 = 1e9;
 const FULL: u32 = 16000000u;
 const TIME_STEP: f32 = 0.005;
 
-// The kinds, as orbit.rs numbers them: 1 clifford, 2 de_jong.
+// The kinds, as orbit.rs numbers them: 1 clifford, 2 de_jong, 4 ikeda.
 const LORENZ: u32 = 3u;
 
 var<private> state: vec2<u32>;
@@ -140,6 +140,11 @@ fn stepped(kind: u32, at: vec3<f32>) -> vec3<f32> {
             let k3 = flow(at + k2 * (TIME_STEP * 0.5));
             let k4 = flow(at + k3 * TIME_STEP);
             return at + (k1 + 2.0 * (k2 + k3) + k4) * (TIME_STEP / 6.0);
+        }
+        case 4u: {
+            let t = param(1u) - param(2u) / (1.0 + dot(at.xy, at.xy));
+            let turn = vec2<f32>(cos(t), sin(t));
+            return vec3<f32>(1.0 + param(0u) * (at.x * turn.x - at.y * turn.y), param(0u) * (at.x * turn.y + at.y * turn.x), 0.0);
         }
         default: {
             return at;

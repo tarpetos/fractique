@@ -339,6 +339,23 @@
     "pl": "Liliowa mozaika",
     "id": "Mosaik Lilak"
   },
+  "n_flame_lime-orbits": {
+    "en": "Lime Orbits",
+    "uk": "Лаймові орбіти",
+    "ru": "Лаймовые орбиты",
+    "de": "Limettenbahnen",
+    "fr": "Orbites citron vert",
+    "es": "Órbitas lima",
+    "it": "Orbite lime",
+    "ja": "ライムの軌道",
+    "zh-Hans": "青柠轨道",
+    "pt-BR": "Órbitas de lima",
+    "ko": "라임빛 궤도",
+    "hi": "नींबू रंग की कक्षाएँ",
+    "tr": "Limon Yörüngeler",
+    "pl": "Limonkowe orbity",
+    "id": "Orbit Limau"
+  },
   "n_flame_moss-nebula": {
     "en": "Moss Nebula",
     "uk": "Мохова туманність",

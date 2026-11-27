@@ -13,6 +13,10 @@ use crate::{App, WHOLE, motion, named, shown};
 
 pub const SWIPE: f32 = 56.0;
 const TILE_RATIO: f32 = 1.6;
+// The random pictures the Random tile shows in turn, the seconds each stays and the seconds of the fade between.
+const SLIDES: [u64; 4] = [1, 2, 3, 4];
+const SLIDE: f64 = 2.5;
+const SLIDE_FADE: f64 = 0.6;
 const TUNE_WIDTH: f32 = 400.0;
 const LAYERS_IN_SIGHT: usize = 3;
 const COLORS_IN_SIGHT: usize = 5;
@@ -41,7 +45,7 @@ const SHEET_TALL: f32 = 0.06;
 
 #[derive(Clone, PartialEq)]
 pub enum Kind {
-    Wall(u64, Layout, Material, bool, Option<f64>, Option<Hues>),
+    Wall(u64, Layout, Material, bool, Option<f64>, Option<Box<Hues>>),
     Flame(Box<Scene>),
 }
 
@@ -85,7 +89,11 @@ impl Piece {
         use std::hash::{Hash, Hasher};
         match &self.kind {
             Kind::Wall(seed, layout, material, dark, hue, hues) => match hues {
-                Some(hues) => format!("w {seed} {layout:?} {material:?} {dark} {hue:?} {:?}", hues.list()),
+                Some(hues) => format!(
+                    "w {seed} {layout:?} {material:?} {dark} {hue:?} {:?} {:?}",
+                    hues.list(),
+                    hues.tones()
+                ),
                 None => format!("w {seed} {layout:?} {material:?} {dark} {hue:?}"),
             },
             Kind::Flame(scene) => {
@@ -106,7 +114,7 @@ impl Piece {
                     ratio,
                     dark: *dark,
                     hue: *hue,
-                    hues: *hues,
+                    hues: hues.as_deref().copied(),
                 },
             ),
             Kind::Flame(scene) => (**scene).clone(),
@@ -127,6 +135,7 @@ impl Piece {
                 });
                 if let Some(hues) = hues {
                     wall["hues"] = json!(hues.list());
+                    wall["tones"] = json!(hues.tones());
                 }
                 wall
             }
@@ -162,10 +171,7 @@ impl Piece {
                 Material::parse(value.get("material")?.as_str()?)?,
                 value.get("dark")?.as_bool()?,
                 value.get("hue").and_then(Value::as_f64),
-                value
-                    .get("hues")
-                    .and_then(Value::as_array)
-                    .and_then(|list| Hues::new(&list.iter().filter_map(Value::as_f64).collect::<Vec<_>>())),
+                crate::hues_of(value).map(Box::new),
             ),
         };
         let number = |key: &str| value.get(key).and_then(Value::as_u64);
@@ -763,32 +769,38 @@ fn carousel(
     });
 }
 
+// The color a share of the way along a list, each step mixed in sRGB.
+fn blended(colors: &[[f64; 3]], share: f64) -> [f64; 3] {
+    if colors.len() < 2 {
+        return colors.first().copied().unwrap_or([0.0; 3]);
+    }
+    let place = share.clamp(0.0, 1.0) * (colors.len() - 1) as f64;
+    let step = (place.floor() as usize).min(colors.len() - 2);
+    let part = place - step as f64;
+    let (from, to) = (colors[step], colors[step + 1]);
+    [0, 1, 2].map(|at| from[at] + (to[at] - from[at]) * part)
+}
+
+// A die in a tile's upper corner: the tile gives a random picture.
+fn die(painter: &egui::Painter, frame: Rect) {
+    let face = Rect::from_min_size(frame.right_top() + vec2(-28.0, 7.0), vec2(21.0, 21.0));
+    painter.rect_filled(face, CornerRadius::same(5), Color32::from_black_alpha(150));
+    painter.rect_stroke(
+        face,
+        CornerRadius::same(5),
+        Stroke::new(1.0, Color32::from_white_alpha(110)),
+        egui::StrokeKind::Inside,
+    );
+    for (x, y) in [(-1.0, -1.0), (0.0, 0.0), (1.0, 1.0), (1.0, -1.0), (-1.0, 1.0)] {
+        painter.circle_filled(face.center() + vec2(x, y) * 5.2, 1.7, Color32::from_white_alpha(230));
+    }
+}
+
 pub(crate) fn palette_disc(painter: &egui::Painter, at: Pos2, reach: f32, shades: &palette::Lut) {
     gradient_disc(painter, at, reach, |share| {
         let [r, g, b] = shades[(share * 255.0).round() as usize];
         Color32::from_rgb(r, g, b)
     });
-}
-
-// An amber pill in a tile's upper corner, an hourglass and a word: this one is drawn by the processor and slowly.
-fn slow_badge(painter: &egui::Painter, frame: Rect, text: &str) {
-    const AMBER: Color32 = Color32::from_rgb(255, 196, 84);
-    let ink = Color32::from_rgb(40, 26, 4);
-    let galley = painter.layout_no_wrap(text.to_owned(), font(10.5, SEMIBOLD), ink);
-    let size = vec2(galley.size().x + 26.0, 20.0);
-    let pill = Rect::from_min_size(frame.right_top() + vec2(-size.x - 5.0, 5.0), size).intersect(frame.shrink(5.0));
-    painter.rect_filled(pill, CornerRadius::same(10), AMBER);
-    let (at, half) = (pill.left_center() + vec2(10.0, 0.0), vec2(3.4, 5.0));
-    let stroke = Stroke::new(1.3, ink);
-    painter.line_segment([at - half, at + vec2(half.x, -half.y)], stroke);
-    painter.line_segment([at + vec2(-half.x, half.y), at + half], stroke);
-    painter.line_segment([at - half, at + half], stroke);
-    painter.line_segment([at + vec2(half.x, -half.y), at + vec2(-half.x, half.y)], stroke);
-    painter.galley(
-        egui::pos2(pill.left() + 18.0, pill.center().y - galley.size().y * 0.5),
-        galley,
-        ink,
-    );
 }
 
 // The color a hue of the wallpapers is shown in: the hue alone, light and clear.
@@ -871,7 +883,7 @@ impl App {
                     material,
                     self.wall.dark,
                     self.wall.hue,
-                    self.wall.hues,
+                    self.wall.hues.map(Box::new),
                 ),
                 origin: self.phone.origin,
                 colors: Choices::default(),
@@ -958,7 +970,7 @@ impl App {
         match &piece.kind {
             Kind::Wall(seed, layout, material, dark, hue, hues) => {
                 self.wall.hue = *hue;
-                self.wall.hues = *hues;
+                self.wall.hues = hues.as_deref().copied();
                 self.wall.on = true;
                 self.wall.layout = None;
                 self.wall.material = None;
@@ -1184,10 +1196,14 @@ impl App {
         if self.wall.on {
             if self.wall.hues.is_none() {
                 let start = match self.own_wall.is_empty() {
-                    true => vec![self.wall.hue.unwrap_or(210.0)],
+                    true => vec![widgets::hsv_to_rgb([
+                        (self.wall.hue.unwrap_or(210.0) / 360.0) as f32,
+                        1.0,
+                        1.0,
+                    ])],
                     false => self.own_wall.clone(),
                 };
-                self.wall.hues = Hues::new(&start);
+                self.wall.hues = crate::colors::wall_hues(&start);
             }
         } else if !matches!(self.choice(), Some(Choice::Own(_))) {
             let start = if self.own_flame.is_empty() {
@@ -1201,52 +1217,38 @@ impl App {
         }
     }
 
-    // The sheet of one's own colors: the gradient, its colors in a row, and the picker of the chosen one. A
-    // wallpaper takes hues only: its material sets how light and how strong they are.
+    // The sheet of one's own colors: the gradient, its colors in their places, the picker of the chosen one and the
+    // button that deletes it. On a wallpaper the colors are its hues, each as light and as strong as picked.
     pub(crate) fn own_editor(&mut self, ui: &mut egui::Ui) {
         // One gap between all its parts, the knobs that stand out of the square and the bar included.
         const GAP: f32 = 14.0;
         widgets::title(ui, &self.t("own_colors"), 17.0);
         ui.add_space(GAP);
         let before = (self.wall.hue, self.wall.hues, self.choice());
-        if self.wall.on {
-            let mut hues: Vec<f64> = match self.wall.hues {
-                Some(hues) => hues.list().to_vec(),
-                None => vec![self.wall.hue.unwrap_or(210.0)],
+        let walls = self.wall.on;
+        let (mut colors, most) = if walls {
+            let colors = match self.wall.hues {
+                Some(hues) if crate::colors::wall_hues(&self.own_wall) == Some(hues) => self.own_wall.clone(),
+                Some(hues) => crate::colors::wall_colors(&hues),
+                None => vec![widgets::hsv_to_rgb([
+                    (self.wall.hue.unwrap_or(210.0) / 360.0) as f32,
+                    1.0,
+                    1.0,
+                ])],
             };
-            self.own_at = self.own_at.min(hues.len() - 1);
-            let gradient = Hues::new(&hues);
-            widgets::gradient_strip(ui, 22.0, |share| {
-                gradient.map_or(Color32::BLACK, |hues| hue_color(hues.at(f64::from(share))))
-            });
-            ui.add_space(GAP);
-            let chips: Vec<Color32> = hues.iter().map(|hue| hue_color(*hue)).collect();
-            match widgets::color_chips(ui, &chips, self.own_at, fractique_core::wallpaper::MOST_HUES) {
-                Some(widgets::Chip::Pick(at)) => self.own_at = at,
-                Some(widgets::Chip::Add) => {
-                    let next = (hues[self.own_at] + 45.0).rem_euclid(360.0);
-                    hues.insert(self.own_at + 1, next);
-                    self.own_at += 1;
-                }
-                Some(widgets::Chip::Remove) => {
-                    hues.remove(self.own_at);
-                    self.own_at = self.own_at.saturating_sub(1).min(hues.len() - 1);
-                }
-                None => {}
-            }
-            ui.add_space(GAP);
-            let mut hue = (hues[self.own_at] / 360.0) as f32;
-            if widgets::hue_bar(ui, &mut hue) {
-                hues[self.own_at] = f64::from(hue) * 360.0;
-            }
-            self.wall.hues = Hues::new(&hues);
-            self.own_wall = hues;
+            (colors, fractique_core::wallpaper::MOST_HUES)
         } else {
-            let Some(Choice::Own(mut colors)) = self.choice() else {
+            let Some(Choice::Own(colors)) = self.choice() else {
                 self.own_open = false;
                 return;
             };
-            self.own_at = self.own_at.min(colors.len() - 1);
+            (colors, crate::colors::MOST_OWN)
+        };
+        self.own_at = self.own_at.min(colors.len() - 1);
+        if walls {
+            let list = colors.clone();
+            widgets::gradient_strip(ui, 22.0, |share| widgets::rgb(blended(&list, f64::from(share))));
+        } else {
             let shades = crate::colors::own(&colors).map(|own| palette::lut(&own));
             widgets::gradient_strip(ui, 22.0, |share| {
                 shades.map_or(Color32::BLACK, |lut| {
@@ -1254,43 +1256,54 @@ impl App {
                     Color32::from_rgb(r, g, b)
                 })
             });
-            ui.add_space(GAP);
-            let chips: Vec<Color32> = colors.iter().map(|color| widgets::rgb(*color)).collect();
-            match widgets::color_chips(ui, &chips, self.own_at, crate::colors::MOST_OWN) {
-                Some(widgets::Chip::Pick(at)) => {
-                    self.own_at = at;
-                    self.own_hsv = None;
-                }
-                Some(widgets::Chip::Add) => {
-                    let [h, s, v] = widgets::rgb_to_hsv(colors[self.own_at]);
-                    colors.insert(self.own_at + 1, widgets::hsv_to_rgb([h + 0.12, s.max(0.5), v.max(0.6)]));
-                    self.own_at += 1;
-                    self.own_hsv = None;
-                }
-                Some(widgets::Chip::Remove) => {
-                    colors.remove(self.own_at);
-                    self.own_at = self.own_at.saturating_sub(1).min(colors.len() - 1);
-                    self.own_hsv = None;
-                }
-                None => {}
+        }
+        ui.add_space(GAP);
+        let chips: Vec<Color32> = colors.iter().map(|color| widgets::rgb(*color)).collect();
+        let (act, x) = widgets::color_slots(ui, &chips, self.own_at, most);
+        match act {
+            Some(widgets::Chip::Pick(at)) => self.own_at = at,
+            Some(widgets::Chip::Add) => {
+                let [h, s, v] = widgets::rgb_to_hsv(colors[colors.len() - 1]);
+                colors.push(widgets::hsv_to_rgb([(h + 0.12).fract(), s.max(0.5), v.max(0.6)]));
+                self.own_at = colors.len() - 1;
             }
-            ui.add_space(GAP);
-            // The hue is kept while the color is grey or black, where the color itself has none.
-            let same = |hsv: &[f32; 3]| {
-                crate::colors::hex(widgets::hsv_to_rgb(*hsv)) == crate::colors::hex(colors[self.own_at])
-            };
-            let mut hsv = self
-                .own_hsv
-                .filter(same)
-                .unwrap_or_else(|| widgets::rgb_to_hsv(colors[self.own_at]));
-            let square = (ui.available_width() * 0.5).clamp(120.0, 180.0);
-            let mut changed = widgets::color_square(ui, &mut hsv, square);
-            ui.add_space(GAP);
-            changed |= widgets::hue_bar(ui, &mut hsv[0]);
-            if changed {
-                colors[self.own_at] = widgets::hsv_to_rgb(hsv);
-                self.own_hsv = Some(hsv);
-            }
+            None => {}
+        }
+        if act.is_some() {
+            self.own_hsv = None;
+        }
+        // The hue is kept while the color is grey or black, where the color itself has none.
+        let same =
+            |hsv: &[f32; 3]| crate::colors::hex(widgets::hsv_to_rgb(*hsv)) == crate::colors::hex(colors[self.own_at]);
+        let mut hsv = self
+            .own_hsv
+            .filter(same)
+            .unwrap_or_else(|| widgets::rgb_to_hsv(colors[self.own_at]));
+        ui.add_space(GAP + 6.0);
+        let card = ui.painter().add(egui::Shape::Noop);
+        let from = ui.cursor().min;
+        let square = (ui.available_width() * 0.5).clamp(120.0, 180.0);
+        let mut changed = widgets::color_square(ui, &mut hsv, square);
+        ui.add_space(GAP);
+        changed |= widgets::hue_bar(ui, &mut hsv[0]);
+        if changed {
+            colors[self.own_at] = widgets::hsv_to_rgb(hsv);
+            self.own_hsv = Some(hsv);
+        }
+        // The hue bar keeps room under it for its knob: one point less makes this gap the one above the bar.
+        ui.add_space(GAP + 1.0);
+        if widgets::delete_button(ui, &self.t("delete_color"), colors.len() > 1) {
+            colors.remove(self.own_at);
+            self.own_at = self.own_at.saturating_sub(1).min(colors.len() - 1);
+            self.own_hsv = None;
+        }
+        // One card for all that the chosen color has: its picker and the button that deletes it.
+        let inner = Rect::from_min_max(from, egui::pos2(ui.max_rect().right(), ui.min_rect().bottom()));
+        ui.painter().set(card, widgets::editing_card(inner, x));
+        if walls {
+            self.wall.hues = crate::colors::wall_hues(&colors);
+            self.own_wall = colors;
+        } else {
             self.own_flame = colors.clone();
             self.choices.choose(self.chosen_layer(), Some(Choice::Own(colors)));
         }
@@ -1831,17 +1844,17 @@ impl App {
     }
 
     fn tile(ui: &mut egui::Ui, side: [f32; 2], picture: Option<egui::TextureId>, label: &str, chosen: bool) -> bool {
-        Self::marked_tile(ui, side, picture, label, chosen, None)
+        Self::tile_over(ui, side, picture, None, label, chosen)
     }
 
-    // A tile with a mark in its corner: an amber one with an hourglass, for what takes long.
-    fn marked_tile(
+    // A tile whose picture gives way to another, `over` showing by its share.
+    fn tile_over(
         ui: &mut egui::Ui,
         side: [f32; 2],
         picture: Option<egui::TextureId>,
+        over: Option<(egui::TextureId, f32)>,
         label: &str,
         chosen: bool,
-        mark: Option<&str>,
     ) -> bool {
         let (rect, response) = ui.allocate_exact_size(vec2(side[0], side[1] + 20.0), Sense::click());
         let frame = Rect::from_min_size(rect.min, vec2(side[0], side[1]));
@@ -1856,15 +1869,18 @@ impl App {
                 .tint(Color32::WHITE.gamma_multiply(arrived))
                 .paint_at(ui, frame);
         }
+        if let Some((id, share)) = over {
+            egui::Image::from_texture(egui::load::SizedTexture::new(id, frame.size()))
+                .corner_radius(round)
+                .tint(Color32::WHITE.gamma_multiply(share))
+                .paint_at(ui, frame);
+        }
         let edge = if chosen {
             Stroke::new(2.0, Color32::WHITE)
         } else {
             Stroke::new(0.6, Color32::from_white_alpha(70))
         };
         ui.painter().rect_stroke(frame, round, edge, egui::StrokeKind::Inside);
-        if let Some(mark) = mark {
-            slow_badge(ui.painter(), frame, mark);
-        }
         let color = if chosen {
             Color32::WHITE
         } else {
@@ -2157,6 +2173,56 @@ impl App {
     }
 
     // The styles end with the way to add a layer, the only one while a picture has one layer and no row of them.
+    // The tile of a random picture: a few random pictures of the tab in turn, each fading into the next, and a die.
+    #[allow(clippy::too_many_arguments)]
+    fn random_tile(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        side: [f32; 2],
+        pixels: [usize; 2],
+        budget: &mut u32,
+        of: &str,
+        scene: impl Fn(u64) -> Option<Scene>,
+    ) -> bool {
+        let worn = self.choice();
+        let colors = worn.as_ref().and_then(Choice::palette);
+        let mut slides = Vec::new();
+        for seed in SLIDES {
+            let key = format!("r {of} {seed} {worn:?}");
+            let colored = || {
+                let mut scene = scene(seed)?;
+                if let Some(colors) = &colors {
+                    for layer in &mut scene.layers {
+                        *layer.palette_mut() = colors.clone();
+                    }
+                }
+                Some(scene)
+            };
+            if let Some(id) = self.thumb(ctx, key, pixels, 10, budget, colored) {
+                slides.push(id);
+            }
+        }
+        let (picture, over) = match slides.len() {
+            0 => (None, None),
+            1 => (Some(slides[0]), None),
+            count => {
+                let now = ctx.input(|input| input.time);
+                let (turn, into) = ((now / SLIDE) as usize, now % SLIDE);
+                let share = ((into - (SLIDE - SLIDE_FADE)) / SLIDE_FADE).clamp(0.0, 1.0);
+                let wait = if share > 0.0 { 0.0 } else { SLIDE - SLIDE_FADE - into };
+                ctx.request_repaint_after(std::time::Duration::from_secs_f64(wait));
+                let next = (share > 0.0).then(|| (slides[(turn + 1) % count], share as f32));
+                (Some(slides[turn % count]), next)
+            }
+        };
+        let at = ui.cursor().min;
+        let label = shown(&self.t("random"));
+        let pressed = Self::tile_over(ui, side, picture, over, &label, self.is_random && !self.wall.live);
+        die(ui.painter(), Rect::from_min_size(at, vec2(side[0], side[1])));
+        pressed
+    }
+
     fn add_tile(&self, ui: &mut egui::Ui, side: [f32; 2]) -> bool {
         if self.base.layers.len() >= fractique_core::scene::MAX_LAYERS || self.base.layers.is_empty() || self.wall.live
         {
@@ -2164,7 +2230,7 @@ impl App {
         }
         let at = ui.cursor().min;
         let pressed = Self::tile(ui, side, None, &self.t("add_layer"), false);
-        let center = at + vec2(side[0] * 0.5, side[1] * 0.42);
+        let center = at + vec2(side[0] * 0.5, side[1] * 0.5);
         let ink = Color32::from_white_alpha(220);
         ui.painter().line_segment(
             [center - vec2(9.0, 0.0), center + vec2(9.0, 0.0)],
@@ -2200,7 +2266,6 @@ impl App {
         widgets::section(ui, &self.t("fractal_kind"));
         ui.add_space(4.0);
         let mut kind = None;
-        let slow = self.t("slow");
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(gap, 10.0);
             for spec in fractal::all() {
@@ -2209,19 +2274,14 @@ impl App {
                     .first()
                     .map(|preset| format!("{}-{}", spec.name, preset.name));
                 let key = format!("p {first:?} {worn:?}");
-                // The kinds the processor alone draws, and takes long at: a smaller picture, and a mark.
-                let heavy = crate::heavy(spec.name);
-                let drawn = if heavy { pixels.map(|side| side / 2) } else { pixels };
+                // The kinds the processor alone draws, and takes long at: a smaller picture.
+                let drawn = if crate::heavy(spec.name) {
+                    pixels.map(|side| side / 2)
+                } else {
+                    pixels
+                };
                 let picture = self.thumb(&ctx, key, drawn, 10, &mut budget, || pictured(&first?));
-                let mark = heavy.then_some(slow.as_str());
-                if Self::marked_tile(
-                    ui,
-                    side,
-                    picture,
-                    &self.kind_name(spec.name),
-                    self.kind == spec.name,
-                    mark,
-                ) {
+                if Self::tile(ui, side, picture, &self.kind_name(spec.name), self.kind == spec.name) {
                     kind = Some(spec.name);
                 }
             }
@@ -2232,12 +2292,15 @@ impl App {
 
         widgets::section(ui, &self.t("presets"));
         ui.add_space(4.0);
-        let random_label = shown(&self.t("random"));
         let (mut random, mut picked, mut adding) = (false, None, false);
         let prefix = self.kind.len() + 1;
+        let of = self.kind.clone();
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(gap, 10.0);
-            random = Self::tile(ui, side, None, &random_label, self.is_random && !self.wall.live);
+            adding = self.add_tile(ui, side);
+            random = self.random_tile(ui, &ctx, side, pixels, &mut budget, &of, |seed| {
+                fractal::random_scene(&of, seed)
+            });
             for name in self.kind_presets() {
                 let key = format!("p {:?} {worn:?}", Some(&name));
                 let picture = self.thumb(&ctx, key, pixels, 10, &mut budget, || pictured(&name));
@@ -2247,7 +2310,6 @@ impl App {
                     picked = Some(name);
                 }
             }
-            adding = self.add_tile(ui, side);
         });
         if random {
             self.act("randomize");
@@ -2277,10 +2339,13 @@ impl App {
 
         widgets::section(ui, &self.t("presets"));
         ui.add_space(4.0);
-        let random_label = shown(&self.t("random"));
+        let generator = self.generator;
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = vec2(gap, 10.0);
-            random = Self::tile(ui, side, None, &random_label, self.is_random && !self.wall.live);
+            adding = self.add_tile(ui, side);
+            random = self.random_tile(ui, &ctx, side, pixels, &mut budget, "flame", |seed| {
+                Some(crate::random_scene_of(generator, seed))
+            });
             for name in presets::names() {
                 let worn = self.choice();
                 let colors = worn.as_ref().and_then(Choice::palette);
@@ -2299,7 +2364,6 @@ impl App {
                     picked = Some(name);
                 }
             }
-            adding = self.add_tile(ui, side);
         });
         if random {
             self.act("randomize");

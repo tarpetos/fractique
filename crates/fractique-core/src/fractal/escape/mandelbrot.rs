@@ -80,6 +80,20 @@ pub(super) static SPEC: Spec = Spec {
             zoom: 900.0,
             params: &[("iterations", 800.0)],
         },
+        Preset {
+            name: "feather",
+            palette: "violet",
+            center: [-1.4280725638756426, -0.0009669511123025884],
+            zoom: 250.1,
+            params: &[("iterations", 170.0), ("color_density", 3.29), ("color_shift", 0.962)],
+        },
+        Preset {
+            name: "sunburst",
+            palette: "orchid",
+            center: [-0.2718003344166638, -0.6371607557893685],
+            zoom: 1120.1,
+            params: &[("iterations", 2090.0), ("color_density", 0.57), ("color_shift", 0.734)],
+        },
     ],
 };
 

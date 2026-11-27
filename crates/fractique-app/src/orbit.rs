@@ -36,7 +36,7 @@ struct Entry {
     finest: f64,
 }
 
-const KINDS: [Entry; 3] = [
+const KINDS: [Entry; 4] = [
     Entry {
         kind: "clifford",
         code: 1,
@@ -52,6 +52,12 @@ const KINDS: [Entry; 3] = [
     Entry {
         kind: "lorenz",
         code: 3,
+        form: Form::Traced,
+        finest: 4.0e5,
+    },
+    Entry {
+        kind: "ikeda",
+        code: 4,
         form: Form::Traced,
         finest: 4.0e5,
     },
@@ -276,7 +282,7 @@ mod tests {
         assert_eq!(size_of::<Packed>(), 9 * 16 + 4 * PARAMS + 4 * NUMBERS + 1024);
         let mut codes: Vec<u32> = KINDS.iter().map(|entry| entry.code).collect();
         codes.dedup();
-        assert_eq!(codes, [1, 2, 3]);
+        assert_eq!(codes, [1, 2, 3, 4]);
         for entry in &KINDS {
             let scene = fractal::random_scene(entry.kind, 3).expect("the kind is listed");
             let shown = scene.layers[0].fractal().expect("the scene is a fractal");
@@ -320,6 +326,7 @@ mod tests {
         assert_eq!(recipe("clifford-classic").work(goal, 129_600), goal + 129_600 * 32);
         assert_eq!(recipe("de_jong-classic").work(goal, 129_600), goal + 129_600 * 32);
         assert_eq!(recipe("lorenz-butterfly").work(goal, 129_600), goal);
+        assert_eq!(recipe("ikeda-classic").work(goal, 129_600), goal + 129_600 * 32);
         for name in ["gumowski_mira-feathers", "hopalong-classic", "buddhabrot-classic"] {
             let scene = fractal::preset(name).expect("the preset exists");
             assert!(
@@ -331,7 +338,7 @@ mod tests {
 
     #[test]
     fn an_orbit_that_ends_on_a_cycle_is_left_to_the_processor() {
-        for spec in fractal::all().filter(|spec| ["clifford", "de_jong"].contains(&spec.name)) {
+        for spec in fractal::all().filter(|spec| ["clifford", "de_jong", "ikeda"].contains(&spec.name)) {
             for preset in spec.presets {
                 let scene = fractal::preset(&format!("{}-{}", spec.name, preset.name)).expect("the preset exists");
                 assert!(

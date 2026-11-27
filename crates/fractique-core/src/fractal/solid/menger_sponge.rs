@@ -112,6 +112,20 @@ pub(super) static SPEC: Spec = Spec {
             zoom: 1.5,
             params: &[("distance", 5.0), ("fog", 0.2), ("turn", 45.0), ("tilt", 35.264), ("light_turn", -40.6), ("light_tilt", 48.6), ("shadow", 1.0), ("glow", 1.0), ("light_color", 1.0), ("isometric", 1.0)],
         },
+        Preset {
+            name: "barrel",
+            palette: "ember",
+            center: [0.0, 0.0],
+            zoom: 1.0,
+            params: &[("twist", -3.0), ("bend", -26.0), ("iterations", 7.0), ("turn", -39.0), ("tilt", -41.0), ("distance", 3.35), ("light_turn", 4.0), ("light_tilt", 54.0), ("fog", 0.36), ("color_density", 9.98), ("color_shift", 1.34)],
+        },
+        Preset {
+            name: "corner",
+            palette: "violet",
+            center: [0.0, 0.0],
+            zoom: 0.85,
+            params: &[("iterations", 7.0), ("turn", 13.0), ("tilt", -60.0), ("distance", 3.4), ("light_turn", -24.0), ("light_tilt", 34.0), ("fog", 0.24), ("color_density", 5.72), ("color_shift", 1.57)],
+        },
     ],
 };
 

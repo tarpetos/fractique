@@ -96,6 +96,27 @@ pub(super) static SPEC: Spec = Spec {
             zoom: 1.4,
             params: &[("recipe", 1.0), ("ta_real", 1.68), ("ta_imaginary", -0.6), ("tb_real", 2.0), ("tb_imaginary", 0.0), ("color_density", 6.0)],
         },
+        Preset {
+            name: "bloom",
+            palette: "violet",
+            center: [-0.0001, -0.0001],
+            zoom: 1.73,
+            params: &[("recipe", 0.0), ("ta_real", 1.7604), ("ta_imaginary", 0.2073), ("tb_real", 2.0), ("tb_imaginary", 0.0), ("color_density", 3.7), ("color_shift", 0.15)],
+        },
+        Preset {
+            name: "curl",
+            palette: "orchid",
+            center: [0.0001, -0.0005],
+            zoom: 1.37,
+            params: &[("recipe", 0.0), ("ta_real", 1.9714), ("ta_imaginary", 0.03), ("tb_real", 1.9714), ("tb_imaginary", -0.03), ("color_density", 2.95), ("color_shift", 0.55)],
+        },
+        Preset {
+            name: "waves",
+            palette: "sunset",
+            center: [0.0, 0.9614],
+            zoom: 1.25,
+            params: &[("recipe", 1.0), ("ta_real", 1.9228), ("ta_imaginary", -0.0553), ("tb_real", 2.0), ("tb_imaginary", 0.0), ("color_density", 1.4), ("color_shift", 0.36)],
+        },
     ],
 };
 

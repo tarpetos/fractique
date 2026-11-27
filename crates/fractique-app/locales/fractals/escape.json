@@ -509,6 +509,23 @@
     "pl": "Dolina słoni",
     "id": "Lembah Gajah"
   },
+  "n_mandelbrot_feather": {
+    "en": "Feather",
+    "uk": "Перо",
+    "ru": "Перо",
+    "de": "Feder",
+    "fr": "Plume",
+    "es": "Pluma",
+    "it": "Piuma",
+    "ja": "羽根",
+    "zh-Hans": "羽毛",
+    "pt-BR": "Pena",
+    "ko": "깃털",
+    "hi": "पंख",
+    "tr": "Tüy",
+    "pl": "Pióro",
+    "id": "Bulu"
+  },
   "n_mandelbrot_island": {
     "en": "Island",
     "uk": "Острів",
@@ -593,6 +610,23 @@
     "tr": "Sarmal",
     "pl": "Spirala",
     "id": "Spiral"
+  },
+  "n_mandelbrot_sunburst": {
+    "en": "Sunburst",
+    "uk": "Сонячний сплеск",
+    "ru": "Солнечная вспышка",
+    "de": "Sonnenstrahlen",
+    "fr": "Soleil rayonnant",
+    "es": "Rayos de sol",
+    "it": "Raggiera",
+    "ja": "日輪",
+    "zh-Hans": "旭日",
+    "pt-BR": "Raios de sol",
+    "ko": "햇살",
+    "hi": "सूर्य किरणें",
+    "tr": "Güneş Patlaması",
+    "pl": "Promienie słońca",
+    "id": "Pancaran Surya"
   },
   "n_mandelbrot_tide": {
     "en": "Tide",

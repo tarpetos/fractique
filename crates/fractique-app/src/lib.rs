@@ -832,7 +832,7 @@ const DEPTH_SAMPLES: u32 = 8;
 fn orbit_deepest(kind: &str) -> Option<f64> {
     match kind {
         "buddhabrot" => Some(10.0),
-        "clifford" | "de_jong" | "hopalong" => Some(30.0),
+        "clifford" | "de_jong" | "hopalong" | "ikeda" => Some(30.0),
         "gumowski_mira" => Some(50.0),
         "lorenz" | "flow" => Some(100.0),
         _ => None,
@@ -1112,14 +1112,25 @@ impl Adjust {
     }
 }
 
-// Hues saved as a list of numbers.
-fn hues_of(value: Option<&serde_json::Value>) -> Option<Hues> {
-    let list: Vec<f64> = value?
+// Hues saved as a list of numbers, and their tones as pairs beside them.
+pub(crate) fn hues_of(wall: &serde_json::Value) -> Option<Hues> {
+    let list: Vec<f64> = wall
+        .get("hues")?
         .as_array()?
         .iter()
         .filter_map(serde_json::Value::as_f64)
         .collect();
-    Hues::new(&list)
+    let tones: Vec<[f64; 2]> = wall
+        .get("tones")
+        .and_then(serde_json::Value::as_array)
+        .map(|tones| {
+            tones
+                .iter()
+                .filter_map(|tone| Some([tone.get(0)?.as_f64()?, tone.get(1)?.as_f64()?]))
+                .collect()
+        })
+        .unwrap_or_default();
+    Hues::toned(&list, &tones)
 }
 
 #[derive(Default)]
@@ -1325,7 +1336,7 @@ struct App {
     own_at: usize,
     own_hsv: Option<[f32; 3]>,
     own_flame: Vec<[f64; 3]>,
-    own_wall: Vec<f64>,
+    own_wall: Vec<[f64; 3]>,
     // The language list was opened from the settings, which come back when it closes.
     from_settings: bool,
     picture: Option<[u32; 2]>,
@@ -1479,7 +1490,7 @@ fn all_densities(scene: &Scene) -> bool {
     scene.sheets.is_none() && scene.layers.iter().all(drawn)
 }
 
-// The kinds the processor alone draws and takes long over: marked in the list, left out on a phone.
+// The kinds the processor alone draws and takes long over: a picture of half the side comes first.
 const HEAVY: [&str; 9] = [
     "buddhabrot",
     "hopalong",
@@ -3978,6 +3989,7 @@ impl App {
                 "dark": self.wall.dark,
                 "hue": self.wall.hue,
                 "hues": self.wall.hues.map(|hues| hues.list().to_vec()),
+                "tones": self.wall.hues.map(|hues| hues.tones().to_vec()),
             },
         });
         session.to_string()
@@ -4033,7 +4045,7 @@ impl App {
             layout: word("layout").and_then(Layout::parse),
             material: word("material").and_then(Material::parse),
             hue: wall.get("hue").and_then(serde_json::Value::as_f64),
-            hues: hues_of(wall.get("hues")),
+            hues: hues_of(wall),
             held: held.and_then(|held| {
                 Some((
                     Layout::parse(held.first()?.as_str()?)?,
@@ -4174,7 +4186,6 @@ impl App {
         bar.bar_width = 5.0;
         ui.spacing_mut().scroll = bar;
         let mut chosen = None;
-        let hint = self.t("heavy_kind");
         let kinds: Vec<_> = fractal::all().collect();
         let tall = list_height(kinds.len(), room);
         egui::ScrollArea::vertical()
@@ -4182,8 +4193,7 @@ impl App {
             .min_scrolled_height(tall)
             .show(ui, |ui| {
                 for spec in kinds {
-                    let mark = heavy(spec.name).then_some(hint.as_str());
-                    if widgets::marked_row(ui, &self.kind_name(spec.name), self.kind == spec.name, mark) {
+                    if widgets::row(ui, &self.kind_name(spec.name), self.kind == spec.name) {
                         chosen = Some(spec.name);
                     }
                 }
@@ -7270,11 +7280,8 @@ impl App {
         if let Some(list) = step.strip_prefix("own:") {
             let colors: Vec<[f64; 3]> = list.split('+').filter_map(colors::parse_hex).collect();
             if self.wall.on {
-                let hues: Vec<f64> = colors
-                    .iter()
-                    .map(|color| f64::from(widgets::rgb_to_hsv(*color)[0]) * 360.0)
-                    .collect();
-                self.wall.hues = Hues::new(&hues);
+                self.wall.hues = colors::wall_hues(&colors);
+                self.own_wall = colors;
                 self.new_wallpaper();
             } else if !colors.is_empty() {
                 self.choices

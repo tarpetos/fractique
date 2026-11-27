@@ -264,7 +264,7 @@ The kinds, by family:
 | --- | --- | --- |
 | Escape-time | per pixel | `burning_ship`, `julia`, `magnet`, `mandelbrot`, `multibrot`, `phoenix`, `tricorn` |
 | Root-finding | per pixel | `newton`, `nova` |
-| Orbit | density | `buddhabrot`, `clifford`, `de_jong`, `flow`, `gumowski_mira`, `hopalong`, `lorenz` |
+| Orbit | density | `buddhabrot`, `clifford`, `de_jong`, `flow`, `gumowski_mira`, `hopalong`, `ikeda`, `lorenz` |
 | Geometric | either | `apollonian`, `kleinian`, `l_system`, `lyapunov` |
 | Solid | per pixel | `mandelbox`, `mandelbulb`, `menger_sponge` |
 
@@ -373,6 +373,7 @@ Each of the 64 streams of a render follows orbits from its own random numbers an
 | `flow` | One of nine flows in three dimensions, chosen by `system`: 1 Thomas (dx/dt = sin y − b x, and so round, b = 0.208186), 2 Halvorsen (a = 1.4), 3 Chen (35, 3, 28), 4 Dadras (3, 2.7, 1.7, 2, 9), 5 Rössler (0.2, 0.2, 5.7), 6 Sprott (2.07, 1.79), 7 four wings (0.2, 0.01, −0.4), 8 Aizawa (0.95, 0.7, 0.6, 3.5, 0.25, 0.1), 9 Rabinovich–Fabrikant (0.87, 1.1). Each is followed by the fourth-order Runge-Kutta method in a time step of its own (0.002 to 0.05) from a starting point of its own; its first 4000 steps are not plotted, and it is followed for `length` times a span of its own (40 to 1500 units of time); then the same orbit again, as for `lorenz` | `system` (1 to 9, whole, 1), `turn` (−180 to 180 degrees, 0), `tilt` (−90 to 90 degrees, 0), `length` (0.05 to 50, 1) | `color_by` |
 | `gumowski_mira` | x′ = y + a (1 − b y²) y + f(x), y′ = f(x′) − x, with f(x) = μ x + 2 (1 − μ) x² / (1 + x²). An orbit starts within ±`scatter` in x and in y, its first 2000 steps are not plotted and the next 200 000 are; then another starts | `mu` (−1 to 1, −0.496), `a` (0 to 0.1, 0.008), `b` (0 to 1, 0.05), `scatter` (0.1 to 20, 4) | `color_by` |
 | `hopalong` | x′ = y − sgn(x) √\|b x − c\|, y′ = a − x, with sgn(0) = 0. An orbit starts within ±0.1 in x and in y and is plotted for `orbit_length` steps; then another starts | `a` (−100 to 100, 0.4), `b` (0 to 10, 1), `c` (−100 to 100, 0), `orbit_length` (1000 to 10 000 000, whole, 300 000) | `color_by` |
+| `ikeda` | t = k − p / (1 + x² + y²), x′ = 1 + u (x cos t − y sin t), y′ = u (x sin t + y cos t); the start is within ±0.5 and the first 32 steps are not plotted | `u` (0 to 1, 0.9), `k` (−4 to 4, 0.4), `p` (0 to 20, 6) | `color_by` |
 | `lorenz` | dx/dt = σ (y − x), dy/dt = x (ρ − z) − y, dz/dt = x y − β z, by the fourth-order Runge-Kutta method in steps of 0.005. The orbit starts at (1, 1, ρ), its first 4000 steps are not plotted, and it is followed for `duration` units of time; then the same orbit is followed again, so every stream draws the same lines. A point is plotted at a random place between two steps | `sigma` (1 to 40, 10), `rho` (1 to 250, 28), `beta` (0.1 to 10, 8/3), `turn` (−180 to 180 degrees, 0), `tilt` (−90 to 90 degrees, 0), `duration` (5 to 100 000, 150) | `color_by` |
 
 `flow` is turned and tipped as `lorenz` is, about its own z axis and without the shift of z. `system` is a
@@ -400,7 +401,7 @@ The points of `flow`, `gumowski_mira`, `hopalong` and `lorenz` are moved and sca
 their own sizes run from 1 to several hundred: the middle between the 2nd and the 98th percentile of the measured
 points, in x and in y, becomes the origin, and half of the larger of the two spans becomes 1. A camera at the
 origin with a zoom near 1.5 therefore frames any of them, and the picture stays framed while a parameter changes.
-`clifford` and `de_jong` are plotted in their own coordinates.
+`clifford`, `de_jong` and `ikeda` are plotted in their own coordinates.
 
 #### Buddhabrot
 
@@ -458,7 +459,7 @@ stays even over the starting points that count, so the picture is the same Buddh
 
 #### Tone and views
 
-The tone of the presets and random scenes of `clifford`, `de_jong`, `gumowski_mira`, `hopalong` and `lorenz` is
+The tone of the presets and random scenes of `clifford`, `de_jong`, `gumowski_mira`, `hopalong`, `ikeda` and `lorenz` is
 `brightness` 1.1, `gamma` 2.8, `highlight` 0.2, `glow_radius` 0.006 and `glow_strength` 0.5; that of `buddhabrot`
 is `brightness` 2.2, `gamma` 1.7, `highlight` 0.2, `glow_radius` 0.004 and `glow_strength` 0.3.
 
@@ -468,7 +469,7 @@ that is smooth whole is grainy from about 8 times and falls apart into single po
 `buddhabrot`, whose points are spread over the whole disc, is grainy from about 4 times and noise at 20. More
 samples per pixel push that out by their square root; the coordinates themselves, 64-bit numbers, would last to
 a zoom of about 10¹³. The app stops a view where the grain takes over: at 10 times for `buddhabrot`, 30 for
-`clifford`, `de_jong` and `hopalong`, 50 for `gumowski_mira` and 100 for `lorenz`. A long orbit of the Lorenz
+`clifford`, `de_jong`, `hopalong` and `ikeda`, 50 for `gumowski_mira` and 100 for `lorenz`. A long orbit of the Lorenz
 system is not the orbit a more exact method would give, since its errors double about every 0.8 units of time; it
 stays on the attractor, which is what the picture shows.
 

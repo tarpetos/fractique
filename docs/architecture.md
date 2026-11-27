@@ -195,7 +195,7 @@ for a fractal layer. The limits below were chosen by looking at the pictures of 
 | `newton` | zⁿ − 1 with n from 3 to 8 (45 in 100) or one of the five named polynomials; a relaxation of 1 (45 in 100) or one within 0.15 to 0.75 of 1 in any direction of the complex plane; a view that frames the roots, then a walk of 0 to 3 steps toward the borders between basins. Four views in ten are turned | At most 25 % of the probe never arrives, 8 to 60 % of neighbouring cells lie in different basins, and half of the probe or more has a light above 0.4 at shade 0.5 |
 | `nova` | Degree 3 (55 in 100) or 2 to 6; a relaxation of 1 (half) or between 0.6 and 1.8. Six times in ten the map of the first form, with a walk of 1 to 6 steps; otherwise the Julia form of the constant where a walk of 2 to 5 steps ends, whole or a part of it | As `burning_ship`; a Nova does not fade, so it is always lit |
 | `clifford` | `a` and `b` between 1.1 and 2.6 of either sign, `c` and `d` between −1.6 and 1.6 | The orbit is framed as a flame must be, covers 22 % of the grid, holds half of its points in 20 cells or more and has contrast between neighbouring cells |
-| `de_jong`, `gumowski_mira`, `hopalong`, `lorenz`, `buddhabrot` | The ranges are in [usage.md](usage.md#fractals-of-other-kinds). 30 000 points are taken from 8 walks, one of every few points where an orbit is long, and framed with a part of them left outside on each side: none for `lorenz`, 0.5 % for `de_jong` and `gumowski_mira`, 2 % for `buddhabrot`, 4 % for `hopalong` | The share of the 48 × 48 grid covered, the cells that hold half of the points and the contrast between neighbouring cells, as hundredths of the points, are at least: `de_jong` 15 %, 40, 30; `gumowski_mira` 12 %, 16, 85; `hopalong` 30 %, 15, 60; `lorenz` 14 %, 40, 30; `buddhabrot` 22 %, 20, 50. A `buddhabrot` tries 8 candidates, the others 40, and the first candidate that could be framed is taken when none passes. These limits were chosen on the pictures of seeds 1 to 40 and of the presets |
+| `de_jong`, `gumowski_mira`, `hopalong`, `ikeda`, `lorenz`, `buddhabrot` | The ranges are in [usage.md](usage.md#fractals-of-other-kinds). 30 000 points are taken from 8 walks, one of every few points where an orbit is long, and framed with a part of them left outside on each side: none for `lorenz`, 0.5 % for `de_jong`, `gumowski_mira` and `ikeda`, 2 % for `buddhabrot`, 4 % for `hopalong` | The share of the 48 × 48 grid covered, the cells that hold half of the points and the contrast between neighbouring cells, as hundredths of the points, are at least: `de_jong` and `ikeda` 15 %, 40, 30; `gumowski_mira` 12 %, 16, 85; `hopalong` 30 %, 15, 60; `lorenz` 14 %, 40, 30; `buddhabrot` 22 %, 20, 50. A `buddhabrot` tries 8 candidates, the others 40, and the first candidate that could be framed is taken when none passes. These limits were chosen on the pictures of seeds 1 to 40 and of the presets |
 | `apollonian` | A first circle of radius 0.25 to 0.75, a balance of 1 three times in ten and 0.35 to 1 otherwise, any style and coloring, turned by a multiple of 30°. Half of the seeds show the whole gasket; the other half walk 1 to 3 steps into the gaps, each to a cell of the probe with four neighbours or more in other circles, magnifying 2 to 3.5 times | At most 40 % of the probe is outside the gasket, no circle fills more than 55 % of it, and 8 % of neighbouring cells lie in different circles |
 | `kleinian` | A straight way from traces whose group is surely discrete (3, or 3 and 2) toward traces whose group is surely not (1.5 to 1.6, with an imaginary part up to ±0.6), for both traces alike, as conjugates, with the second fixed at 2 or at a random value; Maskit's recipe is tried one time in five and passes more often, so about four seeds in ten show its band. The way is halved eight times to find where the search stops ending, and the group is taken 0 to 12 % short of that edge | The search ends within 2 500 000 words at the picture's fineness; with Grandma's recipe the curve covers 8 to 55 % of the grid of its probe, which frames it; Maskit's band is framed by its height |
 | `l_system` | One of 26 systems from "The Algorithmic Beauty of Plants" and its kin, with its own angle or, more than half of the time, one up to 18 % off (a plant: 10° less to 14° more), iterated while the steps stay a 110th of the drawing's span (a plant: a 500th) and under 200 000 | The drawing covers 9 to 70 % of the grid of its probe, has contrast between neighbouring cells, and, if it is not a plant, its usual cell holds at most 3.2 lines side by side: more is a blot |
@@ -222,7 +222,7 @@ pictures of seeds 1 to 40 of each:
    registration: a test refuses a list out of order, a kind without a preset, a random scene that does not
    validate and a preset whose name is a flame's.
 3. Add the texts to `crates/fractique-app/locales/fractals/<family>.json`: `f_<kind>` for the kind's name (as
-   `f_burning_ship`, `f_de_jong` and those of the other 20 kinds there), `p_<parameter>` for each new parameter
+   `f_burning_ship`, `f_de_jong` and those of the other 22 kinds there), `p_<parameter>` for each new parameter
    and `n_<kind>_<preset>` for each preset, in all 15 languages. Run `tools/i18n/make_fonts.py` after it.
 4. Document the kind in its family's section of [scene-format.md](scene-format.md#fractal) and add it to the
    table of families there; add a line to `CHANGELOG.md`.
@@ -688,7 +688,7 @@ picture the card held) and a density estimation over every layer of a picture of
 
 #### Orbits on the graphics card
 
-A layer that holds a Clifford, a De Jong or a Lorenz attractor is walked by a second compute shader
+A layer that holds a Clifford, a De Jong, an Ikeda or a Lorenz attractor is walked by a second compute shader
 (`orbit.wgsl`) into the same histogram, and everything after the histogram is the flame's: the levels, the
 preview's tone and glow, the batches and the bounds above. Flames and these layers can share a scene.
 
@@ -696,6 +696,7 @@ preview's tone and glow, the batches and the bounds above. Flames and these laye
 | --- | --- | --- |
 | `clifford` | Yes | The map in 32-bit floats, colored by its own rule. Every walker starts at a random point and takes 32 unplotted steps |
 | `de_jong` | Yes | The map in 32-bit floats. The ranks that color it (the pace, the direction, the height) are the tables the core measured, read by the shader |
+| `ikeda` | Yes | As `de_jong` |
 | `lorenz` | Yes | Every walk of the processor follows the one orbit, so the core tracks its state at every 64th step (`Orbit::prepared`), up to 1 048 576 steps. A walker begins at a tracked state and is set back onto the next one 64 steps later: 32-bit floats never drift from the 64-bit orbit for longer than that, and no walker walks to its place unseen |
 | `gumowski_mira` | No | An orbit is 202 000 steps that only one walker can take, one after another. With four times the bound of a submission it still came to 27 batches and 2.8 s for a picture of 1920 × 1080 on a GeForce GTX 1650, where the processor beside it needed 1.4 s |
 | `hopalong` | No | In 32-bit floats an orbit leaves the curve the 64-bit orbit draws |
@@ -857,5 +858,5 @@ differences for every layout and material and the times beside the processor's.
 | The search of a `kleinian` | at most 1200 letters a word, 12 000 000 words and 2 000 000 segments |
 | Sheets per scene | 1 to 48 |
 | Shapes per sheet | 1 to 32 |
-| Magnification of a view in the app | 0.2 to 10 000 000 000 for a fractal drawn pixel by pixel, together with the zoom of its scene; to 10 to 300 for a flame, by the flame; to 10 (`buddhabrot`), 30 (`clifford`, `de_jong`, `hopalong`), 50 (`gumowski_mira`) or 100 (`lorenz`) for an attractor; 1 to 8 for a wallpaper |
+| Magnification of a view in the app | 0.2 to 10 000 000 000 for a fractal drawn pixel by pixel, together with the zoom of its scene; to 10 to 300 for a flame, by the flame; to 10 (`buddhabrot`), 30 (`clifford`, `de_jong`, `hopalong`, `ikeda`), 50 (`gumowski_mira`) or 100 (`lorenz`) for an attractor; 1 to 8 for a wallpaper |
 | Unpacked `.frcq` document | at most 64 MB |

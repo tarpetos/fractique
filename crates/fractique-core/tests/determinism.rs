@@ -15,7 +15,7 @@ fn small(supersample: u32) -> RenderOptions {
 
 // The promise of the project: these hashes are the same on every platform and every machine. A change here
 // means existing scenes render differently: it needs a new scene version or a line in the changelog.
-const GOLDEN: [(&str, u32, u64); 12] = [
+const GOLDEN: [(&str, u32, u64); 13] = [
     ("aurora-spiral", 1, 0x0bc0_6113_dc33_6c2f),
     ("aurora-spiral", 2, 0xe16d_5352_1408_8d99),
     ("emerald-star", 1, 0x383c_eab3_e607_ea04),
@@ -28,6 +28,7 @@ const GOLDEN: [(&str, u32, u64); 12] = [
     ("amber-lantern", 1, 0x494c_0b28_5170_11fe),
     ("emerald-plume", 1, 0x254f_3682_9502_6b28),
     ("ember-thorns", 1, 0xcc07_ff6a_99c6_552c),
+    ("lime-orbits", 1, 0x2737_c652_19ee_b83c),
 ];
 
 #[test]

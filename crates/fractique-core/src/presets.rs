@@ -30,6 +30,7 @@ const PRESETS: &[(&str, &str)] = &[
     ("lilac-mosaic", include_str!("../presets/lilac-mosaic.json")),
     ("amber-lantern", include_str!("../presets/amber-lantern.json")),
     ("emerald-plume", include_str!("../presets/emerald-plume.json")),
+    ("lime-orbits", include_str!("../presets/lime-orbits.json")),
 ];
 
 pub fn names() -> Vec<&'static str> {

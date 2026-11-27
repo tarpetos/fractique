@@ -218,7 +218,7 @@ struct RenderBody {
 enum Source {
     Scene(Box<Scene>),
     Random(u64, Option<String>),
-    Wallpaper(u64, Request),
+    Wallpaper(u64, Box<Request>),
 }
 
 impl RenderBody {
@@ -247,7 +247,7 @@ impl RenderBody {
         if let Some(wallpaper) = &self.wallpaper {
             return Ok(Source::Wallpaper(
                 wallpaper.seed,
-                wallpaper.request(self.width, self.height)?,
+                Box::new(wallpaper.request(self.width, self.height)?),
             ));
         }
         if self.fractal.is_some() && self.random.is_none() {

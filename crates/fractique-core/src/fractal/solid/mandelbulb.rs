@@ -103,6 +103,20 @@ pub(super) static SPEC: Spec = Spec {
             zoom: 2.2,
             params: &[("fog", 0.2), ("turn", 45.0), ("tilt", 25.0), ("light_turn", -40.6), ("light_tilt", 48.6), ("shadow", 1.0), ("glow", 1.0), ("light_color", 1.0), ("isometric", 1.0)],
         },
+        Preset {
+            name: "orb",
+            palette: "amethyst",
+            center: [0.0, 0.0],
+            zoom: 0.85,
+            params: &[("power", 12.0), ("iterations", 10.0), ("turn", -2.0), ("tilt", 46.0), ("distance", 2.93), ("light_turn", 24.0), ("light_tilt", 45.0), ("fog", 0.32), ("color_density", 2.49), ("color_shift", 0.58)],
+        },
+        Preset {
+            name: "flowers",
+            palette: "emerald",
+            center: [0.84, 0.2255],
+            zoom: 2.7695,
+            params: &[("power", 6.0), ("iterations", 14.0), ("turn", -104.0), ("tilt", 1.0), ("distance", 2.4), ("light_turn", 49.0), ("light_tilt", 34.0), ("fog", 0.21), ("color_density", 3.04), ("color_shift", 1.92)],
+        },
     ],
 };
 

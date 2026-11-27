@@ -339,6 +339,23 @@
     "pl": "Sześcienny",
     "id": "Kubik"
   },
+  "n_mandelbulb_flowers": {
+    "en": "Flowers",
+    "uk": "Квіти",
+    "ru": "Цветы",
+    "de": "Blumen",
+    "fr": "Fleurs",
+    "es": "Flores",
+    "it": "Fiori",
+    "ja": "花々",
+    "zh-Hans": "花丛",
+    "pt-BR": "Flores",
+    "ko": "꽃들",
+    "hi": "पुष्प",
+    "tr": "Çiçekler",
+    "pl": "Kwiaty",
+    "id": "Bunga-bunga"
+  },
   "n_mandelbulb_garden": {
     "en": "Garden",
     "uk": "Сад",
@@ -373,6 +390,23 @@
     "pl": "Laguna",
     "id": "Laguna"
   },
+  "n_mandelbulb_orb": {
+    "en": "Orb",
+    "uk": "Сфера",
+    "ru": "Сфера",
+    "de": "Kugel",
+    "fr": "Orbe",
+    "es": "Orbe",
+    "it": "Sfera",
+    "ja": "球体",
+    "zh-Hans": "球体",
+    "pt-BR": "Orbe",
+    "ko": "구체",
+    "hi": "गोला",
+    "tr": "Küre",
+    "pl": "Kula",
+    "id": "Bola"
+  },
   "n_mandelbulb_sixteen": {
     "en": "Sixteen",
     "uk": "Шістнадцять",
@@ -389,6 +423,23 @@
     "tr": "On Altı",
     "pl": "Szesnaście",
     "id": "Enam Belas"
+  },
+  "n_menger_sponge_barrel": {
+    "en": "Barrel",
+    "uk": "Бочка",
+    "ru": "Бочка",
+    "de": "Fass",
+    "fr": "Tonneau",
+    "es": "Barril",
+    "it": "Botte",
+    "ja": "樽",
+    "zh-Hans": "木桶",
+    "pt-BR": "Barril",
+    "ko": "통",
+    "hi": "पीपा",
+    "tr": "Fıçı",
+    "pl": "Beczka",
+    "id": "Tong"
   },
   "n_menger_sponge_candy": {
     "en": "Candy",
@@ -423,6 +474,23 @@
     "tr": "Klasik",
     "pl": "Klasyczny",
     "id": "Klasik"
+  },
+  "n_menger_sponge_corner": {
+    "en": "Corner",
+    "uk": "Кут",
+    "ru": "Угол",
+    "de": "Ecke",
+    "fr": "Coin",
+    "es": "Esquina",
+    "it": "Angolo",
+    "ja": "角",
+    "zh-Hans": "角落",
+    "pt-BR": "Canto",
+    "ko": "모서리",
+    "hi": "कोना",
+    "tr": "Köşe",
+    "pl": "Narożnik",
+    "id": "Sudut"
   },
   "n_menger_sponge_courtyard": {
     "en": "Courtyard",

@@ -3201,7 +3201,12 @@ pub(crate) mod tests {
             return;
         };
         let options = options(320, 200);
-        for name in ["clifford-classic", "de_jong-classic", "lorenz-butterfly"] {
+        for name in [
+            "clifford-classic",
+            "de_jong-classic",
+            "lorenz-butterfly",
+            "ikeda-classic",
+        ] {
             let scene = fractal::preset(name).expect("the preset exists");
             let exact = fractique_core::render(&scene, &options, &Control::default()).expect("it renders");
             let (quick, _, _) = card.drawn(&scene, &options).expect("the graphics card draws it");
