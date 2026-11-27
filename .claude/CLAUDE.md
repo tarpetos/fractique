@@ -83,7 +83,7 @@ is stable, not that it is good.
 | `crates/fractique-app/src/update.rs`, `updates.rs` | Checking for, listing and installing releases; its window |
 | `crates/fractique-update/` | The `update` command of `fractique`, `fractique-mcp` and `fractique-server`: `tools.json`, the signature, the swap, the refusals; `PUBKEY` for the app too; described in `docs/releasing.md` |
 | `scripts/build/`, `.github/workflows/release.yml` (calls `release-*.yml`), `docs/releasing.md` | Installers, the Docker image and the release workflow |
-| `.github/workflows/ci.yml` (calls `lint.yml`, `test.yml`) | The checks of every pull request, its title among them |
+| `.github/workflows/ci.yml` (calls `lint.yml`, `test.yml`) | The checks of every pull request, its title among them; `ci-master.yml` turns those of the merged one into the README's CI badge |
 | `vendor/` | `eframe` and `egui-wgpu` with the iOS surface fix |
 | `crates/fractique-mcp/src/lib.rs` | The MCP tools, shared by both MCP servers; listed in `docs/mcp.md` |
 | `skills/fractique/SKILL.md` | The skill that tells an agent how to use the MCP tools; a test fails when it lacks a tool's name |

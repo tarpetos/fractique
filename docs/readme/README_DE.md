@@ -1,6 +1,11 @@
 <div align="center">
   <img src="../../assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <h1>Fractique</h1>
+  <p>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="https://img.shields.io/github/v/release/tarpetos/fractique?label=Version&color=e8743b" alt="Neueste Version"></a>
+    <a href="https://github.com/tarpetos/fractique/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/tarpetos/fractique/ci-master.yml?branch=master&label=CI&logo=github" alt="CI"></a>
+    <a href="https://github.com/tarpetos/fractique/releases"><img src="https://img.shields.io/github/downloads/tarpetos/fractique/total?label=Downloads" alt="Downloads"></a>
+  </p>
   <p><strong>Ein Generator für fraktale Flammen, klassische Fraktale und Hintergrundbilder, der aus derselben Eingabe auf jeder Plattform dasselbe Bild erzeugt.</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <strong>Deutsch</strong> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
@@ -9,8 +14,11 @@
 </div>
 
 <p align="center">
-  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-de-de.svg" alt="Laden im App Store" height="48"></a><br>
-  <sub>iPhone und iPad. Windows, macOS, Linux und Android: kostenlos im <a href="https://github.com/tarpetos/fractique/releases/latest">neuesten Release</a>.</sub>
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-de-de.svg" alt="Laden im App Store" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-de-de.svg" alt="Download für Windows" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-de-de.svg" alt="Download für macOS" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-de-de.svg" alt="Download für Linux" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-de-de.svg" alt="Download für Android" height="48"></a>
 </p>
 
 <p align="center">

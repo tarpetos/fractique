@@ -1,6 +1,11 @@
 <div align="center">
   <img src="assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <h1>Fractique</h1>
+  <p>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="https://img.shields.io/github/v/release/tarpetos/fractique?label=release&color=e8743b" alt="Latest release"></a>
+    <a href="https://github.com/tarpetos/fractique/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/tarpetos/fractique/ci-master.yml?branch=master&label=CI&logo=github" alt="CI"></a>
+    <a href="https://github.com/tarpetos/fractique/releases"><img src="https://img.shields.io/github/downloads/tarpetos/fractique/total?label=downloads" alt="Downloads"></a>
+  </p>
   <p><strong>A generator of fractal flames, classic fractals and wallpapers that gives the same picture from the same input, on every platform.</strong></p>
   <p><sub>
     <strong>English</strong> · <a href="docs/readme/README_UK.md">Українська</a> · <a href="docs/readme/README_RU.md">Русский</a> · <a href="docs/readme/README_DE.md">Deutsch</a> · <a href="docs/readme/README_FR.md">Français</a> · <a href="docs/readme/README_ES.md">Español</a> · <a href="docs/readme/README_IT.md">Italiano</a> · <a href="docs/readme/README_JA.md">日本語</a><br>
@@ -9,8 +14,11 @@
 </div>
 
 <p align="center">
-  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="assets/badges/app-store-en-us.svg" alt="Download on the App Store" height="48"></a><br>
-  <sub>iPhone and iPad. Windows, macOS, Linux and Android: free, in the <a href="https://github.com/tarpetos/fractique/releases/latest">latest release</a>.</sub>
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="assets/badges/app-store-en-us.svg" alt="Download on the App Store" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/windows-en-us.svg" alt="Download for Windows" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/macos-en-us.svg" alt="Download for macOS" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/linux-en-us.svg" alt="Download for Linux" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="assets/badges/android-en-us.svg" alt="Download for Android" height="48"></a>
 </p>
 
 <p align="center">

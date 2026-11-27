@@ -1,6 +1,11 @@
 <div align="center">
   <img src="../../assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <h1>Fractique</h1>
+  <p>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="https://img.shields.io/github/v/release/tarpetos/fractique?label=%E0%A4%B0%E0%A4%BF%E0%A4%B2%E0%A5%80%E0%A4%9C%E0%A4%BC&color=e8743b" alt="नवीनतम रिलीज़"></a>
+    <a href="https://github.com/tarpetos/fractique/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/tarpetos/fractique/ci-master.yml?branch=master&label=CI&logo=github" alt="CI"></a>
+    <a href="https://github.com/tarpetos/fractique/releases"><img src="https://img.shields.io/github/downloads/tarpetos/fractique/total?label=%E0%A4%A1%E0%A4%BE%E0%A4%89%E0%A4%A8%E0%A4%B2%E0%A5%8B%E0%A4%A1" alt="डाउनलोड"></a>
+  </p>
   <p><strong>फ्रैक्टल लपटों, क्लासिक फ्रैक्टलों और वॉलपेपर का जनरेटर, जो एक ही इनपुट से हर प्लेटफ़ॉर्म पर एक ही तस्वीर बनाता है।</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
@@ -9,8 +14,11 @@
 </div>
 
 <p align="center">
-  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-en-us.svg" alt="App Store से डाउनलोड करें" height="48"></a><br>
-  <sub>iPhone और iPad. Windows, macOS, Linux और Android: <a href="https://github.com/tarpetos/fractique/releases/latest">नवीनतम रिलीज़</a> में मुफ़्त.</sub>
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-en-us.svg" alt="App Store से डाउनलोड करें" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-hi-in.svg" alt="Windows के लिए डाउनलोड करें" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-hi-in.svg" alt="macOS के लिए डाउनलोड करें" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-hi-in.svg" alt="Linux के लिए डाउनलोड करें" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-hi-in.svg" alt="Android के लिए डाउनलोड करें" height="48"></a>
 </p>
 
 <p align="center">
