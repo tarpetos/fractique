@@ -97,6 +97,37 @@ pub fn own(colors: &[[f64; 3]]) -> Option<Palette> {
     }
 }
 
+// One's own colors for a solid lit in the colors of the light, which reads its palette as an ink from no light to
+// full light: a dark of the first color first, then the colors, then a pale of the last for the brightest light.
+pub fn own_lit(colors: &[[f64; 3]]) -> Option<Palette> {
+    let (first, last) = (*colors.first()?, *colors.last()?);
+    let mix = |color: [f64; 3], toward: f64, by: f64| color.map(|c| (c + (toward - c) * by).clamp(0.0, 1.0));
+    let stop = |pos: f64, color: [f64; 3]| Stop {
+        pos,
+        color: color.map(|c| c.clamp(0.0, 1.0)),
+    };
+    let mut stops = vec![stop(0.0, mix(first, 0.0, 0.92)), stop(0.18, mix(first, 0.0, 0.6))];
+    let spread = (colors.len() - 1).max(1) as f64;
+    stops.extend(colors.iter().enumerate().map(|(at, color)| {
+        let pos = if colors.len() == 1 {
+            0.6
+        } else {
+            0.4 + 0.45 * at as f64 / spread
+        };
+        stop(pos, *color)
+    }));
+    stops.push(stop(1.0, mix(last, 1.0, 0.6)));
+    Some(Palette { stops })
+}
+
+// A layer whose palette is read as the light falling on it.
+fn lit(layer: &fractique_core::Layer) -> bool {
+    layer
+        .fractal()
+        .and_then(|shown| shown.params.get("light_color"))
+        .is_some_and(|light| *light > 0.0)
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Choices(Vec<Option<Choice>>);
 
@@ -133,14 +164,24 @@ impl Choices {
             let Some(choice) = choice else {
                 continue;
             };
-            if let Some(palette) = choice.palette() {
+            let palette = match choice {
+                Choice::Own(colors) if lit(layer) => own_lit(colors),
+                _ => choice.palette(),
+            };
+            let dark = palette.as_ref().map(|palette| palette.stops[0].color);
+            if let Some(palette) = palette {
                 *layer.palette_mut() = palette;
             }
             // A palette of one hue brings its background, which the bottom layer covers but where it is clear;
             // another palette, one's own colors too, takes such a background back to the dark one.
             if index == 0 {
                 let name = choice.swatch().and_then(|at| palette::SWATCHES.get(at));
-                match name.and_then(|name| palette::backdrop(name)) {
+                // A lit solid in one's own colors stands on the darkest of them, as one of a palette of one hue does.
+                let own = matches!(choice, Choice::Own(_))
+                    .then_some(dark)
+                    .flatten()
+                    .filter(|_| lit(layer));
+                match name.and_then(|name| palette::backdrop(name)).or(own) {
                     Some(background) => {
                         scene.background = background;
                         layer.blend = fractique_core::Blend::Over;
@@ -300,6 +341,28 @@ mod tests {
         }
         let both = serde_json::json!({ "palette": "ember", "colors": [null, "ice"] });
         assert_eq!(Choices::restored(&both, 2).of(0), None);
+    }
+
+    #[test]
+    fn a_lit_solid_reads_one_s_own_colors_from_dark_to_light() {
+        let (red, blue) = ([0.9, 0.3, 0.3], [0.3, 0.4, 0.9]);
+        let lit = own_lit(&[red, blue]).expect("a palette");
+        let stops: Vec<f64> = lit.stops.iter().map(|s| (s.pos * 100.0).round() / 100.0).collect();
+        assert_eq!(stops, [0.0, 0.18, 0.4, 0.85, 1.0]);
+        assert!(lit.stops[0].color.iter().all(|c| *c < 0.1));
+        assert!(lit.stops[4].color.iter().all(|c| *c > 0.6));
+        let scene = fractal::preset("mandelbox-plaza").expect("a preset");
+        let mut choices = Choices::all(None, 1);
+        choices.choose(0, Some(Choice::Own(vec![red, blue])));
+        let shown = dressed(&choices, &scene);
+        assert_eq!(shown.layers[0].palette(), &lit);
+        assert_eq!(shown.background, lit.stops[0].color);
+        // A fractal that is not lit wears them as they are.
+        let flat = fractal::preset("julia-dragon").expect("a preset");
+        assert_eq!(
+            dressed(&choices, &flat).layers[0].palette(),
+            &own(&[red, blue]).expect("a palette")
+        );
     }
 
     #[test]
