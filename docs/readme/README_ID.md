@@ -1,6 +1,11 @@
 <div align="center">
   <img src="../../assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <h1>Fractique</h1>
+  <p>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="https://img.shields.io/github/v/release/tarpetos/fractique?label=rilis&color=e8743b" alt="Rilis terbaru"></a>
+    <a href="https://github.com/tarpetos/fractique/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/tarpetos/fractique/ci-master.yml?branch=master&label=CI&logo=github" alt="CI"></a>
+    <a href="https://github.com/tarpetos/fractique/releases"><img src="https://img.shields.io/github/downloads/tarpetos/fractique/total?label=unduhan" alt="Unduhan"></a>
+  </p>
   <p><strong>Generator api fraktal, fraktal klasik, dan wallpaper yang menghasilkan gambar yang sama dari masukan yang sama, di semua platform.</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
@@ -9,8 +14,11 @@
 </div>
 
 <p align="center">
-  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-id-id.svg" alt="Download di App Store" height="48"></a><br>
-  <sub>iPhone dan iPad. Windows, macOS, Linux, dan Android: gratis, di <a href="https://github.com/tarpetos/fractique/releases/latest">rilis terbaru</a>.</sub>
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-id-id.svg" alt="Download di App Store" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-id-id.svg" alt="Unduh untuk Windows" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-id-id.svg" alt="Unduh untuk macOS" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-id-id.svg" alt="Unduh untuk Linux" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-id-id.svg" alt="Unduh untuk Android" height="48"></a>
 </p>
 
 <p align="center">

@@ -1,0 +1,39 @@
+name: CI on master
+
+# The CI badge of the README. CI runs on pull requests only, so a commit on master has no run of its own: this one
+# passes when the checks of the pull request it was merged from passed, the latest result of each check counting.
+on:
+  push:
+    branches: [master]
+
+permissions:
+  checks: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  checks:
+    name: Checks of the merged pull request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          head=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq 'map(select(.merged_at != null)) | first | .head.sha // empty')
+          head=${head:-$SHA}
+          echo "Checks of $head"
+          gh api --paginate "repos/$REPO/commits/$head/check-runs?filter=all&per_page=100" \
+            --jq '.check_runs[] | select(.status == "completed" and .conclusion != "skipped" and .conclusion != "neutral") | {name, conclusion, completed_at}' \
+            | jq -s 'group_by(.name) | map(max_by(.completed_at))' > checks.json
+          jq -r '.[] | "\(.conclusion)  \(.name)"' checks.json
+          if [ "$(jq length checks.json)" = 0 ]; then
+            echo "::error::No finished checks on $head."
+            exit 1
+          fi
+          if jq -e 'any(.conclusion != "success")' checks.json > /dev/null; then
+            echo "::error::A check of $head did not pass."
+            exit 1
+          fi

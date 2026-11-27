@@ -1,6 +1,11 @@
 <div align="center">
   <img src="../../assets/icon/icon-256.png" alt="Fractique" width="128" height="128">
   <h1>Fractique</h1>
+  <p>
+    <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="https://img.shields.io/github/v/release/tarpetos/fractique?label=%EB%A6%B4%EB%A6%AC%EC%8A%A4&color=e8743b" alt="최신 릴리스"></a>
+    <a href="https://github.com/tarpetos/fractique/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/tarpetos/fractique/ci-master.yml?branch=master&label=CI&logo=github" alt="CI"></a>
+    <a href="https://github.com/tarpetos/fractique/releases"><img src="https://img.shields.io/github/downloads/tarpetos/fractique/total?label=%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C" alt="다운로드"></a>
+  </p>
   <p><strong>같은 입력에서 어느 플랫폼에서나 같은 이미지를 만들어 내는 프랙탈 불꽃, 고전 프랙탈 및 배경화면 생성기.</strong></p>
   <p><sub>
     <a href="../../README.md">English</a> · <a href="README_UK.md">Українська</a> · <a href="README_RU.md">Русский</a> · <a href="README_DE.md">Deutsch</a> · <a href="README_FR.md">Français</a> · <a href="README_ES.md">Español</a> · <a href="README_IT.md">Italiano</a> · <a href="README_JA.md">日本語</a><br>
@@ -9,8 +14,11 @@
 </div>
 
 <p align="center">
-  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-ko-kr.svg" alt="App Store에서 다운로드" height="48"></a><br>
-  <sub>iPhone 및 iPad. Windows, macOS, Linux, Android는 <a href="https://github.com/tarpetos/fractique/releases/latest">최신 릴리스</a>에서 무료로.</sub>
+  <a href="https://apps.apple.com/app/fractique/id6836122841"><img src="../../assets/badges/app-store-ko-kr.svg" alt="App Store에서 다운로드" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/windows-ko-kr.svg" alt="Windows용 다운로드" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/macos-ko-kr.svg" alt="macOS용 다운로드" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/linux-ko-kr.svg" alt="Linux용 다운로드" height="48"></a>
+  <a href="https://github.com/tarpetos/fractique/releases/latest"><img src="../../assets/badges/android-ko-kr.svg" alt="Android용 다운로드" height="48"></a>
 </p>
 
 <p align="center">
